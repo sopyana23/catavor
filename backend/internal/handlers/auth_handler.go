@@ -742,23 +742,33 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			} else {
 				origAmount = planInfo.PriceMonthly
 			}
+		} else {
+			// Fallbacks
+			if requestedPlan == "pro_business" {
+				if billingCycle == "annual" {
+					origAmount = 1290000
+				} else {
+					origAmount = 129000
+				}
+			} else {
+				if billingCycle == "annual" {
+					origAmount = 490000
+				} else {
+					origAmount = 49000
+				}
+			}
 		}
 
-		if cleanCoupon == "CATAVOR100" || cleanCoupon == "GRATISPRO" {
-			discountAmount = origAmount
-			finalAmount = 0
-		} else if cleanCoupon == "DISKON10K" {
-			discountAmount = 10000
-			if discountAmount > origAmount {
-				discountAmount = origAmount
+		if cleanCoupon != "" {
+			validCoupon, disc, fin, err := services.ValidateCoupon(h.db, cleanCoupon, requestedPlan, origAmount)
+			if err == nil && validCoupon != nil {
+				discountAmount = disc
+				finalAmount = fin
+			} else {
+				// Kupon tidak valid atau kedaluwarsa, abaikan dan gunakan harga normal
+				finalAmount = origAmount
+				cleanCoupon = ""
 			}
-			finalAmount = origAmount - discountAmount
-		} else if cleanCoupon == "DISKON50K" {
-			discountAmount = 50000
-			if discountAmount > origAmount {
-				discountAmount = origAmount
-			}
-			finalAmount = origAmount - discountAmount
 		} else {
 			finalAmount = origAmount
 		}
@@ -832,6 +842,15 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			"code":    "PAYMENT_GATEWAY_MAINTENANCE",
 			"message": "Sistem pembayaran saat ini sedang dalam pemeliharaan. Pendaftaran paket berbayar sementara ditangguhkan.",
 		})
+	}
+
+	if requestedPlan != "free" && finalAmount > 0 && paymentSystemMode == "manual_qris" {
+		if strings.TrimSpace(req.PaymentProofURL) == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Bukti transfer pembayaran wajib diunggah sebelum menyelesaikan pendaftaran paket berbayar.",
+			})
+		}
 	}
 
 	if err := h.db.Create(&newStore).Error; err != nil {
@@ -909,6 +928,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 
 		_ = h.db.Create(&subOrder).Error
+		if cleanCoupon != "" && discountAmount > 0 {
+			_ = services.IncrementCouponUsage(h.db, cleanCoupon)
+		}
 	}
 
 	token, tokenID, expiresAt, _ := middleware.GenerateTokenWithID(&targetUser, &newStore, h.cfg)

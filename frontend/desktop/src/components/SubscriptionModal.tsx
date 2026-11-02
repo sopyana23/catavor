@@ -217,9 +217,11 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         body: JSON.stringify({ code: couponInput.trim() })
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        setAppliedCoupon(data.coupon);
-        setCouponMsg({ type: 'success', text: `Kupon "${data.coupon.code}" aktif! Diskon ${data.coupon.discount_percent}% diterapkan.` });
+      const couponObj = data.coupon || data.data;
+      if (res.ok && (data.success || data.valid) && couponObj) {
+        setAppliedCoupon(couponObj);
+        const discountLabel = couponObj.type === 'free' ? 'Gratis 100%' : `Potongan Rp ${(couponObj.discount || 0).toLocaleString('id-ID')}`;
+        setCouponMsg({ type: 'success', text: `Kupon "${couponObj.code}" aktif! (${discountLabel})` });
       } else {
         setAppliedCoupon(null);
         setCouponMsg({ type: 'error', text: data.message || 'Kode promo/kupon tidak valid atau telah kedaluwarsa.' });

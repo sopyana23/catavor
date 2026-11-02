@@ -5025,7 +5025,7 @@ function App() {
       const urlParams = new URLSearchParams(window.location.search);
       const urlPlan = urlParams.get('plan');
 
-      let pathTab: 'home' | 'login' | 'register' | 'terms' | 'privacy' | 'acceptable_use' = 'home';
+      let pathTab: 'home' | 'login' | 'register' | 'checkout' | 'terms' | 'privacy' | 'acceptable_use' = 'home';
       let pathStep: 1 | 2 | 3 = 1;
 
       if (path === '/login') {
@@ -5035,6 +5035,9 @@ function App() {
         } else {
           pathTab = 'login';
         }
+      } else if (path === '/checkout') {
+        pathTab = 'checkout';
+        pathStep = 3;
       } else if (path === '/register' || path === '/register/step-1') {
         pathTab = 'register';
         pathStep = 1;
@@ -12256,6 +12259,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
     let targetPath = '/';
     if (portalTab === 'login') {
       targetPath = '/login';
+    } else if (portalTab === 'checkout') {
+      targetPath = `/checkout?plan=${registerPlan}&billing=${registerBillingCycle}`;
     } else if (portalTab === 'register') {
       if (registerStep === 1) targetPath = '/register';
       else if (registerStep === 2) targetPath = '/register/step-2';
@@ -17233,30 +17238,51 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             />
                             <button 
                               type="button" 
-                              onClick={() => {
+                              onClick={async () => {
                                 const cleanCode = couponInput.trim().toUpperCase();
                                 if (!cleanCode) {
                                   setCouponMsg({ type: 'error', text: 'Masukkan kode kupon terlebih dahulu.' });
                                   return;
                                 }
-                                let masterCoupons: any[] = [];
                                 try {
-                                  if (settings.master_coupons) masterCoupons = JSON.parse(settings.master_coupons);
-                                } catch {}
-                                if (!masterCoupons.length) {
-                                  masterCoupons = [
-                                    { code: 'CATAVOR100', type: 'free', discount: originalPrice, label: 'Gratis 100% Pendaftaran' },
-                                    { code: 'GRATISPRO', type: 'free', discount: originalPrice, label: 'Gratis Uji Coba Pro' },
-                                    { code: 'DISKON10K', type: 'discount', discount: 10000, label: 'Potongan Harga Rp 10.000' },
-                                    { code: 'DISKON50K', type: 'discount', discount: 50000, label: 'Potongan Harga Rp 50.000' }
-                                  ];
-                                }
-                                const found = masterCoupons.find((c: any) => c.code.toUpperCase() === cleanCode);
-                                if (found) {
-                                  setAppliedCoupon(found);
-                                  setCouponMsg({ type: 'success', text: `Kupon ${found.code} Berhasil! (${found.label})` });
-                                } else {
-                                  setCouponMsg({ type: 'error', text: `Kode kupon "${cleanCode}" tidak berlaku.` });
+                                  const res = await fetch('/api/subscription/verify-coupon', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      code: cleanCode,
+                                      plan: registerPlan,
+                                      amount: originalPrice,
+                                    }),
+                                  });
+                                  const data = await res.json();
+                                  const couponObj = data.coupon || data.data;
+                                  if (res.ok && (data.valid || data.success) && couponObj) {
+                                    setAppliedCoupon(couponObj);
+                                    setCouponMsg({ type: 'success', text: `Kupon ${couponObj.code} Berhasil! (${couponObj.label || 'Diskon aktif'})` });
+                                  } else {
+                                    setCouponMsg({ type: 'error', text: data.message || `Kode kupon "${cleanCode}" tidak berlaku.` });
+                                  }
+                                } catch {
+                                  // Fallback to legacy local coupon lookup
+                                  let masterCoupons: any[] = [];
+                                  try {
+                                    if (settings.master_coupons) masterCoupons = JSON.parse(settings.master_coupons);
+                                  } catch {}
+                                  if (!masterCoupons.length) {
+                                    masterCoupons = [
+                                      { code: 'CATAVOR100', type: 'free', discount: originalPrice, label: 'Gratis 100% Pendaftaran' },
+                                      { code: 'GRATISPRO', type: 'free', discount: originalPrice, label: 'Gratis Uji Coba Pro' },
+                                      { code: 'DISKON10K', type: 'discount', discount: 10000, label: 'Potongan Harga Rp 10.000' },
+                                      { code: 'DISKON50K', type: 'discount', discount: 50000, label: 'Potongan Harga Rp 50.000' }
+                                    ];
+                                  }
+                                  const found = masterCoupons.find((c: any) => c.code.toUpperCase() === cleanCode);
+                                  if (found) {
+                                    setAppliedCoupon(found);
+                                    setCouponMsg({ type: 'success', text: `Kupon ${found.code} Berhasil! (${found.label})` });
+                                  } else {
+                                    setCouponMsg({ type: 'error', text: `Kode kupon "${cleanCode}" tidak berlaku.` });
+                                  }
                                 }
                               }}
                               style={{ padding: '0.5rem 0.85rem', borderRadius: '0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer' }}

@@ -637,29 +637,15 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		originalAmount = plan.PriceMonthly
 	}
 
-	// Calculate Coupon Discount
+	// Calculate Coupon Discount via master_coupons setting
 	var discountAmount float64
 	cleanCoupon := strings.ToUpper(strings.TrimSpace(req.CouponCode))
 	if cleanCoupon != "" {
-		var couponSetting models.Setting
-		if err := db.Where("key = ?", "master_coupons").First(&couponSetting).Error; err == nil && couponSetting.Value != "" {
-			var coupons []struct {
-				Code     string  `json:"code"`
-				Type     string  `json:"type"`
-				Discount float64 `json:"discount"`
-			}
-			if err := json.Unmarshal([]byte(couponSetting.Value), &coupons); err == nil {
-				for _, c := range coupons {
-					if strings.ToUpper(c.Code) == cleanCoupon {
-						if c.Type == "free" {
-							discountAmount = originalAmount
-						} else {
-							discountAmount = c.Discount
-						}
-						break
-					}
-				}
-			}
+		coupon, disc, _, err := ValidateCoupon(db, cleanCoupon, plan.Code, originalAmount)
+		if err == nil && coupon != nil {
+			discountAmount = disc
+		} else {
+			cleanCoupon = ""
 		}
 	}
 
@@ -783,6 +769,10 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 
 	if err := db.Create(&order).Error; err != nil {
 		return nil, nil, fmt.Errorf("gagal membuat invoice langganan: %w", err)
+	}
+
+	if cleanCoupon != "" && discountAmount > 0 {
+		_ = IncrementCouponUsage(db, cleanCoupon)
 	}
 
 	// Security Hardening: Only execute instant Upgrade/Renewal if order is 100% free / discount coupon

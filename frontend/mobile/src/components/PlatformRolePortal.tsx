@@ -40,6 +40,9 @@ import {
   Calendar,
   Lock,
   Tag,
+  Power,
+  Edit2,
+  Percent,
   LogOut,
   Copy,
   CheckCheck,
@@ -327,6 +330,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canManageReports = hasPermission(currentUser, 'compliance:reports:manage') || isSuperAdmin(currentUser);
   const canManageFinance = hasPermission(currentUser, 'finance:orders:manage') || isSuperAdmin(currentUser);
   const canManagePaymentSettings = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:settings:manage') || hasPermission(currentUser, 'system:settings:manage');
+  const canManageCoupons = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:settings:manage') || hasPermission(currentUser, 'system:settings:manage') || hasPermission(currentUser, 'finance:orders:manage');
   const canSendBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
   // Helper to synchronize URL query parameters cleanly and safely for Mobile Admin
   const updatePlatformUrl = (
@@ -1481,10 +1485,37 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersFilter, setOrdersFilter] = useState<'all' | 'pending' | 'active' | 'rejected'>('all');
-  const [financeSubTab, setFinanceSubTab] = useState<'orders' | 'settings'>('orders');
+  const [financeSubTab, setFinanceSubTab] = useState<'orders' | 'settings' | 'coupons'>('orders');
   const [showAulaaSecrets, setShowAulaaSecrets] = useState(false);
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
   const [isUploadingQRISImage, setIsUploadingQRISImage] = useState(false);
+
+  // Coupons State (Mobile Platform Admin)
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [loadingCoupons, setLoadingCoupons] = useState(false);
+  const [showCouponModal, setShowCouponModal] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
+  const [couponSearchFilter, setCouponSearchFilter] = useState('');
+  const [savingCoupon, setSavingCoupon] = useState(false);
+  const [deletingCouponCode, setDeletingCouponCode] = useState<string | null>(null);
+  const [togglingCouponCode, setTogglingCouponCode] = useState<string | null>(null);
+  const [couponForm, setCouponForm] = useState<{
+    code: string;
+    label: string;
+    type: 'discount' | 'free';
+    discount: number;
+    usage_limit: number;
+    expires_at: string;
+    is_active: boolean;
+  }>({
+    code: '',
+    label: '',
+    type: 'discount',
+    discount: 50000,
+    usage_limit: 0,
+    expires_at: '',
+    is_active: true
+  });
 
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
 
@@ -2608,6 +2639,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     modalId: 'mobile_audit_detail'
   });
 
+  useModalBackHandler({
+    isOpen: showCouponModal,
+    onClose: () => setShowCouponModal(false),
+    modalId: 'mobile_coupon_modal'
+  });
+
   const fetchAutomationData = async (botFilter = automationLogsBotFilter, statusFilter = automationLogsStatusFilter, search = automationLogsSearch) => {
     if (!token || !canAccessAutomation) return;
     setIsFetchingAutomation(true);
@@ -3567,6 +3604,164 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       showToast('Kesalahan jaringan saat mengunggah berkas QRIS', 'error');
     } finally {
       setIsUploadingQRISImage(false);
+    }
+  };
+
+  const fetchCoupons = useCallback(async () => {
+    if (!token) return;
+    setLoadingCoupons(true);
+    try {
+      const res = await fetch('/api/admin/coupons', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setCoupons(data.data);
+        }
+      }
+    } catch (err) {
+      console.warn('Gagal memuat kupon platform:', err);
+    } finally {
+      setLoadingCoupons(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (activeView === 'finance' && financeSubTab === 'coupons') {
+      fetchCoupons();
+    }
+  }, [activeView, financeSubTab, fetchCoupons]);
+
+  const handleOpenCreateCouponModal = () => {
+    setEditingCoupon(null);
+    setCouponForm({
+      code: '',
+      label: '',
+      type: 'discount',
+      discount: 50000,
+      usage_limit: 0,
+      expires_at: '',
+      is_active: true
+    });
+    setShowCouponModal(true);
+  };
+
+  const handleOpenEditCouponModal = (cItem: any) => {
+    setEditingCoupon(cItem);
+    setCouponForm({
+      code: cItem.code || '',
+      label: cItem.label || '',
+      type: cItem.type === 'free' ? 'free' : 'discount',
+      discount: cItem.discount || 0,
+      usage_limit: cItem.usage_limit || 0,
+      expires_at: cItem.expires_at ? cItem.expires_at.split('T')[0] : '',
+      is_active: cItem.is_active !== false
+    });
+    setShowCouponModal(true);
+  };
+
+  const handleSaveCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    const cleanCode = couponForm.code.trim().toUpperCase();
+    if (!cleanCode) {
+      showToast('Kode kupon wajib diisi.', 'error');
+      return;
+    }
+    if (couponForm.type === 'discount' && Number(couponForm.discount) <= 0) {
+      showToast('Nominal potongan diskon harus lebih dari Rp 0.', 'error');
+      return;
+    }
+    setSavingCoupon(true);
+    try {
+      const payload: any = {
+        code: cleanCode,
+        label: couponForm.label.trim() || `Kupon ${cleanCode}`,
+        type: couponForm.type,
+        discount: couponForm.type === 'free' ? 0 : Number(couponForm.discount),
+        usage_limit: Number(couponForm.usage_limit) || 0,
+        is_active: couponForm.is_active
+      };
+      if (couponForm.expires_at) {
+        payload.expires_at = new Date(`${couponForm.expires_at}T23:59:59Z`).toISOString();
+      } else {
+        payload.expires_at = null;
+      }
+
+      const url = editingCoupon ? `/api/admin/coupons/${encodeURIComponent(editingCoupon.code)}` : '/api/admin/coupons';
+      const method = editingCoupon ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        const textErr = await res.text().catch(() => '');
+        throw new Error(textErr || `Server error (${res.status} ${res.statusText})`);
+      }
+      if (res.ok && data?.success) {
+        showToast(data.message || (editingCoupon ? 'Kupon berhasil diperbarui!' : 'Kupon baru berhasil ditambahkan!'), 'success');
+        setShowCouponModal(false);
+        fetchCoupons();
+      } else {
+        showToast(data?.message || 'Gagal menyimpan kupon.', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Terjadi kesalahan saat menyimpan kupon.', 'error');
+    } finally {
+      setSavingCoupon(false);
+    }
+  };
+
+  const handleDeleteCoupon = async (code: string) => {
+    if (!token || !code) return;
+    setDeletingCouponCode(code);
+    try {
+      const res = await fetch(`/api/admin/coupons/${encodeURIComponent(code)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || `Kupon "${code}" berhasil dihapus.`, 'success');
+        setCoupons(prev => prev.filter(cItem => cItem.code !== code));
+      } else {
+        showToast(data.message || 'Gagal menghapus kupon.', 'error');
+      }
+    } catch {
+      showToast('Gagal menghapus kupon.', 'error');
+    } finally {
+      setDeletingCouponCode(null);
+    }
+  };
+
+  const handleToggleCoupon = async (code: string) => {
+    if (!token || !code) return;
+    setTogglingCouponCode(code);
+    try {
+      const res = await fetch(`/api/admin/coupons/${encodeURIComponent(code)}/toggle`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || `Status kupon "${code}" berhasil diubah.`, 'success');
+        setCoupons(prev => prev.map(cItem => cItem.code === code ? { ...cItem, is_active: data.is_active } : cItem));
+      } else {
+        showToast(data.message || 'Gagal mengubah status kupon.', 'error');
+      }
+    } catch {
+      showToast('Gagal mengubah status kupon.', 'error');
+    } finally {
+      setTogglingCouponCode(null);
     }
   };
 
@@ -8466,7 +8661,45 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 }}
               >
                 <SlidersHorizontal size={15} />
-                <span>Pengaturan Sistem</span>
+                <span>Pengaturan</span>
+              </button>
+            )}
+
+            {canManageCoupons && (
+              <button
+                type="button"
+                onClick={() => setFinanceSubTab('coupons')}
+                style={{
+                  flex: 1,
+                  minHeight: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  padding: '0.45rem 0.75rem',
+                  borderRadius: '0.55rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  backgroundColor: financeSubTab === 'coupons' ? '#10b981' : theme.surface,
+                  color: financeSubTab === 'coupons' ? '#ffffff' : theme.textSecondary,
+                  border: `1px solid ${financeSubTab === 'coupons' ? '#10b981' : theme.border}`,
+                  cursor: 'pointer'
+                }}
+              >
+                <Tag size={15} />
+                <span>Kupon</span>
+                {coupons.filter(c => c.is_active).length > 0 && (
+                  <span style={{
+                    backgroundColor: financeSubTab === 'coupons' ? '#ffffff' : '#10b981',
+                    color: financeSubTab === 'coupons' ? '#10b981' : '#ffffff',
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    padding: '0.1rem 0.4rem',
+                    borderRadius: '999px'
+                  }}>
+                    {coupons.filter(c => c.is_active).length}
+                  </span>
+                )}
               </button>
             )}
           </div>
@@ -9470,6 +9703,602 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                 return null;
               })()}
+            </div>
+          )}
+
+          {/* Mobile Coupon Management Sub-Tab */}
+          {financeSubTab === 'coupons' && canManageCoupons && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Header Info & Create Button */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+                backgroundColor: theme.surface,
+                padding: '0.9rem',
+                borderRadius: '0.85rem',
+                border: `1px solid ${theme.border}`
+              }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
+                    Kupon Platform
+                  </h4>
+                  <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.72rem', color: theme.textSecondary }}>
+                    Kelola voucher diskon &amp; kupon gratis pendaftaran paket.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenCreateCouponModal}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0 0.85rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: '#10b981',
+                    border: 'none',
+                    color: '#ffffff',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <Plus size={15} />
+                  <span>Tambah</span>
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              <div style={{ position: 'relative' }}>
+                <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textSecondary }} />
+                <input
+                  type="text"
+                  placeholder="Cari kode atau nama kupon..."
+                  value={couponSearchFilter}
+                  onChange={(e) => setCouponSearchFilter(e.target.value)}
+                  style={{
+                    width: '100%',
+                    minHeight: '44px',
+                    padding: '0.6rem 0.85rem 0.6rem 2.35rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: theme.cardAlt,
+                    border: `1px solid ${theme.border}`,
+                    color: theme.textPrimary,
+                    fontSize: '0.8rem',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Coupons Card List */}
+              {loadingCoupons ? (
+                <div style={{ textAlign: 'center', padding: '2rem 1rem', color: theme.textSecondary, fontSize: '0.8rem' }}>
+                  Memuat daftar kupon...
+                </div>
+              ) : (() => {
+                const filtered = coupons.filter(c => {
+                  const q = couponSearchFilter.trim().toLowerCase();
+                  if (!q) return true;
+                  return (c.code || '').toLowerCase().includes(q) || (c.label || '').toLowerCase().includes(q);
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div style={{
+                      textAlign: 'center',
+                      padding: '2.5rem 1rem',
+                      backgroundColor: theme.surface,
+                      borderRadius: '0.85rem',
+                      border: `1px solid ${theme.border}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '0.65rem'
+                    }}>
+                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: theme.cardAlt, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Tag size={24} style={{ color: theme.textSecondary }} />
+                      </div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 800, color: theme.textPrimary }}>
+                        {couponSearchFilter ? 'Kupon Tidak Ditemukan' : 'Belum Ada Kupon'}
+                      </div>
+                      <p style={{ fontSize: '0.74rem', color: theme.textSecondary, margin: 0, maxWidth: '280px', lineHeight: 1.4 }}>
+                        {couponSearchFilter 
+                          ? `Tidak ada kupon yang cocok dengan kata kunci "${couponSearchFilter}".` 
+                          : 'Buat kupon promosi atau kupon uji coba gratis untuk merchant pertama Anda.'}
+                      </p>
+                      {!couponSearchFilter && (
+                        <button
+                          type="button"
+                          onClick={handleOpenCreateCouponModal}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0 1rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: '#10b981',
+                            border: 'none',
+                            color: '#ffffff',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            marginTop: '0.5rem'
+                          }}
+                        >
+                          <Plus size={15} />
+                          <span>Buat Kupon Pertama</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {filtered.map((item: any) => {
+                      const isFree = item.type === 'free';
+                      const isExpired = item.expires_at && new Date(item.expires_at) < new Date();
+                      const isLimitReached = item.usage_limit > 0 && item.used_count >= item.usage_limit;
+
+                      return (
+                        <div
+                          key={item.id || item.code}
+                          style={{
+                            padding: '1rem',
+                            backgroundColor: theme.surface,
+                            borderRadius: '0.85rem',
+                            border: `1px solid ${item.is_active && !isExpired && !isLimitReached ? theme.border : 'rgba(239, 68, 68, 0.25)'}`,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.65rem'
+                          }}
+                        >
+                          {/* Card Top: Code + Badge */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <span style={{ fontSize: '0.95rem', fontWeight: 900, color: theme.textPrimary, letterSpacing: '0.04em' }}>
+                                {item.code}
+                              </span>
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                padding: '0.15rem 0.5rem',
+                                borderRadius: '999px',
+                                backgroundColor: isFree ? 'rgba(16, 185, 129, 0.12)' : 'rgba(2, 132, 199, 0.12)',
+                                color: isFree ? '#10b981' : '#0284c7',
+                                border: isFree ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(2, 132, 199, 0.3)'
+                              }}>
+                                {isFree ? '100% GRATIS' : `DISKON Rp ${Number(item.discount || 0).toLocaleString('id-ID')}`}
+                              </span>
+                            </div>
+
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 800,
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '999px',
+                              backgroundColor: !item.is_active ? 'rgba(239, 68, 68, 0.12)' : (isExpired || isLimitReached ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.12)'),
+                              color: !item.is_active ? '#ef4444' : (isExpired || isLimitReached ? '#f59e0b' : '#10b981'),
+                              border: !item.is_active ? '1px solid rgba(239, 68, 68, 0.25)' : (isExpired || isLimitReached ? '1px solid rgba(245, 158, 11, 0.25)' : '1px solid rgba(16, 185, 129, 0.25)')
+                            }}>
+                              {!item.is_active ? 'NONAKTIF' : (isExpired ? 'KEDALUWARSA' : (isLimitReached ? 'HABIS' : 'AKTIF'))}
+                            </span>
+                          </div>
+
+                          {/* Label Description */}
+                          <div style={{ fontSize: '0.78rem', color: theme.textSecondary }}>
+                            {item.label}
+                          </div>
+
+                          {/* Metadata row */}
+                          <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr',
+                            gap: '0.5rem',
+                            padding: '0.55rem 0.75rem',
+                            backgroundColor: theme.cardAlt,
+                            borderRadius: '0.5rem',
+                            fontSize: '0.72rem'
+                          }}>
+                            <div>
+                              <span style={{ color: theme.textSecondary }}>Pemakaian: </span>
+                              <strong style={{ color: theme.textPrimary }}>
+                                {item.used_count || 0} {item.usage_limit > 0 ? `/ ${item.usage_limit}` : '(Tanpa batas)'}
+                              </strong>
+                            </div>
+                            <div>
+                              <span style={{ color: theme.textSecondary }}>Berlaku: </span>
+                              <strong style={{ color: theme.textPrimary }}>
+                                {item.expires_at ? new Date(item.expires_at).toLocaleDateString('id-ID') : 'Permanen'}
+                              </strong>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div style={{ display: 'flex', gap: '0.4rem', borderTop: `1px solid ${theme.border}`, paddingTop: '0.55rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCoupon(item.code)}
+                              disabled={togglingCouponCode === item.code}
+                              style={{
+                                flex: 1,
+                                minHeight: '44px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem',
+                                borderRadius: '0.45rem',
+                                border: `1px solid ${theme.border}`,
+                                backgroundColor: item.is_active ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                                color: item.is_active ? '#ef4444' : '#10b981',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Power size={13} />
+                              <span>{togglingCouponCode === item.code ? '...' : (item.is_active ? 'Nonaktifkan' : 'Aktifkan')}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditCouponModal(item)}
+                              style={{
+                                flex: 1,
+                                minHeight: '44px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem',
+                                borderRadius: '0.45rem',
+                                border: `1px solid ${theme.border}`,
+                                backgroundColor: theme.surface,
+                                color: theme.textPrimary,
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Edit2 size={13} />
+                              <span>Edit</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Yakin ingin menghapus kupon "${item.code}"?`)) {
+                                  handleDeleteCoupon(item.code);
+                                }
+                              }}
+                              disabled={deletingCouponCode === item.code}
+                              style={{
+                                width: '44px',
+                                minHeight: '44px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '0.45rem',
+                                border: `1px solid ${theme.border}`,
+                                backgroundColor: 'transparent',
+                                color: '#ef4444',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Modal Bottom Sheet Add/Edit Coupon (Mobile) */}
+          {showCouponModal && (
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                backdropFilter: 'blur(4px)',
+                zIndex: 9999,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+                animation: 'fadeIn 0.2s ease'
+              }}
+              onClick={() => setShowCouponModal(false)}
+            >
+              <div
+                style={{
+                  backgroundColor: theme.surface,
+                  borderTopLeftRadius: '1.25rem',
+                  borderTopRightRadius: '1.25rem',
+                  maxHeight: '90vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.3)',
+                  overflow: 'hidden'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Drag Handle Bar (Anti-Stiff touchAction: none) */}
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '0.75rem 0 0.35rem 0', touchAction: 'none' }}>
+                  <div style={{ width: '38px', height: '4px', borderRadius: '999px', backgroundColor: theme.border }} />
+                </div>
+
+                {/* Clean Header (Haram tombol close 'X' di header per standard mobile) */}
+                <div style={{ padding: '0.5rem 1.25rem 0.85rem 1.25rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Tag size={18} color="#10b981" />
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
+                      {editingCoupon ? `Edit Kupon ${editingCoupon.code}` : 'Tambah Kupon Baru'}
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '0.72rem', color: theme.textSecondary }}>
+                      Konfigurasi aturan pemotongan biaya pendaftaran &amp; paket.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Body Form */}
+                <form onSubmit={handleSaveCoupon} style={{ padding: '1rem 1.25rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                      Kode Kupon (Wajib Huruf Besar/Angka) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="CONTOH: PROMOHEMAT"
+                      value={couponForm.code}
+                      onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })}
+                      style={{
+                        width: '100%',
+                        minHeight: '44px',
+                        padding: '0.6rem 0.85rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: theme.cardAlt,
+                        border: `1px solid ${theme.border}`,
+                        color: theme.textPrimary,
+                        fontSize: '0.82rem',
+                        textTransform: 'uppercase',
+                        fontWeight: 700,
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                      Deskripsi / Label Kupon *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: Diskon Grand Opening 50%"
+                      value={couponForm.label}
+                      onChange={(e) => setCouponForm({ ...couponForm, label: e.target.value })}
+                      style={{
+                        width: '100%',
+                        minHeight: '44px',
+                        padding: '0.6rem 0.85rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: theme.cardAlt,
+                        border: `1px solid ${theme.border}`,
+                        color: theme.textPrimary,
+                        fontSize: '0.82rem',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  {/* Tipe Kupon Segmented Switcher */}
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                      Tipe Kupon
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setCouponForm({ ...couponForm, type: 'discount' })}
+                        style={{
+                          minHeight: '44px',
+                          borderRadius: '0.55rem',
+                          border: couponForm.type === 'discount' ? '2px solid #10b981' : `1px solid ${theme.border}`,
+                          backgroundColor: couponForm.type === 'discount' ? 'rgba(16, 185, 129, 0.12)' : theme.cardAlt,
+                          color: couponForm.type === 'discount' ? '#10b981' : theme.textSecondary,
+                          fontWeight: 700,
+                          fontSize: '0.76rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Percent size={14} />
+                        <span>Potongan Nominal</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCouponForm({ ...couponForm, type: 'free', discount: 0 })}
+                        style={{
+                          minHeight: '44px',
+                          borderRadius: '0.55rem',
+                          border: couponForm.type === 'free' ? '2px solid #10b981' : `1px solid ${theme.border}`,
+                          backgroundColor: couponForm.type === 'free' ? 'rgba(16, 185, 129, 0.12)' : theme.cardAlt,
+                          color: couponForm.type === 'free' ? '#10b981' : theme.textSecondary,
+                          fontWeight: 700,
+                          fontSize: '0.76rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Sparkles size={14} />
+                        <span>Gratis 100% (Free)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {couponForm.type === 'discount' && (
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                        Nominal Potongan (Rp) *
+                      </label>
+                      <input
+                        type="number"
+                        min="1000"
+                        step="1000"
+                        required
+                        value={couponForm.discount}
+                        onChange={(e) => setCouponForm({ ...couponForm, discount: Number(e.target.value) })}
+                        style={{
+                          width: '100%',
+                          minHeight: '44px',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: theme.cardAlt,
+                          border: `1px solid ${theme.border}`,
+                          color: theme.textPrimary,
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                        Batas Pakai (0 = Bebas)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={couponForm.usage_limit}
+                        onChange={(e) => setCouponForm({ ...couponForm, usage_limit: Number(e.target.value) })}
+                        style={{
+                          width: '100%',
+                          minHeight: '44px',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: theme.cardAlt,
+                          border: `1px solid ${theme.border}`,
+                          color: theme.textPrimary,
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary, display: 'block', marginBottom: '0.35rem' }}>
+                        Tanggal Kedaluwarsa
+                      </label>
+                      <input
+                        type="date"
+                        value={couponForm.expires_at}
+                        onChange={(e) => setCouponForm({ ...couponForm, expires_at: e.target.value })}
+                        style={{
+                          width: '100%',
+                          minHeight: '44px',
+                          padding: '0.6rem 0.85rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: theme.cardAlt,
+                          border: `1px solid ${theme.border}`,
+                          color: theme.textPrimary,
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Switch is_active */}
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.65rem',
+                    cursor: 'pointer',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.55rem',
+                    backgroundColor: theme.cardAlt,
+                    border: `1px solid ${theme.border}`
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={couponForm.is_active}
+                      onChange={(e) => setCouponForm({ ...couponForm, is_active: e.target.checked })}
+                      style={{ width: '18px', height: '18px', accentColor: '#10b981' }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: '0.78rem', color: theme.textPrimary, display: 'block' }}>Kupon Aktif</strong>
+                      <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>Pengguna dapat langsung menerapkan kupon ini saat checkout.</span>
+                    </div>
+                  </label>
+
+                  {/* Footer Action Buttons */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowCouponModal(false)}
+                      style={{
+                        flex: 1,
+                        minHeight: '44px',
+                        padding: '0.65rem',
+                        borderRadius: '0.55rem',
+                        border: `1px solid ${theme.border}`,
+                        backgroundColor: 'transparent',
+                        color: theme.textSecondary,
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingCoupon}
+                      style={{
+                        flex: 1.5,
+                        minHeight: '44px',
+                        padding: '0.65rem',
+                        borderRadius: '0.55rem',
+                        border: 'none',
+                        backgroundColor: '#10b981',
+                        color: '#ffffff',
+                        fontSize: '0.8rem',
+                        fontWeight: 800,
+                        cursor: savingCoupon ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {savingCoupon ? 'Menyimpan...' : (editingCoupon ? 'Simpan Perubahan' : 'Buat Kupon')}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
         </div>

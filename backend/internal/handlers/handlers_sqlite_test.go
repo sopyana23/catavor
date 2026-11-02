@@ -69,6 +69,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 		&models.PlatformRole{},
 		&models.PlatformPermission{},
 		&models.PlatformRolePermission{},
+		&models.Setting{},
 	); err != nil {
 		t.Fatalf("AutoMigrate(sqlite): %v", err)
 	}

@@ -212,7 +212,7 @@ export const isReservedStoreSlug = (slug?: string | null): boolean => {
   if (!slug) return false;
   const s = slug.toLowerCase();
   const reserved = [
-    'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 
+    'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 
     'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 
     'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 
     'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 
@@ -267,7 +267,7 @@ function getStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
   const path = window.location.pathname.toLowerCase();
   const parts = path.split('/').filter(Boolean);
-  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
   
   if (parts.length === 0) return null;
   if (parts[0] === 'login' && parts.length > 1 && !reservedPortal.includes(parts[1])) {
@@ -4971,7 +4971,7 @@ function App() {
     if (!slug) return true;
     const clean = slug.toLowerCase().trim();
     const reserved = [
-      'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin',
+      'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin',
       'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
       'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan',
       'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan',
@@ -5015,6 +5015,7 @@ function App() {
         p === '/ops' || p.startsWith('/ops/') ||
         p === '/login' ||
         p === '/register' || p.startsWith('/register/') ||
+        p === '/checkout' || p.startsWith('/checkout') ||
         p === '/' || p === ''
       ) {
         return null;
@@ -5035,14 +5036,18 @@ function App() {
           tab: 'home' as const,
           step: 1 as const,
           plan: 'free' as const,
-          form: { name: '', email: '', password: '', store_name: '', store_slug: '' }
+          billing: 'monthly' as const,
+          form: { name: '', email: '', password: '', store_name: '', store_slug: '' },
+          coupon: null,
+          paymentMethod: 'bank' as const
         };
       }
 
       const urlParams = new URLSearchParams(window.location.search);
       const urlPlan = urlParams.get('plan');
+      const urlBilling = urlParams.get('billing');
 
-      let pathTab: 'home' | 'login' | 'register' | 'terms' | 'privacy' | 'acceptable_use' = 'home';
+      let pathTab: 'home' | 'login' | 'register' | 'checkout' | 'terms' | 'privacy' | 'acceptable_use' = 'home';
       let pathStep: 1 | 2 | 3 = 1;
 
       if (path === '/dashboard') {
@@ -5077,6 +5082,9 @@ function App() {
         } else {
           pathTab = 'login';
         }
+      } else if (path === '/checkout') {
+        pathTab = 'checkout';
+        pathStep = 3;
       } else if (path === '/register' || path === '/register/step-1') {
         pathTab = 'register';
         pathStep = 1;
@@ -5095,7 +5103,7 @@ function App() {
       } else {
         const queryTab = urlParams.get('tab');
         const queryStep = urlParams.get('step');
-        if (['login', 'register', 'terms', 'privacy', 'acceptable_use'].includes(queryTab || '')) {
+        if (['login', 'register', 'checkout', 'terms', 'privacy', 'acceptable_use'].includes(queryTab || '')) {
           pathTab = queryTab as any;
           if (queryStep) {
             const stepNum = parseInt(queryStep, 10);
@@ -5103,31 +5111,51 @@ function App() {
           }
         } else {
           const savedTab = sessionStorage.getItem('catavor_portal_tab');
-          if (['terms', 'privacy', 'acceptable_use'].includes(savedTab || '')) {
+          if (['terms', 'privacy', 'acceptable_use', 'checkout'].includes(savedTab || '')) {
             pathTab = savedTab as any;
           }
         }
       }
 
       const savedPlan = sessionStorage.getItem('catavor_register_plan');
+      const savedBilling = sessionStorage.getItem('catavor_register_billing');
       const savedForm = sessionStorage.getItem('catavor_register_form');
+      const savedCoupon = sessionStorage.getItem('catavor_applied_coupon');
+      const savedPaymentMethod = sessionStorage.getItem('catavor_payment_method');
 
       const rawPlan = urlPlan || savedPlan || 'free';
       const finalPlan = (rawPlan === 'pro' ? 'pro_starter' : rawPlan) as 'free' | 'pro_starter' | 'pro_business';
+      const finalBilling: 'monthly' | 'annual' = (urlBilling === 'annual' || urlBilling === 'monthly')
+        ? (urlBilling as 'monthly' | 'annual')
+        : ((savedBilling === 'annual' || savedBilling === 'monthly' ? savedBilling : 'monthly') as 'monthly' | 'annual');
       const finalForm = savedForm ? JSON.parse(savedForm) : { name: '', email: '', password: '', store_name: '', store_slug: '' };
+      const finalCoupon = savedCoupon ? JSON.parse(savedCoupon) : null;
+      const finalPaymentMethod: 'bank' | 'qris' = (savedPaymentMethod === 'qris' || savedPaymentMethod === 'bank') ? (savedPaymentMethod as 'bank' | 'qris') : 'bank';
+
+      // If user landed on /checkout directly but hasn't filled registration details yet, redirect to step 1 cleanly
+      if (pathTab === 'checkout' && (!finalForm.email || !finalForm.name)) {
+        pathTab = 'register';
+        pathStep = 1;
+      }
 
       return {
         tab: pathTab,
         step: pathStep,
         plan: finalPlan,
-        form: finalForm
+        billing: finalBilling,
+        form: finalForm,
+        coupon: finalCoupon,
+        paymentMethod: finalPaymentMethod
       };
     } catch {
       return {
         tab: 'home' as const,
         step: 1 as const,
         plan: 'free' as const,
-        form: { name: '', email: '', password: '', store_name: '', store_slug: '' }
+        billing: 'monthly' as const,
+        form: { name: '', email: '', password: '', store_name: '', store_slug: '' },
+        coupon: null,
+        paymentMethod: 'bank' as const
       };
     }
   };
@@ -5138,9 +5166,9 @@ function App() {
   const [registerPlan, setRegisterPlan] = useState<'free' | 'pro_starter' | 'pro_business'>(
     (initialRegState.plan as any) === 'pro' ? 'pro_starter' : (initialRegState.plan as any) || 'free'
   );
-  const [registerBillingCycle, setRegisterBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [registerBillingCycle, setRegisterBillingCycle] = useState<'monthly' | 'annual'>(initialRegState.billing || 'monthly');
   const [registerStep, setRegisterStep] = useState<1 | 2 | 3>(initialRegState.step);
-  const [paymentMethod, setPaymentMethod] = useState<'bank' | 'qris'>('bank');
+  const [paymentMethod, setPaymentMethod] = useState<'bank' | 'qris'>(initialRegState.paymentMethod || 'bank');
   const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null);
   const [paymentProofNote, setPaymentProofNote] = useState<string>('');
   const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState<boolean>(false);
@@ -6350,10 +6378,14 @@ Terima kasih.`;
   useEffect(() => {
     setRegisterError(null);
     setFieldErrors({});
+    if (portalTab === 'checkout') {
+      fetchPlatformSettings();
+    }
   }, [registerStep, portalTab]);
 
   const [couponInput, setCouponInput] = useState<string>('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string, type: 'free' | 'discount', discount: number, label: string } | null>(null);
+  const [couponValidating, setCouponValidating] = useState<boolean>(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string, type: 'free' | 'discount', discount: number, label: string } | null>(initialRegState.coupon || null);
   const [couponMsg, setCouponMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   // Registration OTP & Email Verification State (Mobile)
@@ -11342,6 +11374,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
         if (token && isPlatformAdmin(adminUser)) {
           setActiveTab('admin');
         }
+      } else if (path === '/checkout') {
+        setPortalTab('checkout');
+        setRegisterStep(3);
+        if (['pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
+          setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
+        }
+        const urlBilling = urlParams.get('billing');
+        if (urlBilling === 'annual' || urlBilling === 'monthly') {
+          setRegisterBillingCycle(urlBilling);
+        }
       } else if (path === '/register' || path === '/register/step-1') {
         setPortalTab('register');
         setRegisterStep(1);
@@ -12099,7 +12141,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return false;
     }
     const parts = path.split('/').filter(Boolean);
-    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
     
     if (parts.length === 0) return false;
     if (parts.length === 1) return false;
@@ -12637,11 +12679,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
     sessionStorage.setItem('catavor_portal_tab', portalTab);
     sessionStorage.setItem('catavor_register_step', String(registerStep ?? 1));
     sessionStorage.setItem('catavor_register_plan', registerPlan);
+    sessionStorage.setItem('catavor_register_billing', registerBillingCycle);
     sessionStorage.setItem('catavor_register_form', JSON.stringify(registerForm));
+    if (appliedCoupon) {
+      sessionStorage.setItem('catavor_applied_coupon', JSON.stringify(appliedCoupon));
+    } else {
+      sessionStorage.removeItem('catavor_applied_coupon');
+    }
+    sessionStorage.setItem('catavor_payment_method', paymentMethod);
 
     let targetPath = '/';
     if (portalTab === 'login') {
       targetPath = '/login';
+    } else if (portalTab === 'checkout') {
+      targetPath = `/checkout?plan=${registerPlan}&billing=${registerBillingCycle}`;
     } else if (portalTab === 'register') {
       if (registerStep === 1) targetPath = '/register';
       else if (registerStep === 2) targetPath = '/register/step-2';
@@ -12660,13 +12711,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const isUserInitiated = isUserNavRef.current && !isPopStateRef.current && !isInitialLoadRef.current;
       if (isPopStateRef.current || !isUserInitiated) {
         window.history.replaceState(
-          { tab: portalTab, step: registerStep, plan: registerPlan },
+          { tab: portalTab, step: registerStep, plan: registerPlan, billing: registerBillingCycle },
           '',
           targetPath
         );
       } else {
         window.history.pushState(
-          { tab: portalTab, step: registerStep, plan: registerPlan },
+          { tab: portalTab, step: registerStep, plan: registerPlan, billing: registerBillingCycle },
           '',
           targetPath
         );
@@ -12681,7 +12732,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       isInitialLoadRef.current = false;
     }
     isUserNavRef.current = false;
-  }, [portalTab, registerStep, registerPlan, registerForm, storeSlug, error]);
+  }, [portalTab, registerStep, registerPlan, registerBillingCycle, appliedCoupon, paymentMethod, registerForm, storeSlug, error]);
 
 
   // Reset displayLimit on search or filter change
@@ -13306,6 +13357,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
   };
 
   const processCheckoutSubmission = async (isFreeCoupon: boolean, overrideToken?: string) => {
+    const paymentSystemMode = platformSettings.payment_system_mode || 'manual_qris';
+    if (!isFreeCoupon && paymentSystemMode === 'manual_qris' && !paymentProofPreview) {
+      alert('Bukti transfer / pembayaran wajib diunggah sebelum melanjutkan.');
+      return;
+    }
+
     setPendingCheckoutIsFree(isFreeCoupon);
     setRegisterLoading(true);
     setRegisterError(null);
@@ -13319,6 +13376,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         payment_method: paymentMethod,
         payment_status: isFreeCoupon ? 'approved' : 'pending_approval',
         payment_proof_url: isFreeCoupon ? null : paymentProofPreview,
+        payment_note: paymentProofNote || undefined,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta'
       };
 
@@ -13452,7 +13510,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           const firstErr = Object.values(data.errors)[0] as string[];
           alert(firstErr[0] || 'Gagal memproses pendaftaran.');
         } else {
-          alert(data.message || 'Pendaftaran gagal.');
+          alert(data.error || data.message || 'Pendaftaran gagal.');
         }
       }
     } catch (err) {
@@ -13749,13 +13807,32 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   };
 
-  const handleCancelCheckout = () => {
-    setRegisterForm({ name: '', email: '', password: '', store_name: '', store_slug: '' });
-    setRegisterStep(1);
-    setAppliedCoupon(null);
-    setPaymentProofPreview(null);
-    setPortalTab('home');
+  const handleBackToPlanSelect = () => {
+    // Preserve user inputs! Navigate back to Step 3 so user can change plan or edit info
+    setRegisterStep(3);
+    setPortalTab('register');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const handleCancelRegistration = () => {
+    if (window.confirm('Batalkan pendaftaran toko dan kosongkan data yang telah diisi?')) {
+      resetRegisterFormState();
+      setAppliedCoupon(null);
+      setPaymentProofPreview(null);
+      try {
+        sessionStorage.removeItem('catavor_register_form');
+        sessionStorage.removeItem('catavor_register_plan');
+        sessionStorage.removeItem('catavor_register_billing');
+        sessionStorage.removeItem('catavor_applied_coupon');
+        sessionStorage.removeItem('catavor_payment_method');
+        sessionStorage.removeItem('catavor_portal_tab');
+      } catch {}
+      setPortalTab('home');
+      window.history.pushState(null, '', '/');
+    }
+  };
+
+  const handleCancelCheckout = handleBackToPlanSelect;
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -17352,7 +17429,48 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
         {/* CHECKOUT TAB VIEW MOBILE - CLEAN MODERN COMMERCE */}
         {portalTab === 'checkout' && (
-          <div style={{ padding: '2rem 1rem', maxWidth: '460px', margin: '0 auto', animation: 'fadeIn 0.3s ease-in-out' }}>
+          <div style={{ padding: '1.25rem 1rem 3rem 1rem', maxWidth: '460px', margin: '0 auto', animation: 'fadeIn 0.3s ease-in-out' }}>
+            {/* Top Navigation & Smart Back Bar */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+              <button
+                type="button"
+                onClick={handleBackToPlanSelect}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '0.5rem',
+                  padding: '0.4rem 0.75rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  color: '#334155',
+                  cursor: 'pointer'
+                }}
+              >
+                <ArrowLeft size={14} />
+                <span>Ubah Paket / Data</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCancelRegistration}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+                title="Batalkan pendaftaran dan hapus draf"
+              >
+                Batalkan
+              </button>
+            </div>
+
             <div className="portal-card" style={{ padding: '1.35rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
               <div style={{ textAlign: 'center' }}>
                 <div className="hero-pill-badge-clean" style={{ marginBottom: '0.5rem', background: registerPlan === 'pro_business' ? '#fef3c7' : '#e0f2fe', color: registerPlan === 'pro_business' ? '#b45309' : '#0369a1' }}>
@@ -17402,9 +17520,25 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         <strong>- Rp {(normalPrice - originalPrice).toLocaleString('id-ID')}</strong>
                       </div>
                       {appliedCoupon && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#16a34a', backgroundColor: '#f0fdf4', padding: '0.4rem 0.6rem', borderRadius: '0.4rem', border: '1px solid #bbf7d0' }}>
-                          <span>Kupon ({appliedCoupon.code}):</span>
-                          <strong>- Rp {discountAmount.toLocaleString('id-ID')}</strong>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#16a34a', backgroundColor: '#f0fdf4', padding: '0.45rem 0.65rem', borderRadius: '0.45rem', border: '1px solid #bbf7d0' }}>
+                          <div>
+                            <span style={{ fontWeight: 700 }}>Kupon ({appliedCoupon.code}):</span>
+                            <div style={{ fontSize: '0.7rem', color: '#15803d' }}>{appliedCoupon.label}</div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <strong>- Rp {discountAmount.toLocaleString('id-ID')}</strong>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAppliedCoupon(null);
+                                setCouponMsg(null);
+                                setCouponInput('');
+                              }}
+                              style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, padding: 0 }}
+                            >
+                              Batal
+                            </button>
+                          </div>
                         </div>
                       )}
 
@@ -17425,35 +17559,40 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           />
                           <button 
                             type="button" 
-                            onClick={() => {
+                            disabled={couponValidating}
+                            onClick={async () => {
                               const cleanCode = couponInput.trim().toUpperCase();
                               if (!cleanCode) {
                                 setCouponMsg({ type: 'error', text: 'Masukkan kode kupon terlebih dahulu.' });
                                 return;
                               }
-                              let masterCoupons: any[] = [];
+                              setCouponValidating(true);
                               try {
-                                if (settings.master_coupons) masterCoupons = JSON.parse(settings.master_coupons);
-                              } catch {}
-                              if (!masterCoupons.length) {
-                                masterCoupons = [
-                                  { code: 'CATAVOR100', type: 'free', discount: originalPrice, label: 'Gratis 100% Pendaftaran' },
-                                  { code: 'GRATISPRO', type: 'free', discount: originalPrice, label: 'Gratis Uji Coba Pro' },
-                                  { code: 'DISKON10K', type: 'discount', discount: 10000, label: 'Potongan Harga Rp 10.000' },
-                                  { code: 'DISKON50K', type: 'discount', discount: 50000, label: 'Potongan Harga Rp 50.000' }
-                                ];
-                              }
-                              const found = masterCoupons.find((c: any) => c.code.toUpperCase() === cleanCode);
-                              if (found) {
-                                setAppliedCoupon(found);
-                                setCouponMsg({ type: 'success', text: `Kupon ${found.code} Berhasil! (${found.label})` });
-                              } else {
-                                setCouponMsg({ type: 'error', text: `Kode kupon "${cleanCode}" tidak berlaku.` });
+                                const res = await fetch('/api/subscription/verify-coupon', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    code: cleanCode,
+                                    plan: registerPlan,
+                                    amount: originalPrice,
+                                  }),
+                                });
+                                const data = await res.json();
+                                if (res.ok && data.valid && data.coupon) {
+                                  setAppliedCoupon(data.coupon);
+                                  setCouponMsg({ type: 'success', text: `Kupon ${data.coupon.code} Berhasil! (${data.coupon.label})` });
+                                } else {
+                                  setCouponMsg({ type: 'error', text: data.message || `Kode kupon "${cleanCode}" tidak berlaku.` });
+                                }
+                              } catch {
+                                setCouponMsg({ type: 'error', text: 'Gagal memverifikasi kupon.' });
+                              } finally {
+                                setCouponValidating(false);
                               }
                             }}
-                            style={{ padding: '0.55rem 0.85rem', borderRadius: '0.5rem', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            style={{ padding: '0.55rem 0.85rem', borderRadius: '0.5rem', backgroundColor: couponValidating ? '#94a3b8' : '#eff6ff', border: '1px solid #bfdbfe', color: couponValidating ? '#ffffff' : '#1d4ed8', fontSize: '0.78rem', fontWeight: 800, cursor: couponValidating ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
                           >
-                            Terapkan
+                            {couponValidating ? '...' : 'Terapkan'}
                           </button>
                         </div>
 
@@ -17500,18 +17639,29 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <Sparkles size={16} />
                           <span>{registerLoading ? 'Mengaktifkan...' : 'Aktifkan Paket Sekarang (Gratis)'}</span>
                         </button>
-                        <button 
-                          type="button" 
-                          className="btn-portal-secondary" 
-                          style={{ width: '100%', padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
-                          onClick={handleCancelCheckout}
-                        >
-                          <Home size={15} />
-                          <span>Batal / Kembali ke Beranda</span>
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                          <button 
+                            type="button" 
+                            className="btn-portal-secondary" 
+                            style={{ flex: 1, padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
+                            onClick={handleBackToPlanSelect}
+                          >
+                            <ArrowLeft size={14} />
+                            <span>Ubah Paket / Data</span>
+                          </button>
+                          <button 
+                            type="button" 
+                            className="btn-portal-secondary" 
+                            style={{ padding: '0.65rem 0.85rem', justifyContent: 'center', fontSize: '0.75rem', color: '#64748b' }}
+                            onClick={handleCancelRegistration}
+                            title="Hapus draf pendaftaran dan kembali ke Beranda"
+                          >
+                            <span>Batal</span>
+                          </button>
+                        </div>
                       </div>
                     ) : (() => {
-                    const paymentSystemMode = settings.payment_system_mode || 'gateway_aulaa';
+                    const paymentSystemMode = platformSettings.payment_system_mode || 'manual_qris';
                     const isMaintenance = paymentSystemMode === 'maintenance';
                     const isAulaa = paymentSystemMode === 'gateway_aulaa';
 
@@ -17524,31 +17674,42 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           </div>
                           <div>
                             <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#991b1b', margin: '0 0 0.35rem 0' }}>
-                              {settings.payment_maintenance_title || 'Sistem Pembayaran Sedang Dalam Pemeliharaan'}
+                              {platformSettings.payment_maintenance_title || 'Sistem Pembayaran Sedang Dalam Pemeliharaan'}
                             </h4>
                             <p style={{ fontSize: '0.75rem', color: '#b91c1c', margin: 0, lineHeight: 1.5 }}>
-                              {settings.payment_maintenance_message || 'Mohon maaf, saat ini sistem pembayaran pendaftaran dan langganan sedang dinonaktifkan sementara untuk peningkatan kualitas layanan. Silakan hubungi admin atau coba beberapa saat lagi.'}
+                              {platformSettings.payment_maintenance_message || 'Mohon maaf, saat ini sistem pembayaran pendaftaran dan langganan sedang dinonaktifkan sementara untuk peningkatan kualitas layanan. Silakan hubungi admin atau coba beberapa saat lagi.'}
                             </p>
                           </div>
-                          <button 
-                            type="button" 
-                            className="btn-portal-secondary" 
-                            style={{ width: '100%', padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem', marginTop: '0.5rem' }}
-                            onClick={handleCancelCheckout}
-                          >
-                            <Home size={15} />
-                            <span>Kembali ke Beranda</span>
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem', width: '100%', marginTop: '0.5rem' }}>
+                            <button 
+                              type="button" 
+                              className="btn-portal-secondary" 
+                              style={{ flex: 1, padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
+                              onClick={handleBackToPlanSelect}
+                            >
+                              <ArrowLeft size={14} />
+                              <span>Ubah Paket / Data</span>
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn-portal-secondary" 
+                              style={{ padding: '0.65rem 0.85rem', justifyContent: 'center', fontSize: '0.75rem', color: '#64748b' }}
+                              onClick={handleCancelRegistration}
+                              title="Hapus draf pendaftaran dan kembali ke Beranda"
+                            >
+                              <span>Batal</span>
+                            </button>
+                          </div>
                         </div>
                       );
                     }
 
                     // 2. Mode Aulaa Payment Gateway
                     if (isAulaa) {
-                      const showQRIS = settings.payment_aulaa_channel_qris !== '0';
-                      const showVA = settings.payment_aulaa_channel_va !== '0';
-                      const showEWallet = settings.payment_aulaa_channel_ewallet !== '0';
-                      const showCC = settings.payment_aulaa_channel_cc === '1';
+                      const showQRIS = platformSettings.payment_aulaa_channel_qris !== '0';
+                      const showVA = platformSettings.payment_aulaa_channel_va !== '0';
+                      const showEWallet = platformSettings.payment_aulaa_channel_ewallet !== '0';
+                      const showCC = platformSettings.payment_aulaa_channel_cc === '1';
 
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -17623,8 +17784,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               justifyContent: 'center', 
                               fontSize: '0.85rem',
                               fontWeight: 800,
-                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)',
+                              background: '#2563eb',
+                              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
                               border: 'none',
                               cursor: registerLoading ? 'not-allowed' : 'pointer'
                             }}
@@ -17635,20 +17796,31 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             <span>{registerLoading ? 'Memproses Pendaftaran...' : 'Lanjutkan ke Pembayaran Aman'}</span>
                           </button>
 
-                          <button 
-                            type="button" 
-                            className="btn-portal-secondary" 
-                            style={{ width: '100%', padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
-                            onClick={handleCancelCheckout}
-                          >
-                            <Home size={15} />
-                            <span>Kembali ke Beranda</span>
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                            <button 
+                              type="button" 
+                              className="btn-portal-secondary" 
+                              style={{ flex: 1, padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
+                              onClick={handleBackToPlanSelect}
+                            >
+                              <ArrowLeft size={14} />
+                              <span>Ubah Paket / Data</span>
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn-portal-secondary" 
+                              style={{ padding: '0.65rem 0.85rem', justifyContent: 'center', fontSize: '0.75rem', color: '#64748b' }}
+                              onClick={handleCancelRegistration}
+                              title="Hapus draf pendaftaran dan kembali ke Beranda"
+                            >
+                              <span>Batal</span>
+                            </button>
+                          </div>
                         </div>
                       );
                     }
 
-                    // 3. Manual QRIS & Bank Transfer Mode
+                    // 3. Manual QRIS & Bank Transfer Mode (Platform Admin Settings)
                     return (
                       <>
                         {/* Method Switcher Mobile */}
@@ -17706,17 +17878,17 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem' }}>
                               <span style={{ color: '#64748b' }}>Bank Tujuan:</span>
-                              <strong style={{ color: '#0f172a' }}>{settings.payment_bank_name || 'BCA (Bank Central Asia)'}</strong>
+                              <strong style={{ color: '#0f172a' }}>{platformSettings.payment_bank_name || 'BCA (Bank Central Asia)'}</strong>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ffffff', padding: '0.5rem 0.75rem', borderRadius: '0.45rem', border: '1px solid #e2e8f0' }}>
                               <div>
                                 <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Nomor Rekening:</div>
-                                <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a' }}>{settings.payment_bank_account || '8830-1928-3920'}</div>
+                                <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a' }}>{platformSettings.payment_bank_account || '8830-1928-3920'}</div>
                               </div>
                               <button 
                                 type="button"
                                 onClick={() => {
-                                  navigator.clipboard.writeText((settings.payment_bank_account || '8830-1928-3920').replace(/[^0-9]/g, ''));
+                                  navigator.clipboard.writeText((platformSettings.payment_bank_account || '8830-1928-3920').replace(/[^0-9]/g, ''));
                                   setCopiedAccountToast(true);
                                   setTimeout(() => setCopiedAccountToast(false), 2500);
                                 }}
@@ -17729,7 +17901,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem' }}>
                               <span style={{ color: '#64748b' }}>Atas Nama:</span>
-                              <strong style={{ color: '#0f172a' }}>{settings.payment_bank_holder || 'PT Catavor Media Digital'}</strong>
+                              <strong style={{ color: '#0f172a' }}>{platformSettings.payment_bank_holder || 'PT Catavor Media Digital'}</strong>
                             </div>
                           </div>
                         )}
@@ -17738,11 +17910,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         {paymentMethod === 'qris' && (
                           <div style={{ padding: '1rem', borderRadius: '0.65rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem', textAlign: 'center' }}>
                             <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0f172a' }}>
-                              {settings.payment_qris_manual_merchant || 'Catavor Digital Ecosystem'}
+                              {platformSettings.payment_qris_manual_merchant || 'Catavor Official Store'}
                             </div>
                             <div style={{ width: '160px', height: '160px', borderRadius: '10px', background: '#ffffff', padding: '6px', border: '2px solid #2563eb' }}>
                               <img 
-                                src={settings.payment_qris_image || '/img/qris_demo.svg'} 
+                                src={platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || '/img/qris_demo.svg'} 
                                 alt="QRIS Catavor" 
                                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                               />
@@ -17751,7 +17923,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               Scan QRIS dengan GoPay, OVO, ShopeePay, BCA Mobile, atau aplikasi bank lainnya.
                             </p>
                             <a 
-                              href={settings.payment_qris_image || '/img/qris_demo.svg'} 
+                              href={platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || '/img/qris_demo.svg'} 
                               download="QRIS_Catavor_Payment.svg"
                               style={{ 
                                 display: 'inline-flex', 
@@ -17781,6 +17953,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         <form 
                           onSubmit={(e) => {
                             e.preventDefault();
+                            if (!paymentProofPreview) {
+                              alert('Bukti transfer / pembayaran wajib diunggah terlebih dahulu.');
+                              return;
+                            }
                             processCheckoutSubmission(false);
                           }}
                           style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
@@ -17789,12 +17965,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             <label className="form-label" style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Unggah Bukti Transfer / Scan *</label>
                             <div 
                               style={{ 
-                                border: '2px dashed #cbd5e1', 
+                                border: paymentProofPreview ? '2px solid #2563eb' : '2px dashed #cbd5e1', 
                                 borderRadius: '0.65rem', 
                                 padding: '1rem', 
                                 textAlign: 'center', 
                                 position: 'relative', 
-                                backgroundColor: '#ffffff',
+                                backgroundColor: paymentProofPreview ? '#eff6ff' : '#ffffff',
                                 cursor: 'pointer' 
                               }}
                             >
@@ -17805,6 +17981,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
+                                    if (file.size > 5 * 1024 * 1024) {
+                                      alert('Ukuran file maksimal adalah 5MB.');
+                                      return;
+                                    }
                                     const reader = new FileReader();
                                     reader.onloadend = () => setPaymentProofPreview(reader.result as string);
                                     reader.readAsDataURL(file);
@@ -17815,7 +17995,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               {paymentProofPreview ? (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                                   <img src={paymentProofPreview} alt="Bukti Transfer" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #2563eb' }} />
-                                  <span style={{ fontSize: '0.74rem', color: '#16a34a', fontWeight: 700 }}>Foto Bukti Siap (Klik untuk ganti)</span>
+                                  <div style={{ textAlign: 'left' }}>
+                                    <span style={{ fontSize: '0.74rem', color: '#16a34a', fontWeight: 700, display: 'block' }}>Foto Bukti Siap</span>
+                                    <span style={{ fontSize: '0.66rem', color: '#64748b' }}>Klik untuk mengganti</span>
+                                  </div>
                                 </div>
                               ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
@@ -17841,22 +18024,54 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <button 
                             type="submit" 
                             className="btn-portal-primary" 
-                            style={{ width: '100%', padding: '0.75rem', justifyContent: 'center', fontSize: '0.85rem' }}
-                            disabled={registerLoading}
+                            style={{ 
+                              width: '100%', 
+                              padding: '0.75rem', 
+                              justifyContent: 'center', 
+                              fontSize: '0.85rem',
+                              background: !paymentProofPreview ? '#94a3b8' : '#2563eb',
+                              cursor: !paymentProofPreview ? 'not-allowed' : (registerLoading ? 'wait' : 'pointer')
+                            }}
+                            disabled={registerLoading || !paymentProofPreview}
                           >
-                            <Send size={15} />
-                            <span>{registerLoading ? 'Memproses...' : 'Kirim Konfirmasi Pembayaran'}</span>
+                            {registerLoading ? (
+                              <>
+                                <Loader2 size={15} className="animate-spin" />
+                                <span>Memproses...</span>
+                              </>
+                            ) : !paymentProofPreview ? (
+                              <>
+                                <Upload size={15} />
+                                <span>Unggah Bukti Pembayaran</span>
+                              </>
+                            ) : (
+                              <>
+                                <Send size={15} />
+                                <span>Kirim Konfirmasi Pembayaran</span>
+                              </>
+                            )}
                           </button>
 
-                          <button 
-                            type="button" 
-                            className="btn-portal-secondary" 
-                            style={{ width: '100%', padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
-                            onClick={handleCancelCheckout}
-                          >
-                            <Home size={15} />
-                            <span>Kembali ke Beranda</span>
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                            <button 
+                              type="button" 
+                              className="btn-portal-secondary" 
+                              style={{ flex: 1, padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
+                              onClick={handleBackToPlanSelect}
+                            >
+                              <ArrowLeft size={14} />
+                              <span>Ubah Paket / Data</span>
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn-portal-secondary" 
+                              style={{ padding: '0.65rem 0.85rem', justifyContent: 'center', fontSize: '0.75rem', color: '#64748b' }}
+                              onClick={handleCancelRegistration}
+                              title="Hapus draf pendaftaran dan kembali ke Beranda"
+                            >
+                              <span>Batal</span>
+                            </button>
+                          </div>
                         </form>
                       </>
                     );

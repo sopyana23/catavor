@@ -20,7 +20,8 @@ import {
   Archive,
   ShieldAlert,
   Upload,
-  ExternalLink
+  ExternalLink,
+  Tag
 } from 'lucide-react';
 import { createAuthFetch } from '../utils/auth';
 import { useModalBackHandler } from '../utils/navigation';
@@ -131,6 +132,13 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [isUploadingProof, setIsUploadingProof] = useState<boolean>(false);
 
+  // Coupon promo state
+  const [couponCode, setCouponCode] = useState<string>('');
+  const [couponValidating, setCouponValidating] = useState<boolean>(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<any | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponSuccessMsg, setCouponSuccessMsg] = useState<string | null>(null);
+
   // Load plans from API
   const fetchPlans = useCallback(async () => {
     setLoading(true);
@@ -174,6 +182,10 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       setProofPreview(null);
       setSenderAccountName('');
       setSenderPhone('');
+      setCouponCode('');
+      setAppliedCoupon(null);
+      setCouponError(null);
+      setCouponSuccessMsg(null);
     }
   }, [isOpen, fetchPlans, fetchPlatformSettings]);
 
@@ -200,6 +212,63 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   const months = billingCycle === 'annual' ? 12 : 1;
   const unitPrice = billingCycle === 'annual' ? (selectedPlan?.price_annual || 0) : (selectedPlan?.price_monthly || 0);
   const totalPrice = unitPrice * months;
+
+  // Calculate discount from applied coupon
+  let discountAmount = 0;
+  if (appliedCoupon) {
+    if (appliedCoupon.type === 'free') {
+      discountAmount = totalPrice;
+    } else if (appliedCoupon.discount_type === 'percentage') {
+      discountAmount = Math.round((totalPrice * (appliedCoupon.discount_value || 0)) / 100);
+      if (appliedCoupon.max_discount && appliedCoupon.max_discount > 0) {
+        discountAmount = Math.min(discountAmount, appliedCoupon.max_discount);
+      }
+    } else {
+      discountAmount = appliedCoupon.discount_value || 0;
+    }
+  }
+  const finalPrice = Math.max(0, totalPrice - discountAmount);
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponValidating(true);
+    setCouponError(null);
+    setCouponSuccessMsg(null);
+    try {
+      const res = await fetch('/api/subscription/verify-coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: couponCode.trim(),
+          plan_code: selectedPlan?.code || '',
+          billing_cycle: billingCycle,
+          amount: totalPrice
+        })
+      });
+      const data = await res.json();
+      const couponObj = data.coupon || data.data;
+      if (res.ok && (data.success || data.valid) && couponObj) {
+        setAppliedCoupon(couponObj);
+        const discountLabel = couponObj.type === 'free' ? 'Gratis 100%' : `Potongan Rp ${(couponObj.discount || 0).toLocaleString('id-ID')}`;
+        setCouponSuccessMsg(couponObj.label || couponObj.description || `Kupon ${couponObj.code} berhasil diterapkan! (${discountLabel})`);
+        showToast('Kupon promo berhasil diterapkan!', 'success');
+      } else {
+        setCouponError(data.message || 'Kupon tidak valid atau sudah kedaluwarsa');
+        setAppliedCoupon(null);
+      }
+    } catch {
+      setCouponError('Gagal memverifikasi kupon. Periksa koneksi internet.');
+    } finally {
+      setCouponValidating(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponError(null);
+    setCouponSuccessMsg(null);
+  };
 
   const systemPaymentMode = (platformSettings?.payment_system_mode || 'gateway_aulaa').toLowerCase();
   const isMaintenance = systemPaymentMode === 'maintenance';
@@ -267,12 +336,12 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
 
     const isGateway = systemPaymentMode === 'gateway_aulaa' && paymentMethod !== 'bank';
 
-    if (!isGateway && !paymentProofUrl) {
+    if (finalPrice > 0 && !isGateway && !paymentProofUrl) {
       showToast('Harap unggah bukti transfer pembayaran terlebih dahulu', 'error');
       return;
     }
 
-    if (systemPaymentMode === 'manual_qris' && !senderAccountName.trim()) {
+    if (finalPrice > 0 && systemPaymentMode === 'manual_qris' && !senderAccountName.trim()) {
       showToast('Harap cantumkan nama akun pengirim untuk verifikasi mutasi', 'error');
       return;
     }
@@ -296,11 +365,12 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
           plan_code: selectedPlan.code,
           duration_months: months,
           billing_cycle: billingCycle,
-          payment_method: paymentMethod,
-          payment_mode: orderPaymentMode,
+          payment_method: finalPrice === 0 ? 'coupon' : paymentMethod,
+          payment_mode: finalPrice === 0 ? 'manual_bank' : orderPaymentMode,
           sender_account_name: senderAccountName.trim(),
           sender_phone: senderPhone.trim(),
-          payment_proof_url: paymentProofUrl,
+          payment_proof_url: finalPrice === 0 ? '' : paymentProofUrl,
+          coupon_code: appliedCoupon ? appliedCoupon.code : '',
           redirect_url: window.location.href,
           type: 'upgrade',
           order_type: 'upgrade'
@@ -871,15 +941,105 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                       </div>
                     </div>
 
+                    {/* Coupon Input Section */}
+                    <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-light)' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.4rem' }}>
+                        <Tag size={13} color="var(--primary)" />
+                        <span>Punya Kode Kupon Promo?</span>
+                      </label>
+                      {appliedCoupon ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.45rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <CheckCircle2 size={15} color="#10b981" />
+                            <div>
+                              <strong style={{ fontSize: '0.82rem', color: '#10b981' }}>{appliedCoupon.code}</strong>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginLeft: '0.4rem' }}>
+                                (Hemat Rp {discountAmount.toLocaleString('id-ID')})
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemoveCoupon}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', padding: '0.2rem 0.4rem' }}
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <input
+                            type="text"
+                            placeholder="Masukkan kupon"
+                            value={couponCode}
+                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyCoupon(); } }}
+                            style={{
+                              flex: 1,
+                              minHeight: '38px',
+                              padding: '0.4rem 0.65rem',
+                              borderRadius: '0.5rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-card)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                              textTransform: 'uppercase'
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleApplyCoupon}
+                            disabled={couponValidating || !couponCode.trim()}
+                            style={{
+                              minHeight: '38px',
+                              padding: '0 0.85rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: 'var(--primary)',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
+                              cursor: (couponValidating || !couponCode.trim()) ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            {couponValidating ? '...' : 'Terapkan'}
+                          </button>
+                        </div>
+                      )}
+                      {couponError && (
+                        <div style={{ color: '#ef4444', fontSize: '0.72rem', marginTop: '0.3rem', fontWeight: 600 }}>
+                          {couponError}
+                        </div>
+                      )}
+                      {couponSuccessMsg && (
+                        <div style={{ color: '#10b981', fontSize: '0.72rem', marginTop: '0.3rem', fontWeight: 600 }}>
+                          {couponSuccessMsg}
+                        </div>
+                      )}
+                    </div>
+
                     <div style={{
-                      paddingTop: '1rem',
+                      paddingTop: '0.85rem',
                       borderTop: '1px solid var(--border-light)',
-                      marginTop: '1.5rem'
+                      marginTop: '1rem'
                     }}>
+                      {appliedCoupon && (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                            <span>Subtotal Normal</span>
+                            <span>Rp {totalPrice.toLocaleString('id-ID')}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: '#10b981', fontWeight: 700, marginBottom: '0.5rem' }}>
+                            <span>Diskon Promo ({appliedCoupon.code})</span>
+                            <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
+                          </div>
+                        </>
+                      )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                         <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Total Pembayaran</span>
-                        <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary)' }}>
-                          Rp {totalPrice.toLocaleString('id-ID')}
+                        <span style={{ fontSize: '1.35rem', fontWeight: 800, color: finalPrice === 0 ? '#10b981' : 'var(--primary)' }}>
+                          {finalPrice === 0 ? 'GRATIS (100% Diskon)' : `Rp ${finalPrice.toLocaleString('id-ID')}`}
                         </span>
                       </div>
                     </div>
@@ -887,274 +1047,317 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
 
                   {/* Right: Payment Channels & Inputs */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                      Pilih Metode Pembayaran
-                    </h3>
-
-                    {/* Channel Selector */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
-                      <div
-                        onClick={() => setPaymentMethod('qris')}
-                        style={{
-                          minHeight: '44px',
-                          padding: '0.75rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: paymentMethod === 'qris' ? 'rgba(30, 58, 138, 0.15)' : 'var(--bg-deep)',
-                          border: paymentMethod === 'qris' ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        <QrCode size={18} color={paymentMethod === 'qris' ? 'var(--primary)' : 'var(--text-muted)'} />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>
-                          {systemPaymentMode === 'gateway_aulaa' ? 'Aulaa QRIS' : 'QRIS Merchant'}
-                        </span>
+                    {finalPrice === 0 ? (
+                      <div style={{
+                        padding: '1.5rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.75rem',
+                        textAlign: 'center',
+                        flex: 1
+                      }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <CheckCircle2 size={28} color="#10b981" />
+                        </div>
+                        <div>
+                          <h4 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>
+                            Biaya Langganan Rp 0 (Gratis)
+                          </h4>
+                          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                            Kupon promosi <strong>{appliedCoupon?.code}</strong> menggratiskan seluruh biaya paket ini. Klik tombol di bawah untuk langsung mengaktifkan paket tanpa perlu pembayaran atau transfer.
+                          </p>
+                        </div>
                       </div>
+                    ) : (
+                      <>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
+                          Pilih Metode Pembayaran
+                        </h3>
 
-                      <div
-                        onClick={() => setPaymentMethod('bank')}
-                        style={{
-                          minHeight: '44px',
-                          padding: '0.75rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: paymentMethod === 'bank' ? 'rgba(30, 58, 138, 0.15)' : 'var(--bg-deep)',
-                          border: paymentMethod === 'bank' ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        <CreditCard size={18} color={paymentMethod === 'bank' ? 'var(--primary)' : 'var(--text-muted)'} />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>Transfer Bank</span>
-                      </div>
-                    </div>
-
-                    {/* Method Description / Details */}
-                    {systemPaymentMode === 'gateway_aulaa' && paymentMethod === 'qris' ? (() => {
-                      const showQRIS = platformSettings?.payment_aulaa_channel_qris !== '0';
-                      const showVA = platformSettings?.payment_aulaa_channel_va !== '0';
-                      const showEWallet = platformSettings?.payment_aulaa_channel_ewallet !== '0';
-                      const showCC = platformSettings?.payment_aulaa_channel_cc === '1';
-
-                      return (
-                        <div style={{
-                          padding: '0.85rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          fontSize: '0.78rem',
-                          color: 'var(--text-secondary)',
-                          lineHeight: 1.5,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.65rem'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 800 }}>
-                              <Zap size={14} />
-                              <span>Verifikasi Otomatis Gateway (Aulaa)</span>
-                            </div>
-                            <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '9999px', backgroundColor: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                              <Zap size={10} /> Real-time
+                        {/* Channel Selector */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+                          <div
+                            onClick={() => setPaymentMethod('qris')}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.75rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: paymentMethod === 'qris' ? 'rgba(30, 58, 138, 0.15)' : 'var(--bg-deep)',
+                              border: paymentMethod === 'qris' ? '2px solid var(--primary)' : '1px solid var(--border-light)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <QrCode size={18} color={paymentMethod === 'qris' ? 'var(--primary)' : 'var(--text-muted)'} />
+                            <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>
+                              {systemPaymentMode === 'gateway_aulaa' ? 'Aulaa QRIS' : 'QRIS Merchant'}
                             </span>
                           </div>
-                          <div>Sesi transaksi pembayaran aman akan dibuka via Aulaa Gateway. Tidak perlu upload bukti manual; paket aktif otomatis setelah pembayaran tuntas.</div>
-                          
-                          {/* Sub-channel Badges Tablet */}
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem', marginTop: '0.25rem' }}>
-                            {showQRIS && (
-                              <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                <QrCode size={14} color="#10b981" />
-                                <div>
-                                  <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>QRIS Instan</div>
-                                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>GoPay, ShopeePay, BCA</div>
-                                </div>
-                              </div>
-                            )}
-                            {showVA && (
-                              <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                <CreditCard size={14} color="#38bdf8" />
-                                <div>
-                                  <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>Virtual Account</div>
-                                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>BCA, Mandiri, BRI, BNI</div>
-                                </div>
-                              </div>
-                            )}
-                            {showEWallet && (
-                              <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                <Zap size={14} color="#f59e0b" />
-                                <div>
-                                  <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>Dompet Digital</div>
-                                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>DANA, LinkAja, AstraPay</div>
-                                </div>
-                              </div>
-                            )}
-                            {showCC && (
-                              <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                <CreditCard size={14} color="#c084fc" />
-                                <div>
-                                  <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>Kartu Kredit</div>
-                                  <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>Visa &amp; Mastercard</div>
-                                </div>
-                              </div>
-                            )}
+
+                          <div
+                            onClick={() => setPaymentMethod('bank')}
+                            style={{
+                              minHeight: '44px',
+                              padding: '0.75rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: paymentMethod === 'bank' ? 'rgba(30, 58, 138, 0.15)' : 'var(--bg-deep)',
+                              border: paymentMethod === 'bank' ? '2px solid var(--primary)' : '1px solid var(--border-light)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <CreditCard size={18} color={paymentMethod === 'bank' ? 'var(--primary)' : 'var(--text-muted)'} />
+                            <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>Transfer Bank</span>
                           </div>
                         </div>
-                      );
-                    })() : (
-                      /* Manual QRIS or Bank instructions */
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                        {paymentMethod === 'bank' ? (
-                          <div style={{
-                            padding: '0.85rem',
-                            borderRadius: '0.65rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            fontSize: '0.8rem',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.35rem'
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ color: 'var(--text-muted)' }}>Bank Tujuan:</span>
-                              <strong>{bankName}</strong>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ color: 'var(--text-muted)' }}>No. Rekening:</span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                <strong style={{ letterSpacing: '0.04em' }}>{bankAccount}</strong>
-                                <button
-                                  type="button"
-                                  onClick={() => copyToClipboard(bankAccount.replace(/[^0-9]/g, ''))}
-                                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--primary)', padding: '0.2rem' }}
-                                >
-                                  <Copy size={14} />
-                                </button>
+
+                        {/* Method Description / Details */}
+                        {systemPaymentMode === 'gateway_aulaa' && paymentMethod === 'qris' ? (() => {
+                          const showQRIS = platformSettings?.payment_aulaa_channel_qris !== '0';
+                          const showVA = platformSettings?.payment_aulaa_channel_va !== '0';
+                          const showEWallet = platformSettings?.payment_aulaa_channel_ewallet !== '0';
+                          const showCC = platformSettings?.payment_aulaa_channel_cc === '1';
+
+                          return (
+                            <div style={{
+                              padding: '0.85rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              fontSize: '0.78rem',
+                              color: 'var(--text-secondary)',
+                              lineHeight: 1.5,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.65rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 800 }}>
+                                  <Zap size={14} />
+                                  <span>Verifikasi Otomatis Gateway (Aulaa)</span>
+                                </div>
+                                <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '9999px', backgroundColor: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                  <Zap size={10} /> Real-time
+                                </span>
+                              </div>
+                              <div>Sesi transaksi pembayaran aman akan dibuka via Aulaa Gateway. Tidak perlu upload bukti manual; paket aktif otomatis setelah pembayaran tuntas.</div>
+                              
+                              {/* Sub-channel Badges Tablet */}
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem', marginTop: '0.25rem' }}>
+                                {showQRIS && (
+                                  <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <QrCode size={14} color="#10b981" />
+                                    <div>
+                                      <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>QRIS Instan</div>
+                                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>GoPay, ShopeePay, BCA</div>
+                                    </div>
+                                  </div>
+                                )}
+                                {showVA && (
+                                  <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <CreditCard size={14} color="#38bdf8" />
+                                    <div>
+                                      <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>Virtual Account</div>
+                                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>BCA, Mandiri, BRI, BNI</div>
+                                    </div>
+                                  </div>
+                                )}
+                                {showEWallet && (
+                                  <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <Zap size={14} color="#f59e0b" />
+                                    <div>
+                                      <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>Dompet Digital</div>
+                                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>DANA, LinkAja, AstraPay</div>
+                                    </div>
+                                  </div>
+                                )}
+                                {showCC && (
+                                  <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <CreditCard size={14} color="#c084fc" />
+                                    <div>
+                                      <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>Kartu Kredit</div>
+                                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>Visa &amp; Mastercard</div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span style={{ color: 'var(--text-muted)' }}>Atas Nama:</span>
-                              <strong>{bankHolder}</strong>
+                          );
+                        })() : (
+                          /* Manual QRIS or Bank instructions */
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                            {paymentMethod === 'bank' ? (
+                              <div style={{
+                                padding: '0.85rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                fontSize: '0.8rem',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.35rem'
+                              }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <span style={{ color: 'var(--text-muted)' }}>Bank Tujuan:</span>
+                                  <strong>{bankName}</strong>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ color: 'var(--text-muted)' }}>No. Rekening:</span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <strong style={{ letterSpacing: '0.04em' }}>{bankAccount}</strong>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyToClipboard(bankAccount.replace(/[^0-9]/g, ''))}
+                                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--primary)', padding: '0.2rem' }}
+                                    >
+                                      <Copy size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <span style={{ color: 'var(--text-muted)' }}>Atas Nama:</span>
+                                  <strong>{bankHolder}</strong>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{
+                                padding: '0.85rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem'
+                              }}>
+                                <div style={{ width: '80px', height: '80px', background: '#ffffff', borderRadius: '8px', padding: '4px', border: '1px solid var(--primary)', flexShrink: 0 }}>
+                                  <img src={manualQrisImage} alt="QRIS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                </div>
+                                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                                  <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '0.82rem' }}>{manualQrisMerchant}</strong>
+                                  <span>Scan menggunakan ShopeePay / BCA / E-Wallet. Simpan bukti transfer untuk diverifikasi admin.</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Input Sender Name */}
+                            <div>
+                              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>
+                                Nama Akun / Rekening Pengirim: <span style={{ color: '#ef4444' }}>*</span>
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="Contoh: Budi Santoso / ShopeePay"
+                                value={senderAccountName}
+                                onChange={(e) => setSenderAccountName(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  minHeight: '44px',
+                                  padding: '0.5rem 0.75rem',
+                                  borderRadius: '0.5rem',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  border: '1px solid var(--border-light)',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.82rem',
+                                  boxSizing: 'border-box'
+                                }}
+                              />
                             </div>
-                          </div>
-                        ) : (
-                          <div style={{
-                            padding: '0.85rem',
-                            borderRadius: '0.65rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.75rem'
-                          }}>
-                            <div style={{ width: '80px', height: '80px', background: '#ffffff', borderRadius: '8px', padding: '4px', border: '1px solid var(--primary)', flexShrink: 0 }}>
-                              <img src={manualQrisImage} alt="QRIS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                            </div>
-                            <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                              <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '0.82rem' }}>{manualQrisMerchant}</strong>
-                              <span>Scan menggunakan ShopeePay / BCA / E-Wallet. Kode unik 3 digit akan dialokasikan pada invoice.</span>
+
+                            {/* Upload Proof */}
+                            <div>
+                              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>
+                                Unggah Bukti Transfer: <span style={{ color: '#ef4444' }}>*</span>
+                              </label>
+                              <label style={{
+                                minHeight: '44px',
+                                padding: '0.65rem',
+                                borderRadius: '0.5rem',
+                                border: '1px dashed var(--border-light)',
+                                backgroundColor: 'var(--bg-deep)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem'
+                              }}>
+                                <input type="file" accept="image/*" onChange={handleProofUpload} style={{ display: 'none' }} />
+                                {proofPreview ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <img src={proofPreview} alt="Bukti" style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '4px' }} />
+                                    <span style={{ fontSize: '0.76rem', color: '#10b981', fontWeight: 700 }}>Bukti Berhasil Dipilih (Klik ganti)</span>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <Upload size={16} color="var(--primary)" />
+                                    <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                      {isUploadingProof ? 'Mengunggah...' : 'Pilih Berkas Foto / Struk'}
+                                    </span>
+                                  </>
+                                )}
+                              </label>
                             </div>
                           </div>
                         )}
+                      </>
+                    )}
 
-                        {/* Input Sender Name */}
-                        <div>
-                          <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>
-                            Nama Akun / Rekening Pengirim: <span style={{ color: '#ef4444' }}>*</span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Contoh: Budi Santoso / ShopeePay"
-                            value={senderAccountName}
-                            onChange={(e) => setSenderAccountName(e.target.value)}
-                            style={{
-                              width: '100%',
-                              minHeight: '44px',
-                              padding: '0.5rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.82rem',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
+                    {(() => {
+                      const isGateway = systemPaymentMode === 'gateway_aulaa' && paymentMethod !== 'bank';
+                      const isProofRequired = !isGateway && finalPrice > 0;
+                      const isSubmitDisabled = submittingOrder || isUploadingProof || (isProofRequired && !paymentProofUrl);
 
-                        {/* Upload Proof */}
-                        <div>
-                          <label style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>
-                            Unggah Bukti Transfer: <span style={{ color: '#ef4444' }}>*</span>
-                          </label>
-                          <label style={{
-                            minHeight: '44px',
-                            padding: '0.65rem',
-                            borderRadius: '0.5rem',
-                            border: '1px dashed var(--border-light)',
-                            backgroundColor: 'var(--bg-deep)',
-                            cursor: 'pointer',
+                      return (
+                        <button
+                          type="button"
+                          disabled={isSubmitDisabled}
+                          onClick={handleCreateOrder}
+                          style={{
+                            marginTop: '0.5rem',
+                            minHeight: '48px',
+                            padding: '0.75rem',
+                            borderRadius: '0.65rem',
+                            backgroundColor: isSubmitDisabled ? '#94a3b8' : 'var(--primary)',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontWeight: 700,
+                            fontSize: '0.92rem',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '0.5rem'
-                          }}>
-                            <input type="file" accept="image/*" onChange={handleProofUpload} style={{ display: 'none' }} />
-                            {proofPreview ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <img src={proofPreview} alt="Bukti" style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '4px' }} />
-                                <span style={{ fontSize: '0.76rem', color: '#10b981', fontWeight: 700 }}>Bukti Berhasil Dipilih (Klik ganti)</span>
-                              </div>
-                            ) : (
-                              <>
-                                <Upload size={16} color="var(--primary)" />
-                                <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                  {isUploadingProof ? 'Mengunggah...' : 'Pilih Berkas Foto / Struk'}
-                                </span>
-                              </>
-                            )}
-                          </label>
-                        </div>
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      disabled={submittingOrder || isUploadingProof}
-                      onClick={handleCreateOrder}
-                      style={{
-                        marginTop: '0.5rem',
-                        minHeight: '48px',
-                        padding: '0.75rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: 'var(--primary)',
-                        color: '#ffffff',
-                        border: 'none',
-                        fontWeight: 700,
-                        fontSize: '0.92rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.5rem',
-                        cursor: (submittingOrder || isUploadingProof) ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      {systemPaymentMode === 'gateway_aulaa' && paymentMethod === 'qris' ? (
-                        <>
-                          <Zap size={18} />
-                          <span>{submittingOrder ? 'Menyiapkan Sesi...' : 'Lanjut ke Pembayaran Otomatis'}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Receipt size={18} />
-                          <span>{submittingOrder ? 'Memproses Pesanan...' : 'Kirim Bukti & Aktifkan Paket'}</span>
-                        </>
-                      )}
-                    </button>
+                            gap: '0.5rem',
+                            cursor: isSubmitDisabled ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {finalPrice === 0 ? (
+                            <>
+                              <Sparkles size={18} />
+                              <span>{submittingOrder ? 'Memproses Aktivasi...' : 'Aktifkan Paket Sekarang (Gratis)'}</span>
+                            </>
+                          ) : isGateway ? (
+                            <>
+                              <Zap size={18} />
+                              <span>{submittingOrder ? 'Menyiapkan Sesi...' : 'Lanjut ke Pembayaran Otomatis'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Receipt size={18} />
+                              <span>{submittingOrder ? 'Memproses Pesanan...' : (!paymentProofUrl ? 'Unggah Bukti Transfer untuk Melanjutkan' : 'Kirim Bukti & Aktifkan Paket')}</span>
+                            </>
+                          )}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

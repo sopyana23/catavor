@@ -300,9 +300,11 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
         body: JSON.stringify({ code: cleanCode })
       });
       const data = await res.json();
-      if (res.ok && data.success && data.coupon) {
-        setAppliedCoupon(data.coupon);
-        setCouponMsg({ type: 'success', text: `Kupon "${data.coupon.code}" aktif! (${data.coupon.label || 'Diskon aktif'})` });
+      const couponObj = data.coupon || data.data;
+      if (res.ok && (data.success || data.valid) && couponObj) {
+        setAppliedCoupon(couponObj);
+        const discountLabel = couponObj.type === 'free' ? 'Gratis 100%' : `Potongan Rp ${(couponObj.discount || 0).toLocaleString('id-ID')}`;
+        setCouponMsg({ type: 'success', text: `Kupon "${couponObj.code}" aktif! (${couponObj.label || discountLabel})` });
         return;
       }
     } catch {}

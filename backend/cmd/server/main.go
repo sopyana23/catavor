@@ -328,6 +328,8 @@ func main() {
 
 	// Public Subscription Plans & Payment Webhooks
 	api.Get("/subscription/plans", subscriptionHandler.GetPlans)
+	api.Post("/subscription/verify-coupon", subscriptionHandler.VerifyCoupon)
+	api.Post("/auth/verify-coupon", subscriptionHandler.VerifyCoupon)
 	api.Post("/webhooks/payment/aulaa", paymentHandler.HandleAulaaWebhook)
 
 	// Public Telemetry & Analytics Tracking (Isolated High-Capacity Rate Limiter, Zero PII)
@@ -479,6 +481,7 @@ func main() {
 		guardedMutations.Post("/subscription/cancel-downgrade", subscriptionHandler.CancelDowngrade)
 		guardedMutations.Post("/subscription/custom-domain", subscriptionHandler.UpdateCustomDomain)
 		guardedMutations.Post("/subscription/order", subscriptionHandler.CreateOrder)
+		guardedMutations.Post("/subscription/verify-coupon", subscriptionHandler.VerifyCoupon)
 		guardedMutations.Post("/subscription/orders/:id/sync", paymentHandler.SyncOrderStatus)
 		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
 
@@ -618,6 +621,13 @@ func main() {
 		adminApi.Post("/subscription/orders/:id/approve", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.ApproveOrder)
 		adminApi.Post("/subscription/orders/:id/reject", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.RejectOrder)
 		adminApi.Put("/subscription/orders/:id", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.AdminUpdateOrder)
+
+		// Coupons & Discounts Management
+		adminApi.Get("/coupons", middleware.RequireAnyPermission(cfg, "finance:orders:read", "finance:orders:manage", "finance:settings:manage", "system:settings:manage"), subscriptionHandler.AdminListCoupons)
+		adminApi.Post("/coupons", middleware.RequireAnyPermission(cfg, "finance:orders:manage", "finance:settings:manage", "system:settings:manage"), subscriptionHandler.AdminCreateCoupon)
+		adminApi.Put("/coupons/:code", middleware.RequireAnyPermission(cfg, "finance:orders:manage", "finance:settings:manage", "system:settings:manage"), subscriptionHandler.AdminUpdateCoupon)
+		adminApi.Delete("/coupons/:code", middleware.RequireAnyPermission(cfg, "finance:orders:manage", "finance:settings:manage", "system:settings:manage"), subscriptionHandler.AdminDeleteCoupon)
+		adminApi.Post("/coupons/:code/toggle", middleware.RequireAnyPermission(cfg, "finance:orders:manage", "finance:settings:manage", "system:settings:manage"), subscriptionHandler.AdminToggleCoupon)
 
 		// Audit & Market Intelligence
 		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)

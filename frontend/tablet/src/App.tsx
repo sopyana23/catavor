@@ -15,6 +15,7 @@ import { TabletPublicLanding } from './components/TabletPublicLanding';
 import { TabletStoreCatalog } from './components/TabletStoreCatalog';
 import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
 import { TabletPlatformConsole } from './components/TabletPlatformConsole';
+import { TabletCheckoutView } from './components/TabletCheckoutView';
 import { type UserRBACInfo, isPlatformAdmin } from './utils/rbac';
 import { isTokenExpired } from './utils/auth';
 import {
@@ -30,7 +31,7 @@ import { initGoogleAdSense } from './utils/googleAdSense';
 import { initGoogleAnalytics } from './utils/googleAnalytics';
 import { smartBack } from './utils/navigation';
 
-const RESERVED_SLUGS = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'ops', 'catalogs', 'select-catalog', 'stores'];
+const RESERVED_SLUGS = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'ops', 'catalogs', 'select-catalog', 'stores'];
 
 export const isCatalogChooserRoute = (path: string): boolean => {
   const p = path.toLowerCase().replace(/\/$/, '');
@@ -108,7 +109,7 @@ export const App: React.FC = () => {
   // Dynamic Theme Sync (navy, emerald, cyberpunk, ocean, pastel, sage, nordic, cream)
   useEffect(() => {
     // Platform pages (public landing, login, register, platform admin) always use the platform default theme ('navy')
-    const isPlatformPage = currentPath === '/' || currentPath === '/login' || currentPath === '/register' || currentPath.startsWith('/admin');
+    const isPlatformPage = currentPath === '/' || currentPath === '/login' || currentPath === '/register' || currentPath === '/checkout' || currentPath.startsWith('/admin');
     const resolvedTheme = isPlatformPage ? 'navy' : (storeTheme || 'navy');
     document.documentElement.setAttribute('data-theme', resolvedTheme);
     document.body.setAttribute('data-theme', resolvedTheme);
@@ -754,6 +755,8 @@ export const App: React.FC = () => {
   }, [token, currentUser, activeSlug, currentPath]);
 
   const isLoginRoute = currentPath === '/login';
+  const isCheckoutRoute = currentPath === '/checkout' || currentPath.startsWith('/checkout/');
+  const isRegisterRoute = currentPath === '/register' || currentPath.startsWith('/register/');
   const isCatalogChooser = isCatalogChooserRoute(currentPath);
   const isStoreAdminRoute = Boolean(activeSlug) && (
     currentPath === `/${activeSlug}/admin` ||
@@ -1497,6 +1500,31 @@ export const App: React.FC = () => {
     );
   }
 
+  // 3B. DEDICATED CHECKOUT & ONBOARDING ROUTE (/checkout, /register)
+  if (isCheckoutRoute || isRegisterRoute) {
+    return (
+      <TabletCheckoutView
+        onBack={() => {
+          if (window.history.length > 1) {
+            smartBack('/');
+          } else {
+            navigateTo('/');
+          }
+        }}
+        onCancel={() => {
+          navigateTo('/');
+        }}
+        onSuccess={(regUser) => {
+          if (regUser?.store_slug) {
+            navigateTo(`/${regUser.store_slug}/admin`);
+          } else {
+            navigateTo('/login');
+          }
+        }}
+      />
+    );
+  }
+
   // 4. GENERAL LOGIN ROUTE (/login)
   if (isLoginRoute) {
     const curToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('catavor_token') : null);
@@ -1730,6 +1758,25 @@ export const App: React.FC = () => {
             >
               &larr; Kembali ke Halaman Utama
             </button>
+
+            <div style={{ textAlign: 'center', marginTop: '0.85rem', fontSize: '0.84rem', color: 'var(--text-muted)' }}>
+              Belum punya akun katalog?{' '}
+              <button
+                type="button"
+                onClick={() => navigateTo('/checkout?plan=pro_starter')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#2563eb',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontSize: '0.84rem'
+                }}
+              >
+                Daftar Toko Baru
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -1741,6 +1788,13 @@ export const App: React.FC = () => {
     <TabletPublicLanding
       onSelectStore={(slug) => navigateTo(`/${slug}`)}
       onOpenLogin={() => navigateTo('/login')}
+      onSelectPlan={(plan, billing) => {
+        if (plan === 'pro_starter' || plan === 'pro_business') {
+          navigateTo(`/checkout?plan=${plan}&billing=${billing}`);
+        } else {
+          navigateTo('/checkout?plan=free&billing=monthly');
+        }
+      }}
       currentUser={currentUser}
     />
   );

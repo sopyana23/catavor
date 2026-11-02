@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"fmt"
+	"regexp"
 	"strings"
+	"time"
 
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
@@ -657,5 +660,485 @@ func (h *SubscriptionHandler) AdminListOrders(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    orders,
+	})
+}
+
+// VerifyCouponRequest represents payload to validate a coupon code
+type VerifyCouponRequest struct {
+	Code         string `json:"code"`
+	Plan         string `json:"plan"`
+	BillingCycle string `json:"billing_cycle"`
+}
+
+// VerifyCoupon validates a coupon code publicly or for logged-in stores
+func (h *SubscriptionHandler) VerifyCoupon(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+
+	var req VerifyCouponRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format request tidak valid.",
+		})
+	}
+
+	cleanCode := strings.ToUpper(strings.TrimSpace(req.Code))
+	if cleanCode == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Kode kupon tidak boleh kosong.",
+		})
+	}
+
+	planCode := strings.ToLower(strings.TrimSpace(req.Plan))
+	if planCode == "" || planCode == "pro" {
+		planCode = "pro_starter"
+	}
+
+	cycle := strings.ToLower(strings.TrimSpace(req.BillingCycle))
+	if cycle != "annual" {
+		cycle = "monthly"
+	}
+
+	var originalAmount float64
+	planInfo, _ := services.GetPlanByCode(h.db, planCode)
+	if planInfo != nil {
+		if cycle == "annual" {
+			originalAmount = planInfo.PriceAnnual
+		} else {
+			originalAmount = planInfo.PriceMonthly
+		}
+	} else {
+		// Fallbacks
+		if planCode == "pro_business" {
+			if cycle == "annual" {
+				originalAmount = 1290000
+			} else {
+				originalAmount = 129000
+			}
+		} else {
+			if cycle == "annual" {
+				originalAmount = 490000
+			} else {
+				originalAmount = 49000
+			}
+		}
+	}
+
+	coupon, discountAmount, finalAmount, err := services.ValidateCoupon(h.db, cleanCode, planCode, originalAmount)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	couponMap := fiber.Map{
+		"code":           coupon.Code,
+		"label":          coupon.Label,
+		"type":           coupon.Type,
+		"discount":       discountAmount,
+		"final_price":    finalAmount,
+		"original_price": originalAmount,
+		"description":    coupon.Label,
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"valid":   true,
+		"coupon":  couponMap,
+		"data":    couponMap,
+	})
+}
+
+// AdminListCoupons returns all platform coupons for platform administrators
+func (h *SubscriptionHandler) AdminListCoupons(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+
+	coupons, err := services.GetMasterCoupons(h.db)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mengambil daftar kupon platform.",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    coupons,
+	})
+}
+
+// AdminCreateCoupon handles creation of a new coupon by platform admin
+func (h *SubscriptionHandler) AdminCreateCoupon(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+
+	var input services.MasterCoupon
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Payload kupon tidak valid.",
+		})
+	}
+
+	input.Code = strings.ToUpper(strings.TrimSpace(input.Code))
+	if input.Code == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Kode kupon wajib diisi.",
+		})
+	}
+
+	codeRegex := regexp.MustCompile(`^[A-Z0-9_-]{3,30}$`)
+	if !codeRegex.MatchString(input.Code) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Kode kupon hanya boleh memuat huruf kapital, angka, garis bawah, dan strip (3-30 karakter).",
+		})
+	}
+
+	input.Label = strings.TrimSpace(input.Label)
+	if input.Label == "" {
+		input.Label = fmt.Sprintf("Kupon Diskon %s", input.Code)
+	}
+
+	input.Type = strings.ToLower(strings.TrimSpace(input.Type))
+	if input.Type != "free" && input.Type != "discount" {
+		input.Type = "discount"
+	}
+
+	if input.Type == "discount" && input.Discount <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Nominal potongan diskon harus lebih besar dari Rp 0.",
+		})
+	}
+
+	coupons, err := services.GetMasterCoupons(h.db)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memuat master kupon.",
+		})
+	}
+
+	for _, cItem := range coupons {
+		if strings.ToUpper(cItem.Code) == input.Code {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Kode kupon \"%s\" sudah terdaftar. Gunakan kode lain.", input.Code),
+			})
+		}
+	}
+
+	now := time.Now().UTC()
+	input.ID = fmt.Sprintf("cpn_%d", now.UnixNano())
+	input.CreatedAt = now
+	input.UpdatedAt = now
+	input.UsedCount = 0
+
+	coupons = append([]services.MasterCoupon{input}, coupons...)
+	if err := services.SaveMasterCoupons(h.db, coupons); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menyimpan kupon baru ke database.",
+		})
+	}
+
+	adminID := uint(0)
+	adminEmail := ""
+	if u, ok := c.Locals("user").(*models.User); ok && u != nil {
+		adminID = u.ID
+		adminEmail = u.Email
+	}
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      &adminID,
+		ActorRole:   "superadmin",
+		ActorEmail:  adminEmail,
+		Action:      "coupon.create",
+		Category:    "billing",
+		EntityType:  "coupon",
+		EntityTitle: input.Code,
+		Description: fmt.Sprintf("Membuat kupon diskon %s (%s)", input.Code, input.Label),
+		Changes: map[string]interface{}{
+			"code":     input.Code,
+			"label":    input.Label,
+			"type":     input.Type,
+			"discount": input.Discount,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Kupon \"%s\" berhasil dibuat.", input.Code),
+		"data":    input,
+	})
+}
+
+// AdminUpdateCoupon handles editing an existing coupon
+func (h *SubscriptionHandler) AdminUpdateCoupon(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+
+	targetCode := strings.ToUpper(strings.TrimSpace(c.Params("code")))
+	if targetCode == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Parameter kode kupon tidak valid.",
+		})
+	}
+
+	var input services.MasterCoupon
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Payload kupon tidak valid.",
+		})
+	}
+
+	coupons, err := services.GetMasterCoupons(h.db)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memuat master kupon.",
+		})
+	}
+
+	foundIdx := -1
+	for i, cItem := range coupons {
+		if strings.ToUpper(cItem.Code) == targetCode {
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundIdx == -1 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Kupon \"%s\" tidak ditemukan.", targetCode),
+		})
+	}
+
+	if input.Label != "" {
+		coupons[foundIdx].Label = strings.TrimSpace(input.Label)
+	}
+	if input.Type == "free" || input.Type == "discount" {
+		coupons[foundIdx].Type = input.Type
+	}
+	if coupons[foundIdx].Type == "discount" && input.Discount > 0 {
+		coupons[foundIdx].Discount = input.Discount
+	} else if coupons[foundIdx].Type == "free" {
+		coupons[foundIdx].Discount = 0
+	}
+	coupons[foundIdx].UsageLimit = input.UsageLimit
+	coupons[foundIdx].ExpiresAt = input.ExpiresAt
+	coupons[foundIdx].IsActive = input.IsActive
+	coupons[foundIdx].UpdatedAt = time.Now().UTC()
+
+	if err := services.SaveMasterCoupons(h.db, coupons); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memperbarui kupon.",
+		})
+	}
+
+	adminID := uint(0)
+	adminEmail := ""
+	if u, ok := c.Locals("user").(*models.User); ok && u != nil {
+		adminID = u.ID
+		adminEmail = u.Email
+	}
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      &adminID,
+		ActorRole:   "superadmin",
+		ActorEmail:  adminEmail,
+		Action:      "coupon.update",
+		Category:    "billing",
+		EntityType:  "coupon",
+		EntityTitle: targetCode,
+		Description: fmt.Sprintf("Memperbarui data kupon %s (%s)", targetCode, coupons[foundIdx].Label),
+		Changes: map[string]interface{}{
+			"code":      targetCode,
+			"label":     coupons[foundIdx].Label,
+			"is_active": coupons[foundIdx].IsActive,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Kupon \"%s\" berhasil diperbarui.", targetCode),
+		"data":    coupons[foundIdx],
+	})
+}
+
+// AdminDeleteCoupon removes a coupon from platform settings
+func (h *SubscriptionHandler) AdminDeleteCoupon(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+
+	targetCode := strings.ToUpper(strings.TrimSpace(c.Params("code")))
+	coupons, err := services.GetMasterCoupons(h.db)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memuat master kupon.",
+		})
+	}
+
+	foundIdx := -1
+	for i, cItem := range coupons {
+		if strings.ToUpper(cItem.Code) == targetCode {
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundIdx == -1 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Kupon \"%s\" tidak ditemukan.", targetCode),
+		})
+	}
+
+	deleted := coupons[foundIdx]
+	coupons = append(coupons[:foundIdx], coupons[foundIdx+1:]...)
+
+	if err := services.SaveMasterCoupons(h.db, coupons); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menghapus kupon.",
+		})
+	}
+
+	adminID := uint(0)
+	adminEmail := ""
+	if u, ok := c.Locals("user").(*models.User); ok && u != nil {
+		adminID = u.ID
+		adminEmail = u.Email
+	}
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      &adminID,
+		ActorRole:   "superadmin",
+		ActorEmail:  adminEmail,
+		Action:      "coupon.delete",
+		Category:    "billing",
+		EntityType:  "coupon",
+		EntityTitle: deleted.Code,
+		Description: fmt.Sprintf("Menghapus kupon %s (%s)", deleted.Code, deleted.Label),
+		Changes: map[string]interface{}{
+			"code":  deleted.Code,
+			"label": deleted.Label,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Kupon \"%s\" berhasil dihapus.", targetCode),
+	})
+}
+
+// AdminToggleCoupon toggles the active state of a coupon
+func (h *SubscriptionHandler) AdminToggleCoupon(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+
+	targetCode := strings.ToUpper(strings.TrimSpace(c.Params("code")))
+	coupons, err := services.GetMasterCoupons(h.db)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memuat master kupon.",
+		})
+	}
+
+	foundIdx := -1
+	for i, cItem := range coupons {
+		if strings.ToUpper(cItem.Code) == targetCode {
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundIdx == -1 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Kupon \"%s\" tidak ditemukan.", targetCode),
+		})
+	}
+
+	coupons[foundIdx].IsActive = !coupons[foundIdx].IsActive
+	coupons[foundIdx].UpdatedAt = time.Now().UTC()
+
+	if err := services.SaveMasterCoupons(h.db, coupons); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memperbarui status kupon.",
+		})
+	}
+
+	adminID := uint(0)
+	adminEmail := ""
+	if u, ok := c.Locals("user").(*models.User); ok && u != nil {
+		adminID = u.ID
+		adminEmail = u.Email
+	}
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      &adminID,
+		ActorRole:   "superadmin",
+		ActorEmail:  adminEmail,
+		Action:      "coupon.toggle",
+		Category:    "billing",
+		EntityType:  "coupon",
+		EntityTitle: targetCode,
+		Description: fmt.Sprintf("Mengubah status aktif kupon %s menjadi %t", targetCode, coupons[foundIdx].IsActive),
+		Changes: map[string]interface{}{
+			"code":      targetCode,
+			"is_active": coupons[foundIdx].IsActive,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+
+	return c.JSON(fiber.Map{
+		"success":   true,
+		"message":   fmt.Sprintf("Status kupon \"%s\" berhasil diubah.", targetCode),
+		"is_active": coupons[foundIdx].IsActive,
 	})
 }

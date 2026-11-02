@@ -143,11 +143,13 @@ export const LANDING_FAQS = [
 export interface TabletPublicLandingProps {
   onSelectStore?: (slug: string) => void;
   onOpenLogin: () => void;
+  onSelectPlan?: (plan: 'free' | 'pro_starter' | 'pro_business', billing: 'monthly' | 'annual') => void;
   currentUser: any;
 }
 
 export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
   onOpenLogin,
+  onSelectPlan,
   currentUser
 }) => {
   const [selectedCatalogFormat, setSelectedCatalogFormat] = useState<string>('physical');
@@ -1968,7 +1970,13 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               </div>
               <button
                 type="button"
-                onClick={onOpenLogin}
+                onClick={() => {
+                  if (onSelectPlan) {
+                    onSelectPlan('free', 'monthly');
+                  } else {
+                    onOpenLogin();
+                  }
+                }}
                 style={{
                   width: '100%',
                   minHeight: '44px',
@@ -2040,13 +2048,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               </div>
               <button
                 type="button"
-                onClick={onOpenLogin}
+                onClick={() => {
+                  if (onSelectPlan) {
+                    onSelectPlan('pro_starter', billingCycle === 'yearly' ? 'annual' : 'monthly');
+                  } else {
+                    onOpenLogin();
+                  }
+                }}
                 style={{
-                  width: '100%',
-                  minHeight: '44px',
-                  padding: '0 1.15rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: '#0284c7',
                   border: 'none',
                   color: '#ffffff',
                   fontSize: '0.86rem',
@@ -2120,7 +2129,13 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 </ul>
                 <button
                   type="button"
-                  onClick={onOpenLogin}
+                  onClick={() => {
+                    if (onSelectPlan) {
+                      onSelectPlan('pro_business', billingCycle === 'yearly' ? 'annual' : 'monthly');
+                    } else {
+                      onOpenLogin();
+                    }
+                  }}
                   style={{
                     width: isRegular ? 'fit-content' : '100%',
                     minWidth: isRegular ? '240px' : undefined,

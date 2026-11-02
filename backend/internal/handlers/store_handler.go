@@ -126,6 +126,7 @@ var ReservedSystemSlugs = map[string]bool{
 	"assets":               true,
 	"login":                true,
 	"register":             true,
+	"checkout":             true,
 	"dashboard":            true,
 	"support":              true,
 	"help":                 true,
