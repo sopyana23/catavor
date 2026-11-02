@@ -307,7 +307,8 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	}
 
 	// 7. Store via Abstracted Storage Service (Local / S3 / MinIO)
-	fileURL, err := h.storage.Upload(c.Context(), objectKey, buf, uploadSize, contentType)
+	// Gunakan bytes.NewReader agar stream bertipe io.ReadSeeker sehingga aman di-rewind saat retry transient
+	fileURL, err := h.storage.Upload(c.Context(), objectKey, bytes.NewReader(buf.Bytes()), uploadSize, contentType)
 	if err != nil {
 		log.Error().Err(err).Str("key", objectKey).Msg("Failed to upload object to storage")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

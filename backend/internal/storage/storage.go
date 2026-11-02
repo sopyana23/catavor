@@ -307,17 +307,48 @@ func (s *S3StorageService) Upload(ctx context.Context, key string, r io.Reader, 
 		contentType = "application/octet-stream"
 	}
 
-	_, err := s.client.PutObject(ctx, s.bucket, cleanKey, r, size, minio.PutObjectOptions{
-		ContentType: contentType,
-		UserMetadata: map[string]string{
-			"x-amz-meta-uploaded-by": "catavor-core",
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to upload object to S3: %w", err)
+	seeker, isSeeker := r.(io.ReadSeeker)
+	const maxRetries = 3
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if isSeeker {
+			if _, seekErr := seeker.Seek(0, io.SeekStart); seekErr != nil {
+				return "", fmt.Errorf("failed to rewind upload stream before attempt %d: %w", attempt, seekErr)
+			}
+		}
+
+		_, err := s.client.PutObject(ctx, s.bucket, cleanKey, r, size, minio.PutObjectOptions{
+			ContentType: contentType,
+			UserMetadata: map[string]string{
+				"x-amz-meta-uploaded-by": "catavor-core",
+			},
+		})
+		if err == nil {
+			return s.GetURL(cleanKey), nil
+		}
+
+		lastErr = err
+		log.Warn().Err(err).Int("attempt", attempt).Int("max_attempts", maxRetries).Str("key", cleanKey).Msg("Transient error uploading object to Cloud Storage; retrying...")
+
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		if !isSeeker {
+			// Stream cannot be rewound; break immediately to prevent corrupt partial uploads
+			break
+		}
+
+		if attempt < maxRetries {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(time.Duration(attempt*200) * time.Millisecond):
+			}
+		}
 	}
 
-	return s.GetURL(cleanKey), nil
+	return "", fmt.Errorf("failed to upload object to S3 after retries: %w", lastErr)
 }
 
 func (s *S3StorageService) Delete(ctx context.Context, key string) error {

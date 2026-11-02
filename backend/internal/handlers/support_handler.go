@@ -2474,8 +2474,8 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 		}
 	}
 
-	// B. Fallback to Local Disk if not found via storage driver or if h.storage == nil (e.g. unit tests or local legacy files)
-	if !contentFound {
+	// B. Fallback to Local Disk ONLY when using local storage driver or test harness without storage instance
+	if !contentFound && (h.storage == nil || h.storage.GetDriverName() == "local") {
 		for _, key := range candidateKeys {
 			if strings.Contains(key, "..") || filepath.IsAbs(key) || strings.Contains(key, ":") {
 				continue
