@@ -336,15 +336,15 @@ func (s *RBACService) AssignStaffRole(targetEmailOrID string, roleSlug string, a
 		return fmt.Errorf("role '%s' tidak terdaftar dalam sistem", roleSlug)
 	}
 
-	// ARSITEKTUR (N-25): staf platform dan merchant adalah dua dimensi yang
-	// INDEPENDEN. Menugaskan platform_role kepada akun yang sudah punya toko
-	// adalah SAH (karyawan boleh berjualan dengan email pribadi), dan mencabut
-	// platform_role tidak boleh menghapus tokonya. Karena itu di sini TIDAK ada
-	// syarat "target belum punya toko" — yang ditegakkan adalah role-nya sah
-	// (divalidasi di atas) dan tercatat dalam audit di bawah.
-	//
-	// Yang dilarang adalah kebalikannya: mewajibkan staf memiliki toko. Itu
-	// dijaga di middleware tenant yang sudah memisahkan jalur admin platform.
+	// Validasi isolasi akun mutlak: Akun yang terdaftar sebagai merchant toko
+	// tidak boleh dialihkan menjadi admin pengelola platform untuk mencegah
+	// kebingungan hak akses sistem dan risiko keamanan operasional.
+	var storeCount int64
+	s.db.Model(&models.Store{}).Where("user_id = ?", targetUser.ID).Count(&storeCount)
+	if storeCount > 0 || (!targetUser.IsPlatformStaff() && targetUser.PlatformRole == "merchant") {
+		return errors.New("akun ini terdaftar sebagai akun merchant toko. Email merchant tidak dapat dialihkan menjadi admin pengelola platform demi keamanan dan integritas data.")
+	}
+
 	oldRole := targetUser.PlatformRole
 	targetUser.PlatformRole = roleSlug
 	if err := s.db.Save(&targetUser).Error; err != nil {
@@ -403,13 +403,13 @@ func (s *RBACService) CreateStaffUser(params CreateStaffParams) (*models.User, e
 		return nil, errors.New("kata sandi awal minimal 8 karakter")
 	}
 
-	// Cek apakah email sudah terdaftar
-	var count int64
-	if err := s.db.Model(&models.User{}).Where("LOWER(email) = ?", email).Count(&count).Error; err != nil {
-		return nil, err
-	}
-	if count > 0 {
-		return nil, errors.New("email sudah terdaftar dalam sistem")
+	// Cek apakah email sudah terdaftar (baik sebagai merchant maupun pengelola)
+	var existingUser models.User
+	if err := s.db.Where("LOWER(email) = ?", email).First(&existingUser).Error; err == nil {
+		if existingUser.IsPlatformStaff() {
+			return nil, errors.New("email ini sudah terdaftar sebagai akun staf/pengelola platform")
+		}
+		return nil, errors.New("email ini sudah terdaftar sebagai akun merchant dan tidak dapat didaftarkan kembali sebagai akun pengelola platform. Email pengelola dan merchant harus terpisah secara mutlak.")
 	}
 
 	// Validasi role jika role diisi dan bukan "merchant"

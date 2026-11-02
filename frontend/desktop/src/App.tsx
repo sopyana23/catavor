@@ -5087,6 +5087,12 @@ function App() {
         }
       } catch {}
 
+      // If user landed on /checkout directly but hasn't filled registration details yet, redirect to step 1 cleanly
+      if (pathTab === 'checkout' && (!finalForm.email || !finalForm.name)) {
+        pathTab = 'register';
+        pathStep = 1;
+      }
+
       return {
         tab: pathTab,
         step: pathStep,
@@ -13324,11 +13330,21 @@ Terima kasih atas perhatian dan kerja samanya.`;
   };
 
   const handleCancelCheckout = () => {
+    try {
+      sessionStorage.removeItem('catavor_register_form');
+      sessionStorage.removeItem('catavor_register_plan');
+      sessionStorage.removeItem('catavor_register_billing');
+      sessionStorage.removeItem('catavor_applied_coupon');
+      sessionStorage.removeItem('catavor_payment_method');
+      sessionStorage.removeItem('catavor_portal_tab');
+      sessionStorage.removeItem('catavor_register_step');
+    } catch {}
     setRegisterForm({ name: '', email: '', password: '', store_name: '', store_slug: '' });
     setRegisterStep(1);
     setAppliedCoupon(null);
     setPaymentProofPreview(null);
     setPortalTab('home');
+    window.history.pushState(null, '', '/');
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {

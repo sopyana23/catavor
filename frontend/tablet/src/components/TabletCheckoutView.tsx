@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   ShieldAlert,
@@ -161,8 +161,11 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
     fetchSettings();
   }, []);
 
+  const isCancelledRef = useRef<boolean>(false);
+
   // Sync state changes to Session Storage & URL params
   useEffect(() => {
+    if (isCancelledRef.current) return;
     try {
       sessionStorage.setItem('catavor_register_plan', registerPlan);
       sessionStorage.setItem('catavor_register_billing', registerBillingCycle);
@@ -419,12 +422,15 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
 
   const handleCancelRegistration = () => {
     if (window.confirm('Batalkan checkout pendaftaran dan hapus draf yang telah diisi?')) {
+      isCancelledRef.current = true;
       try {
         sessionStorage.removeItem('catavor_register_form');
         sessionStorage.removeItem('catavor_register_plan');
         sessionStorage.removeItem('catavor_register_billing');
         sessionStorage.removeItem('catavor_applied_coupon');
         sessionStorage.removeItem('catavor_payment_method');
+        sessionStorage.removeItem('catavor_portal_tab');
+        sessionStorage.removeItem('catavor_register_step');
       } catch {}
       if (onCancel) {
         onCancel();
@@ -463,7 +469,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
         }}>
           <button
             type="button"
-            onClick={onBack || (() => smartBack('/'))}
+            onClick={onBack || (() => { window.location.href = '/register/step-3'; })}
             style={{
               minHeight: '44px',
               padding: '0.45rem 0.95rem',

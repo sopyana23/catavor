@@ -16,6 +16,7 @@ import { TabletStoreCatalog } from './components/TabletStoreCatalog';
 import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
 import { TabletPlatformConsole } from './components/TabletPlatformConsole';
 import { TabletCheckoutView } from './components/TabletCheckoutView';
+import { TabletRegisterView } from './components/TabletRegisterView';
 import { type UserRBACInfo, isPlatformAdmin } from './utils/rbac';
 import { isTokenExpired } from './utils/auth';
 import {
@@ -1500,18 +1501,40 @@ export const App: React.FC = () => {
     );
   }
 
-  // 3B. DEDICATED CHECKOUT & ONBOARDING ROUTE (/checkout, /register)
-  if (isCheckoutRoute || isRegisterRoute) {
+  // 3B. DEDICATED CHECKOUT ROUTE (/checkout)
+  if (isCheckoutRoute) {
+    // If user lands on /checkout directly without registration details, redirect to register
+    let hasRegDraft = false;
+    try {
+      const saved = sessionStorage.getItem('catavor_register_form');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.email && parsed.name) hasRegDraft = true;
+      }
+    } catch {}
+
+    if (!hasRegDraft) {
+      navigateTo('/register');
+      return null;
+    }
+
     return (
       <TabletCheckoutView
         onBack={() => {
-          if (window.history.length > 1) {
-            smartBack('/');
-          } else {
-            navigateTo('/');
-          }
+          const qPlan = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('plan') : null;
+          const plan = qPlan || sessionStorage.getItem('catavor_register_plan') || 'pro_starter';
+          navigateTo(`/register/step-3?plan=${plan}`);
         }}
         onCancel={() => {
+          try {
+            sessionStorage.removeItem('catavor_register_form');
+            sessionStorage.removeItem('catavor_register_plan');
+            sessionStorage.removeItem('catavor_register_billing');
+            sessionStorage.removeItem('catavor_applied_coupon');
+            sessionStorage.removeItem('catavor_payment_method');
+            sessionStorage.removeItem('catavor_portal_tab');
+            sessionStorage.removeItem('catavor_register_step');
+          } catch {}
           navigateTo('/');
         }}
         onSuccess={(regUser) => {
@@ -1521,6 +1544,51 @@ export const App: React.FC = () => {
             navigateTo('/login');
           }
         }}
+      />
+    );
+  }
+
+  // 3C. DEDICATED MULTI-STEP REGISTRATION ROUTE (/register, /register/step-2, /register/step-3)
+  if (isRegisterRoute) {
+    let regStep: 1 | 2 | 3 = 1;
+    if (currentPath === '/register/step-2') regStep = 2;
+    else if (currentPath === '/register/step-3') regStep = 3;
+
+    return (
+      <TabletRegisterView
+        initialStep={regStep}
+        onNavigateStep={(step) => {
+          if (step === 1) navigateTo('/register');
+          else if (step === 2) navigateTo('/register/step-2');
+          else if (step === 3) {
+            const plan = sessionStorage.getItem('catavor_register_plan') || 'free';
+            navigateTo(`/register/step-3${plan !== 'free' ? '?plan=' + plan : ''}`);
+          }
+        }}
+        onProceedToCheckout={(plan) => {
+          navigateTo(`/checkout?plan=${plan}&billing=monthly`);
+        }}
+        onCancel={() => {
+          try {
+            sessionStorage.removeItem('catavor_register_form');
+            sessionStorage.removeItem('catavor_register_plan');
+            sessionStorage.removeItem('catavor_register_billing');
+            sessionStorage.removeItem('catavor_applied_coupon');
+            sessionStorage.removeItem('catavor_payment_method');
+            sessionStorage.removeItem('catavor_portal_tab');
+            sessionStorage.removeItem('catavor_register_step');
+          } catch {}
+          navigateTo('/');
+        }}
+        onLoginClick={() => navigateTo('/login')}
+        onSuccess={(regUser) => {
+          if (regUser?.store_slug) {
+            navigateTo(`/${regUser.store_slug}/admin`);
+          } else {
+            navigateTo('/login');
+          }
+        }}
+        onGoogleSSO={handleGoogleSSO}
       />
     );
   }
@@ -1763,7 +1831,7 @@ export const App: React.FC = () => {
               Belum punya akun katalog?{' '}
               <button
                 type="button"
-                onClick={() => navigateTo('/checkout?plan=pro_starter')}
+                onClick={() => navigateTo('/register')}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -1788,12 +1856,13 @@ export const App: React.FC = () => {
     <TabletPublicLanding
       onSelectStore={(slug) => navigateTo(`/${slug}`)}
       onOpenLogin={() => navigateTo('/login')}
-      onSelectPlan={(plan, billing) => {
-        if (plan === 'pro_starter' || plan === 'pro_business') {
-          navigateTo(`/checkout?plan=${plan}&billing=${billing}`);
-        } else {
-          navigateTo('/checkout?plan=free&billing=monthly');
-        }
+      onRegister={() => navigateTo('/register')}
+      onSelectPlan={(plan) => {
+        try {
+          sessionStorage.setItem('catavor_register_plan', plan);
+          sessionStorage.setItem('catavor_register_billing', 'monthly');
+        } catch {}
+        navigateTo(`/register?plan=${plan}`);
       }}
       currentUser={currentUser}
     />

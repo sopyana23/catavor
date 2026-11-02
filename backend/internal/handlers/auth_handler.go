@@ -654,33 +654,19 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check email uniqueness and Google account linkage
+	// Check email uniqueness and role isolation (merchant vs pengelola)
 	if userFound {
+		if existingUser.IsPlatformStaff() {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Alamat email ini sudah terdaftar sebagai pengelola/staf platform dan tidak dapat digunakan untuk mendaftar akun toko/merchant. Gunakan alamat email lain.",
+			})
+		}
 		if isGoogleAuth {
 			if existingUser.Store != nil {
-				theme := existingUser.Store.StoreTheme
-				if theme == "" {
-					theme = "navy"
-				}
-				token, tokenID, expiresAt, _ := middleware.GenerateTokenWithID(&existingUser, existingUser.Store, h.cfg)
-				go services.RecordUserSession(existingUser.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
-				setSessionCookie(c, h.cfg, token)
-				return c.JSON(fiber.Map{
-					"success": true,
-					"message": "Akun Anda telah terdaftar sebelumnya. Selamat datang kembali!",
-					"token":   token,
-					"user": fiber.Map{
-						"id":                  existingUser.ID,
-						"name":                existingUser.Name,
-						"email":               existingUser.Email,
-						"google_id":           existingUser.GoogleID,
-						"is_password_changed": true,
-						"store_slug":          existingUser.Store.Slug,
-						"store_title":         existingUser.Store.StoreTitle,
-						"store_theme":         theme,
-						"store_plan":          existingUser.Store.Plan,
-						"payment_status":      existingUser.Store.PaymentStatus,
-					},
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": "Alamat email ini sudah terdaftar sebagai merchant toko (" + existingUser.Store.StoreTitle + "). Silakan gunakan alamat email lain atau masuk melalui halaman login.",
 				})
 			}
 			targetUser = existingUser
@@ -691,7 +677,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		} else {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
-				"message": "Email sudah terdaftar. Silakan gunakan email lain atau login.",
+				"message": "Alamat email sudah terdaftar dalam sistem sebagai akun merchant. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
 			})
 		}
 	} else {

@@ -144,12 +144,14 @@ export const LANDING_FAQS = [
 export interface TabletPublicLandingProps {
   onSelectStore?: (slug: string) => void;
   onOpenLogin: () => void;
+  onRegister?: () => void;
   onSelectPlan?: (plan: 'free' | 'pro_starter' | 'pro_business', billing: 'monthly' | 'annual') => void;
   currentUser: any;
 }
 
 export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
   onOpenLogin,
+  onRegister,
   onSelectPlan,
   currentUser
 }) => {
@@ -465,28 +467,50 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               <span>Dashboard Toko</span>
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={onOpenLogin}
-              style={{
-                minHeight: '44px',
-                padding: '0 1.25rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'var(--primary)',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '0.86rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
-              }}
-            >
-              <LogIn size={15} />
-              <span>Masuk / Buat Katalog</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={onOpenLogin}
+                style={{
+                  minHeight: '44px',
+                  padding: '0 0.95rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-light)',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <LogIn size={15} />
+                <span>Masuk</span>
+              </button>
+              <button
+                type="button"
+                onClick={onRegister || onOpenLogin}
+                style={{
+                  minHeight: '44px',
+                  padding: '0 1.15rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '0.84rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
+                }}
+              >
+                <span>Buat Katalog</span>
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -769,7 +793,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         }}>
           <button
             type="button"
-            onClick={onOpenLogin}
+            onClick={onRegister || onOpenLogin}
             style={{
               minHeight: '44px',
               padding: isMiniTablet ? '0 1.65rem' : '0 1.85rem',
@@ -2230,7 +2254,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             </p>
             <button
               type="button"
-              onClick={onOpenLogin}
+              onClick={onRegister || onOpenLogin}
               style={{
                 minHeight: '44px',
                 padding: '0 2rem',
