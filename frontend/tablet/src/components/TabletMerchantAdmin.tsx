@@ -513,6 +513,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           try {
             localStorage.setItem('catavor_stores', JSON.stringify(mapped));
           } catch {}
+          const currentStore = mapped.find((s: CatalogStoreItem) => s.slug.toLowerCase() === storeSlug.toLowerCase());
+          if (currentStore?.store_logo_url) {
+            setStoreSettings(prev => ({
+              ...prev,
+              logo_url: prev.logo_url || currentStore.store_logo_url || '',
+              name: prev.name || currentStore.store_title || ''
+            }));
+          }
         }
       }
     } catch (err) {
@@ -654,22 +662,38 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   // 1. STORE SETTINGS STATE
   // =========================================================================
   const [settingsTab, setSettingsTab] = useState<'general' | 'contact' | 'about' | 'domain' | 'danger'>('general');
-  const [storeSettings, setStoreSettings] = useState({
-    name: '',
-    slogan: '',
-    whatsapp_number: '',
-    address: '',
-    operating_hours: 'Senin - Sabtu: 08:00 - 17:00 WIB',
-    service_commitment: 'Jaminan kualitas terbaik dan garansi kepuasan pelanggan.',
-    logo_url: '',
-    banner_url: '',
-    store_theme: 'navy',
-    slug: storeSlug,
-    official_website: '',
-    instagram: '',
-    custom_domain: '',
-    show_hours: true,
-    is_paused: false
+  const [storeSettings, setStoreSettings] = useState(() => {
+    let cachedLogo = '';
+    let cachedName = '';
+    let cachedTheme = 'navy';
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const raw = (storeSlug && localStorage.getItem(`catavor_store_${storeSlug.toLowerCase()}`)) || localStorage.getItem('catavor_settings');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          cachedLogo = parsed.store_logo_url || parsed.logo_url || '';
+          cachedName = parsed.store_title || parsed.name || '';
+          cachedTheme = parsed.store_theme || parsed.theme || 'navy';
+        }
+      } catch {}
+    }
+    return {
+      name: cachedName,
+      slogan: '',
+      whatsapp_number: '',
+      address: '',
+      operating_hours: 'Senin - Sabtu: 08:00 - 17:00 WIB',
+      service_commitment: 'Jaminan kualitas terbaik dan garansi kepuasan pelanggan.',
+      logo_url: cachedLogo,
+      banner_url: '',
+      store_theme: cachedTheme,
+      slug: storeSlug,
+      official_website: '',
+      instagram: '',
+      custom_domain: '',
+      show_hours: true,
+      is_paused: false
+    };
   });
 
   // Master Categories State (Two-Tier Architecture matching Mobile & Desktop)
@@ -3334,15 +3358,29 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     width: '38px',
                     height: '38px',
                     borderRadius: '0.65rem',
-                    backgroundColor: 'rgba(30, 58, 138, 0.12)',
+                    backgroundColor: storeSettings.logo_url ? 'transparent' : 'rgba(30, 58, 138, 0.12)',
                     border: '1px solid var(--border-light)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: 'var(--primary)',
-                    flexShrink: 0
+                    flexShrink: 0,
+                    overflow: 'hidden'
                   }}>
-                    <StoreIcon size={20} />
+                    {storeSettings.logo_url ? (
+                      <img
+                        src={storeSettings.logo_url}
+                        alt={storeSettings.name || 'Logo'}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) parent.style.backgroundColor = 'rgba(30, 58, 138, 0.12)';
+                        }}
+                      />
+                    ) : (
+                      <StoreIcon size={20} />
+                    )}
                   </div>
                   <div style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
                     <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -3385,17 +3423,32 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   width: '42px',
                   height: '42px',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(30, 58, 138, 0.12)',
+                  backgroundColor: storeSettings.logo_url ? 'transparent' : 'rgba(30, 58, 138, 0.12)',
                   border: '1px solid var(--border-light)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: 'var(--primary)',
                   cursor: 'pointer',
-                  position: 'relative'
+                  position: 'relative',
+                  overflow: 'hidden',
+                  padding: 0
                 }}
               >
-                <StoreIcon size={20} />
+                {storeSettings.logo_url ? (
+                  <img
+                    src={storeSettings.logo_url}
+                    alt={storeSettings.name || 'Logo'}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const parent = e.currentTarget.parentElement;
+                      if (parent) parent.style.backgroundColor = 'rgba(30, 58, 138, 0.12)';
+                    }}
+                  />
+                ) : (
+                  <StoreIcon size={20} />
+                )}
                 <span style={{
                   position: 'absolute',
                   bottom: '-2px',
@@ -4088,7 +4141,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       type="button"
                       onClick={() => { setProductTypeFilter('all'); setProductCategoryFilter('all'); setProductPage(1); }}
                       style={{
-                        padding: '0.32rem 0.8rem',
+                        minHeight: '34px',
+                        padding: '0.35rem 0.85rem',
                         borderRadius: '20px',
                         fontSize: '0.76rem',
                         fontWeight: 700,
@@ -4100,6 +4154,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         alignItems: 'center',
                         gap: '0.4rem',
                         flexShrink: 0,
+                        whiteSpace: 'nowrap',
                         transition: 'all 0.15s ease'
                       }}
                     >
@@ -4110,7 +4165,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         fontSize: '0.68rem',
                         fontWeight: 800,
                         backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'rgba(148, 163, 184, 0.15)',
-                        color: productTypeFilter === 'all' ? '#ffffff' : 'var(--text-secondary)'
+                        color: productTypeFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                        flexShrink: 0
                       }}>
                         {catalogMetrics?.total_items ?? productTotalRecords}
                       </span>
@@ -4130,30 +4186,33 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           type="button"
                           onClick={() => { setProductTypeFilter(opt.id); setProductCategoryFilter('all'); setProductPage(1); }}
                           style={{
-                            padding: '0.32rem 0.8rem',
+                            minHeight: '34px',
+                            padding: '0.35rem 0.85rem',
                             borderRadius: '20px',
                             fontSize: '0.76rem',
                             fontWeight: 700,
-                            border: isSelected ? `1px solid ${opt.color}` : '1px solid var(--border-light)',
+                            border: isSelected ? `1.5px solid ${opt.color}` : '1px solid var(--border-light)',
                             cursor: 'pointer',
                             backgroundColor: isSelected ? opt.bgColor : 'transparent',
                             color: isSelected ? opt.color : 'var(--text-secondary)',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.4rem',
+                            gap: '0.45rem',
                             flexShrink: 0,
+                            whiteSpace: 'nowrap',
                             transition: 'all 0.15s ease'
                           }}
                         >
-                          <Icon size={14} style={{ color: isSelected ? opt.color : undefined }} />
-                          <span>{opt.name}</span>
+                          <Icon size={14} style={{ color: isSelected ? opt.color : undefined, flexShrink: 0 }} />
+                          <span style={{ whiteSpace: 'nowrap' }}>{opt.name}</span>
                           <span style={{
                             padding: '0.08rem 0.45rem',
                             borderRadius: '999px',
                             fontSize: '0.68rem',
                             fontWeight: 800,
                             backgroundColor: isSelected ? opt.color : 'rgba(148, 163, 184, 0.15)',
-                            color: isSelected ? '#ffffff' : 'var(--text-secondary)'
+                            color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                            flexShrink: 0
                           }}>
                             {count}
                           </span>
@@ -7761,14 +7820,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             <div style={{
               height: '100vh',
               overflowY: 'auto',
-              padding: '1.5rem',
+              padding: isNarrowScreen || isNavExpanded ? '1rem 1.15rem 5rem 1.15rem' : '1.5rem 2rem 5rem 2rem',
               maxWidth: '1040px',
               margin: '0 auto',
               width: '100%',
               boxSizing: 'border-box',
               display: 'flex',
               flexDirection: 'column',
-              gap: '1.25rem'
+              gap: '1.25rem',
+              transition: 'padding 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
             }}>
               {/* 1. Header & Stats Card */}
               <div style={{
@@ -7833,60 +7893,86 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 </div>
               </div>
 
-              {/* 2. Direct Context Switcher Pills (Tablet Ergonomics: Touch Target >= 44px, Instant Type Toggle) */}
+              {/* 2. Direct Context Switcher Pills (Tablet Ergonomics: Touch Target >= 44px, Fixed Aspect Ratio Icon Badges) */}
               <div style={{
-                display: 'flex',
-                gap: '0.5rem',
-                overflowX: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                scrollbarWidth: 'none',
-                alignItems: 'center',
-                paddingBottom: '0.25rem'
+                position: 'relative',
+                width: '100%',
+                boxSizing: 'border-box'
               }}>
-                {MASTER_CATEGORY_DEFINITIONS.map(tab => {
-                  const isSelected = masterCategoryContextTab === tab.id;
-                  const TabIcon = tab.icon;
-                  const opts = getCategoryOptionsForType(tab.id);
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  padding: '0.35rem',
+                  borderRadius: '0.85rem',
+                  border: '1px solid var(--border-light)',
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  scrollbarWidth: 'none',
+                  boxSizing: 'border-box'
+                }}>
+                  {MASTER_CATEGORY_DEFINITIONS.map(tab => {
+                    const isSelected = masterCategoryContextTab === tab.id;
+                    const TabIcon = tab.icon;
+                    const opts = getCategoryOptionsForType(tab.id);
 
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setMasterCategoryContextTab(tab.id)}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0.45rem 0.95rem',
-                        borderRadius: '0.65rem',
-                        fontSize: '0.82rem',
-                        fontWeight: isSelected ? 800 : 600,
-                        whiteSpace: 'nowrap',
-                        flexShrink: 0,
-                        border: isSelected ? `1.5px solid ${tab.color}` : '1px solid var(--border-light)',
-                        backgroundColor: isSelected ? tab.color : 'var(--bg-card)',
-                        color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        transition: 'all 0.15s ease',
-                        boxShadow: isSelected ? `0 2px 8px ${tab.color}35` : '0 1px 2px rgba(0,0,0,0.03)'
-                      }}
-                    >
-                      <TabIcon size={16} color={isSelected ? '#ffffff' : tab.color} />
-                      <span>{tab.label}</span>
-                      <span style={{
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        padding: '0.1rem 0.45rem',
-                        borderRadius: '999px',
-                        backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-deep)',
-                        color: isSelected ? '#ffffff' : 'var(--text-secondary)'
-                      }}>
-                        {opts.length}
-                      </span>
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setMasterCategoryContextTab(tab.id)}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.45rem 0.95rem',
+                          borderRadius: '0.65rem',
+                          fontSize: '0.82rem',
+                          fontWeight: isSelected ? 800 : 600,
+                          whiteSpace: 'nowrap',
+                          flex: '0 0 auto',
+                          flexShrink: 0,
+                          border: isSelected ? `1.5px solid ${tab.color}` : '1px solid transparent',
+                          backgroundColor: isSelected ? tab.color : 'transparent',
+                          color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.55rem',
+                          transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                          boxShadow: isSelected ? `0 2px 10px ${tab.color}35` : 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <div style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '0.5rem',
+                          backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.22)' : `${tab.color}15`,
+                          border: isSelected ? '1px solid rgba(255, 255, 255, 0.35)' : `1px solid ${tab.color}25`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <TabIcon size={16} color={isSelected ? '#ffffff' : tab.color} />
+                        </div>
+                        <span style={{ fontWeight: isSelected ? 800 : 600, whiteSpace: 'nowrap' }}>{tab.label}</span>
+                        <span style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          padding: '0.1rem 0.45rem',
+                          borderRadius: '999px',
+                          backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-card)',
+                          color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                          border: isSelected ? 'none' : '1px solid var(--border-light)',
+                          flexShrink: 0
+                        }}>
+                          {opts.length}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* 3. Active Type Description Banner */}
@@ -7952,18 +8038,21 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.45rem',
+                          gap: '0.5rem',
                           padding: '0.45rem 0.85rem',
+                          minHeight: '38px',
                           borderRadius: '0.55rem',
                           backgroundColor: 'var(--bg-card)',
                           border: '1px solid var(--border-light)',
                           fontSize: '0.84rem',
-                          color: 'var(--text-primary)'
+                          color: 'var(--text-primary)',
+                          boxSizing: 'border-box',
+                          flexShrink: 0
                         }}
                         title="Kategori bawaan standar sistem yang terkunci"
                       >
-                        <Lock size={12} strokeWidth={2.2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                        <span style={{ fontWeight: 500 }}>{c}</span>
+                        <Lock size={13} strokeWidth={2.2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{c}</span>
                         {count > 0 && (
                           <span style={{
                             fontSize: '0.7rem',
@@ -7972,7 +8061,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             borderRadius: '999px',
                             backgroundColor: 'var(--bg-deep)',
                             color: 'var(--text-secondary)',
-                            border: '1px solid var(--border-light)'
+                            border: '1px solid var(--border-light)',
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap'
                           }}>
                             {count} item
                           </span>
@@ -8030,17 +8121,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.45rem',
+                            gap: '0.5rem',
                             padding: '0.4rem 0.55rem 0.4rem 0.85rem',
+                            minHeight: '38px',
                             borderRadius: '0.55rem',
                             backgroundColor: 'var(--bg-card)',
                             border: '1px solid rgba(16, 185, 129, 0.3)',
                             fontSize: '0.84rem',
-                            color: 'var(--text-primary)'
+                            color: 'var(--text-primary)',
+                            boxSizing: 'border-box',
+                            flexShrink: 0
                           }}
                         >
-                          <Tag size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <span style={{ fontWeight: 600 }}>{c}</span>
+                          <Tag size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{c}</span>
                           {count > 0 && (
                             <span style={{
                               fontSize: '0.7rem',
@@ -8048,12 +8142,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               padding: '0.1rem 0.45rem',
                               borderRadius: '999px',
                               backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                              color: '#10b981'
+                              color: '#10b981',
+                              flexShrink: 0,
+                              whiteSpace: 'nowrap'
                             }}>
                               {count} item
                             </span>
                           )}
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.35rem', paddingLeft: '0.4rem', borderLeft: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.35rem', paddingLeft: '0.4rem', borderLeft: '1px solid var(--border-light)', flexShrink: 0 }}>
                             <button
                               type="button"
                               onClick={() => setRenameMasterModalData({
@@ -8073,7 +8169,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                flexShrink: 0
                               }}
                               title={`Ubah nama kategori "${c}"`}
                             >
@@ -8092,7 +8189,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                flexShrink: 0
                               }}
                               title={`Hapus kategori "${c}"`}
                             >
@@ -8532,6 +8630,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             onUnauthorized={onUnauthorized}
             onSlugChanged={(_newSlug) => {
               fetchStoreProfile();
+            }}
+            onStoreUpdated={(updated) => {
+              if (updated.store_logo_url || updated.logo_url) {
+                setStoreSettings(prev => ({
+                  ...prev,
+                  logo_url: updated.store_logo_url || updated.logo_url,
+                  name: updated.name || updated.store_title || prev.name
+                }));
+              }
+              fetchStoreProfile();
+              fetchUserStores();
             }}
             handleUploadImage={handleUploadImage}
           />
