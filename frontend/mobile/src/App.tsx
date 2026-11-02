@@ -13807,11 +13807,35 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   };
 
+  // Dedicated Navigation for Multi-Step Registration & Checkout Flow
+  // Ensures deterministic step transitions (Checkout -> Step 3 -> Step 2 -> Step 1 -> Home)
+  // without relying on unpredictable browser history stack traversal that could bounce back to Checkout.
+  const goToRegisterStep = (targetStep: 1 | 2 | 3) => {
+    setRegisterStep(targetStep);
+    setPortalTab('register');
+    const targetUrl = targetStep === 1 
+      ? '/register' 
+      : targetStep === 2 
+        ? '/register/step-2' 
+        : `/register/step-3${registerPlan !== 'free' ? '?plan=' + registerPlan : ''}`;
+    
+    if (typeof window !== 'undefined') {
+      // Use replaceState specifically when stepping backward in the onboarding wizard
+      // so that forward steps (like /checkout) are completely superseded and never trapped in history.back()
+      window.history.replaceState(
+        { tab: 'register', step: targetStep, plan: registerPlan, billing: registerBillingCycle },
+        '',
+        targetUrl
+      );
+    }
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+  };
+
   const handleBackToPlanSelect = () => {
     // Preserve user inputs! Navigate back to Step 3 so user can change plan or edit info
-    setRegisterStep(3);
-    setPortalTab('register');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    goToRegisterStep(3);
   };
 
   const handleCancelRegistration = () => {
@@ -17147,7 +17171,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         gap: '0.35rem',
                         cursor: 'pointer'
                       }}
-                      onClick={() => smartBack(() => setRegisterStep(1))}
+                      onClick={() => goToRegisterStep(1)}
                     >
                       <ChevronLeft size={15} />
                       <span>Kembali</span>
@@ -17384,7 +17408,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         gap: '0.35rem',
                         cursor: 'pointer'
                       }}
-                      onClick={() => smartBack(() => setRegisterStep(2))}
+                      onClick={() => goToRegisterStep(2)}
                     >
                       <ChevronLeft size={15} />
                       <span>Kembali</span>

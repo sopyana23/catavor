@@ -13294,6 +13294,34 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   };
 
+  // Dedicated Navigation for Multi-Step Registration & Checkout Flow (Desktop)
+  // Ensures deterministic step transitions (Checkout -> Step 3 -> Step 2 -> Step 1 -> Home)
+  // without relying on unpredictable browser history stack traversal that could bounce back to Checkout.
+  const goToRegisterStep = (targetStep: 1 | 2 | 3) => {
+    setRegisterStep(targetStep);
+    setPortalTab('register');
+    const targetUrl = targetStep === 1 
+      ? '/register' 
+      : targetStep === 2 
+        ? '/register/step-2' 
+        : `/register/step-3${registerPlan !== 'free' ? '?plan=' + registerPlan : ''}`;
+    
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(
+        { tab: 'register', step: targetStep, plan: registerPlan, billing: registerBillingCycle },
+        '',
+        targetUrl
+      );
+    }
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+  };
+
+  const handleBackToPlanSelect = () => {
+    goToRegisterStep(3);
+  };
+
   const handleCancelCheckout = () => {
     setRegisterForm({ name: '', email: '', password: '', store_name: '', store_slug: '' });
     setRegisterStep(1);
@@ -16868,11 +16896,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         cursor: 'pointer', 
                         fontWeight: 700 
                       }}
-                      onClick={() => {
-                        resetRegisterFormState();
-                        setPortalTab('register');
-                        setRegisterStep(1);
-                      }}
+                      onClick={() => goToRegisterStep(1)}
                     >
                       <ChevronLeft size={16} />
                       <span>Kembali</span>
@@ -17123,7 +17147,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         cursor: 'pointer', 
                         fontWeight: 700 
                       }}
-                      onClick={() => setRegisterStep(2)}
+                      onClick={() => goToRegisterStep(2)}
                     >
                       <ChevronLeft size={16} />
                       <span>Edit Info Toko</span>
@@ -17172,7 +17196,31 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
         {portalTab === 'checkout' && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3.5rem 1.5rem', animation: 'fadeIn 0.3s ease-in-out' }}>
-            <div style={{ width: '100%', maxWidth: '840px', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ width: '100%', maxWidth: '840px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Top Navigation Back Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+                <button
+                  type="button"
+                  onClick={handleBackToPlanSelect}
+                  style={{
+                    padding: '0.45rem 0.95rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.16)',
+                    color: '#e2e8f0',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                  <span>Kembali ke Pilihan Paket</span>
+                </button>
+              </div>
+
               {/* Header Title Checkout */}
               <div style={{ textAlign: 'center' }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.85rem', borderRadius: '9999px', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', marginBottom: '0.85rem' }}>
@@ -17401,28 +17449,54 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             <span>{registerLoading ? 'Mengaktifkan Akun...' : 'Aktifkan Paket Sekarang (Gratis)'}</span>
                           </button>
 
-                          <button 
-                            type="button" 
-                            className="btn-secondary btn-full" 
-                            style={{ 
-                              padding: '0.65rem', 
-                              fontWeight: 700, 
-                              fontSize: '0.78rem', 
-                              borderRadius: '0.5rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.4rem',
-                              backgroundColor: 'rgba(255,255,255,0.06)',
-                              border: '1px solid rgba(255,255,255,0.12)',
-                              color: '#d1d5db',
-                              cursor: 'pointer'
-                            }}
-                            onClick={handleCancelCheckout}
-                          >
-                            <Home size={15} />
-                            <span>Kembali ke Halaman Utama</span>
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                            <button 
+                              type="button" 
+                              className="btn-secondary" 
+                              style={{ 
+                                flex: 1,
+                                padding: '0.65rem', 
+                                fontWeight: 700, 
+                                fontSize: '0.78rem', 
+                                borderRadius: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.4rem',
+                                backgroundColor: 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                                color: '#d1d5db',
+                                cursor: 'pointer'
+                              }}
+                              onClick={handleBackToPlanSelect}
+                            >
+                              <ChevronLeft size={15} />
+                              <span>Ubah Paket</span>
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn-secondary" 
+                              style={{ 
+                                padding: '0.65rem 0.85rem', 
+                                fontWeight: 700, 
+                                fontSize: '0.78rem', 
+                                borderRadius: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.4rem',
+                                backgroundColor: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                color: '#94a3b8',
+                                cursor: 'pointer'
+                              }}
+                              onClick={handleCancelCheckout}
+                              title="Batal dan kembali ke Beranda"
+                            >
+                              <Home size={15} />
+                              <span>Batal</span>
+                            </button>
+                          </div>
                         </div>
                       );
                     }
@@ -17449,28 +17523,54 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             Silakan coba beberapa saat lagi atau hubungi layanan bantuan Catavor.
                           </div>
 
-                          <button 
-                            type="button" 
-                            className="btn-secondary btn-full" 
-                            style={{ 
-                              padding: '0.65rem', 
-                              fontWeight: 700, 
-                              fontSize: '0.78rem', 
-                              borderRadius: '0.5rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.4rem',
-                              backgroundColor: 'rgba(255,255,255,0.06)',
-                              border: '1px solid rgba(255,255,255,0.12)',
-                              color: '#d1d5db',
-                              cursor: 'pointer'
-                            }}
-                            onClick={handleCancelCheckout}
-                          >
-                            <Home size={15} />
-                            <span>Kembali ke Halaman Utama</span>
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                            <button 
+                              type="button" 
+                              className="btn-secondary" 
+                              style={{ 
+                                flex: 1,
+                                padding: '0.65rem', 
+                                fontWeight: 700, 
+                                fontSize: '0.78rem', 
+                                borderRadius: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.4rem',
+                                backgroundColor: 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                                color: '#d1d5db',
+                                cursor: 'pointer'
+                              }}
+                              onClick={handleBackToPlanSelect}
+                            >
+                              <ChevronLeft size={15} />
+                              <span>Ubah Paket</span>
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn-secondary" 
+                              style={{ 
+                                padding: '0.65rem 0.85rem', 
+                                fontWeight: 700, 
+                                fontSize: '0.78rem', 
+                                borderRadius: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.4rem',
+                                backgroundColor: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                color: '#94a3b8',
+                                cursor: 'pointer'
+                              }}
+                              onClick={handleCancelCheckout}
+                              title="Batal dan kembali ke Beranda"
+                            >
+                              <Home size={15} />
+                              <span>Batal</span>
+                            </button>
+                          </div>
                         </div>
                       );
                     }
@@ -17567,28 +17667,54 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             <span>{registerLoading ? 'Memproses Pendaftaran...' : 'Lanjutkan ke Pembayaran Aman'}</span>
                           </button>
 
-                          <button 
-                            type="button" 
-                            className="btn-secondary btn-full" 
-                            style={{ 
-                              padding: '0.65rem', 
-                              fontWeight: 700, 
-                              fontSize: '0.78rem', 
-                              borderRadius: '0.5rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.4rem',
-                              backgroundColor: 'rgba(255,255,255,0.06)',
-                              border: '1px solid rgba(255,255,255,0.12)',
-                              color: '#d1d5db',
-                              cursor: 'pointer'
-                            }}
-                            onClick={handleCancelCheckout}
-                          >
-                            <Home size={15} />
-                            <span>Kembali ke Halaman Utama</span>
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                            <button 
+                              type="button" 
+                              className="btn-secondary" 
+                              style={{ 
+                                flex: 1,
+                                padding: '0.65rem', 
+                                fontWeight: 700, 
+                                fontSize: '0.78rem', 
+                                borderRadius: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.4rem',
+                                backgroundColor: 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                                color: '#d1d5db',
+                                cursor: 'pointer'
+                              }}
+                              onClick={handleBackToPlanSelect}
+                            >
+                              <ChevronLeft size={15} />
+                              <span>Ubah Paket</span>
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn-secondary" 
+                              style={{ 
+                                padding: '0.65rem 0.85rem', 
+                                fontWeight: 700, 
+                                fontSize: '0.78rem', 
+                                borderRadius: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.4rem',
+                                backgroundColor: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                color: '#94a3b8',
+                                cursor: 'pointer'
+                              }}
+                              onClick={handleCancelCheckout}
+                              title="Batal dan kembali ke Beranda"
+                            >
+                              <Home size={15} />
+                              <span>Batal</span>
+                            </button>
+                          </div>
                         </div>
                       );
                     }
@@ -17824,28 +17950,54 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             <span>{registerLoading ? 'Memproses Pendaftaran...' : 'Kirim Bukti Pembayaran'}</span>
                           </button>
                           
-                          <button 
-                            type="button" 
-                            className="btn-secondary btn-full" 
-                            style={{ 
-                              padding: '0.65rem', 
-                              fontWeight: 700, 
-                              fontSize: '0.78rem', 
-                              borderRadius: '0.5rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '0.4rem',
-                              backgroundColor: 'rgba(255,255,255,0.06)',
-                              border: '1px solid rgba(255,255,255,0.12)',
-                              color: '#d1d5db',
-                              cursor: 'pointer'
-                            }}
-                            onClick={handleCancelCheckout}
-                          >
-                            <Home size={15} />
-                            <span>Kembali ke Halaman Utama</span>
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                            <button 
+                              type="button" 
+                              className="btn-secondary" 
+                              style={{ 
+                                flex: 1,
+                                padding: '0.65rem', 
+                                fontWeight: 700, 
+                                fontSize: '0.78rem', 
+                                borderRadius: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.4rem',
+                                backgroundColor: 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                                color: '#d1d5db',
+                                cursor: 'pointer'
+                              }}
+                              onClick={handleBackToPlanSelect}
+                            >
+                              <ChevronLeft size={15} />
+                              <span>Ubah Paket</span>
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn-secondary" 
+                              style={{ 
+                                padding: '0.65rem 0.85rem', 
+                                fontWeight: 700, 
+                                fontSize: '0.78rem', 
+                                borderRadius: '0.5rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.4rem',
+                                backgroundColor: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                color: '#94a3b8',
+                                cursor: 'pointer'
+                              }}
+                              onClick={handleCancelCheckout}
+                              title="Batal dan kembali ke Beranda"
+                            >
+                              <Home size={15} />
+                              <span>Batal</span>
+                            </button>
+                          </div>
                         </form>
                       </>
                     );
