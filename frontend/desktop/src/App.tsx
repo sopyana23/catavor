@@ -11097,12 +11097,28 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setPortalTab('login');
         }
       } else if (path === '/register' || path === '/register/step-1') {
+        const policyReturnStep = sessionStorage.getItem('catavor_policy_return_step');
+        if (policyReturnStep === '3') {
+          sessionStorage.removeItem('catavor_policy_return_step');
+          sessionStorage.removeItem('catavor_policy_return_tab');
+          goToRegisterStep(3);
+          return;
+        }
         setPortalTab('register');
         setRegisterStep(1);
       } else if (path === '/register/step-2') {
+        const policyReturnStep = sessionStorage.getItem('catavor_policy_return_step');
+        if (policyReturnStep === '3') {
+          sessionStorage.removeItem('catavor_policy_return_step');
+          sessionStorage.removeItem('catavor_policy_return_tab');
+          goToRegisterStep(3);
+          return;
+        }
         setPortalTab('register');
         setRegisterStep(2);
       } else if (path === '/register/step-3') {
+        sessionStorage.removeItem('catavor_policy_return_step');
+        sessionStorage.removeItem('catavor_policy_return_tab');
         setPortalTab('register');
         setRegisterStep(3);
         if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
@@ -12454,9 +12470,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
               const checkData = await checkRes.json();
               if (!checkData.available) {
                 const msg = checkData.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
-                setRegisterError(msg);
+                setRegisterForm((prev: any) => ({
+                  ...prev,
+                  email: candidateEmail,
+                  name: data.google_data?.name || data.user?.name || googleUser.name || prev?.name || ''
+                }));
+                setRegisterError(null);
                 setFieldErrors(prev => ({ ...prev, email: msg }));
-                showToast(msg, 'error');
+                setTimeout(() => {
+                  const el = document.getElementById('register-email-input');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.focus();
+                  }
+                }, 50);
                 return;
               }
             }
@@ -13348,6 +13375,56 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   const handleBackToPlanSelect = () => {
     goToRegisterStep(3);
+  };
+
+  const handleOpenPolicy = (type: 'terms' | 'privacy' | 'acceptable_use') => {
+    setPreviousPortalTab('register');
+    sessionStorage.setItem('catavor_policy_return_tab', 'register');
+    sessionStorage.setItem('catavor_policy_return_step', String(registerStep || 3));
+    sessionStorage.setItem('catavor_policy_return_plan', registerPlan);
+    isUserNavRef.current = true;
+
+    const currentStepUrl = registerStep === 1 
+      ? '/register' 
+      : registerStep === 2 
+        ? '/register/step-2' 
+        : `/register/step-3${registerPlan !== 'free' ? '?plan=' + registerPlan : ''}`;
+
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(
+        { tab: 'register', step: registerStep || 3, plan: registerPlan, billing: registerBillingCycle },
+        '',
+        currentStepUrl
+      );
+
+      const targetPolicyUrl = type === 'terms' ? '/terms' : type === 'privacy' ? '/privacy' : '/acceptable-use';
+      window.history.pushState(
+        { tab: type, fromTab: 'register', fromStep: registerStep || 3, plan: registerPlan },
+        '',
+        targetPolicyUrl
+      );
+    }
+
+    setPortalTab(type);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+  };
+
+  const handlePolicyBack = () => {
+    const returnTab = sessionStorage.getItem('catavor_policy_return_tab');
+    const returnStep = sessionStorage.getItem('catavor_policy_return_step');
+
+    if (returnTab === 'register') {
+      sessionStorage.removeItem('catavor_policy_return_tab');
+      sessionStorage.removeItem('catavor_policy_return_step');
+      sessionStorage.removeItem('catavor_policy_return_plan');
+      const targetStep = (Number(returnStep) === 1 ? 1 : Number(returnStep) === 2 ? 2 : 3) as 1 | 2 | 3;
+      goToRegisterStep(targetStep);
+      return;
+    }
+
+    smartBack(() => setPortalTab('home'));
   };
 
   const handleCancelCheckout = () => {
@@ -15536,13 +15613,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                   <button
                     type="button"
-                    onClick={() => smartBack(() => setPortalTab('home'))}
+                    onClick={handlePolicyBack}
                     className="btn-portal-secondary"
                     style={{ padding: '0.4rem 0.8rem', borderRadius: '0.5rem' }}
                     title="Kembali"
                   >
                     <ChevronLeft size={18} />
-                    <span>Kembali ke Beranda</span>
+                    <span>{sessionStorage.getItem('catavor_policy_return_tab') === 'register' ? 'Kembali ke Pilih Paket' : 'Kembali ke Beranda'}</span>
                   </button>
                   <span style={{ color: '#cbd5e1' }}>|</span>
                   <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
@@ -16568,7 +16645,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 </div>
               </div>
 
-              {registerError && (
+              {registerError && !fieldErrors.email && (
                 <div 
                   id="register-error-banner"
                   style={{ 
@@ -16637,11 +16714,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     onSubmit={async (e) => {
                       e.preventDefault();
                       if (!validateStep1()) {
-                        setRegisterError('Mohon periksa kembali isian Anda. Lengkapi bidang formulir yang belum diisi.');
-                        setTimeout(() => {
-                          const el = document.getElementById('register-error-banner');
-                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 50);
+                        setRegisterError(null);
                         return;
                       }
                       setRegisterLoading(true);
@@ -16656,10 +16729,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         if (!checkData.available) {
                           const errMsg = checkData.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
                           setFieldErrors(prev => ({ ...prev, email: errMsg }));
-                          setRegisterError(errMsg);
+                          setRegisterError(null);
                           setTimeout(() => {
-                            const el = document.getElementById('register-error-banner');
-                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            const el = document.getElementById('register-email-input');
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              el.focus();
+                            }
                           }, 50);
                           return;
                         }
@@ -16668,7 +16744,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         try {
                           sessionStorage.setItem('catavor_register_form', JSON.stringify(registerForm));
                         } catch {}
-                        setRegisterStep(2);
+                        goToRegisterStep(2);
                       } catch {
                         setRegisterError('Gagal memverifikasi ketersediaan alamat email. Periksa koneksi internet Anda.');
                       } finally {
@@ -16701,17 +16777,44 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem', display: 'block' }}>Alamat Email *</label>
                       <input 
                         type="email" 
+                        id="register-email-input"
                         placeholder="nama@domain.com" 
                         value={registerForm.email} 
                         onChange={(e) => {
                           setRegisterForm({ ...registerForm, email: e.target.value });
                           if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: '' }));
                         }}
-                        style={{ width: '100%', borderRadius: '0.75rem', padding: '0.75rem 0.9rem', fontSize: '0.88rem', backgroundColor: '#ffffff', border: fieldErrors.email ? '1.5px solid #dc2626' : '1.5px solid #cbd5e1', color: '#0f172a', outline: 'none', boxSizing: 'border-box' }}
+                        style={{
+                          width: '100%',
+                          borderRadius: '0.75rem',
+                          padding: '0.75rem 0.9rem',
+                          fontSize: '0.88rem',
+                          backgroundColor: '#ffffff',
+                          border: fieldErrors.email ? '1.5px solid #dc2626' : '1.5px solid #cbd5e1',
+                          boxShadow: fieldErrors.email ? '0 0 0 3px rgba(220, 38, 38, 0.1)' : 'none',
+                          color: '#0f172a',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          transition: 'all 0.15s ease'
+                        }}
                       />
                       {fieldErrors.email && (
-                        <div style={{ fontSize: '0.74rem', color: '#dc2626', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}>
-                          <AlertTriangle size={13} style={{ color: '#dc2626', flexShrink: 0 }} />
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.45rem',
+                          marginTop: '0.45rem',
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: '#fef2f2',
+                          border: '1px solid #fee2e2',
+                          color: '#b91c1c',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          lineHeight: 1.45,
+                          animation: 'fadeIn 0.2s ease-in-out'
+                        }}>
+                          <AlertCircle size={15} style={{ color: '#dc2626', flexShrink: 0, marginTop: '2px' }} />
                           <span>{fieldErrors.email}</span>
                         </div>
                       )}
@@ -16846,7 +16949,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       }
                       setRegisterError(null);
                       setFieldErrors({});
-                      setRegisterStep(3);
+                      goToRegisterStep(3);
                     } catch (err) {
                       setRegisterError('Gagal memeriksa ketersediaan username. Silakan coba lagi.');
                     } finally {
@@ -17140,24 +17243,48 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   </div>
 
-                  <div style={{ margin: '0.5rem 0 0.25rem 0', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.78rem', color: '#334155', lineHeight: 1.5, backgroundColor: agreeTermsError && !agreeTerms ? '#fef2f2' : '#f8fafc', padding: '0.75rem 0.85rem', borderRadius: '0.75rem', border: agreeTermsError && !agreeTerms ? '1.5px solid #dc2626' : '1px solid #e2e8f0', transition: 'all 0.15s ease' }}>
+                  <div style={{ margin: '0.5rem 0 0.25rem 0', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.65rem',
+                      fontSize: '0.8rem',
+                      color: agreeTermsError && !agreeTerms ? '#991b1b' : '#334155',
+                      lineHeight: 1.5,
+                      backgroundColor: agreeTermsError && !agreeTerms ? '#fef2f2' : '#f8fafc',
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.85rem',
+                      border: agreeTermsError && !agreeTerms ? '1.5px solid #ef4444' : '1px solid #e2e8f0',
+                      boxShadow: agreeTermsError && !agreeTerms ? '0 0 0 3px rgba(239, 68, 68, 0.12)' : 'none',
+                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                    }}>
                       <input 
                         type="checkbox" 
                         id="desktop-register-agree" 
                         checked={agreeTerms} 
                         onChange={(e) => { setAgreeTerms(e.target.checked); if (e.target.checked) setAgreeTermsError(false); }} 
-                        style={{ marginTop: '0.15rem', accentColor: '#2563eb', cursor: 'pointer', flexShrink: 0, width: '16px', height: '16px' }} 
-                        required 
+                        style={{ marginTop: '0.15rem', accentColor: '#2563eb', cursor: 'pointer', flexShrink: 0, width: '18px', height: '18px' }} 
                       />
-                      <label htmlFor="desktop-register-agree" style={{ cursor: 'pointer' }}>
-                        Saya menyetujui <span style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'underline' }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviousPortalTab('register'); setPortalTab('terms'); }}>Syarat &amp; Ketentuan</span> serta <span style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'underline' }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviousPortalTab('register'); setPortalTab('privacy'); }}>Kebijakan Privasi</span> Catavor.
+                      <label htmlFor="desktop-register-agree" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        Saya menyetujui <span style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'underline' }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleOpenPolicy('terms'); }}>Syarat &amp; Ketentuan</span> serta <span style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'underline' }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleOpenPolicy('privacy'); }}>Kebijakan Privasi</span> Catavor.
                       </label>
                     </div>
                     {agreeTermsError && !agreeTerms && (
-                      <div style={{ fontSize: '0.74rem', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, paddingLeft: '0.2rem' }}>
-                        <AlertTriangle size={13} style={{ color: '#dc2626', flexShrink: 0 }} />
-                        <span>Anda harus mencentang persetujuan kebijakan terlebih dahulu.</span>
+                      <div style={{
+                        fontSize: '0.76rem',
+                        color: '#dc2626',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        fontWeight: 700,
+                        padding: '0.35rem 0.65rem',
+                        borderRadius: '0.5rem',
+                        backgroundColor: '#fef2f2',
+                        border: '1px solid #fee2e2',
+                        animation: 'fadeIn 0.2s ease-in-out'
+                      }}>
+                        <AlertCircle size={15} style={{ color: '#dc2626', flexShrink: 0 }} />
+                        <span>Harap centang persetujuan Syarat &amp; Ketentuan di atas untuk melanjutkan ke pembayaran.</span>
                       </div>
                     )}
                   </div>

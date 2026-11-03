@@ -11,6 +11,7 @@ import {
   Check,
   CheckCircle,
   AlertTriangle,
+  AlertCircle,
   Loader2,
   Crown,
   Sparkles,
@@ -27,6 +28,7 @@ export interface TabletRegisterViewProps {
   onLoginClick: () => void;
   onSuccess: (userData: any) => void;
   onGoogleSSO?: () => void;
+  onOpenPolicy?: (type: 'terms' | 'privacy') => void;
 }
 
 export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
@@ -37,7 +39,8 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
   onCancel,
   onLoginClick,
   onSuccess,
-  onGoogleSSO
+  onGoogleSSO,
+  onOpenPolicy
 }) => {
   const [registerStep, setRegisterStep] = useState<1 | 2 | 3>(initialStep);
   const [registerPlan, setRegisterPlan] = useState<'free' | 'pro_starter' | 'pro_business'>(() => {
@@ -84,7 +87,7 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerLoading, setRegisterLoading] = useState<boolean>(false);
-  const [agreeTerms, setAgreeTerms] = useState<boolean>(true);
+  const [agreeTerms, setAgreeTerms] = useState<boolean>(false);
   const [agreeTermsError, setAgreeTermsError] = useState<boolean>(false);
 
   // Sync step prop changes & re-sync draft when step changes
@@ -120,8 +123,22 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
     };
     const handleRegisterError = (e: any) => {
       if (e.detail?.message) {
-        setRegisterError(e.detail.message);
+        if (e.detail.email) {
+          setRegisterForm(prev => ({
+            ...prev,
+            email: e.detail.email,
+            name: e.detail.name || prev.name
+          }));
+        }
         setFieldErrors(prev => ({ ...prev, email: e.detail.message }));
+        setRegisterError(null);
+        setTimeout(() => {
+          const el = document.getElementById('tablet-register-email-input');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.focus();
+          }
+        }, 50);
       }
     };
     window.addEventListener('catavor:register-form-updated', handleFormUpdate);
@@ -178,7 +195,7 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep1()) {
-      setRegisterError('Mohon lengkapi formulir pendaftaran dengan benar.');
+      setRegisterError(null);
       return;
     }
     setRegisterLoading(true);
@@ -193,7 +210,14 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
       if (!data.available) {
         const errorMsg = data.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
         setFieldErrors(prev => ({ ...prev, email: errorMsg }));
-        setRegisterError(errorMsg);
+        setRegisterError(null);
+        setTimeout(() => {
+          const el = document.getElementById('tablet-register-email-input');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.focus();
+          }
+        }, 50);
         return;
       }
       setRegisterError(null);
@@ -421,7 +445,7 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
         </div>
 
         {/* Global Error Banner */}
-        {registerError && (
+        {registerError && !fieldErrors.email && (
           <div style={{
             marginBottom: '1.25rem',
             padding: '0.85rem 1rem',
@@ -533,10 +557,13 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
                   padding: '0.75rem 1rem',
                   borderRadius: '0.75rem',
                   backgroundColor: '#ffffff',
-                  border: fieldErrors.email ? '1.5px solid #dc2626' : '1.5px solid #cbd5e1'
+                  border: fieldErrors.email ? '1.5px solid #dc2626' : '1.5px solid #cbd5e1',
+                  boxShadow: fieldErrors.email ? '0 0 0 3px rgba(220, 38, 38, 0.1)' : 'none',
+                  transition: 'all 0.15s ease'
                 }}>
                   <Mail size={18} color="#64748b" />
                   <input
+                    id="tablet-register-email-input"
                     type="email"
                     placeholder="nama@domain.com"
                     value={registerForm.email}
@@ -553,16 +580,17 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
                     alignItems: 'flex-start',
                     gap: '0.45rem',
                     marginTop: '0.45rem',
-                    padding: '0.55rem 0.75rem',
-                    borderRadius: '0.5rem',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.65rem',
                     backgroundColor: '#fef2f2',
-                    border: '1px solid #fecaca',
+                    border: '1px solid #fee2e2',
                     color: '#b91c1c',
                     fontSize: '0.78rem',
                     fontWeight: 600,
-                    lineHeight: 1.45
+                    lineHeight: 1.45,
+                    animation: 'fadeIn 0.2s ease-in-out'
                   }}>
-                    <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <AlertCircle size={15} style={{ color: '#dc2626', flexShrink: 0, marginTop: '2px' }} />
                     <span>{fieldErrors.email}</span>
                   </div>
                 )}
@@ -969,32 +997,54 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
             </div>
 
             {/* Terms Agreement Checkbox */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.55rem',
-              fontSize: '0.78rem',
-              color: '#334155',
-              lineHeight: 1.5,
-              backgroundColor: agreeTermsError && !agreeTerms ? '#fef2f2' : '#f8fafc',
-              padding: '0.75rem 0.85rem',
-              borderRadius: '0.75rem',
-              border: agreeTermsError && !agreeTerms ? '1.5px solid #dc2626' : '1px solid #e2e8f0',
-              marginBottom: '1.25rem'
-            }}>
-              <input
-                type="checkbox"
-                id="tablet-register-agree"
-                checked={agreeTerms}
-                onChange={(e) => {
-                  setAgreeTerms(e.target.checked);
-                  if (e.target.checked) setAgreeTermsError(false);
-                }}
-                style={{ marginTop: '0.15rem', accentColor: '#2563eb', cursor: 'pointer', flexShrink: 0, width: '16px', height: '16px' }}
-              />
-              <label htmlFor="tablet-register-agree" style={{ cursor: 'pointer' }}>
-                Saya menyetujui Syarat &amp; Ketentuan serta Kebijakan Privasi platform Catavor.
-              </label>
+            <div style={{ margin: '0.5rem 0 1.25rem 0', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.65rem',
+                fontSize: '0.8rem',
+                color: agreeTermsError && !agreeTerms ? '#991b1b' : '#334155',
+                lineHeight: 1.5,
+                backgroundColor: agreeTermsError && !agreeTerms ? '#fef2f2' : '#f8fafc',
+                padding: '0.85rem 1rem',
+                borderRadius: '0.85rem',
+                border: agreeTermsError && !agreeTerms ? '1.5px solid #ef4444' : '1px solid #e2e8f0',
+                boxShadow: agreeTermsError && !agreeTerms ? '0 0 0 3px rgba(239, 68, 68, 0.12)' : 'none',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+              }}>
+                <input
+                  type="checkbox"
+                  id="tablet-register-agree"
+                  checked={agreeTerms}
+                  onChange={(e) => {
+                    setAgreeTerms(e.target.checked);
+                    if (e.target.checked) setAgreeTermsError(false);
+                  }}
+                  style={{ marginTop: '0.15rem', accentColor: '#2563eb', cursor: 'pointer', flexShrink: 0, width: '18px', height: '18px' }}
+                />
+                <label htmlFor="tablet-register-agree" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                  Saya menyetujui <span style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'underline' }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpenPolicy ? onOpenPolicy('terms') : (window.location.href = '/terms'); }}>Syarat &amp; Ketentuan</span> serta <span style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'underline' }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpenPolicy ? onOpenPolicy('privacy') : (window.location.href = '/privacy'); }}>Kebijakan Privasi</span> platform Catavor.
+                </label>
+              </div>
+
+              {agreeTermsError && !agreeTerms && (
+                <div style={{
+                  fontSize: '0.76rem',
+                  color: '#dc2626',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontWeight: 700,
+                  padding: '0.35rem 0.65rem',
+                  borderRadius: '0.5rem',
+                  backgroundColor: '#fef2f2',
+                  border: '1px solid #fee2e2',
+                  animation: 'fadeIn 0.2s ease-in-out'
+                }}>
+                  <AlertCircle size={15} style={{ color: '#dc2626', flexShrink: 0 }} />
+                  <span>Harap centang persetujuan Syarat &amp; Ketentuan di atas untuk melanjutkan ke pembayaran.</span>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -1023,6 +1073,11 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  if (!agreeTerms) {
+                    setAgreeTermsError(true);
+                    return;
+                  }
+                  setAgreeTermsError(false);
                   if (registerPlan === 'free') {
                     handleFreeSubmit();
                   } else {

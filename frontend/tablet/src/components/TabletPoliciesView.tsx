@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   ShieldAlert,
@@ -15,6 +15,7 @@ import {
 
 export interface TabletPoliciesViewProps {
   onOpenHelpdesk?: () => void;
+  initialKey?: PolicyKey;
 }
 
 type PolicyKey = 'terms' | 'prohibited' | 'privacy' | 'moderation' | 'transactions';
@@ -243,8 +244,14 @@ const POLICY_SECTIONS: PolicyDoc[] = [
   }
 ];
 
-export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({ onOpenHelpdesk }) => {
-  const [activeKey, setActiveKey] = useState<PolicyKey>('terms');
+export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({ onOpenHelpdesk, initialKey }) => {
+  const [activeKey, setActiveKey] = useState<PolicyKey>(initialKey || 'terms');
+
+  useEffect(() => {
+    if (initialKey) {
+      setActiveKey(initialKey);
+    }
+  }, [initialKey]);
 
   const currentDoc = POLICY_SECTIONS.find(doc => doc.key === activeKey) || POLICY_SECTIONS[0];
   const ActiveIcon = currentDoc.icon;

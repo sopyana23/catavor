@@ -8,6 +8,7 @@ import {
   AlertCircle,
   ArrowRight,
   ArrowLeft,
+  ChevronLeft,
   Sparkles,
   Home
 } from 'lucide-react';
@@ -17,6 +18,7 @@ import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
 import { TabletPlatformConsole } from './components/TabletPlatformConsole';
 import { TabletCheckoutView } from './components/TabletCheckoutView';
 import { TabletRegisterView } from './components/TabletRegisterView';
+import { TabletPoliciesView } from './components/TabletPoliciesView';
 import { type UserRBACInfo, isPlatformAdmin } from './utils/rbac';
 import { isTokenExpired } from './utils/auth';
 import {
@@ -32,7 +34,10 @@ import { initGoogleAdSense } from './utils/googleAdSense';
 import { initGoogleAnalytics } from './utils/googleAnalytics';
 import { smartBack } from './utils/navigation';
 
-const RESERVED_SLUGS = ['api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'ops', 'catalogs', 'select-catalog', 'stores'];
+const RESERVED_SLUGS = [
+  'api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'ops', 
+  'catalogs', 'select-catalog', 'stores', 'terms', 'privacy', 'syarat-ketentuan', 'kebijakan-privasi', 'acceptable-use'
+];
 
 export const isCatalogChooserRoute = (path: string): boolean => {
   const p = path.toLowerCase().replace(/\/$/, '');
@@ -109,8 +114,8 @@ export const App: React.FC = () => {
 
   // Dynamic Theme Sync (navy, emerald, cyberpunk, ocean, pastel, sage, nordic, cream)
   useEffect(() => {
-    // Platform pages (public landing, login, register, platform admin) always use the platform default theme ('navy')
-    const isPlatformPage = currentPath === '/' || currentPath === '/login' || currentPath === '/register' || currentPath === '/checkout' || currentPath.startsWith('/admin');
+    // Platform pages (public landing, login, register, platform admin, policies) always use the platform default theme ('navy')
+    const isPlatformPage = currentPath === '/' || currentPath === '/login' || currentPath === '/register' || currentPath.startsWith('/register/') || currentPath === '/checkout' || currentPath.startsWith('/admin') || currentPath === '/terms' || currentPath === '/privacy' || currentPath === '/syarat-ketentuan' || currentPath === '/kebijakan-privasi' || currentPath === '/acceptable-use';
     const resolvedTheme = isPlatformPage ? 'navy' : (storeTheme || 'navy');
     document.documentElement.setAttribute('data-theme', resolvedTheme);
     document.body.setAttribute('data-theme', resolvedTheme);
@@ -240,6 +245,22 @@ export const App: React.FC = () => {
     const handlePopState = () => {
       if (typeof window !== 'undefined' && window.__catavor_is_modal_popping) return;
       const pathname = window.location.pathname.toLowerCase();
+
+      // Intercept return from policies to registration step 3 if user came from register step 3
+      const policyReturnStep = sessionStorage.getItem('catavor_policy_return_step');
+      if (policyReturnStep === '3' && (pathname === '/register' || pathname === '/register/step-1' || pathname === '/register/step-2')) {
+        sessionStorage.removeItem('catavor_policy_return_step');
+        sessionStorage.removeItem('catavor_policy_return_tab');
+        const plan = sessionStorage.getItem('catavor_register_plan') || 'free';
+        window.history.replaceState({}, '', `/register/step-3${plan !== 'free' ? '?plan=' + plan : ''}`);
+        setCurrentPath('/register/step-3');
+        return;
+      }
+      if (pathname === '/register/step-3') {
+        sessionStorage.removeItem('catavor_policy_return_step');
+        sessionStorage.removeItem('catavor_policy_return_tab');
+      }
+
       setCurrentPath(pathname);
       const parts = pathname.split('/').filter(Boolean);
       if (parts.length > 0 && !RESERVED_SLUGS.includes(parts[0])) {
@@ -492,8 +513,11 @@ export const App: React.FC = () => {
               const checkData = await checkRes.json();
               if (!checkData.available) {
                 const msg = checkData.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
-                setLoginError(msg);
-                window.dispatchEvent(new CustomEvent('catavor:register-error', { detail: { message: msg } }));
+                setLoginError(null);
+                const candidateName = data.google_data?.name || data.user?.name || googleUser.name || '';
+                window.dispatchEvent(new CustomEvent('catavor:register-error', {
+                  detail: { message: msg, email: candidateEmail, name: candidateName }
+                }));
                 return;
               }
             }
@@ -801,6 +825,7 @@ export const App: React.FC = () => {
   const isLoginRoute = currentPath === '/login';
   const isCheckoutRoute = currentPath === '/checkout' || currentPath.startsWith('/checkout/');
   const isRegisterRoute = currentPath === '/register' || currentPath.startsWith('/register/');
+  const isPolicyRoute = currentPath === '/terms' || currentPath === '/syarat-ketentuan' || currentPath === '/privacy' || currentPath === '/kebijakan-privasi' || currentPath === '/acceptable-use';
   const isCatalogChooser = isCatalogChooserRoute(currentPath);
   const isStoreAdminRoute = Boolean(activeSlug) && (
     currentPath === `/${activeSlug}/admin` ||
@@ -1632,7 +1657,92 @@ export const App: React.FC = () => {
           }
         }}
         onGoogleSSO={handleGoogleSSO}
+        onOpenPolicy={(type) => {
+          sessionStorage.setItem('catavor_policy_return_tab', 'register');
+          sessionStorage.setItem('catavor_policy_return_step', String(regStep || 3));
+          const plan = sessionStorage.getItem('catavor_register_plan') || 'free';
+          window.history.replaceState({}, '', `/register/step-3${plan !== 'free' ? '?plan=' + plan : ''}`);
+          const targetUrl = type === 'terms' ? '/terms' : '/privacy';
+          navigateTo(targetUrl);
+        }}
       />
+    );
+  }
+
+  // 3D. DEDICATED LEGAL & POLICY ROUTE (/terms, /privacy, /syarat-ketentuan, /kebijakan-privasi, /acceptable-use)
+  if (isPolicyRoute) {
+    const policyKey = (currentPath === '/privacy' || currentPath === '/kebijakan-privasi') ? 'privacy' : 'terms';
+    const isFromRegister = typeof window !== 'undefined' && sessionStorage.getItem('catavor_policy_return_tab') === 'register';
+
+    const handlePolicyBack = () => {
+      const returnTab = sessionStorage.getItem('catavor_policy_return_tab');
+      const returnStep = sessionStorage.getItem('catavor_policy_return_step');
+
+      if (returnTab === 'register') {
+        sessionStorage.removeItem('catavor_policy_return_tab');
+        sessionStorage.removeItem('catavor_policy_return_step');
+        sessionStorage.removeItem('catavor_policy_return_plan');
+        const targetStep = (Number(returnStep) === 1 ? 1 : Number(returnStep) === 2 ? 2 : 3);
+        if (targetStep === 1) navigateTo('/register');
+        else if (targetStep === 2) navigateTo('/register/step-2');
+        else {
+          const plan = sessionStorage.getItem('catavor_register_plan') || 'free';
+          navigateTo(`/register/step-3${plan !== 'free' ? '?plan=' + plan : ''}`);
+        }
+        return;
+      }
+
+      smartBack('/');
+    };
+
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-deep)', color: 'var(--text-primary)' }}>
+        {/* Tablet Policy Header */}
+        <header style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 40,
+          backgroundColor: 'var(--bg-card, #0f172a)',
+          borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+          padding: '0.85rem 1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          backdropFilter: 'blur(8px)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <button
+              type="button"
+              onClick={handlePolicyBack}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.5rem 0.85rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid var(--border-light, rgba(255, 255, 255, 0.15))',
+                color: 'var(--text-primary, #ffffff)',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Kembali"
+            >
+              <ChevronLeft size={18} />
+              <span>{isFromRegister ? 'Kembali ke Pilih Paket' : 'Kembali ke Beranda'}</span>
+            </button>
+            <span style={{ color: 'var(--text-muted, #64748b)' }}>|</span>
+            <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
+              {policyKey === 'privacy' ? 'Kebijakan Privasi' : 'Syarat & Ketentuan'}
+            </span>
+          </div>
+        </header>
+
+        <main style={{ padding: '1rem 0 3rem 0' }}>
+          <TabletPoliciesView initialKey={policyKey} />
+        </main>
+      </div>
     );
   }
 
