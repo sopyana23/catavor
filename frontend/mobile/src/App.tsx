@@ -10051,35 +10051,90 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [showMobileCancelModal, setShowMobileCancelModal] = useState<boolean>(false);
   const [cancelDragY, setCancelDragY] = useState(0);
   const [isCancelDragging, setIsCancelDragging] = useState(false);
+  const [isClosingCancelModal, setIsClosingCancelModal] = useState(false);
   const cancelTouchStartY = useRef(0);
+  const cancelDragYRef = useRef(0);
+
+  useEffect(() => {
+    cancelDragYRef.current = cancelDragY;
+  }, [cancelDragY]);
+
+  const closeCancelModalWithAnimation = useCallback(() => {
+    setIsClosingCancelModal(true);
+    setIsCancelDragging(false);
+    setTimeout(() => {
+      setShowMobileCancelModal(false);
+      setIsClosingCancelModal(false);
+      setCancelDragY(0);
+      cancelDragYRef.current = 0;
+    }, 230);
+  }, []);
 
   const handleCancelDragStart = (clientY: number) => {
+    if (isClosingCancelModal) return;
     cancelTouchStartY.current = clientY;
     setIsCancelDragging(true);
   };
 
-  const handleCancelDragMove = (clientY: number) => {
-    if (!isCancelDragging) return;
+  const handleCancelDragMove = useCallback((clientY: number) => {
     const delta = clientY - cancelTouchStartY.current;
     if (delta > 0) {
+      // Dragging DOWN: direct 1:1 finger tracking
       setCancelDragY(delta);
     } else {
-      setCancelDragY(delta * 0.18); // Rubber-band effect when dragging up
+      // Dragging UP: generous responsive travel with smooth elastic resistance
+      const upTravel = delta >= -90 ? delta * 0.9 : -81 + (delta + 90) * 0.45;
+      setCancelDragY(Math.max(-180, upTravel));
     }
-  };
+  }, []);
 
-  const handleCancelDragEnd = () => {
-    if (!isCancelDragging) return;
+  const handleCancelDragEnd = useCallback(() => {
     setIsCancelDragging(false);
-    if (cancelDragY > 70) {
-      setShowMobileCancelModal(false);
+    if (cancelDragYRef.current > 70) {
+      closeCancelModalWithAnimation();
+    } else {
+      setCancelDragY(0);
+      cancelDragYRef.current = 0;
     }
-    setCancelDragY(0);
-  };
+  }, [closeCancelModalWithAnimation]);
+
+  // Window-level listeners during active drag to guarantee fluid gesture tracking across viewport
+  useEffect(() => {
+    if (!isCancelDragging) return;
+
+    const onWindowMouseMove = (e: MouseEvent) => {
+      handleCancelDragMove(e.clientY);
+    };
+    const onWindowMouseUp = () => {
+      handleCancelDragEnd();
+    };
+    const onWindowTouchMove = (e: TouchEvent) => {
+      if (e.touches && e.touches.length > 0) {
+        handleCancelDragMove(e.touches[0].clientY);
+      }
+    };
+    const onWindowTouchEnd = () => {
+      handleCancelDragEnd();
+    };
+
+    window.addEventListener('mousemove', onWindowMouseMove);
+    window.addEventListener('mouseup', onWindowMouseUp);
+    window.addEventListener('touchmove', onWindowTouchMove, { passive: true });
+    window.addEventListener('touchend', onWindowTouchEnd);
+    window.addEventListener('touchcancel', onWindowTouchEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', onWindowMouseMove);
+      window.removeEventListener('mouseup', onWindowMouseUp);
+      window.removeEventListener('touchmove', onWindowTouchMove);
+      window.removeEventListener('touchend', onWindowTouchEnd);
+      window.removeEventListener('touchcancel', onWindowTouchEnd);
+    };
+  }, [isCancelDragging, handleCancelDragMove, handleCancelDragEnd]);
 
   useModalBackHandler({
     isOpen: showMobileCancelModal,
-    onClose: () => setShowMobileCancelModal(false),
+    onClose: closeCancelModalWithAnimation,
     modalId: 'mobile-cancel-registration'
   });
 
@@ -13898,6 +13953,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   const handleConfirmMobileCancel = () => {
     setShowMobileCancelModal(false);
+    setIsClosingCancelModal(false);
+    setCancelDragY(0);
     resetRegisterFormState();
     setAppliedCoupon(null);
     setPaymentProofPreview(null);
@@ -18570,16 +18627,24 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
          ========================================================== */}
       {showMobileCancelModal && (
         <div
-          className="bottom-sheet-backdrop"
+          className={`bottom-sheet-backdrop ${isClosingCancelModal ? 'is-closing' : ''}`}
           style={{ zIndex: 100015 }}
-          onClick={() => setShowMobileCancelModal(false)}
+          onClick={closeCancelModalWithAnimation}
         >
           <div
-            className="bottom-sheet-content"
+            className={`bottom-sheet-content ${isClosingCancelModal ? 'is-closing' : ''}`}
             onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => {
+              if ((e.target as HTMLElement).closest('button, a, input')) return;
+              handleCancelDragStart(e.touches[0].clientY);
+            }}
+            onMouseDown={(e) => {
+              if ((e.target as HTMLElement).closest('button, a, input')) return;
+              handleCancelDragStart(e.clientY);
+            }}
             style={{
-              transform: `translateY(${cancelDragY}px)`,
-              transition: isCancelDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              transform: isClosingCancelModal ? 'translateY(100%)' : `translateY(${cancelDragY}px)`,
+              transition: isCancelDragging ? 'none' : 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
               maxHeight: '88vh',
               padding: '0.65rem 0 calc(1.75rem + env(safe-area-inset-bottom, 16px)) 0',
               borderBottomLeftRadius: 0,
@@ -18589,18 +18654,19 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               width: '100%',
               display: 'flex',
               flexDirection: 'column',
-              backgroundColor: '#ffffff'
+              backgroundColor: '#ffffff',
+              cursor: isCancelDragging ? 'grabbing' : 'default',
+              userSelect: isCancelDragging ? 'none' : 'auto'
             }}
           >
             {/* Smooth Drag Handle Area */}
             <div
               className="bottom-sheet-handle-bar"
-              onTouchStart={(e) => handleCancelDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleCancelDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleCancelDragEnd}
-              onMouseDown={(e) => handleCancelDragStart(e.clientY)}
-              onMouseMove={(e) => handleCancelDragMove(e.clientY)}
-              onMouseUp={handleCancelDragEnd}
+              style={{
+                touchAction: 'none',
+                cursor: isCancelDragging ? 'grabbing' : 'grab',
+                padding: '0.35rem 0 0.65rem'
+              }}
             >
               <div className="bottom-sheet-handle" style={{ backgroundColor: '#cbd5e1' }} />
             </div>
@@ -18611,16 +18677,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               style={{
                 padding: '0 1.25rem 0.75rem',
                 borderBottom: '1px solid #e2e8f0',
-                cursor: 'grab',
+                cursor: isCancelDragging ? 'grabbing' : 'grab',
                 touchAction: 'none',
                 userSelect: 'none'
               }}
-              onTouchStart={(e) => handleCancelDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleCancelDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleCancelDragEnd}
-              onMouseDown={(e) => handleCancelDragStart(e.clientY)}
-              onMouseMove={(e) => handleCancelDragMove(e.clientY)}
-              onMouseUp={handleCancelDragEnd}
             >
               <div className="bottom-sheet-title-box" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                 <div style={{
@@ -18686,7 +18746,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 {/* Secondary: Lanjutkan Pembayaran */}
                 <button
                   type="button"
-                  onClick={() => setShowMobileCancelModal(false)}
+                  onClick={closeCancelModalWithAnimation}
                   style={{
                     height: '44px',
                     width: '100%',
