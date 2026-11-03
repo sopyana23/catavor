@@ -3789,18 +3789,19 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             {/* Top Control Bar: Search & Active/Archived Filter (Desktop Concept Adaptive for Tablet) */}
             <div style={{
               backgroundColor: 'var(--bg-card)',
-              padding: '1rem 1.15rem',
+              padding: '0.85rem 1rem',
               borderRadius: '0.85rem',
               border: '1px solid var(--border-light)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.75rem',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+              gap: '0.65rem',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              flexShrink: 0
             }}>
               {/* Search Bar + Secondary Dropdowns: adapts between wide (grid) and compact tablet */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: isNarrowFilterBar ? '1fr' : 'minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) auto',
+                gridTemplateColumns: isNarrowFilterBar ? '1fr' : 'minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr)',
                 gap: '0.65rem',
                 alignItems: 'center',
                 width: '100%',
@@ -3870,7 +3871,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     width: '100%',
                     boxSizing: 'border-box'
                   }}>
-                    <div style={{ flex: '1 1 180px', minWidth: '130px' }}>
+                    <div style={{ flex: '1 1 140px', minWidth: '120px' }}>
                       <TabletCustomSelect
                         value={productCategoryFilter}
                         onChange={(val) => {
@@ -3896,7 +3897,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       />
                     </div>
 
-                    <div style={{ flex: '1 1 150px', minWidth: '120px' }}>
+                    <div style={{ flex: '1 1 130px', minWidth: '110px' }}>
                       <TabletCustomSelect
                         value={productSortFilter}
                         onChange={(val) => {
@@ -3912,36 +3913,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         ]}
                         placeholder="Urutan Item"
                         ariaLabel="Urutan Item"
-                      />
-                    </div>
-
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                      marginLeft: 'auto',
-                      flexShrink: 0
-                    }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                        Baris:
-                      </span>
-                      <TabletCustomSelect
-                        value={String(productPerPage)}
-                        onChange={(val) => {
-                          const n = Number(val);
-                          setProductPerPage(n);
-                          setProductPage(1);
-                        }}
-                        options={[
-                          { value: '10', label: '10' },
-                          { value: '25', label: '25' },
-                          { value: '50', label: '50' }
-                        ]}
-                        placeholder="10"
-                        variant="compact"
-                        style={{ width: '72px', minWidth: '65px' }}
-                        triggerStyle={{ padding: '0.45rem 0.65rem' }}
-                        ariaLabel="Jumlah Baris per Halaman"
                       />
                     </div>
                   </div>
@@ -3989,30 +3960,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         ]}
                         placeholder="Urutan Item"
                         ariaLabel="Urutan Item"
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'flex-end', flexShrink: 0 }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                        Baris:
-                      </span>
-                      <TabletCustomSelect
-                        value={String(productPerPage)}
-                        onChange={(val) => {
-                          const n = Number(val);
-                          setProductPerPage(n);
-                          setProductPage(1);
-                        }}
-                        options={[
-                          { value: '10', label: '10' },
-                          { value: '25', label: '25' },
-                          { value: '50', label: '50' }
-                        ]}
-                        placeholder="10"
-                        variant="compact"
-                        style={{ width: '72px', minWidth: '65px' }}
-                        triggerStyle={{ padding: '0.45rem 0.65rem' }}
-                        ariaLabel="Jumlah Baris per Halaman"
                       />
                     </div>
                   </>
@@ -4231,8 +4178,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               style={{
                 width: '100%',
                 maxHeight: 'none',
-                overflowY: 'visible',
+                overflowY: 'hidden',
                 overflowX: 'auto',
+                flexShrink: 0,
                 WebkitOverflowScrolling: 'touch',
                 borderRadius: '0.85rem',
                 border: '1px solid var(--border-light)',
@@ -4244,7 +4192,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 className="tablet-sticky-table"
                 style={{
                   width: '100%',
-                  minWidth: '760px',
+                  minWidth: '680px',
                   borderCollapse: 'separate',
                   borderSpacing: 0,
                   textAlign: 'left'
@@ -4255,10 +4203,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     <th
                       className="sticky-col"
                       style={{
-                        width: '68px',
-                        minWidth: '68px',
-                        maxWidth: '68px',
-                        padding: '0.85rem 0.75rem',
+                        width: '58px',
+                        minWidth: '58px',
+                        maxWidth: '58px',
+                        padding: '0.85rem 0.65rem',
                         fontSize: '0.75rem',
                         fontWeight: 700,
                         color: 'var(--text-secondary)',
@@ -4296,8 +4244,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     </th>
                     <th
                       style={{
-                        width: '160px',
-                        minWidth: '150px',
+                        width: '140px',
+                        minWidth: '130px',
                         padding: '0.85rem 0.75rem',
                         fontSize: '0.75rem',
                         fontWeight: 700,
@@ -4316,8 +4264,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     </th>
                     <th
                       style={{
-                        width: '130px',
-                        minWidth: '120px',
+                        width: '115px',
+                        minWidth: '105px',
                         padding: '0.85rem 0.75rem',
                         fontSize: '0.75rem',
                         fontWeight: 700,
@@ -4336,8 +4284,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     </th>
                     <th
                       style={{
-                        width: '120px',
-                        minWidth: '110px',
+                        width: '100px',
+                        minWidth: '95px',
                         padding: '0.85rem 0.75rem',
                         fontSize: '0.75rem',
                         fontWeight: 700,
@@ -4356,9 +4304,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     </th>
                     <th
                       style={{
-                        width: '180px',
-                        minWidth: '170px',
-                        padding: '0.85rem 0.85rem',
+                        width: '150px',
+                        minWidth: '140px',
+                        padding: '0.85rem 0.75rem',
                         fontSize: '0.75rem',
                         fontWeight: 700,
                         color: 'var(--text-secondary)',
@@ -4476,10 +4424,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           <td
                             className="sticky-col"
                             style={{
-                              width: '68px',
-                              minWidth: '68px',
-                              maxWidth: '68px',
-                              padding: '0.75rem 0.75rem',
+                              width: '58px',
+                              minWidth: '58px',
+                              maxWidth: '58px',
+                              padding: '0.65rem 0.65rem',
                               verticalAlign: 'middle',
                               position: 'sticky',
                               left: 0,
@@ -4490,7 +4438,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               boxShadow: '3px 0 8px rgba(0,0,0,0.04)'
                             }}
                           >
-                            <div style={{ width: '52px', height: '42px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: '46px', height: '40px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               {item.image_url ? (
                                 <img
                                   src={item.image_url}
@@ -4729,7 +4677,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               fontSize: '0.82rem',
               color: 'var(--text-secondary)',
               flexWrap: 'wrap',
-              gap: '0.75rem'
+              gap: '0.75rem',
+              flexShrink: 0
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
                 <div>
