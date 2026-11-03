@@ -114,12 +114,33 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 	if viewQuery == "tablet" {
 		targetDist = h.cfg.TabletDistDir
 		fallbackDist = h.cfg.DesktopDistDir
+		c.Cookie(&fiber.Cookie{
+			Name:     "catavor_device",
+			Value:    "tablet",
+			Path:     "/",
+			MaxAge:   30 * 86400,
+			SameSite: "Lax",
+		})
 	} else if viewQuery == "mobile" {
 		targetDist = h.cfg.MobileDistDir
 		fallbackDist = h.cfg.DesktopDistDir
+		c.Cookie(&fiber.Cookie{
+			Name:     "catavor_device",
+			Value:    "mobile",
+			Path:     "/",
+			MaxAge:   30 * 86400,
+			SameSite: "Lax",
+		})
 	} else if viewQuery == "desktop" {
 		targetDist = h.cfg.DesktopDistDir
 		fallbackDist = h.cfg.MobileDistDir
+		c.Cookie(&fiber.Cookie{
+			Name:     "catavor_device",
+			Value:    "desktop",
+			Path:     "/",
+			MaxAge:   30 * 86400,
+			SameSite: "Lax",
+		})
 	// 2. Explicit Tablet Device signals (iPad / Tablet UA) take precedence over generic mobile hints
 	} else if isTabletUA {
 		targetDist = h.cfg.TabletDistDir

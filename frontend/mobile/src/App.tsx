@@ -6625,6 +6625,18 @@ Terima kasih.`;
     };
   }, [markUserNavigation])
 
+  // Persistent device classification cookie for resilient form-factor retention across refreshes
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('view') === 'mobile' || window.innerWidth < 768) {
+          document.cookie = 'catavor_device=mobile; path=/; max-age=2592000; SameSite=Lax';
+        }
+      }
+    } catch {}
+  }, []);
+
   const [view, setView] = useState<'tabs' | 'fauna-editor' | 'product-type-selector'>('tabs')
   const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'admin'>(() => {
     if (typeof window !== 'undefined') {
@@ -7572,12 +7584,13 @@ Terima kasih.`;
         (
           (adminUser.store_slug && adminUser.store_slug.toLowerCase() === storeSlug.toLowerCase()) ||
           ((adminUser as any).username && (adminUser as any).username.toLowerCase() === storeSlug.toLowerCase()) ||
-          (userStores && userStores.some(s => s.slug.toLowerCase() === storeSlug.toLowerCase()))
+          (userStores && userStores.some(s => s.slug.toLowerCase() === storeSlug.toLowerCase())) ||
+          (Array.isArray((adminUser as any).stores) && (adminUser as any).stores.some((s: any) => s.slug?.toLowerCase() === storeSlug.toLowerCase()))
         )
       ) ||
       (
         (!storeSlug || isReservedStoreSlug(storeSlug || '')) &&
-        Boolean(adminUser.store_slug || resolveActiveStoreSlug() || (userStores && userStores.length > 0))
+        Boolean(adminUser.store_slug || resolveActiveStoreSlug() || (userStores && userStores.length > 0) || (Array.isArray((adminUser as any).stores) && (adminUser as any).stores.length > 0))
       )
     )
   );
@@ -13969,6 +13982,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setShowCreateStoreModal(false);
     setIsCreatingTicket(false);
     setSelectedTicket(null);
+    try {
+      sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+      sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+    } catch {}
     setShowCategorySheet(false);
     setShowSortSheet(false);
     setShowFilterSheet(false);
@@ -13984,11 +14001,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const goToCatalog = () => {
     closeAllTransientOverlays()
     setActiveTab('catalog')
+    const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+    if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}`));
   }
 
   const goToAbout = () => {
     closeAllTransientOverlays()
     setActiveTab('about')
+    const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+    if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/about`));
   }
 
 
@@ -18742,35 +18763,30 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
   );
 
 
-  // Native App Standard: Show bottom nav at top-level merchant pages (menu, items, settings), hide on modal/detail views
+  // Native App Standard: Show bottom nav across all primary merchant admin & storefront tabs, hide on modal/detail views
   const isBottomNavVisible = Boolean(
     settings?.dormancy_status !== 'suspended' &&
     !settings?.is_suspended &&
     settings?.dormancy_status !== 'banned' &&
     !showLightbox &&
-    !selectedFauna &&
-    !isDetailActive &&
     !actionMenuData &&
     !showStoreSwitcherModal &&
     !showCreateStoreModal &&
-    !isCreatingTicket &&
-    !selectedTicket &&
     view === 'tabs' &&
     (
-      // 1. In Admin Mode: Show bottom bar on 'menu', 'items' (Inventaris), and root 'settings' (Pengaturan menu)
+      // 1. In Admin Mode: Show bottom bar across all merchant admin screens
+      // (menu, items, settings with subtabs, analytics, subscription, profile, policies, notifications, help ticket list, share, audit logs, rbac).
+      // Hide ONLY on specific modal flows: ticket chat room in helpdesk and ticket creation modal in helpdesk.
       (
         activeTab === 'admin' &&
         token &&
-        isStoreOwner &&
-        (
-          adminSubTab === 'menu' ||
-          adminSubTab === 'items' ||
-          (adminSubTab === 'settings' && (!mobileSettingsTab || mobileSettingsTab === 'menu'))
-        )
+        !(adminSubTab === 'help' && (Boolean(selectedTicket) || isCreatingTicket))
       ) ||
-      // 2. In Public Storefront Mode: Show bottom bar on root tabs
+      // 2. In Public Storefront Mode: Show bottom bar on root tabs (catalog, about), hide on item detail modal and QR code view
       (
         activeTab !== 'admin' &&
+        !selectedFauna &&
+        !isDetailActive &&
         !(activeTab === 'about' && aboutSubView === 'qrcode')
       )
     )
@@ -32204,15 +32220,17 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       {isBottomNavVisible && !isSuspendedAccountState && !(activeTab === 'admin' && !token) && (
         <ErrorBoundary sectionName="Bilah Navigasi Bawah (Mobile)">
         <nav className="bottom-nav">
-          {activeTab === 'admin' && token && isStoreOwner ? (
+          {activeTab === 'admin' && token && (isStoreOwner || Boolean(adminUser)) ? (
             /* MERCHANT ADMIN BOTTOM BAR (NATIVE APP STYLE) */
             <>
               <button 
                 type="button"
-                className={`nav-item ${adminSubTab === 'menu' ? 'active' : ''}`}
+                className={`nav-item ${(['menu', 'analytics', 'subscription', 'profile', 'policies', 'notifications', 'help', 'share', 'audit_logs', 'rbac'].includes(adminSubTab)) ? 'active' : ''}`}
                 onClick={() => {
                   closeAllTransientOverlays();
                   setAdminSubTab('menu');
+                  const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+                  if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/admin`));
                 }}
               >
                 <div style={{ position: 'relative', display: 'inline-flex' }}>
@@ -32240,6 +32258,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   closeAllTransientOverlays();
                   setAdminSubTab('items');
                   setEditId(null);
+                  const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+                  if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/admin/items`));
                 }}
               >
                 <Layers size={20} />
@@ -32252,7 +32272,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   closeAllTransientOverlays();
                   setAdminSubTab('settings');
                   setMobileSettingsTab('menu');
-                  if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/settings`);
+                  const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+                  if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/admin/settings`));
                 }}
               >
                 <Settings size={20} />
@@ -32264,7 +32285,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 onClick={() => {
                   closeAllTransientOverlays();
                   setActiveTab('catalog');
-                  window.history.pushState({}, '', `/${storeSlug}`);
+                  const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+                  if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}`));
                 }}
               >
                 <ExternalLink size={20} />
@@ -32298,7 +32320,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     closeAllTransientOverlays();
                     setActiveTab('admin');
                     setAdminSubTab('menu');
-                    window.history.pushState({}, '', `/${storeSlug}/admin`);
+                    const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+                    if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/admin`));
                   }}
                 >
                   <div style={{ position: 'relative', display: 'inline-flex' }}>

@@ -7562,6 +7562,18 @@ Terima kasih.`;
     };
   }, [markUserNavigation]);
 
+  // Persistent device classification cookie for resilient form-factor retention across refreshes
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('view') === 'desktop' || (!urlParams.get('view') && window.innerWidth >= 1024)) {
+          document.cookie = 'catavor_device=desktop; path=/; max-age=2592000; SameSite=Lax';
+        }
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     if (adminTab !== 'items') return;
     const slug = storeSlug || getStoreSlug();

@@ -105,6 +105,18 @@ export const App: React.FC = () => {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginRedirectPortal, setLoginRedirectPortal] = useState<string | null>(null);
 
+  // Persistent device classification cookie for resilient form-factor retention across refreshes
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('view') === 'tablet' || (!urlParams.get('view') && window.innerWidth >= 768 && window.innerWidth < 1024)) {
+          document.cookie = 'catavor_device=tablet; path=/; max-age=2592000; SameSite=Lax';
+        }
+      }
+    } catch {}
+  }, []);
+
   // Dynamic Theme Sync (navy, emerald, cyberpunk, ocean, pastel, sage, nordic, cream)
   useEffect(() => {
     // Platform pages (public landing, login, register, platform admin) always use the platform default theme ('navy')
