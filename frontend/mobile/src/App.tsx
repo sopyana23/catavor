@@ -18777,18 +18777,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     !showCreateStoreModal &&
     view === 'tabs' &&
     (
-      // 1. In Admin Mode: Show bottom bar across primary root merchant admin screens
-      // (menu, items list, settings root menu, analytics, subscription, profile, policies, notifications list, help ticket list, share, audit logs, rbac).
-      // Hide on focused sub-pages / deep drill-downs / task flows:
-      // - Settings sub-pages (general, contact, theme, domain, master, account forms) -> hide to prevent keyboard clipping & CTA collision
-      // - Notification detail view -> hide for distraction-free reading
-      // - Helpdesk ticket chat room & ticket creation modal -> hide for dedicated chat input bar
+      // 1. In Admin Mode: Show bottom bar ONLY across primary root merchant screens
+      // (Menu dashboard, Inventaris items list, Settings root menu).
+      // Automatically hide on all feature sub-pages / deep drill-downs:
+      // (Analitik, Langganan, Profil Akun, Bantuan, Bagikan, Riwayat Log, RBAC, Kebijakan, Notifikasi, serta sub-halaman Pengaturan seperti Tema, Master, Profil, Kontak, Domain, dll.)
       (
         activeTab === 'admin' &&
         token &&
-        !(adminSubTab === 'help' && (Boolean(selectedTicket) || isCreatingTicket)) &&
-        !(adminSubTab === 'settings' && mobileSettingsTab && mobileSettingsTab !== 'menu') &&
-        !(adminSubTab === 'notifications' && Boolean(selectedNotification))
+        (
+          adminSubTab === 'menu' ||
+          adminSubTab === 'items' ||
+          (adminSubTab === 'settings' && (!mobileSettingsTab || mobileSettingsTab === 'menu'))
+        )
       ) ||
       // 2. In Public Storefront Mode: Show bottom bar on root tabs (catalog, about), hide on item detail modal and QR code view
       (
@@ -32233,7 +32233,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
             <>
               <button 
                 type="button"
-                className={`nav-item ${(['menu', 'analytics', 'subscription', 'profile', 'policies', 'notifications', 'help', 'share', 'audit_logs', 'rbac'].includes(adminSubTab)) ? 'active' : ''}`}
+                className={`nav-item ${adminSubTab === 'menu' ? 'active' : ''}`}
                 onClick={() => {
                   closeAllTransientOverlays();
                   setAdminSubTab('menu');
