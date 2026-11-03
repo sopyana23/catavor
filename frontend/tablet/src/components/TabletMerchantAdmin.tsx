@@ -1841,7 +1841,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!productForm.name.trim()) {
-      showToast('Nama produk wajib diisi', 'error');
+      showToast('Nama item wajib diisi', 'error');
       return;
     }
     if (!productForm.product_type) {
@@ -1851,7 +1851,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
     const validPhotos = productPhotos.map(p => p.trim()).filter(Boolean);
     if (validPhotos.length === 0) {
-      showToast('Unggah minimal 1 foto produk (Foto Sampul Utama)', 'error');
+      showToast('Unggah minimal 1 foto item (Foto Sampul Utama)', 'error');
       return;
     }
     setSaving(true);
@@ -1962,7 +1962,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
       if (res.ok) {
         const json = await res.json();
-        showToast(isNew ? 'Produk berhasil ditambahkan!' : 'Perubahan produk berhasil disimpan!');
+        showToast(isNew ? 'Item berhasil ditambahkan!' : 'Perubahan item berhasil disimpan!');
         await fetchProducts(
           productPage,
           productSearch,
@@ -1984,17 +1984,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         } catch {}
       } else {
         const err = await res.json();
-        showToast(err.message || 'Gagal menyimpan produk', 'error');
+        showToast(err.message || 'Gagal menyimpan item', 'error');
       }
     } catch {
-      showToast('Terjadi kesalahan sistem saat menyimpan produk', 'error');
+      showToast('Terjadi kesalahan sistem saat menyimpan item', 'error');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteProduct = async (id: number) => {
-    if (!confirm('Yakin ingin menghapus produk ini dari katalog?')) return;
+    if (!confirm('Yakin ingin menghapus item ini dari katalog?')) return;
     try {
       const res = await fetch(`/api/products/${id}`, {
         method: 'DELETE',
@@ -2004,7 +2004,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         }
       });
       if (res.ok) {
-        showToast('Produk berhasil dihapus');
+        showToast('Item berhasil dihapus');
         setSelectedProductId(null);
         await fetchProducts(
           1,
@@ -2018,7 +2018,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         );
         fetchCatalogMetrics();
       } else {
-        showToast('Gagal menghapus produk', 'error');
+        showToast('Gagal menghapus item', 'error');
       }
     } catch {
       showToast('Terjadi kesalahan jaringan', 'error');
@@ -3718,10 +3718,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             }}>
               <div>
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  Katalog Produk &amp; Inventaris
+                  Katalog Item &amp; Inventaris
                 </h2>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Kelola seluruh produk, harga, dan inventaris toko Anda
+                  Kelola seluruh item, harga, dan inventaris toko Anda
                 </span>
               </div>
 
@@ -3753,8 +3753,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 </button>
 
                 <button
-                  id="btn-tambah-produk"
-                  data-testid="btn-tambah-produk"
+                  id="btn-tambah-item"
+                  data-testid="btn-tambah-item"
                   type="button"
                   onClick={() => handleCancelToProductTypeSelection()}
                   style={{
@@ -3774,7 +3774,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   }}
                 >
                   <Plus size={17} />
-                  <span>Tambah Produk</span>
+                  <span>Tambah Item</span>
                 </button>
               </div>
             </div>
@@ -3892,7 +3892,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           }))
                         ]}
                         placeholder="Semua Kategori"
-                        ariaLabel="Filter Kategori Produk"
+                        ariaLabel="Filter Kategori Item"
                       />
                     </div>
 
@@ -3969,7 +3969,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           }))
                         ]}
                         placeholder="Semua Kategori"
-                        ariaLabel="Filter Kategori Produk"
+                        ariaLabel="Filter Kategori Item"
                       />
                     </div>
 
@@ -4225,13 +4225,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               </div>
             </div>
 
-            {/* Table Container with sticky header & first column freeze panes for tablet */}
+            {/* Table Container with sticky first column freeze panes for tablet */}
             <div
               className="tablet-sticky-table-container catavor-table-scrollbar"
               style={{
                 width: '100%',
-                maxHeight: 'min(62vh, 640px)',
-                overflowY: 'auto',
                 overflowX: 'auto',
                 WebkitOverflowScrolling: 'touch',
                 borderRadius: '0.85rem',
@@ -4640,7 +4638,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleOpenProductDetail(item)}
-                                title="Lihat Detail Produk"
+                                title="Lihat Detail Item"
                                 style={{
                                   minHeight: '34px',
                                   padding: '0.35rem 0.7rem',
@@ -6857,14 +6855,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <label style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
                           <MessageCircle size={15} style={{ color: 'var(--primary)' }} />
-                          <span>Tujuan Kontak WhatsApp Produk Ini</span>
+                          <span>Tujuan Kontak WhatsApp Item Ini</span>
                         </label>
                         <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
                           Bawaan: Kontak Utama Toko
                         </span>
                       </div>
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
-                        Pilih nomor WhatsApp yang akan menerima pesanan / konsultasi khusus produk ini.
+                        Pilih nomor WhatsApp yang akan menerima pesanan / konsultasi khusus item ini.
                       </span>
                       <div style={{ marginTop: '0.25rem' }}>
                         <TabletCustomSelect
@@ -7058,7 +7056,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         }}
                       >
                         <Save size={16} />
-                        {saving ? 'Menyimpan...' : (selectedProductId === 'new' ? 'Terbitkan Produk' : 'Simpan Perubahan')}
+                        {saving ? 'Menyimpan...' : (selectedProductId === 'new' ? 'Terbitkan Item' : 'Simpan Perubahan')}
                       </button>
                     </div>
                   </form>
@@ -7237,9 +7235,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             default:
               return (
                 <>
-                  {renderSpecRow('Kategori Produk', prod.class)}
+                  {renderSpecRow('Kategori Item', prod.class)}
                   {renderSpecRow('Kondisi Barang', attrs.condition || 'Baru')}
-                  {attrs.weight && renderSpecRow('Berat Produk', `${attrs.weight} Gram`)}
+                  {attrs.weight && renderSpecRow('Berat Item', `${attrs.weight} Gram`)}
                   {renderSpecRow('Merek / Brand', attrs.brand)}
                   {renderSpecRow('Varian / Opsi', attrs.variant)}
                   {renderSpecRow('Minimal Beli', `${minOrder} ${unit}`)}
@@ -7400,7 +7398,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         position: 'relative',
                         cursor: 'zoom-in'
                       }}
-                      title="Klik untuk perbesar & lihat detail foto produk"
+                      title="Klik untuk perbesar & lihat detail foto item"
                     >
                       <img
                         src={currentActiveImg}
@@ -7583,7 +7581,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 {/* Description */}
                 <div>
                   <h4 style={{ fontSize: '0.92rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>
-                    Deskripsi Produk
+                    Deskripsi Item
                   </h4>
                   <div style={{
                     fontSize: '0.85rem',
@@ -7597,7 +7595,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     {prod.description ? (
                       <FormattedText text={prod.description} />
                     ) : (
-                      <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>Belum ada deskripsi rincian untuk produk ini.</span>
+                      <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>Belum ada deskripsi rincian untuk item ini.</span>
                     )}
                   </div>
                 </div>
@@ -7666,7 +7664,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     cursor: 'pointer',
                     transition: 'all 0.15s ease'
                   }}
-                  title="Hapus produk ini dari katalog"
+                  title="Hapus item ini dari katalog"
                 >
                   <Trash2 size={16} />
                   <span>Hapus</span>
@@ -11426,7 +11424,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     Ekspor Data Item Katalog
                   </h3>
                   <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                    Pilih format berkas untuk mengunduh daftar produk dan inventaris katalog Anda.
+                    Pilih format berkas untuk mengunduh daftar item dan inventaris katalog Anda.
                   </p>
                 </div>
               </div>
@@ -11483,7 +11481,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     </span>
                   </div>
                   <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                    Tabel data produk terstruktur (ID, nama, tipe, kategori, harga, stok, dan spesifikasi). Dilengkapi UTF-8 BOM untuk Excel &amp; Google Sheets.
+                    Tabel data item terstruktur (ID, nama, tipe, kategori, harga, stok, dan spesifikasi). Dilengkapi UTF-8 BOM untuk Excel &amp; Google Sheets.
                   </p>
                 </div>
                 <button
@@ -11543,11 +11541,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       <FileCode size={15} style={{ color: 'var(--primary)' }} />
                     </div>
                     <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      Format JSON (Data Item Produk)
+                      Format JSON (Data Item Katalog)
                     </span>
                   </div>
                   <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                    Salinan digital teknis berisi data item produk, varian harga, galeri foto, dan atribut spesifikasi domain untuk kebutuhan portabilitas &amp; arsip.
+                    Salinan digital teknis berisi data item katalog, varian harga, galeri foto, dan atribut spesifikasi domain untuk kebutuhan portabilitas &amp; arsip.
                   </p>
                 </div>
                 <button
