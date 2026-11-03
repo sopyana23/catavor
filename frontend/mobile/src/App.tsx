@@ -10047,6 +10047,42 @@ Terima kasih atas perhatian dan kerja samanya.`;
     modalId: 'mobile-discard-confirmation'
   });
 
+  // Mobile Checkout Cancel Registration Confirmation Bottom Sheet
+  const [showMobileCancelModal, setShowMobileCancelModal] = useState<boolean>(false);
+  const [cancelDragY, setCancelDragY] = useState(0);
+  const [isCancelDragging, setIsCancelDragging] = useState(false);
+  const cancelTouchStartY = useRef(0);
+
+  const handleCancelTouchStart = (e: React.TouchEvent) => {
+    cancelTouchStartY.current = e.touches[0].clientY;
+    setIsCancelDragging(true);
+  };
+
+  const handleCancelTouchMove = (e: React.TouchEvent) => {
+    if (!isCancelDragging) return;
+    const currentY = e.touches[0].clientY;
+    const delta = currentY - cancelTouchStartY.current;
+    if (delta > 0) {
+      setCancelDragY(delta);
+    } else {
+      setCancelDragY(delta * 0.18); // Rubber-band effect
+    }
+  };
+
+  const handleCancelTouchEnd = () => {
+    setIsCancelDragging(false);
+    if (cancelDragY > 70) {
+      setShowMobileCancelModal(false);
+    }
+    setCancelDragY(0);
+  };
+
+  useModalBackHandler({
+    isOpen: showMobileCancelModal,
+    onClose: () => setShowMobileCancelModal(false),
+    modalId: 'mobile-cancel-registration'
+  });
+
   // Mobile Archive / Unarchive Confirmation Modal State
   const [archiveConfirmModal, setArchiveConfirmModal] = useState<{
     item: Fauna;
@@ -12870,6 +12906,28 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
 
       const data = await res.json();
+      const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+      const isRegisterFlow = curPath.startsWith('/register') || portalTab === 'register';
+
+      if (isRegisterFlow) {
+        const candidateEmail = (data.google_data?.email || data.user?.email || googleUser.email || '').toLowerCase().trim();
+        if (candidateEmail) {
+          try {
+            const checkRes = await fetch(`${API_BASE}/auth/check-email?email=${encodeURIComponent(candidateEmail)}`);
+            if (checkRes.ok) {
+              const checkData = await checkRes.json();
+              if (!checkData.available) {
+                const msg = checkData.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
+                setRegisterError(msg);
+                setFieldErrors(prev => ({ ...prev, email: msg }));
+                showToast(msg, 'error');
+                return;
+              }
+            }
+          } catch {}
+        }
+      }
+
       if (data.success) {
         if (data.token && data.user && (data.user.store_slug || data.active_store?.slug)) {
           // Existing User with complete store -> Immediate Auto Login to Admin Dashboard
@@ -13835,21 +13893,25 @@ Terima kasih atas perhatian dan kerja samanya.`;
   };
 
   const handleCancelRegistration = () => {
-    if (window.confirm('Batalkan pendaftaran toko dan kosongkan data yang telah diisi?')) {
-      resetRegisterFormState();
-      setAppliedCoupon(null);
-      setPaymentProofPreview(null);
-      try {
-        sessionStorage.removeItem('catavor_register_form');
-        sessionStorage.removeItem('catavor_register_plan');
-        sessionStorage.removeItem('catavor_register_billing');
-        sessionStorage.removeItem('catavor_applied_coupon');
-        sessionStorage.removeItem('catavor_payment_method');
-        sessionStorage.removeItem('catavor_portal_tab');
-      } catch {}
-      setPortalTab('home');
-      window.history.pushState(null, '', '/');
-    }
+    setShowMobileCancelModal(true);
+  };
+
+  const handleConfirmMobileCancel = () => {
+    setShowMobileCancelModal(false);
+    resetRegisterFormState();
+    setAppliedCoupon(null);
+    setPaymentProofPreview(null);
+    try {
+      sessionStorage.removeItem('catavor_register_form');
+      sessionStorage.removeItem('catavor_register_plan');
+      sessionStorage.removeItem('catavor_register_billing');
+      sessionStorage.removeItem('catavor_applied_coupon');
+      sessionStorage.removeItem('catavor_payment_method');
+      sessionStorage.removeItem('catavor_portal_tab');
+      sessionStorage.removeItem('catavor_register_step');
+    } catch {}
+    setPortalTab('home');
+    window.history.pushState(null, '', '/');
   };
 
   const handleCancelCheckout = handleBackToPlanSelect;
@@ -16883,15 +16945,46 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
                   <form 
                     noValidate
-                    onSubmit={(e) => {
+                    onSubmit={async (e) => {
                       e.preventDefault();
                       if (!validateStep1()) {
                         setRegisterError('Mohon periksa kembali isian Anda. Lengkapi bidang formulir yang belum diisi.');
+                        setTimeout(() => {
+                          const el = document.getElementById('register-error-banner-mobile');
+                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 50);
                         return;
                       }
+                      setRegisterLoading(true);
                       setRegisterError(null);
-                      setFieldErrors({});
-                      setRegisterStep(2);
+                      try {
+                        const checkRes = await fetch(`${API_BASE}/auth/check-email`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email: registerForm.email.trim().toLowerCase() })
+                        });
+                        const checkData = await checkRes.json();
+                        if (!checkData.available) {
+                          const errMsg = checkData.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
+                          setFieldErrors(prev => ({ ...prev, email: errMsg }));
+                          setRegisterError(errMsg);
+                          setTimeout(() => {
+                            const el = document.getElementById('register-error-banner-mobile');
+                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }, 50);
+                          return;
+                        }
+                        setRegisterError(null);
+                        setFieldErrors({});
+                        try {
+                          sessionStorage.setItem('catavor_register_form', JSON.stringify(registerForm));
+                        } catch {}
+                        setRegisterStep(2);
+                      } catch {
+                        setRegisterError('Gagal memverifikasi ketersediaan alamat email. Periksa koneksi internet Anda.');
+                      } finally {
+                        setRegisterLoading(false);
+                      }
                     }} 
                     style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
                   >
@@ -16978,13 +17071,15 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
                     <button 
                       type="submit" 
+                      disabled={registerLoading}
                       style={{ 
                         width: '100%', 
+                        minHeight: '44px',
                         padding: '0.8rem', 
                         justifyContent: 'center', 
                         fontSize: '0.86rem', 
                         marginTop: '0.35rem',
-                        backgroundColor: '#2563eb',
+                        backgroundColor: registerLoading ? '#94a3b8' : '#2563eb',
                         color: '#ffffff',
                         fontWeight: 800,
                         border: 'none',
@@ -16992,12 +17087,21 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.45rem',
-                        cursor: 'pointer',
+                        cursor: registerLoading ? 'not-allowed' : 'pointer',
                         boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
                       }}
                     >
-                      <span>Lanjut ke Informasi Usaha</span>
-                      <ChevronRight size={15} />
+                      {registerLoading ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          <span>Memeriksa Email...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Lanjut ke Informasi Usaha</span>
+                          <ChevronRight size={15} />
+                        </>
+                      )}
                     </button>
                     <button 
                       type="button" 
@@ -18059,6 +18163,110 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               })()}
             </div>
 
+            {/* Mobile Support & Assistance Card */}
+            {(() => {
+              const officialWa = platformSettings.platform_official_whatsapp || platformSettings.contact_whatsapp || platformSettings.rekber_wa_number || '62811220227';
+              const officialEmail = platformSettings.platform_official_email || platformSettings.contact_email || 'support@catavor.com';
+              const cleanWaNumber = officialWa.replace(/[^0-9]/g, '');
+              const waUrl = `https://wa.me/${cleanWaNumber}?text=${encodeURIComponent('Halo Tim Support Catavor, saya membutuhkan bantuan terkait proses checkout pembayaran pendaftaran toko.')}`;
+
+              return (
+                <div style={{
+                  marginTop: '1rem',
+                  padding: '1.1rem 1rem',
+                  borderRadius: '1rem',
+                  backgroundColor: '#ffffff',
+                  border: '1.5px solid #e2e8f0',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.85rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                    <div style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '0.65rem',
+                      backgroundColor: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      color: '#2563eb',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <HelpCircle size={20} />
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>
+                        Butuh Bantuan Teknis atau Kendala Pembayaran?
+                      </h4>
+                      <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: '#64748b', lineHeight: 1.45 }}>
+                        Tim support resmi Catavor siap membantu jika Anda mengalami kendala transfer atau verifikasi.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    width: '100%'
+                  }}>
+                    {cleanWaNumber && (
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.45rem',
+                          padding: '0.65rem 1rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: '#10b981',
+                          color: '#ffffff',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                          minHeight: '44px',
+                          boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)'
+                        }}
+                      >
+                        <MessageCircle size={16} />
+                        <span>Bantuan WhatsApp Resmi</span>
+                      </a>
+                    )}
+
+                    {officialEmail && (
+                      <a
+                        href={`mailto:${officialEmail}?subject=${encodeURIComponent('Bantuan Pembayaran Catavor')}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.45rem',
+                          padding: '0.65rem 1rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: '#f8fafc',
+                          color: '#334155',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                          border: '1px solid #cbd5e1',
+                          minHeight: '44px'
+                        }}
+                      >
+                        <Mail size={16} />
+                        <span>Email Support Resmi</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Modal Sukses Konfirmasi Pembayaran Mobile */}
             {showPaymentSuccessModal && (
               <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }}>
@@ -18099,6 +18307,118 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       }}
                     >
                       <span>Kembali ke Beranda</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Slide-Up Bottom Sheet Konfirmasi Batalkan Pendaftaran Mobile */}
+            {showMobileCancelModal && (
+              <div 
+                className="bottom-sheet-backdrop" 
+                style={{ zIndex: 100005 }}
+                onClick={() => setShowMobileCancelModal(false)}
+              >
+                <div 
+                  className="bottom-sheet-content" 
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    transform: `translateY(${Math.max(0, cancelDragY)}px)`,
+                    transition: isCancelDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+                    maxHeight: '80vh',
+                    padding: '0.65rem 1.25rem 1.5rem',
+                    borderTopLeftRadius: '1.5rem',
+                    borderTopRightRadius: '1.5rem',
+                    background: '#ffffff',
+                    boxShadow: '0 -8px 32px rgba(15, 23, 42, 0.15)'
+                  }}
+                >
+                  <div 
+                    className="bottom-sheet-handle-bar"
+                    onTouchStart={handleCancelTouchStart}
+                    onTouchMove={handleCancelTouchMove}
+                    onTouchEnd={handleCancelTouchEnd}
+                    style={{
+                      width: '36px',
+                      height: '4px',
+                      borderRadius: '999px',
+                      backgroundColor: '#cbd5e1',
+                      margin: '0.35rem auto 1.15rem auto',
+                      cursor: 'grab',
+                      touchAction: 'none'
+                    }}
+                  />
+
+                  <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '50%',
+                      backgroundColor: '#fef2f2',
+                      border: '1px solid #fee2e2',
+                      color: '#dc2626',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 0.75rem auto'
+                    }}>
+                      <AlertTriangle size={24} />
+                    </div>
+                    <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                      Batalkan Pendaftaran?
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b', lineHeight: 1.5 }}>
+                      Seluruh data profil usaha dan draf paket yang telah Anda isi akan dihapus. Anda akan diarahkan kembali ke Beranda.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <button
+                      type="button"
+                      onClick={handleConfirmMobileCancel}
+                      style={{
+                        width: '100%',
+                        minHeight: '44px',
+                        padding: '0.75rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: '#dc2626',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        fontSize: '0.85rem',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.45rem',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)'
+                      }}
+                    >
+                      <Trash2 size={16} />
+                      <span>Ya, Batalkan Pendaftaran</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowMobileCancelModal(false)}
+                      style={{
+                        width: '100%',
+                        minHeight: '44px',
+                        padding: '0.75rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: '#f1f5f9',
+                        color: '#334155',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        border: '1px solid #e2e8f0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span>Lanjutkan Pembayaran</span>
                     </button>
                   </div>
                 </div>

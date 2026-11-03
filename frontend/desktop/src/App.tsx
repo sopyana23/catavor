@@ -12443,6 +12443,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
 
       const data = await res.json();
+      const isRegisterFlow = curPath.startsWith('/register') || portalTab === 'register';
+
+      if (isRegisterFlow) {
+        const candidateEmail = (data.google_data?.email || data.user?.email || googleUser.email || '').toLowerCase().trim();
+        if (candidateEmail) {
+          try {
+            const checkRes = await fetch(`${API_BASE}/auth/check-email?email=${encodeURIComponent(candidateEmail)}`);
+            if (checkRes.ok) {
+              const checkData = await checkRes.json();
+              if (!checkData.available) {
+                const msg = checkData.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
+                setRegisterError(msg);
+                setFieldErrors(prev => ({ ...prev, email: msg }));
+                showToast(msg, 'error');
+                return;
+              }
+            }
+          } catch {}
+        }
+      }
+
       if (data.success) {
         if (data.token && data.user && (data.user.store_slug || data.active_store?.slug)) {
           // Existing User with complete store -> Immediate Auto Login to Admin Dashboard
@@ -16613,7 +16634,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                   <form 
                     noValidate
-                    onSubmit={(e) => {
+                    onSubmit={async (e) => {
                       e.preventDefault();
                       if (!validateStep1()) {
                         setRegisterError('Mohon periksa kembali isian Anda. Lengkapi bidang formulir yang belum diisi.');
@@ -16623,9 +16644,36 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         }, 50);
                         return;
                       }
+                      setRegisterLoading(true);
                       setRegisterError(null);
-                      setFieldErrors({});
-                      setRegisterStep(2);
+                      try {
+                        const checkRes = await fetch(`${API_BASE}/auth/check-email`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email: registerForm.email.trim().toLowerCase() })
+                        });
+                        const checkData = await checkRes.json();
+                        if (!checkData.available) {
+                          const errMsg = checkData.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
+                          setFieldErrors(prev => ({ ...prev, email: errMsg }));
+                          setRegisterError(errMsg);
+                          setTimeout(() => {
+                            const el = document.getElementById('register-error-banner');
+                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }, 50);
+                          return;
+                        }
+                        setRegisterError(null);
+                        setFieldErrors({});
+                        try {
+                          sessionStorage.setItem('catavor_register_form', JSON.stringify(registerForm));
+                        } catch {}
+                        setRegisterStep(2);
+                      } catch {
+                        setRegisterError('Gagal memverifikasi ketersediaan alamat email. Periksa koneksi internet Anda.');
+                      } finally {
+                        setRegisterLoading(false);
+                      }
                     }} 
                     style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
                   >
@@ -16691,6 +16739,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                     <button 
                       type="submit" 
+                      disabled={registerLoading}
                       style={{ 
                         width: '100%',
                         marginTop: '0.35rem', 
@@ -16702,16 +16751,25 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '0.5rem',
-                        backgroundColor: '#2563eb',
+                        backgroundColor: registerLoading ? '#94a3b8' : '#2563eb',
                         color: '#ffffff',
                         border: 'none',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
+                        cursor: registerLoading ? 'wait' : 'pointer',
+                        boxShadow: registerLoading ? 'none' : '0 4px 14px rgba(37, 99, 235, 0.3)',
                         transition: 'all 0.15s ease'
                       }}
                     >
-                      <span>Lanjut ke Informasi Usaha</span>
-                      <ChevronRight size={16} />
+                      {registerLoading ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          <span>Memverifikasi Akun...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Lanjut ke Informasi Usaha</span>
+                          <ChevronRight size={16} />
+                        </>
+                      )}
                     </button>
 
                     <div style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.76rem', color: '#64748b', lineHeight: 1.5 }}>

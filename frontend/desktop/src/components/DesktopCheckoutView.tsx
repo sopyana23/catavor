@@ -22,6 +22,9 @@ import {
   Home,
   CheckCircle2,
   ExternalLink,
+  HelpCircle,
+  MessageCircle,
+  Trash2,
   X,
   Calendar
 } from 'lucide-react';
@@ -400,25 +403,35 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
     }
   };
 
+  const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
+
   const handleCancelRegistration = () => {
-    if (window.confirm('Batalkan checkout pendaftaran dan hapus draf yang telah diisi?')) {
-      isCancelledRef.current = true;
-      try {
-        sessionStorage.removeItem('catavor_register_form');
-        sessionStorage.removeItem('catavor_register_plan');
-        sessionStorage.removeItem('catavor_register_billing');
-        sessionStorage.removeItem('catavor_applied_coupon');
-        sessionStorage.removeItem('catavor_payment_method');
-        sessionStorage.removeItem('catavor_portal_tab');
-        sessionStorage.removeItem('catavor_register_step');
-      } catch {}
-      if (onCancel) {
-        onCancel();
-      } else {
-        window.location.href = '/';
-      }
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancel = () => {
+    isCancelledRef.current = true;
+    try {
+      sessionStorage.removeItem('catavor_register_form');
+      sessionStorage.removeItem('catavor_register_plan');
+      sessionStorage.removeItem('catavor_register_billing');
+      sessionStorage.removeItem('catavor_applied_coupon');
+      sessionStorage.removeItem('catavor_payment_method');
+      sessionStorage.removeItem('catavor_portal_tab');
+      sessionStorage.removeItem('catavor_register_step');
+    } catch {}
+    setShowCancelModal(false);
+    if (onCancel) {
+      onCancel();
+    } else {
+      window.location.href = '/';
     }
   };
+
+  const officialWa = platformSettings.platform_official_whatsapp || platformSettings.contact_whatsapp || platformSettings.rekber_wa_number || '62811220227';
+  const officialEmail = platformSettings.platform_official_email || platformSettings.contact_email || 'support@catavor.com';
+  const cleanWaNumber = officialWa.replace(/[^0-9]/g, '');
+  const waUrl = `https://wa.me/${cleanWaNumber}?text=${encodeURIComponent('Halo Tim Support Catavor, saya membutuhkan bantuan terkait proses checkout pembayaran pendaftaran toko.')}`;
 
   const paymentSystemMode = platformSettings.payment_system_mode || 'manual_qris';
   const isMaintenance = paymentSystemMode === 'maintenance';
@@ -1643,6 +1656,95 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Support & Assistance Card */}
+        <div style={{
+          marginTop: '1.5rem',
+          padding: '1.35rem 1.75rem',
+          borderRadius: '1.15rem',
+          backgroundColor: '#ffffff',
+          border: '1.5px solid #e2e8f0',
+          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1.25rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{
+              width: '46px',
+              height: '46px',
+              borderRadius: '0.85rem',
+              backgroundColor: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              color: '#2563eb',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <HelpCircle size={24} />
+            </div>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: '#0f172a' }}>
+                Butuh Bantuan Teknis atau Kendala Pembayaran?
+              </h4>
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: '#64748b', lineHeight: 1.45 }}>
+                Tim support resmi Catavor siap mendampingi proses aktivasi paket atau kendala transfer Anda.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+            {cleanWaNumber && (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.65rem 1.15rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: '#10b981',
+                  color: '#ffffff',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+                  transition: 'all 0.18s ease'
+                }}
+              >
+                <MessageCircle size={17} />
+                <span>WhatsApp Resmi</span>
+              </a>
+            )}
+
+            {officialEmail && (
+              <a
+                href={`mailto:${officialEmail}?subject=${encodeURIComponent('Bantuan Pembayaran Catavor')}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.65rem 1.15rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: '#f8fafc',
+                  color: '#334155',
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  transition: 'all 0.18s ease'
+                }}
+              >
+                <Mail size={17} />
+                <span>Email Resmi</span>
+              </a>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Success Modal */}
@@ -1776,6 +1878,104 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
             >
               Kembali ke Halaman Utama
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal Batalkan Pendaftaran */}
+      {showCancelModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.7)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: '1.5rem'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '1.25rem',
+            padding: '2rem 1.75rem',
+            maxWidth: '460px',
+            width: '100%',
+            textAlign: 'center',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1px solid #e2e8f0',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '1rem'
+          }}>
+            <div style={{
+              width: '58px',
+              height: '58px',
+              borderRadius: '50%',
+              backgroundColor: '#fee2e2',
+              color: '#dc2626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <AlertTriangle size={30} />
+            </div>
+
+            <div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: '0 0 0.45rem 0' }}>
+                Batalkan Checkout Pendaftaran?
+              </h3>
+              <p style={{ fontSize: '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.55 }}>
+                Seluruh data informasi usaha dan pilihan paket yang telah diisi akan dibatalkan serta dihapus dari memori formulir.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', width: '100%', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowCancelModal(false)}
+                style={{
+                  flex: 1,
+                  minHeight: '44px',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: '#f1f5f9',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '0.86rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.18s ease'
+                }}
+              >
+                Lanjut Checkout
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                style={{
+                  flex: 1,
+                  minHeight: '44px',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '0.86rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(220, 38, 38, 0.3)',
+                  transition: 'all 0.18s ease'
+                }}
+              >
+                Ya, Batalkan
+              </button>
+            </div>
           </div>
         </div>
       )}

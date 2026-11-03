@@ -61,6 +61,10 @@ type RegisterRequest struct {
 	WebsiteHP            string  `json:"website_hp,omitempty"` // Anti-bot honeypot field
 }
 
+type CheckEmailRequest struct {
+	Email string `json:"email"`
+}
+
 type SendRegistrationOTPRequest struct {
 	Email     string `json:"email"`
 	Name      string `json:"name"`
@@ -659,14 +663,14 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		if existingUser.IsPlatformStaff() {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
-				"message": "Alamat email ini sudah terdaftar sebagai pengelola/staf platform dan tidak dapat digunakan untuk mendaftar akun toko/merchant. Gunakan alamat email lain.",
+				"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
 			})
 		}
 		if isGoogleAuth {
 			if existingUser.Store != nil {
 				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 					"success": false,
-					"message": "Alamat email ini sudah terdaftar sebagai merchant toko (" + existingUser.Store.StoreTitle + "). Silakan gunakan alamat email lain atau masuk melalui halaman login.",
+					"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
 				})
 			}
 			targetUser = existingUser
@@ -677,7 +681,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		} else {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
-				"message": "Alamat email sudah terdaftar dalam sistem sebagai akun merchant. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
+				"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
 			})
 		}
 	} else {
@@ -1801,6 +1805,56 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(resMap)
+}
+
+// CheckEmail performs early email availability check for registration wizard.
+// Returns neutral anti-enumeration response if email is already in use.
+func (h *AuthHandler) CheckEmail(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+
+	email := strings.ToLower(strings.TrimSpace(c.Query("email")))
+	if email == "" {
+		var req CheckEmailRequest
+		if err := c.BodyParser(&req); err == nil && req.Email != "" {
+			email = strings.ToLower(strings.TrimSpace(req.Email))
+		}
+	}
+
+	if email == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Alamat email wajib disertakan.",
+		})
+	}
+
+	if !security.ValidateEmail(email) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Format alamat email tidak valid.",
+		})
+	}
+
+	var count int64
+	h.db.Model(&models.User{}).Where("LOWER(email) = ?", email).Count(&count)
+
+	if count > 0 {
+		return c.JSON(fiber.Map{
+			"success":   true,
+			"available": false,
+			"message":   "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success":   true,
+		"available": true,
+		"message":   "Alamat email tersedia.",
+	})
 }
 
 // SendRegistrationOTP issues a 6-digit email OTP for manual registration.

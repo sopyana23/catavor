@@ -73,7 +73,11 @@ func (h *SettingHandler) PublicIndex(c *fiber.Ctx) error {
 		"payment_aulaa_channel_va":      true,
 		"payment_aulaa_channel_cc":      true,
 		"payment_aulaa_channel_ewallet": true,
-		"terms_conditions":         true,
+		"platform_official_whatsapp":   true,
+		"platform_official_email":      true,
+		"contact_whatsapp":             true,
+		"contact_email":                true,
+		"terms_conditions":             true,
 		"privacy_policy":           true,
 	}
 
@@ -229,6 +233,24 @@ func (h *SettingHandler) applyFallbacks(res map[string]string) {
 	}
 	if _, ok := res["rekber_logo_url"]; !ok {
 		res["rekber_logo_url"] = ""
+	}
+
+	// Master Settings: Kontak Bantuan & Support Resmi Platform (WhatsApp & Email Resmi)
+	if _, ok := res["platform_official_whatsapp"]; !ok || strings.TrimSpace(res["platform_official_whatsapp"]) == "" {
+		if wa, hasWa := res["rekber_wa_number"]; hasWa && strings.TrimSpace(wa) != "" {
+			res["platform_official_whatsapp"] = wa
+		} else {
+			res["platform_official_whatsapp"] = "62811220227"
+		}
+	}
+	if _, ok := res["platform_official_email"]; !ok || strings.TrimSpace(res["platform_official_email"]) == "" {
+		res["platform_official_email"] = "support@catavor.com"
+	}
+	if _, ok := res["contact_whatsapp"]; !ok || strings.TrimSpace(res["contact_whatsapp"]) == "" {
+		res["contact_whatsapp"] = res["platform_official_whatsapp"]
+	}
+	if _, ok := res["contact_email"]; !ok || strings.TrimSpace(res["contact_email"]) == "" {
+		res["contact_email"] = res["platform_official_email"]
 	}
 	defaultPhysicalTemplate := "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih."
 	defaultFoodTemplate := "Halo *{store_title}*, saya ingin memesan menu kuliner berikut:\n\n*Menu:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih."

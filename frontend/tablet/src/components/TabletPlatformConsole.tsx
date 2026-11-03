@@ -2700,16 +2700,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: MASTER DATA (Rekber, Domains, CS Templates)
   // =========================================================================
-  const [masterSubTab, setMasterSubTab] = useState<'rekber' | 'domains' | 'templates'>(() => {
+  const [masterSubTab, setMasterSubTab] = useState<'rekber' | 'domains' | 'templates' | 'contact'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const sub = params.get('sub');
-      if (sub === 'domains' || sub === 'templates' || sub === 'rekber') return sub;
+      if (sub === 'domains' || sub === 'templates' || sub === 'rekber' || sub === 'contact') return sub;
     }
     return 'rekber';
   });
 
-  const handleSwitchMasterSubTab = (sub: 'rekber' | 'domains' | 'templates') => {
+  const handleSwitchMasterSubTab = (sub: 'rekber' | 'domains' | 'templates' | 'contact') => {
     setMasterSubTab(sub);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
@@ -2719,14 +2719,62 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   };
 
+  const handleSaveContactSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!token || !canAccessMasterData) return;
+    setIsSavingSettings(true);
+    try {
+      let res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          platform_official_whatsapp: (googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '').trim(),
+          platform_official_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
+          contact_whatsapp: (googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '').trim(),
+          contact_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
+        })
+      });
+      if (!res.ok) {
+        res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            platform_official_whatsapp: (googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '').trim(),
+            platform_official_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
+            contact_whatsapp: (googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '').trim(),
+            contact_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
+          })
+        });
+      }
+      if (res.ok) {
+        showToast('Kontak resmi platform berhasil disimpan!', 'success');
+        fetchSettings();
+      } else {
+        showToast('Gagal menyimpan kontak resmi platform', 'error');
+      }
+    } catch {
+      showToast('Terjadi kesalahan jaringan saat menyimpan', 'error');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
   useEffect(() => {
     const handleMasterPopState = () => {
       if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
       const params = new URLSearchParams(window.location.search);
       const sub = params.get('sub');
       const tab = params.get('tab') || params.get('view');
-      if (sub === 'domains' || sub === 'templates' || sub === 'rekber') {
+      if (sub === 'domains' || sub === 'templates' || sub === 'rekber' || sub === 'contact') {
         setMasterSubTab(sub);
+      } else if (['contact', 'kontak'].includes(String(tab).toLowerCase())) {
+        setMasterSubTab('contact');
       } else if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(String(tab).toLowerCase())) {
         setMasterSubTab('domains');
       } else if (['templates', 'canned'].includes(String(tab).toLowerCase())) {
@@ -12179,6 +12227,29 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     {templatePagination.total || cannedTemplates.length}
                   </span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSwitchMasterSubTab('contact')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.75rem',
+                    border: `1.5px solid ${masterSubTab === 'contact' ? '#2563eb' : 'var(--border-light)'}`,
+                    backgroundColor: masterSubTab === 'contact' ? 'rgba(37, 99, 235, 0.15)' : 'var(--bg-card)',
+                    color: masterSubTab === 'contact' ? '#2563eb' : 'var(--text-muted)',
+                    fontSize: '0.82rem',
+                    fontWeight: masterSubTab === 'contact' ? 800 : 600,
+                    cursor: 'pointer',
+                    minHeight: '44px',
+                    transition: 'all 0.18s ease'
+                  }}
+                >
+                  <Phone size={17} />
+                  <span>Kontak Resmi Platform</span>
+                </button>
               </div>
 
               {/* Subtab Content Area */}
@@ -13253,6 +13324,187 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           </div>
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {/* SUBTAB 4: KONTAK RESMI PLATFORM */}
+                {masterSubTab === 'contact' && (
+                  <div style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
+                    <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      {/* Top Header Card */}
+                      <div style={{
+                        padding: '1.25rem 1.5rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '1rem'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                          <div style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'rgba(37, 99, 235, 0.15)',
+                            color: '#2563eb',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            <Phone size={22} />
+                          </div>
+                          <div>
+                            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              Kontak Bantuan & Support Resmi Platform
+                            </h3>
+                            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              Pengaturan nomor WhatsApp resmi dan email support untuk bantuan calon merchant saat checkout.
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleSaveContactSettings}
+                          disabled={isSavingSettings}
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.65rem 1.25rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: '#2563eb',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: '0.84rem',
+                            fontWeight: 800,
+                            cursor: isSavingSettings ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)'
+                          }}
+                        >
+                          {isSavingSettings ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                          <span>{isSavingSettings ? 'Menyimpan...' : 'Simpan Kontak'}</span>
+                        </button>
+                      </div>
+
+                      {/* Inputs Card */}
+                      <form onSubmit={handleSaveContactSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div style={{
+                          padding: '1.5rem',
+                          borderRadius: '1rem',
+                          backgroundColor: 'var(--bg-card)',
+                          border: '1px solid var(--border-light)',
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                          gap: '1.25rem'
+                        }}>
+                          <div>
+                            <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem' }}>
+                              Nomor WhatsApp Bantuan Resmi *
+                            </label>
+                            <input
+                              type="text"
+                              value={googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || ''}
+                              onChange={(e) => setGoogleSettings(prev => ({
+                                ...prev,
+                                platform_official_whatsapp: e.target.value,
+                                contact_whatsapp: e.target.value
+                              }))}
+                              placeholder="Contoh: 62811220227"
+                              style={{
+                                width: '100%',
+                                minHeight: '46px',
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.75rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-main)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.9rem',
+                                outline: 'none',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '0.35rem', display: 'block' }}>
+                              Format angka internasional tanpa tanda plus atau spasi. Tautan WhatsApp otomatis dibuat pada halaman checkout.
+                            </span>
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem' }}>
+                              Alamat Email Support Resmi *
+                            </label>
+                            <input
+                              type="email"
+                              value={googleSettings.platform_official_email || googleSettings.contact_email || ''}
+                              onChange={(e) => setGoogleSettings(prev => ({
+                                ...prev,
+                                platform_official_email: e.target.value,
+                                contact_email: e.target.value
+                              }))}
+                              placeholder="Contoh: support@catavor.com"
+                              style={{
+                                width: '100%',
+                                minHeight: '46px',
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.75rem',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-main)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.9rem',
+                                outline: 'none',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '0.35rem', display: 'block' }}>
+                              Email resmi saluran pengaduan kendala pembayaran dan verifikasi draf akun toko.
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Informational Callout */}
+                        <div style={{
+                          padding: '1rem 1.25rem',
+                          borderRadius: '0.85rem',
+                          backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                          border: '1px solid rgba(37, 99, 235, 0.25)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.82rem',
+                          lineHeight: 1.5
+                        }}>
+                          <strong>Integrasi Dinamis Checkout: </strong>
+                          Data kontak ini akan secara otomatis ditampilkan di seluruh form-factor (Desktop, Tablet, Mobile) pada kartu bantuan teknis checkout, sehingga calon mitra tidak perlu repot mencari kontak resmi di landing page.
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <button
+                            type="submit"
+                            disabled={isSavingSettings}
+                            style={{
+                              minHeight: '46px',
+                              padding: '0.75rem 1.75rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: '#2563eb',
+                              color: '#ffffff',
+                              border: 'none',
+                              fontSize: '0.88rem',
+                              fontWeight: 800,
+                              cursor: isSavingSettings ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)'
+                            }}
+                          >
+                            {isSavingSettings ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                            <span>{isSavingSettings ? 'Menyimpan...' : 'Simpan Perubahan Kontak'}</span>
+                          </button>
+                        </div>
+                      </form>
                     </div>
                   </div>
                 )}

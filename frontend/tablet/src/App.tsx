@@ -480,6 +480,49 @@ export const App: React.FC = () => {
       });
 
       const data = await res.json();
+      const isRegisterFlow = currentPath.startsWith('/register') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/register'));
+
+      // If user is registering, perform early email check & advance to Step 2
+      if (isRegisterFlow) {
+        const candidateEmail = (data.google_data?.email || data.user?.email || googleUser.email || '').toLowerCase().trim();
+        if (candidateEmail) {
+          try {
+            const checkRes = await fetch(`/api/auth/check-email?email=${encodeURIComponent(candidateEmail)}`);
+            if (checkRes.ok) {
+              const checkData = await checkRes.json();
+              if (!checkData.available) {
+                const msg = checkData.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
+                setLoginError(msg);
+                window.dispatchEvent(new CustomEvent('catavor:register-error', { detail: { message: msg } }));
+                return;
+              }
+            }
+          } catch {}
+        }
+
+        // New User Google SSO Registration -> Proceed to Step 2 (Profil Toko)
+        const userName = data.google_data?.name || data.user?.name || googleUser.name || 'Pemilik Toko';
+        const userEmail = candidateEmail;
+        const userGoogleId = data.google_data?.google_id || data.user?.google_id || googleUser.google_id || '';
+        const userAvatar = data.google_data?.avatar || data.user?.avatar || googleUser.avatar || '';
+
+        const updatedForm = {
+          name: userName,
+          email: userEmail,
+          password: '',
+          google_id: userGoogleId,
+          avatar: userAvatar,
+          store_name: '',
+          store_slug: ''
+        };
+        try {
+          sessionStorage.setItem('catavor_register_form', JSON.stringify(updatedForm));
+        } catch {}
+        window.dispatchEvent(new CustomEvent('catavor:register-form-updated', { detail: updatedForm }));
+        navigateTo('/register/step-2');
+        return;
+      }
+
       if (data.success && data.token) {
         localStorage.setItem('catavor_token', data.token);
         if (data.user) {

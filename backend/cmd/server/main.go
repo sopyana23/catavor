@@ -368,6 +368,12 @@ func main() {
 	// Public Slug Availability Checking
 	api.Get("/check-slug/:slug", storeHandler.CheckSlug)
 	api.Get("/check-slug", storeHandler.CheckSlug)
+
+	// Early Email Availability Checking (Anti-Enumeration)
+	api.Post("/auth/check-email", middleware.AuthRateLimiter(), authHandler.CheckEmail)
+	api.Get("/auth/check-email", middleware.AuthRateLimiter(), authHandler.CheckEmail)
+	api.Post("/check-email", middleware.AuthRateLimiter(), authHandler.CheckEmail)
+	api.Get("/check-email", middleware.AuthRateLimiter(), authHandler.CheckEmail)
 	api.Get("/auth/check-slug/:slug", storeHandler.CheckSlug)
 	api.Get("/auth/check-slug", storeHandler.CheckSlug)
 

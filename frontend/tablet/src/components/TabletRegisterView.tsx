@@ -11,6 +11,7 @@ import {
   Check,
   CheckCircle,
   AlertTriangle,
+  Loader2,
   Crown,
   Sparkles,
   Calendar,
@@ -86,12 +87,50 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
   const [agreeTerms, setAgreeTerms] = useState<boolean>(true);
   const [agreeTermsError, setAgreeTermsError] = useState<boolean>(false);
 
-  // Sync step prop changes
+  // Sync step prop changes & re-sync draft when step changes
   useEffect(() => {
     if (initialStep !== registerStep) {
       setRegisterStep(initialStep);
     }
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = sessionStorage.getItem('catavor_register_form');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setRegisterForm(prev => ({
+            ...prev,
+            name: parsed.name !== undefined ? parsed.name : prev.name,
+            email: parsed.email !== undefined ? parsed.email : prev.email,
+            password: parsed.password !== undefined ? parsed.password : prev.password,
+            store_name: parsed.store_name !== undefined ? parsed.store_name : prev.store_name,
+            store_slug: parsed.store_slug !== undefined ? parsed.store_slug : prev.store_slug,
+            google_id: parsed.google_id !== undefined ? parsed.google_id : prev.google_id
+          }));
+        }
+      } catch {}
+    }
   }, [initialStep]);
+
+  // Listen for Google SSO updates & external register errors
+  useEffect(() => {
+    const handleFormUpdate = (e: any) => {
+      if (e.detail) {
+        setRegisterForm(prev => ({ ...prev, ...e.detail }));
+      }
+    };
+    const handleRegisterError = (e: any) => {
+      if (e.detail?.message) {
+        setRegisterError(e.detail.message);
+        setFieldErrors(prev => ({ ...prev, email: e.detail.message }));
+      }
+    };
+    window.addEventListener('catavor:register-form-updated', handleFormUpdate);
+    window.addEventListener('catavor:register-error', handleRegisterError);
+    return () => {
+      window.removeEventListener('catavor:register-form-updated', handleFormUpdate);
+      window.removeEventListener('catavor:register-error', handleRegisterError);
+    };
+  }, []);
 
   // Save drafts to sessionStorage
   useEffect(() => {
@@ -134,6 +173,40 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
+  };
+
+  const handleStep1Submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateStep1()) {
+      setRegisterError('Mohon lengkapi formulir pendaftaran dengan benar.');
+      return;
+    }
+    setRegisterLoading(true);
+    setRegisterError(null);
+    try {
+      const res = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: registerForm.email.trim().toLowerCase() })
+      });
+      const data = await res.json();
+      if (!data.available) {
+        const errorMsg = data.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
+        setFieldErrors(prev => ({ ...prev, email: errorMsg }));
+        setRegisterError(errorMsg);
+        return;
+      }
+      setRegisterError(null);
+      setFieldErrors({});
+      try {
+        sessionStorage.setItem('catavor_register_form', JSON.stringify(registerForm));
+      } catch {}
+      onNavigateStep(2);
+    } catch {
+      setRegisterError('Gagal memverifikasi ketersediaan alamat email. Periksa koneksi internet Anda.');
+    } finally {
+      setRegisterLoading(false);
+    }
   };
 
   const validateStep2 = (): boolean => {
@@ -414,16 +487,7 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
             )}
 
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!validateStep1()) {
-                  setRegisterError('Mohon lengkapi formulir pendaftaran dengan benar.');
-                  return;
-                }
-                setRegisterError(null);
-                setFieldErrors({});
-                onNavigateStep(2);
-              }}
+              onSubmit={handleStep1Submit}
               style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}
             >
               <div>
@@ -484,9 +548,23 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
                   />
                 </div>
                 {fieldErrors.email && (
-                  <span style={{ fontSize: '0.74rem', color: '#dc2626', marginTop: '0.25rem', display: 'block', fontWeight: 600 }}>
-                    {fieldErrors.email}
-                  </span>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.45rem',
+                    marginTop: '0.45rem',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    color: '#b91c1c',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    lineHeight: 1.45
+                  }}>
+                    <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>{fieldErrors.email}</span>
+                  </div>
                 )}
               </div>
 
@@ -524,6 +602,7 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
 
               <button
                 type="submit"
+                disabled={registerLoading}
                 style={{
                   width: '100%',
                   minHeight: '48px',
@@ -536,15 +615,25 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '0.5rem',
-                  backgroundColor: '#2563eb',
+                  backgroundColor: registerLoading ? '#94a3b8' : '#2563eb',
                   color: '#ffffff',
                   border: 'none',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
+                  cursor: registerLoading ? 'wait' : 'pointer',
+                  boxShadow: registerLoading ? 'none' : '0 4px 14px rgba(37, 99, 235, 0.35)',
+                  transition: 'all 0.18s ease'
                 }}
               >
-                <span>Lanjut ke Informasi Usaha</span>
-                <ChevronRight size={16} />
+                {registerLoading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    <span>Memverifikasi Akun...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Lanjut ke Informasi Usaha</span>
+                    <ArrowRight size={18} />
+                  </>
+                )}
               </button>
 
               <button

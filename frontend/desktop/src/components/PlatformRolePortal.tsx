@@ -58,6 +58,9 @@ import {
   Sun,
   Moon,
   Globe,
+  Headphones,
+  Phone,
+  Mail,
   Settings,
   SlidersHorizontal,
   Code,
@@ -530,11 +533,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   // Support Division & Master Data Sub-Navigation State
   const [supportSubView, setSupportSubView] = useState<'tickets'>('tickets');
-  const [masterSubView, setMasterSubView] = useState<'menu' | 'domains' | 'templates' | 'rekber'>(() => {
+  const [masterSubView, setMasterSubView] = useState<'menu' | 'domains' | 'templates' | 'rekber' | 'contact'>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const sub = (params.get('subtab') || params.get('subview') || params.get('sub') || '').toLowerCase();
       const tab = (params.get('tab') || params.get('view') || '').toLowerCase();
+      if (['contact', 'kontak', 'support_contact'].includes(sub) || ['contact', 'kontak'].includes(tab)) return 'contact';
       if (['rekber', 'rekbersyariah', 'escrow'].includes(sub) || ['rekber', 'rekbersyariah'].includes(tab)) return 'rekber';
       if (['templates', 'template', 'canned', 'canned_responses'].includes(sub) || ['templates', 'canned'].includes(tab)) return 'templates';
       if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(sub) || ['domains', 'safe_domains', 'whitelist'].includes(tab)) return 'domains';
@@ -3402,6 +3406,38 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       } else {
         const errData = await res.json().catch(() => null);
         showToast(errData?.message || 'Gagal menyimpan konfigurasi Rekber', 'error');
+      }
+    } catch {
+      showToast('Kesalahan jaringan saat menyimpan', 'error');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  // Save Platform Official Contact Settings
+  const handleSaveContactSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSavingSettings(true);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          platform_official_whatsapp: (googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '').trim(),
+          platform_official_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
+          contact_whatsapp: (googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '').trim(),
+          contact_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
+        }),
+      });
+      if (res.ok) {
+        showToast('Kontak resmi platform berhasil disimpan!', 'success');
+        loadData();
+      } else {
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.message || 'Gagal menyimpan kontak resmi', 'error');
       }
     } catch {
       showToast('Kesalahan jaringan saat menyimpan', 'error');
@@ -16040,6 +16076,120 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Master Option 4: Kontak Bantuan & Support Resmi */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setMasterSubView('contact');
+                    updatePlatformUrl('master_data', null, 'contact');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setMasterSubView('contact');
+                      updatePlatformUrl('master_data', null, 'contact');
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    padding: '1.1rem',
+                    borderRadius: '1rem',
+                    backgroundColor: theme.card,
+                    border: `1.5px solid ${isDark ? 'rgba(59, 130, 246, 0.35)' : 'rgba(37, 99, 235, 0.25)'}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                    boxShadow: isDark ? '0 4px 14px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.03)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#2563eb';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = isDark ? 'rgba(59, 130, 246, 0.35)' : 'rgba(37, 99, 235, 0.25)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '0.85rem',
+                        backgroundColor: isDark ? 'rgba(59, 130, 246, 0.18)' : 'rgba(37, 99, 235, 0.12)',
+                        border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.4)' : 'rgba(37, 99, 235, 0.25)'}`,
+                        color: '#2563eb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Headphones size={22} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                            Kontak Resmi Platform
+                          </h4>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: '#2563eb', fontWeight: 700 }}>
+                          WhatsApp & Email Support
+                        </span>
+                      </div>
+                    </div>
+
+                    <span style={{
+                      fontSize: '0.66rem',
+                      fontWeight: 700,
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '999px',
+                      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(37, 99, 235, 0.1)',
+                      color: '#2563eb',
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      Dukungan Resmi
+                    </span>
+                  </div>
+
+                  <p style={{
+                    margin: '0 0 0.95rem 0',
+                    fontSize: '0.76rem',
+                    color: theme.textSecondary,
+                    lineHeight: 1.45
+                  }}>
+                    Kelola nomor WhatsApp resmi dan alamat email support bantuan yang muncul pada formulir checkout pendaftaran dan saluran bantuan publik.
+                  </p>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingTop: '0.7rem',
+                    borderTop: `1px solid ${theme.border}`,
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    color: '#2563eb'
+                  }}>
+                    <span>Buka Pengaturan Kontak</span>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '0.5rem',
+                      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(37, 99, 235, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <ChevronRight size={15} />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Extensibility & Scalability Information Card */}
@@ -17510,6 +17660,205 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   >
                     {savingSettings ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                     <span>{savingSettings ? 'Menyimpan...' : 'Simpan Semua Perubahan'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* SUB-VIEW 4: KONTAK RESMI PLATFORM (WHATSAPP & EMAIL) */}
+          {masterSubView === 'contact' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Top Sub-Header & Navigation */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1.25rem',
+                borderRadius: '0.95rem',
+                backgroundColor: theme.card,
+                border: `1px solid ${theme.border}`,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMasterSubView('menu');
+                      updatePlatformUrl('master_data', null, 'menu');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.45rem 0.85rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+                      border: `1px solid ${theme.border}`,
+                      color: theme.textPrimary,
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <ArrowLeft size={15} />
+                    <span>Kembali ke Menu Master</span>
+                  </button>
+
+                  <div style={{ height: '20px', width: '1px', backgroundColor: theme.border }} />
+
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: theme.textPrimary }}>
+                      Kontak Bantuan & Support Resmi Platform
+                    </h3>
+                    <span style={{ fontSize: '0.72rem', color: '#2563eb', fontWeight: 700 }}>
+                      Konfigurasi WhatsApp & Email Dukungan
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={handleSaveContactSettings}
+                    disabled={savingSettings}
+                    style={{
+                      padding: '0.55rem 1.15rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      cursor: savingSettings ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)'
+                    }}
+                  >
+                    {savingSettings ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                    <span>{savingSettings ? 'Menyimpan...' : 'Simpan Kontak'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Form Section */}
+              <form onSubmit={handleSaveContactSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{
+                  padding: '1.25rem 1.35rem',
+                  borderRadius: '1rem',
+                  backgroundColor: theme.card,
+                  border: `1px solid ${theme.border}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1.25rem'
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.15rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 700, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.4rem' }}>
+                        <Phone size={15} style={{ color: '#10b981' }} />
+                        <span>Nomor WhatsApp Bantuan Resmi *</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || ''}
+                        onChange={(e) => setGoogleSettings(prev => ({
+                          ...prev,
+                          platform_official_whatsapp: e.target.value,
+                          contact_whatsapp: e.target.value
+                        }))}
+                        placeholder="Contoh: 62811220227"
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 0.95rem',
+                          borderRadius: '0.75rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                          color: theme.textPrimary,
+                          fontSize: '0.86rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <span style={{ fontSize: '0.72rem', color: theme.textMuted, marginTop: '0.35rem', display: 'block' }}>
+                        Gunakan kode negara tanpa tanda plus atau spasi (contoh: <code>62811220227</code>). Tautan <code>https://wa.me/</code> dibuat otomatis.
+                      </span>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 700, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.4rem' }}>
+                        <Mail size={15} style={{ color: '#2563eb' }} />
+                        <span>Alamat Email Support Resmi *</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={googleSettings.platform_official_email || googleSettings.contact_email || ''}
+                        onChange={(e) => setGoogleSettings(prev => ({
+                          ...prev,
+                          platform_official_email: e.target.value,
+                          contact_email: e.target.value
+                        }))}
+                        placeholder="Contoh: support@catavor.com"
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 0.95rem',
+                          borderRadius: '0.75rem',
+                          border: `1px solid ${theme.border}`,
+                          backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                          color: theme.textPrimary,
+                          fontSize: '0.86rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <span style={{ fontSize: '0.72rem', color: theme.textMuted, marginTop: '0.35rem', display: 'block' }}>
+                        Alamat email resmi untuk pengaduan, bantuan pembayaran, konsultasi teknis, dan surat elektronik platform.
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Visual Simulation Preview */}
+                  <div style={{
+                    marginTop: '0.5rem',
+                    padding: '1.15rem 1.35rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: isDark ? '#0b1322' : '#f8fafc',
+                    border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(37, 99, 235, 0.2)'}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.65rem'
+                  }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#2563eb', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Headphones size={14} /> Pratinjau Komponen Bantuan di Halaman Checkout:
+                    </span>
+                    <p style={{ margin: 0, fontSize: '0.78rem', color: theme.textSecondary }}>
+                      Calon merchant pada saat checkout dapat langsung menghubungi WhatsApp resmi di <strong>+{googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '62811220227'}</strong> atau mengirim email ke <strong>{googleSettings.platform_official_email || googleSettings.contact_email || 'support@catavor.com'}</strong> tanpa harus mencari kontak di landing page.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.5rem' }}>
+                  <button
+                    type="submit"
+                    disabled={savingSettings}
+                    style={{
+                      padding: '0.75rem 1.75rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: '#2563eb',
+                      color: '#ffffff',
+                      fontSize: '0.84rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: savingSettings ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)'
+                    }}
+                  >
+                    {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    <span>{savingSettings ? 'Menyimpan...' : 'Simpan Perubahan Kontak'}</span>
                   </button>
                 </div>
               </form>
