@@ -309,8 +309,8 @@ button, a, input, select, textarea {
 .tablet-sticky-table-container {
   position: relative;
   width: 100%;
-  max-height: min(62vh, 640px);
-  overflow-y: auto;
+  max-height: none;
+  overflow-y: visible;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border-radius: 0.85rem;

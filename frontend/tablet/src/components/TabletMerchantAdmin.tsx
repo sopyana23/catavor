@@ -4230,6 +4230,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               className="tablet-sticky-table-container catavor-table-scrollbar"
               style={{
                 width: '100%',
+                maxHeight: 'none',
+                overflowY: 'visible',
                 overflowX: 'auto',
                 WebkitOverflowScrolling: 'touch',
                 borderRadius: '0.85rem',
