@@ -17188,7 +17188,40 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           animation: 'fadeIn 0.2s ease-in-out'
                         }}>
                           <AlertCircle size={14} style={{ color: '#dc2626', flexShrink: 0, marginTop: '2px' }} />
-                          <span>{fieldErrors.email}</span>
+                          <div style={{ flex: 1 }}>
+                            <div>{fieldErrors.email}</div>
+                            {fieldErrors.email.toLowerCase().includes('sudah terdaftar') && (
+                              <div style={{ marginTop: '0.4rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLoginForm(prev => ({ ...prev, email: registerForm.email.trim() }));
+                                    setPortalTab('login');
+                                    window.history.pushState({ tab: 'login' }, '', '/login');
+                                    window.scrollTo({ top: 0, behavior: 'instant' });
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    backgroundColor: '#dc2626',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    padding: '0.35rem 0.75rem',
+                                    borderRadius: '0.45rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    boxShadow: '0 1px 3px rgba(220, 38, 38, 0.2)',
+                                    transition: 'background-color 0.15s ease'
+                                  }}
+                                >
+                                  <span>Masuk ke Akun Anda</span>
+                                  <ArrowRight size={13} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>

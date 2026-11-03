@@ -1648,7 +1648,10 @@ export const App: React.FC = () => {
           } catch {}
           navigateTo('/');
         }}
-        onLoginClick={() => navigateTo('/login')}
+        onLoginClick={(email) => {
+          if (email) setLoginEmail(email);
+          navigateTo('/login');
+        }}
         onSuccess={(regUser) => {
           if (regUser?.store_slug) {
             navigateTo(`/${regUser.store_slug}/admin`);
