@@ -13985,7 +13985,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
     try {
       sessionStorage.removeItem('catavor_merchant_active_ticket_id');
       sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+      sessionStorage.removeItem('catavor_active_notification_id');
+      sessionStorage.removeItem('catavor_active_notification_data');
     } catch {}
+    setSelectedNotification(null);
     setShowCategorySheet(false);
     setShowSortSheet(false);
     setShowFilterSheet(false);
