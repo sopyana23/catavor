@@ -18564,6 +18564,153 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
           </div>
         </div>
       )}
+
+      {/* ==========================================================
+         MOBILE CANCEL REGISTRATION BOTTOM SHEET (PORTAL / CHECKOUT)
+         ========================================================== */}
+      {showMobileCancelModal && (
+        <div
+          className="bottom-sheet-backdrop"
+          style={{ zIndex: 100015 }}
+          onClick={() => setShowMobileCancelModal(false)}
+        >
+          <div
+            className="bottom-sheet-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              transform: `translateY(${cancelDragY}px)`,
+              transition: isCancelDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              maxHeight: '88vh',
+              padding: '0.65rem 0 calc(1.75rem + env(safe-area-inset-bottom, 16px)) 0',
+              borderBottomLeftRadius: 0,
+              borderBottomRightRadius: 0,
+              borderTopLeftRadius: '1.5rem',
+              borderTopRightRadius: '1.5rem',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: '#ffffff'
+            }}
+          >
+            {/* Smooth Drag Handle Area */}
+            <div
+              className="bottom-sheet-handle-bar"
+              onTouchStart={(e) => handleCancelDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleCancelDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleCancelDragEnd}
+              onMouseDown={(e) => handleCancelDragStart(e.clientY)}
+              onMouseMove={(e) => handleCancelDragMove(e.clientY)}
+              onMouseUp={handleCancelDragEnd}
+            >
+              <div className="bottom-sheet-handle" style={{ backgroundColor: '#cbd5e1' }} />
+            </div>
+
+            {/* Header (Interactive Drag Area with Vector Icon & Title) */}
+            <div
+              className="bottom-sheet-header"
+              style={{
+                padding: '0 1.25rem 0.75rem',
+                borderBottom: '1px solid #e2e8f0',
+                cursor: 'grab',
+                touchAction: 'none',
+                userSelect: 'none'
+              }}
+              onTouchStart={(e) => handleCancelDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleCancelDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleCancelDragEnd}
+              onMouseDown={(e) => handleCancelDragStart(e.clientY)}
+              onMouseMove={(e) => handleCancelDragMove(e.clientY)}
+              onMouseUp={handleCancelDragEnd}
+            >
+              <div className="bottom-sheet-title-box" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  backgroundColor: '#fef2f2',
+                  border: '1px solid #fee2e2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <AlertTriangle size={18} color="#dc2626" />
+                </div>
+                <div>
+                  <h3 className="bottom-sheet-title" style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: '#0f172a' }}>
+                    Batalkan Pendaftaran?
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            {/* Sheet Body Content */}
+            <div style={{ padding: '1rem 1.25rem 0.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <p style={{
+                margin: 0,
+                fontSize: '0.85rem',
+                color: '#64748b',
+                lineHeight: 1.5
+              }}>
+                Seluruh data profil usaha dan draf paket yang telah Anda isi akan dihapus. Anda akan diarahkan kembali ke Beranda.
+              </p>
+
+              {/* Action Buttons Stack */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.35rem' }}>
+                {/* Destructive Primary: Ya, Batalkan Pendaftaran */}
+                <button
+                  type="button"
+                  onClick={handleConfirmMobileCancel}
+                  style={{
+                    height: '46px',
+                    width: '100%',
+                    borderRadius: '0.85rem',
+                    backgroundColor: '#dc2626',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.9rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    boxShadow: '0 4px 14px rgba(220, 38, 38, 0.3)',
+                    WebkitTapHighlightColor: 'transparent'
+                  }}
+                >
+                  <Trash2 size={17} />
+                  <span>Ya, Batalkan Pendaftaran</span>
+                </button>
+
+                {/* Secondary: Lanjutkan Pembayaran */}
+                <button
+                  type="button"
+                  onClick={() => setShowMobileCancelModal(false)}
+                  style={{
+                    height: '44px',
+                    width: '100%',
+                    borderRadius: '0.85rem',
+                    backgroundColor: '#ffffff',
+                    border: '1.5px solid #cbd5e1',
+                    color: '#334155',
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem',
+                    WebkitTapHighlightColor: 'transparent'
+                  }}
+                >
+                  <span>Lanjutkan Pembayaran</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </>
     );
   }
@@ -35644,151 +35791,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         </div>
       )}
 
-      {/* ==========================================================
-         MOBILE CANCEL REGISTRATION BOTTOM SHEET (FLUSH AT BOTTOM WITH DRAG DISMISS & HEADER)
-         ========================================================== */}
-      {showMobileCancelModal && (
-        <div
-          className="bottom-sheet-backdrop"
-          style={{ zIndex: 100015 }}
-          onClick={() => setShowMobileCancelModal(false)}
-        >
-          <div
-            className="bottom-sheet-content"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              transform: `translateY(${cancelDragY}px)`,
-              transition: isCancelDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-              maxHeight: '88vh',
-              padding: '0.65rem 0 calc(1.75rem + env(safe-area-inset-bottom, 16px)) 0',
-              borderBottomLeftRadius: 0,
-              borderBottomRightRadius: 0,
-              borderTopLeftRadius: '1.5rem',
-              borderTopRightRadius: '1.5rem',
-              width: '100%',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            {/* Smooth Drag Handle Area */}
-            <div
-              className="bottom-sheet-handle-bar"
-              onTouchStart={(e) => handleCancelDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleCancelDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleCancelDragEnd}
-              onMouseDown={(e) => handleCancelDragStart(e.clientY)}
-              onMouseMove={(e) => handleCancelDragMove(e.clientY)}
-              onMouseUp={handleCancelDragEnd}
-            >
-              <div className="bottom-sheet-handle" />
-            </div>
-
-            {/* Header (Interactive Drag Area with Vector Icon & Title) */}
-            <div
-              className="bottom-sheet-header"
-              style={{
-                padding: '0 1.25rem 0.75rem',
-                borderBottom: '1px solid var(--border-light)',
-                cursor: 'grab',
-                touchAction: 'none',
-                userSelect: 'none'
-              }}
-              onTouchStart={(e) => handleCancelDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleCancelDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleCancelDragEnd}
-              onMouseDown={(e) => handleCancelDragStart(e.clientY)}
-              onMouseMove={(e) => handleCancelDragMove(e.clientY)}
-              onMouseUp={handleCancelDragEnd}
-            >
-              <div className="bottom-sheet-title-box" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <div style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '50%',
-                  backgroundColor: 'rgba(239, 68, 68, 0.14)',
-                  border: '1px solid rgba(239, 68, 68, 0.28)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}>
-                  <AlertTriangle size={18} color="#ef4444" />
-                </div>
-                <div>
-                  <h3 className="bottom-sheet-title" style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800 }}>
-                    Batalkan Pendaftaran?
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            {/* Sheet Body Content */}
-            <div style={{ padding: '1rem 1.25rem 0.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              <p style={{
-                margin: 0,
-                fontSize: '0.85rem',
-                color: 'var(--text-secondary)',
-                lineHeight: 1.5
-              }}>
-                Seluruh data profil usaha dan draf paket yang telah Anda isi akan dihapus. Anda akan diarahkan kembali ke Beranda.
-              </p>
-
-              {/* Action Buttons Stack */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.35rem' }}>
-                {/* Destructive Primary: Ya, Batalkan Pendaftaran */}
-                <button
-                  type="button"
-                  onClick={handleConfirmMobileCancel}
-                  style={{
-                    height: '46px',
-                    width: '100%',
-                    borderRadius: '0.85rem',
-                    backgroundColor: '#dc2626',
-                    color: '#ffffff',
-                    fontWeight: 800,
-                    fontSize: '0.9rem',
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    boxShadow: '0 4px 14px rgba(220, 38, 38, 0.3)',
-                    WebkitTapHighlightColor: 'transparent'
-                  }}
-                >
-                  <Trash2 size={17} />
-                  <span>Ya, Batalkan Pendaftaran</span>
-                </button>
-
-                {/* Secondary: Lanjutkan Pembayaran */}
-                <button
-                  type="button"
-                  onClick={() => setShowMobileCancelModal(false)}
-                  style={{
-                    height: '44px',
-                    width: '100%',
-                    borderRadius: '0.85rem',
-                    backgroundColor: 'transparent',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-primary)',
-                    fontWeight: 700,
-                    fontSize: '0.88rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.45rem',
-                    WebkitTapHighlightColor: 'transparent'
-                  }}
-                >
-                  <span>Lanjutkan Pembayaran</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MOBILE REGISTRATION OTP VERIFICATION MODAL */}
       {/* MOBILE REGISTRATION OTP VERIFICATION MODAL */}
       {showRegOTPModal && (
         <div className="modal-backdrop-clean" style={{ zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
