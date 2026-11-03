@@ -13982,13 +13982,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setShowCreateStoreModal(false);
     setIsCreatingTicket(false);
     setSelectedTicket(null);
+    setSelectedNotification(null);
     try {
       sessionStorage.removeItem('catavor_merchant_active_ticket_id');
       sessionStorage.removeItem('catavor_merchant_active_ticket_data');
       sessionStorage.removeItem('catavor_active_notification_id');
       sessionStorage.removeItem('catavor_active_notification_data');
     } catch {}
-    setSelectedNotification(null);
     setShowCategorySheet(false);
     setShowSortSheet(false);
     setShowFilterSheet(false);
@@ -18777,13 +18777,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     !showCreateStoreModal &&
     view === 'tabs' &&
     (
-      // 1. In Admin Mode: Show bottom bar across all merchant admin screens
-      // (menu, items, settings with subtabs, analytics, subscription, profile, policies, notifications, help ticket list, share, audit logs, rbac).
-      // Hide ONLY on specific modal flows: ticket chat room in helpdesk and ticket creation modal in helpdesk.
+      // 1. In Admin Mode: Show bottom bar across primary root merchant admin screens
+      // (menu, items list, settings root menu, analytics, subscription, profile, policies, notifications list, help ticket list, share, audit logs, rbac).
+      // Hide on focused sub-pages / deep drill-downs / task flows:
+      // - Settings sub-pages (general, contact, theme, domain, master, account forms) -> hide to prevent keyboard clipping & CTA collision
+      // - Notification detail view -> hide for distraction-free reading
+      // - Helpdesk ticket chat room & ticket creation modal -> hide for dedicated chat input bar
       (
         activeTab === 'admin' &&
         token &&
-        !(adminSubTab === 'help' && (Boolean(selectedTicket) || isCreatingTicket))
+        !(adminSubTab === 'help' && (Boolean(selectedTicket) || isCreatingTicket)) &&
+        !(adminSubTab === 'settings' && mobileSettingsTab && mobileSettingsTab !== 'menu') &&
+        !(adminSubTab === 'notifications' && Boolean(selectedNotification))
       ) ||
       // 2. In Public Storefront Mode: Show bottom bar on root tabs (catalog, about), hide on item detail modal and QR code view
       (
