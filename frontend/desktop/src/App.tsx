@@ -170,7 +170,9 @@ import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './ut
 import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
 import { SwipeableToast } from './components/SwipeableToast'
-import { FormattedText, ExternalLinkWarningModal } from './components/RichTextarea'
+import { RichTextarea, FormattedText, ExternalLinkWarningModal, type RichTextareaProps } from './components/RichTextarea';
+export { RichTextarea, type RichTextareaProps };
+import { SafeImage } from './components/SafeImage'
 import { checkUrlSecurity } from './utils/urlSecurity'
 import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
@@ -2436,902 +2438,7 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
   );
 };
 
-export const HeadingDropdown: React.FC<{
-  onSelect: (level: 1 | 2 | 3) => void;
-  btnClassName?: string;
-  isZen?: boolean;
-}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [alignDirection, setAlignDirection] = useState<'left' | 'right'>('left');
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    if (dropdownRef.current) {
-      const rect = dropdownRef.current.getBoundingClientRect();
-      const menuWidth = isZen ? 210 : 195;
-      const spaceRight = window.innerWidth - rect.left;
-      if (spaceRight < menuWidth + 16) {
-        setAlignDirection('right');
-      } else {
-        setAlignDirection('left');
-      }
-    }
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, isZen]);
-
-  const handleSelect = (level: 1 | 2 | 3) => {
-    onSelect(level);
-    setIsOpen(false);
-  };
-
-  return (
-    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 99999 : 1 }}>
-      <button
-        type="button"
-        className={btnClassName}
-        title="Pilih Ukuran Judul (Heading H1, H2, H3)"
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          backgroundColor: isOpen ? 'var(--primary-glow, rgba(59,130,246,0.15))' : undefined,
-          borderColor: isOpen ? 'var(--primary)' : undefined,
-          color: isOpen ? 'var(--primary)' : undefined
-        }}
-      >
-        <span style={{ fontWeight: 700 }}>Judul</span>
-        <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
-      </button>
-
-      {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 5px)',
-            ...(alignDirection === 'right' ? { right: 0, left: 'auto' } : { left: 0, right: 'auto' }),
-            zIndex: 999999,
-            minWidth: isZen ? '210px' : '195px',
-            maxWidth: 'calc(100vw - 24px)',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
-            borderRadius: '0.6rem',
-            boxShadow: '0 14px 35px rgba(0,0,0,0.35), 0 4px 14px rgba(0,0,0,0.2)',
-            padding: '0.45rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.25rem',
-            boxSizing: 'border-box'
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => handleSelect(1)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.75rem',
-              padding: '0.5rem 0.75rem',
-              borderRadius: '0.4rem',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-              e.currentTarget.style.color = 'var(--primary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = 'var(--text-primary)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--primary)', width: '22px' }}>H1</span>
-              <span style={{ fontSize: '0.84rem', fontWeight: 700 }}>Judul Utama</span>
-            </div>
-            <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>#</code>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSelect(2)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.75rem',
-              padding: '0.5rem 0.75rem',
-              borderRadius: '0.4rem',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-              e.currentTarget.style.color = 'var(--primary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = 'var(--text-primary)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--primary)', width: '22px' }}>H2</span>
-              <span style={{ fontSize: '0.84rem', fontWeight: 600 }}>Judul Bab</span>
-            </div>
-            <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>##</code>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSelect(3)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.75rem',
-              padding: '0.5rem 0.75rem',
-              borderRadius: '0.4rem',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-              e.currentTarget.style.color = 'var(--primary-hover, #60a5fa)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = 'var(--text-primary)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.86rem', color: 'var(--primary-hover, #60a5fa)', width: '22px' }}>H3</span>
-              <span style={{ fontSize: '0.84rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Sub-Judul</span>
-            </div>
-            <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>###</code>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export const ListDropdown: React.FC<{
-  onSelect: (type: 'bullet' | 'number') => void;
-  btnClassName?: string;
-  isZen?: boolean;
-}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [alignDirection, setAlignDirection] = useState<'left' | 'right'>('left');
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    if (dropdownRef.current) {
-      const rect = dropdownRef.current.getBoundingClientRect();
-      const menuWidth = isZen ? 205 : 190;
-      const spaceRight = window.innerWidth - rect.left;
-      if (spaceRight < menuWidth + 16) {
-        setAlignDirection('right');
-      } else {
-        setAlignDirection('left');
-      }
-    }
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, isZen]);
-
-  const handleSelect = (type: 'bullet' | 'number') => {
-    onSelect(type);
-    setIsOpen(false);
-  };
-
-  return (
-    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block', zIndex: isOpen ? 99999 : 1 }}>
-      <button
-        type="button"
-        className={btnClassName}
-        title="Pilih Format Daftar (Daftar Poin, Nomor)"
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          backgroundColor: isOpen ? 'var(--primary-glow, rgba(59,130,246,0.15))' : undefined,
-          borderColor: isOpen ? 'var(--primary)' : undefined,
-          color: isOpen ? 'var(--primary)' : undefined
-        }}
-      >
-        <span style={{ fontWeight: 700 }}>List</span>
-        <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
-      </button>
-
-      {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 5px)',
-            ...(alignDirection === 'right' ? { right: 0, left: 'auto' } : { left: 0, right: 'auto' }),
-            zIndex: 999999,
-            minWidth: isZen ? '205px' : '190px',
-            maxWidth: 'calc(100vw - 24px)',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
-            borderRadius: '0.6rem',
-            boxShadow: '0 14px 35px rgba(0,0,0,0.35), 0 4px 14px rgba(0,0,0,0.2)',
-            padding: '0.45rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.25rem',
-            boxSizing: 'border-box'
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => handleSelect('bullet')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.75rem',
-              padding: '0.5rem 0.75rem',
-              borderRadius: '0.4rem',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-              e.currentTarget.style.color = 'var(--primary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = 'var(--text-primary)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary)', width: '22px', textAlign: 'center', lineHeight: 1 }}>•</span>
-              <span style={{ fontSize: '0.84rem', fontWeight: 600 }}>Daftar Poin</span>
-            </div>
-            <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>-</code>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSelect('number')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.75rem',
-              padding: '0.5rem 0.75rem',
-              borderRadius: '0.4rem',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-              e.currentTarget.style.color = 'var(--primary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = 'var(--text-primary)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary)', width: '22px', textAlign: 'center' }}>1.</span>
-              <span style={{ fontSize: '0.84rem', fontWeight: 600 }}>Daftar Nomor</span>
-            </div>
-            <code style={{ fontSize: '0.74rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.12rem 0.45rem', borderRadius: '4px' }}>1.</code>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export interface RichTextareaProps {
-  label?: string;
-  value: string;
-  onChange: (val: string) => void;
-  placeholder?: string;
-  rows?: number;
-  required?: boolean;
-  className?: string;
-  style?: React.CSSProperties;
-}
-
-export const RichTextarea: React.FC<RichTextareaProps> = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  rows = 4,
-  required = false,
-  className = "form-textarea",
-  style
-}) => {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const fullscreenTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showFullscreenPreview, setShowFullscreenPreview] = useState(true);
-
-  // Lock body scroll when Fullscreen is active
-  useEffect(() => {
-    if (isFullscreen) {
-      document.body.style.overflow = 'hidden';
-      setTimeout(() => {
-        fullscreenTextareaRef.current?.focus();
-      }, 50);
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isFullscreen]);
-
-  // Handle ESC key to exit fullscreen
-  useEffect(() => {
-    const handleKeyDownGlobal = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) {
-        setIsFullscreen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDownGlobal);
-    return () => window.removeEventListener('keydown', handleKeyDownGlobal);
-  }, [isFullscreen]);
-
-  // Handle hardware / browser back to close Zen Fullscreen editor
-  useModalBackHandler({
-    isOpen: isFullscreen,
-    onClose: () => setIsFullscreen(false),
-    modalId: 'rich-textarea-fullscreen-desktop'
-  });
-
-  const applyFormatToRef = (
-    targetRef: React.RefObject<HTMLTextAreaElement | null>,
-    prefix: string,
-    suffix: string,
-    defaultText: string
-  ) => {
-    const el = targetRef.current;
-    const currentVal = value || '';
-    if (!el) {
-      onChange(currentVal + `${prefix}${defaultText}${suffix}`);
-      return;
-    }
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = currentVal.substring(start, end);
-
-    // List & Checklist insertion logic
-    if (prefix === '- ' || prefix === '1. ' || prefix === '- [ ] ') {
-      const textBefore = currentVal.substring(0, start);
-      const lastNewlineIdx = textBefore.lastIndexOf('\n');
-      const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
-      const lineText = currentVal.substring(lineStart, start);
-
-      if (lineText.trim() === '') {
-        const newText = currentVal.substring(0, lineStart) + prefix + currentVal.substring(start);
-        onChange(newText);
-        setTimeout(() => {
-          el.focus();
-          const newPos = lineStart + prefix.length;
-          el.setSelectionRange(newPos, newPos);
-        }, 0);
-        return;
-      } else {
-        const insertText = '\n' + prefix;
-        const newText = currentVal.substring(0, start) + insertText + currentVal.substring(end);
-        onChange(newText);
-        setTimeout(() => {
-          el.focus();
-          const newPos = start + insertText.length;
-          el.setSelectionRange(newPos, newPos);
-        }, 0);
-        return;
-      }
-    }
-
-    const replacement = selected ? `${prefix}${selected}${suffix}` : `${prefix}${defaultText}${suffix}`;
-    const newValue = currentVal.substring(0, start) + replacement + currentVal.substring(end);
-    onChange(newValue);
-    setTimeout(() => {
-      el.focus();
-      const newCursor = selected ? start + prefix.length + selected.length + suffix.length : start + prefix.length;
-      el.setSelectionRange(newCursor, newCursor + (selected ? 0 : defaultText.length));
-    }, 0);
-  };
-
-  const handleKeyDownSmartList = (
-    targetRef: React.RefObject<HTMLTextAreaElement | null>,
-    e: React.KeyboardEvent<HTMLTextAreaElement>
-  ) => {
-    if (e.key === 'Enter') {
-      const el = targetRef.current;
-      if (!el) return;
-
-      const currentVal = value || '';
-      const start = el.selectionStart;
-      const end = el.selectionEnd;
-      const textBefore = currentVal.substring(0, start);
-      const textAfter = currentVal.substring(end);
-
-      const lastNewlineIdx = textBefore.lastIndexOf('\n');
-      const currentLine = textBefore.substring(lastNewlineIdx + 1);
-
-      const checklistMatch = currentLine.match(/^([-*•]?\s*\[[ xX]?\]\s+)(.*)$/);
-      const bulletMatch = !checklistMatch ? currentLine.match(/^([-*•]\s+)(.*)$/) : null;
-      const numberMatch = currentLine.match(/^(\d+)(\.\s+)(.*)$/);
-
-      if (checklistMatch) {
-        e.preventDefault();
-        const content = checklistMatch[2];
-        if (content.trim() === '') {
-          const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
-          const newText = currentVal.substring(0, lineStart) + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            el.setSelectionRange(lineStart, lineStart);
-          }, 0);
-        } else {
-          const nextChecklist = '\n- [ ] ';
-          const newText = textBefore + nextChecklist + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            const newPos = start + nextChecklist.length;
-            el.setSelectionRange(newPos, newPos);
-          }, 0);
-        }
-      } else if (bulletMatch) {
-        e.preventDefault();
-        const prefix = bulletMatch[1];
-        const content = bulletMatch[2];
-
-        if (content.trim() === '') {
-          const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
-          const newText = currentVal.substring(0, lineStart) + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            el.setSelectionRange(lineStart, lineStart);
-          }, 0);
-        } else {
-          const nextBullet = '\n' + prefix;
-          const newText = textBefore + nextBullet + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            const newPos = start + nextBullet.length;
-            el.setSelectionRange(newPos, newPos);
-          }, 0);
-        }
-      } else if (numberMatch) {
-        e.preventDefault();
-        const num = parseInt(numberMatch[1], 10);
-        const dotSpace = numberMatch[2];
-        const content = numberMatch[3];
-
-        if (content.trim() === '') {
-          const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
-          const newText = currentVal.substring(0, lineStart) + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            el.setSelectionRange(lineStart, lineStart);
-          }, 0);
-        } else {
-          const nextPrefix = `\n${num + 1}${dotSpace}`;
-          const newText = textBefore + nextPrefix + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            const newPos = start + nextPrefix.length;
-            el.setSelectionRange(newPos, newPos);
-          }, 0);
-        }
-      }
-    }
-  };
-
-  const wordCount = (value || '').trim() ? (value || '').trim().split(/\s+/).length : 0;
-  const charCount = (value || '').length;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', ...style }}>
-      {label && <label className="form-label" style={{ marginBottom: '0.1rem' }}>{label}</label>}
-      
-      {/* Inline Formatting Helper Toolbar: Single Row Bar */}
-      <div className="rich-toolbar-wrapper">
-        <button
-          type="button"
-          className="rich-btn-format"
-          title="Teks Tebal (Bold)"
-          onClick={() => applyFormatToRef(textareaRef, '**', '**', 'teks tebal')}
-          style={{ flexShrink: 0 }}
-        >
-          <strong>B</strong>
-        </button>
-        <button
-          type="button"
-          className="rich-btn-format"
-          title="Teks Miring (Italic)"
-          onClick={() => applyFormatToRef(textareaRef, '*', '*', 'teks miring')}
-          style={{ flexShrink: 0 }}
-        >
-          <em>I</em>
-        </button>
-        <HeadingDropdown
-          onSelect={(level) => {
-            if (level === 1) applyFormatToRef(textareaRef, '\n# ', '\n', 'Judul Utama H1');
-            else if (level === 2) applyFormatToRef(textareaRef, '\n## ', '\n', 'Judul Bab H2');
-            else if (level === 3) applyFormatToRef(textareaRef, '\n### ', '\n', 'Sub Judul H3');
-          }}
-          btnClassName="rich-btn-format"
-        />
-        <ListDropdown
-          onSelect={(type) => {
-            if (type === 'bullet') applyFormatToRef(textareaRef, '- ', '', 'Poin list');
-            else if (type === 'number') applyFormatToRef(textareaRef, '1. ', '', 'Langkah');
-          }}
-          btnClassName="rich-btn-format"
-        />
-
-        {/* Fullscreen Button */}
-        <button
-          type="button"
-          className="rich-btn-fullscreen"
-          title="Buka Layar Penuh (Fullscreen Zen Mode)"
-          onClick={() => setIsFullscreen(true)}
-          style={{ flexShrink: 0, marginLeft: 'auto' }}
-        >
-          <Maximize2 size={13} /> Fullscreen
-        </button>
-      </div>
-
-      {/* Actual Textarea */}
-      <textarea
-        ref={textareaRef}
-        rows={rows}
-        className={className}
-        style={{
-          borderTopLeftRadius: 0,
-          borderTopRightRadius: 0,
-          marginTop: 0,
-          fontFamily: 'inherit',
-          lineHeight: 1.6,
-          fontSize: '0.88rem',
-          resize: 'vertical',
-          width: '100%',
-          maxWidth: '100%',
-          boxSizing: 'border-box',
-          minHeight: `${Math.max(rows * 28 + 20, 105)}px`
-        }}
-        placeholder={placeholder}
-        required={required}
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => handleKeyDownSmartList(textareaRef, e)}
-      />
-
-      {/* ==========================================================
-          FULLSCREEN ZEN-MODE EDITOR OVERLAY (Standard UI/UX Terbaik)
-          Desktop: Seukuran modal form inputan, bukan 100vw layar penuh
-          ========================================================== */}
-      {isFullscreen && typeof document !== 'undefined' && createPortal(
-        <div 
-          className="zen-modal-overlay"
-          onClick={() => setIsFullscreen(false)}
-        >
-          <div 
-            className="zen-modal-card"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 1. Modal Top Bar: Title & Window Controls */}
-            <div className="zen-fullscreen-header">
-              {/* Title & Badge */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
-                <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '0.5rem',
-                  backgroundColor: 'var(--primary-glow)',
-                  border: '1px solid var(--primary-glow)',
-                  color: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}>
-                  <FileText size={17} />
-                </div>
-                <div 
-                  className="zen-header-title" 
-                  title={label || 'Editor Teks'}
-                  style={{ minWidth: 0 }}
-                >
-                  <span>{label || 'Editor Teks'}</span>
-                </div>
-                <span className="zen-header-badge">Fokus Editor</span>
-              </div>
-
-              {/* Right Window Action Controls (Split Preview Toggle & Close X) */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                {/* Split Preview Toggle Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowFullscreenPreview(!showFullscreenPreview)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    padding: '0.38rem 0.85rem',
-                    borderRadius: '0.5rem',
-                    border: showFullscreenPreview ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                    background: showFullscreenPreview ? 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover, var(--primary)) 100%)' : 'var(--bg-card-hover)',
-                    color: showFullscreenPreview ? '#ffffff' : 'var(--text-primary)',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    boxShadow: showFullscreenPreview ? '0 2px 10px var(--primary-glow)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                  title={showFullscreenPreview ? 'Sembunyikan panel pratinjau' : 'Tampilkan panel pratinjau berdampingan'}
-                >
-                  <Columns size={14} />
-                  <span>{showFullscreenPreview ? 'Split Preview: Aktif' : 'Tampilkan Preview'}</span>
-                </button>
-
-                {/* Subtle Divider */}
-                <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-light)', margin: '0 0.2rem' }} />
-
-                {/* Close Button X */}
-                <button
-                  type="button"
-                  onClick={() => setIsFullscreen(false)}
-                  title="Tutup (Esc)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '0.5rem',
-                    border: '1px solid var(--border-light)',
-                    backgroundColor: 'var(--bg-card-hover)',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = 'var(--primary)';
-                    e.currentTarget.style.borderColor = 'var(--primary)';
-                    e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = 'var(--text-secondary)';
-                    e.currentTarget.style.borderColor = 'var(--border-light)';
-                    e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-
-            {/* 2. Dedicated Text Formatting Toolbar Strip (Cleanly Docked Above Editor) */}
-            <div className="zen-fullscreen-toolbar">
-              {/* Left Formatting Group */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'nowrap' }}>
-                <button
-                  type="button"
-                  className="zen-btn-format"
-                  title="Teks Tebal (Bold)"
-                  onClick={() => applyFormatToRef(fullscreenTextareaRef, '**', '**', 'teks tebal')}
-                >
-                  <strong>B</strong>
-                </button>
-                <button
-                  type="button"
-                  className="zen-btn-format"
-                  title="Teks Miring (Italic)"
-                  onClick={() => applyFormatToRef(fullscreenTextareaRef, '*', '*', 'teks miring')}
-                >
-                  <em>I</em>
-                </button>
-
-                <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-light)', margin: '0 0.15rem' }} />
-
-                <HeadingDropdown
-                  onSelect={(level) => {
-                    if (level === 1) applyFormatToRef(fullscreenTextareaRef, '\n# ', '\n', 'Judul Utama H1');
-                    else if (level === 2) applyFormatToRef(fullscreenTextareaRef, '\n## ', '\n', 'Judul Bab H2');
-                    else if (level === 3) applyFormatToRef(fullscreenTextareaRef, '\n### ', '\n', 'Sub Judul H3');
-                  }}
-                  btnClassName="zen-btn-format"
-                  isZen
-                />
-                <ListDropdown
-                  onSelect={(type) => {
-                    if (type === 'bullet') applyFormatToRef(fullscreenTextareaRef, '- ', '', 'Poin list');
-                    else if (type === 'number') applyFormatToRef(fullscreenTextareaRef, '1. ', '', 'Langkah');
-                  }}
-                  btnClassName="zen-btn-format"
-                  isZen
-                />
-
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.5rem', fontWeight: 600 }}>
-                  💡 Format Markdown aktif
-                </span>
-              </div>
-
-              {/* Right Live Statistics Counter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.74rem', color: 'var(--text-muted)', flexShrink: 0 }}>
-                <span style={{
-                  padding: '0.18rem 0.55rem',
-                  borderRadius: '0.375rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  color: 'var(--text-secondary)',
-                  fontWeight: 700
-                }}>
-                  {wordCount} kata
-                </span>
-                <span>•</span>
-                <span style={{
-                  padding: '0.18rem 0.55rem',
-                  borderRadius: '0.375rem',
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  color: 'var(--text-secondary)',
-                  fontWeight: 700
-                }}>
-                  {charCount} karakter
-                </span>
-              </div>
-            </div>
-
-            {/* Fullscreen Body */}
-            <div className="zen-fullscreen-body">
-              {/* Left: Fullscreen Textarea */}
-              <div 
-                className="zen-textarea-container"
-                style={{
-                  maxWidth: showFullscreenPreview ? '50%' : '100%',
-                  borderRight: showFullscreenPreview ? '1px solid var(--border-light)' : 'none'
-                }}
-              >
-                <textarea
-                  ref={fullscreenTextareaRef}
-                  className="zen-textarea"
-                  placeholder={placeholder || 'Tulis deskripsi atau konten lengkap di sini...'}
-                  value={value || ''}
-                  onChange={(e) => onChange(e.target.value)}
-                  onKeyDown={(e) => handleKeyDownSmartList(fullscreenTextareaRef, e)}
-                />
-              </div>
-
-              {/* Right: Fullscreen Live Preview Pane */}
-              {showFullscreenPreview && (
-                <div 
-                  className="zen-preview-pane"
-                  style={{ maxWidth: '50%' }}
-                >
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    fontSize: '0.75rem',
-                    fontWeight: 800,
-                    color: 'var(--primary)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    marginBottom: '1rem',
-                    paddingBottom: '0.5rem',
-                    borderBottom: '1px solid var(--border-light)'
-                  }}>
-                    <Eye size={14} />
-                    <span>Pratinjau Tampilan Konsumen (Live Preview)</span>
-                  </div>
-
-                  {(value || '').trim() ? (
-                    <FormattedText
-                      text={value}
-                      style={{ fontSize: '0.95rem', color: 'var(--text-primary)', lineHeight: '1.7' }}
-                    />
-                  ) : (
-                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                      Belum ada teks yang ditulis. Ketik sesuatu di panel editor sebelah kiri untuk melihat hasil pratinjaunya secara real-time.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Fullscreen Footer: Auto-save note on Left, Selesai Button on Right */}
-            <div className="zen-fullscreen-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                <CheckCircle2 size={14} color="var(--primary)" />
-                <span>Perubahan otomatis tersinkronisasi di formulir</span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Tekan <kbd style={{ padding: '0.15rem 0.4rem', borderRadius: '4px', background: 'var(--bg-card-hover)', border: '1px solid var(--border-light)', fontSize: '0.72rem' }}>Esc</kbd> atau
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIsFullscreen(false)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    padding: '0.45rem 1.35rem',
-                    borderRadius: '0.5rem',
-                    border: 'none',
-                    background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover, var(--primary)) 100%)',
-                    color: '#ffffff',
-                    fontSize: '0.82rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    boxShadow: '0 3px 12px var(--primary-glow)',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = '0 5px 18px var(--primary-glow)';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = '0 3px 12px var(--primary-glow)';
-                    e.currentTarget.style.transform = 'none';
-                  }}
-                >
-                  <Check size={14} strokeWidth={2.5} color="#ffffff" />
-                  <span>Selesai</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-};
 
 export const safeHref = (url?: string): string => {
   if (!url || typeof url !== 'string') return '#';
@@ -5143,6 +4250,16 @@ function App() {
       if (newWin) newWin.opener = null;
     }
   };
+
+  useEffect(() => {
+    const handleGlobalExternalPrompt = (e: any) => {
+      if (e.detail?.url) {
+        setExternalUrlWarning(e.detail.url);
+      }
+    };
+    window.addEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
+    return () => window.removeEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
+  }, []);
 
   const [notifications, setNotifications] = useState<any[]>([
     {
@@ -7310,7 +6427,14 @@ Terima kasih.`;
   }, [view, serverCatalogItems, faunas, search, classFilter, habitatFilter, productTypeFilter, sortBy]);
 
   // Modals
-  const [showCrudModal, setShowCrudModal] = useState<boolean>(false)
+  const [showCrudModal, setShowCrudModal] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    const hasCreate = p.includes('/admin/items/create') || p.includes('/admin/items/new') || q.get('action') === 'create' || q.get('action') === 'new';
+    const hasEdit = p.includes('/admin/items/edit') || Boolean(q.get('edit')) || (q.get('action') === 'edit' && Boolean(q.get('id')));
+    return hasCreate || hasEdit;
+  })
   const [isDetailActive, setIsDetailActive] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const initialItem = new URLSearchParams(window.location.search).get('item');
@@ -7579,6 +6703,18 @@ Terima kasih.`;
       window.removeEventListener('pointerdown', handleUserPointer, { capture: true });
     };
   }, [markUserNavigation]);
+
+  // Persistent device classification cookie for resilient form-factor retention across refreshes
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('view') === 'desktop' || (!urlParams.get('view') && window.innerWidth >= 1024)) {
+          document.cookie = 'catavor_device=desktop; path=/; max-age=2592000; SameSite=Lax';
+        }
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (adminTab !== 'items') return;
@@ -9853,9 +8989,63 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [firstPasswordError, setFirstPasswordError] = useState<string | null>(null)
 
   // CRUD Form State
-  const [crudMode, setCrudMode] = useState<'create' | 'edit'>('create')
-  const [editId, setEditId] = useState<number | null>(null)
-  const [crudForm, setCrudForm] = useState(() => getInitialCrudForm('physical'))
+  const [crudMode, setCrudMode] = useState<'create' | 'edit'>(() => {
+    if (typeof window === 'undefined') return 'create';
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    if (p.includes('/admin/items/edit') || Boolean(q.get('edit')) || (q.get('action') === 'edit' && Boolean(q.get('id')))) {
+      return 'edit';
+    }
+    return 'create';
+  });
+
+  const [editId, setEditId] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    const qEdit = q.get('edit') || q.get('id');
+    if (qEdit) {
+      const parsed = parseInt(qEdit, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    const parts = p.split('/').filter(Boolean);
+    const editIdx = parts.indexOf('edit');
+    if (editIdx !== -1 && parts.length > editIdx + 1) {
+      const lastPart = parts[parts.length - 1];
+      const parsed = parseInt(lastPart, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return null;
+  });
+
+  const [crudForm, setCrudForm] = useState(() => {
+    let initialType: ItemCategoryType = 'physical';
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase();
+      const q = new URLSearchParams(window.location.search);
+      const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+      if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType)) {
+        initialType = qType as ItemCategoryType;
+      } else {
+        const parts = p.split('/').filter(Boolean);
+        const createIdx = parts.indexOf('create');
+        if (createIdx !== -1 && parts[createIdx + 1]) {
+          const typeCandidate = parts[createIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(typeCandidate)) {
+            initialType = typeCandidate as ItemCategoryType;
+          }
+        }
+        const editIdx = parts.indexOf('edit');
+        if (editIdx !== -1 && parts[editIdx + 1]) {
+          const typeCandidate = parts[editIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(typeCandidate)) {
+            initialType = typeCandidate as ItemCategoryType;
+          }
+        }
+      }
+    }
+    return getInitialCrudForm(initialType);
+  });
 
   // Multi-image management states (Deferred Upload Architecture)
   const [crudImages, setCrudImages] = useState<string[]>([''])
@@ -10723,7 +9913,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     if (parts.length >= 5 && parts[1] === 'admin' && parts[2] === 'items' && parts[3] === 'edit') {
       const targetId = parts.length >= 6 ? parseInt(parts[5], 10) : parseInt(parts[4], 10);
       const found = faunas.find(f => f.id === targetId);
-      if (found && (!showCrudModal || editId !== targetId)) {
+      if (found && (!showCrudModal || editId !== targetId || !crudForm.name)) {
         openEditModal(found);
       }
       return;
@@ -10734,7 +9924,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     if (editParam) {
       const targetId = parseInt(editParam, 10);
       const found = faunas.find(f => f && f.id === targetId);
-      if (found && (!showCrudModal || editId !== targetId)) {
+      if (found && (!showCrudModal || editId !== targetId || !crudForm.name)) {
         openEditModal(found);
         return;
       }
@@ -12178,6 +11368,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
             targetPath += `/admin/items`;
           }
         } else {
+          const curP = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+          const curQ = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+          const isInitialCrudUrl = isInitialLoadRef.current && (
+            curP.includes('/admin/items/create') ||
+            curP.includes('/admin/items/edit') ||
+            curQ?.get('action') === 'create' ||
+            curQ?.get('action') === 'new' ||
+            curQ?.get('action') === 'edit' ||
+            Boolean(curQ?.get('edit'))
+          );
+          if (isInitialCrudUrl) {
+            return;
+          }
           targetPath += `/admin/items`;
         }
       } else if (adminTab === 'categories') {
@@ -14318,7 +13521,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         apiClient.invalidate();
         showToast(newActive ? 'Produk berhasil diaktifkan kembali!' : 'Produk berhasil diarsipkan.');
         setSelectedFauna((prev: any) => prev ? { ...prev, is_active: newActive } : null);
-        loadData(slug);
+        const activeSlug = storeSlug || getStoreSlug() || '';
+        loadData(activeSlug);
       } else {
         showToast(data.message || 'Gagal memperbarui status produk.', 'error');
       }
@@ -34777,6 +33981,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }}
           apiBase={API_BASE}
           token={token}
+        />
+      )}
+
+      {/* External Link Safety Prompt Modal (Desktop) */}
+      {externalUrlWarning && (
+        <ExternalLinkWarningModal
+          url={externalUrlWarning}
+          onClose={() => setExternalUrlWarning(null)}
         />
       )}
 

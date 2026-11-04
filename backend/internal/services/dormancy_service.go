@@ -384,74 +384,112 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 
 			log.Warn().Uint("store_id", store.ID).Str("slug", store.Slug).Msg("Executing Hard Purge on 60-day dormant store...")
 
-			// 1. Collect and delete all physical media files from storage
+			// 1. Collect all physical media file keys for deferred deletion
 			var products []models.Product
 			_ = db.Preload("Images").Where("store_id = ?", store.ID).Find(&products).Error
 
-			deletedFilesCount := 0
+			var filesToDelete []string
 			for _, prod := range products {
-				// Delete primary image
 				if prod.ImageURL != "" {
 					key := extractStorageKeyFromURL(prod.ImageURL)
-					if key != "" && strg != nil {
-						_ = strg.Delete(ctx, key)
-						deletedFilesCount++
+					if key != "" {
+						filesToDelete = append(filesToDelete, key)
 					}
 				}
-				// Delete gallery images
 				for _, pImg := range prod.Images {
 					if pImg.ImageURL != "" {
 						key := extractStorageKeyFromURL(pImg.ImageURL)
-						if key != "" && strg != nil {
-							_ = strg.Delete(ctx, key)
-							deletedFilesCount++
+						if key != "" {
+							filesToDelete = append(filesToDelete, key)
 						}
 					}
 				}
 			}
 
-			// Delete store logo and banner
-			if store.StoreLogoURL != "" && strg != nil {
+			if store.StoreLogoURL != "" {
 				key := extractStorageKeyFromURL(store.StoreLogoURL)
 				if key != "" {
-					_ = strg.Delete(ctx, key)
-					deletedFilesCount++
+					filesToDelete = append(filesToDelete, key)
 				}
 			}
-			if store.PromoBanner != "" && strg != nil {
+			if store.PromoBanner != "" {
 				key := extractStorageKeyFromURL(store.PromoBanner)
 				if key != "" {
-					_ = strg.Delete(ctx, key)
-					deletedFilesCount++
+					filesToDelete = append(filesToDelete, key)
 				}
 			}
 
-			// Purge entire store prefix from cloud storage and local disk to wipe any orphaned assets
+			// 2. Cascade delete database records in an ACID Transaction (AGENTS.md Rule 5 & Rule 10)
+			txErr := db.Transaction(func(tx *gorm.DB) error {
+				if err := tx.Exec("DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE store_id = ?)", store.ID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM product_variants WHERE product_id IN (SELECT id FROM products WHERE store_id = ?)", store.ID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM product_daily_analytics WHERE store_id = ?", store.ID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM store_daily_analytics WHERE store_id = ?", store.ID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM comments WHERE store_id = ?", store.ID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM articles WHERE store_id = ?", store.ID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM products WHERE store_id = ?", store.ID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM categories WHERE store_id = ?", store.ID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM notifications WHERE (target_type = 'single_store' AND target_id = ?) OR (target_type = 'single_user' AND target_id = ?)", store.ID, userID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM notification_reads WHERE store_id = ? OR user_id = ?", store.ID, userID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM support_messages WHERE ticket_id IN (SELECT id FROM support_tickets WHERE user_id = ?)", userID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM support_tickets WHERE user_id = ?", userID).Error; err != nil {
+					return err
+				}
+				if err := tx.Exec("DELETE FROM stores WHERE id = ?", store.ID).Error; err != nil {
+					return err
+				}
+				if userID > 0 {
+					if err := tx.Exec("DELETE FROM users WHERE id = ?", userID).Error; err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+
+			if txErr != nil {
+				log.Error().Err(txErr).Uint("store_id", store.ID).Msg("Failed to cascade delete dormant store database records")
+				continue
+			}
+
+			// 3. Multi-Layer Rollback (AGENTS.md Rule 10):
+			// Purge physical media files & store prefix from storage ONLY AFTER database commit succeeds.
+			deletedFilesCount := 0
 			if strg != nil {
+				for _, key := range filesToDelete {
+					_ = strg.Delete(ctx, key)
+					deletedFilesCount++
+				}
 				_ = strg.DeletePrefix(ctx, fmt.Sprintf("stores/%d/", store.ID))
 				_ = strg.DeletePrefix(ctx, fmt.Sprintf("private/stores/%d/", store.ID))
+			} else {
+				deletedFilesCount = len(filesToDelete)
 			}
+
 			if localRoot := GetStorageRoot(); localRoot != "" {
 				_ = os.RemoveAll(filepath.Join(localRoot, "stores", fmt.Sprintf("%d", store.ID)))
 				_ = os.RemoveAll(filepath.Join(localRoot, fmt.Sprintf("%d", store.ID)))
-			}
-
-			// 2. Cascade delete database records
-			_ = db.Exec("DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE store_id = ?)", store.ID)
-			_ = db.Exec("DELETE FROM product_variants WHERE product_id IN (SELECT id FROM products WHERE store_id = ?)", store.ID)
-			_ = db.Exec("DELETE FROM product_daily_analytics WHERE store_id = ?", store.ID)
-			_ = db.Exec("DELETE FROM store_daily_analytics WHERE store_id = ?", store.ID)
-			_ = db.Exec("DELETE FROM comments WHERE store_id = ?", store.ID)
-			_ = db.Exec("DELETE FROM articles WHERE store_id = ?", store.ID)
-			_ = db.Exec("DELETE FROM products WHERE store_id = ?", store.ID)
-			_ = db.Exec("DELETE FROM categories WHERE store_id = ?", store.ID)
-			_ = db.Exec("DELETE FROM notifications WHERE (target_type = 'single_store' AND target_id = ?) OR (target_type = 'single_user' AND target_id = ?)", store.ID, userID)
-			_ = db.Exec("DELETE FROM notification_reads WHERE store_id = ? OR user_id = ?", store.ID, userID)
-			_ = db.Exec("DELETE FROM support_messages WHERE ticket_id IN (SELECT id FROM support_tickets WHERE user_id = ?)", userID)
-			_ = db.Exec("DELETE FROM support_tickets WHERE user_id = ?", userID)
-			_ = db.Exec("DELETE FROM stores WHERE id = ?", store.ID)
-			if userID > 0 {
-				_ = db.Exec("DELETE FROM users WHERE id = ?", userID)
 			}
 
 			// Invalidate cache
@@ -758,46 +796,63 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 			var products []models.Product
 			_ = db.Preload("Images").Where("store_id = ?", store.ID).Find(&products).Error
 
-			deletedFilesCount := 0
+			var filesToDelete []string
 			for _, prod := range products {
-				if prod.ImageURL != "" && strg != nil {
+				if prod.ImageURL != "" {
 					key := extractStorageKeyFromURL(prod.ImageURL)
 					if key != "" {
-						_ = strg.Delete(ctx, key)
-						deletedFilesCount++
+						filesToDelete = append(filesToDelete, key)
 					}
 				}
 				for _, pImg := range prod.Images {
-					if pImg.ImageURL != "" && strg != nil {
+					if pImg.ImageURL != "" {
 						key := extractStorageKeyFromURL(pImg.ImageURL)
 						if key != "" {
-							_ = strg.Delete(ctx, key)
-							deletedFilesCount++
+							filesToDelete = append(filesToDelete, key)
 						}
 					}
 				}
 			}
 
-			if store.StoreLogoURL != "" && strg != nil {
+			if store.StoreLogoURL != "" {
 				key := extractStorageKeyFromURL(store.StoreLogoURL)
 				if key != "" {
-					_ = strg.Delete(ctx, key)
-					deletedFilesCount++
+					filesToDelete = append(filesToDelete, key)
 				}
 			}
-			if store.PromoBanner != "" && strg != nil {
+			if store.PromoBanner != "" {
 				key := extractStorageKeyFromURL(store.PromoBanner)
 				if key != "" {
-					_ = strg.Delete(ctx, key)
-					deletedFilesCount++
+					filesToDelete = append(filesToDelete, key)
 				}
 			}
 
-			// Clear image references in product records without deleting the products/store records
+			deletedFilesCount := len(filesToDelete)
+
+			// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+			// Clear image references in product records without deleting the tombstone/store records
 			if deletedFilesCount > 0 {
-				_ = db.Exec("DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE store_id = ?)", store.ID)
-				_ = db.Exec("UPDATE products SET image_url = '' WHERE store_id = ?", store.ID)
-				_ = db.Exec("UPDATE stores SET store_logo_url = '', promo_banner = '' WHERE id = ?", store.ID)
+				txErr := db.Transaction(func(tx *gorm.DB) error {
+					if err := tx.Exec("DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE store_id = ?)", store.ID).Error; err != nil {
+						return err
+					}
+					if err := tx.Exec("UPDATE products SET image_url = '' WHERE store_id = ?", store.ID).Error; err != nil {
+						return err
+					}
+					return tx.Exec("UPDATE stores SET store_logo_url = '', promo_banner = '' WHERE id = ?", store.ID).Error
+				})
+
+				if txErr != nil {
+					log.Error().Err(txErr).Uint("store_id", store.ID).Msg("Failed to clear media references for banned store")
+					continue
+				}
+
+				// Multi-Layer Rollback (AGENTS.md Rule 10): Delete physical files ONLY AFTER DB commit
+				if strg != nil {
+					for _, key := range filesToDelete {
+						_ = strg.Delete(ctx, key)
+					}
+				}
 
 				GetAutomationTracker().RecordLog(AutomationLogEntry{
 					BotName:   "moderation_media_cleanup",

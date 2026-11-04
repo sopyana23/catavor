@@ -26,6 +26,14 @@
             try { sessionStorage.removeItem('catavor_forced_view'); } catch (e) {}
           }
 
+          // 1b. Check sessionStorage for forced view in this browsing tab
+          try {
+            var savedForced = sessionStorage.getItem('catavor_forced_view');
+            if (savedForced && (savedForced === 'desktop' || savedForced === 'tablet' || savedForced === 'mobile')) {
+              return savedForced;
+            }
+          } catch (e) {}
+
           // 2. Hardware and Pointer Capability Extraction
           var ua = navigator.userAgent || '';
           var navPlatform = navigator.platform || '';
@@ -173,8 +181,8 @@
         }
       })();
     </script>
-    <script type="module" crossorigin src="/tablet/assets/index-C1dM9A5h-t.js"></script>
-    <link rel="stylesheet" crossorigin href="/tablet/assets/index-BdNvapiB.css">
+    <script type="module" crossorigin src="/tablet/assets/index-y2TPiXYr-t.js"></script>
+    <link rel="stylesheet" crossorigin href="/tablet/assets/index-ClWdTJ03.css">
   </head>
   <body>
     <div id="root"></div>

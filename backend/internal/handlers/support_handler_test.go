@@ -60,6 +60,7 @@ func supportApp(t *testing.T, db *gorm.DB, cfg *config.Config) *fiber.App {
 
 	app.Get("/tickets/:id", actor, h.GetTicketDetails)
 	app.Post("/tickets/:id/reply", actor, h.ReplyTicket)
+	app.Post("/admin/tickets/:id/reply", actor, h.ReplyAsAdmin)
 	app.Get("/attachments/:id", actor, h.ServeAttachment)
 	return app
 }
@@ -563,4 +564,60 @@ func TestSupportServeAttachment_CloudStorageDriver(t *testing.T) {
 			t.Fatalf("status = %d, want 200 OK for staff", res.StatusCode)
 		}
 	})
+}
+
+func TestSupportReplyAsAdmin_Transaction(t *testing.T) {
+	db := supportDB(t)
+	cfg := testCfg()
+	app := supportApp(t, db, cfg)
+
+	ownerUser := models.User{ID: 10, Name: "Pemilik", Email: "pemilik@example.com"}
+	_ = db.Create(&ownerUser)
+
+	ticket := models.SupportTicket{
+		UserID:        10,
+		TicketNumber:  "TCK-ADMIN-REPLY-001",
+		Subject:       "Kendala Pembayaran",
+		Category:      "billing",
+		Priority:      "normal",
+		Status:        "open",
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+		LastMessageAt: time.Now().UTC(),
+	}
+	if err := db.Create(&ticket).Error; err != nil {
+		t.Fatalf("seed ticket: %v", err)
+	}
+
+	replyPayload := `{"message":"Halo, kendala sudah kami cek dan transaksi sudah diverifikasi.","is_internal_note":false}`
+	code, body, _ := supportReq(t, app, "POST", "/admin/tickets/"+ticket.TicketNumber+"/reply", replyPayload, "staf")
+	if code != 201 {
+		t.Fatalf("status = %d, want 201 (body %v)", code, body)
+	}
+
+	// Verify message was created
+	var msgCount int64
+	db.Model(&models.SupportMessage{}).Where("ticket_id = ? AND sender_type = 'agent'", ticket.ID).Count(&msgCount)
+	if msgCount != 1 {
+		t.Errorf("agent message count = %d, want 1", msgCount)
+	}
+
+	// Verify ticket status updated to waiting_user
+	var updatedTicket models.SupportTicket
+	if err := db.First(&updatedTicket, ticket.ID).Error; err != nil {
+		t.Fatalf("reload ticket: %v", err)
+	}
+	if updatedTicket.Status != "waiting_user" {
+		t.Errorf("ticket status = %q, want 'waiting_user'", updatedTicket.Status)
+	}
+	if updatedTicket.FirstResponseAt == nil {
+		t.Errorf("ticket.FirstResponseAt is nil, want timestamp")
+	}
+
+	// Verify merchant in-app notification was created
+	var notifCount int64
+	db.Model(&models.Notification{}).Where("target_id = ? AND type = 'ticket'", ownerUser.ID).Count(&notifCount)
+	if notifCount != 1 {
+		t.Errorf("merchant notification count = %d, want 1", notifCount)
+	}
 }

@@ -33,6 +33,7 @@ import {
   ExternalLink,
   RefreshCw
 } from 'lucide-react';
+import { SafeImage } from './SafeImage';
 
 export interface SubscriptionPlanData {
   id: number;
@@ -1448,12 +1449,21 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                             borderRadius: '12px',
                             background: '#ffffff',
                             padding: '8px',
-                            border: '2px solid var(--primary)'
+                            border: '2px solid var(--primary)',
+                            overflow: 'hidden'
                           }}>
-                            <img
+                            <SafeImage
                               src={manualQrisImage}
+                              fallbackSrc="/img/qris_demo.svg"
                               alt="QRIS Merchant"
-                              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                              objectFit="contain"
+                              emptyLabel="QRIS Belum Diunggah"
+                              emptySubLabel="Hubungi admin platform"
+                              errorLabel="QRIS Rusak"
+                              errorSubLabel="Gagal memuat berkas"
+                              isDark={false}
+                              compact={true}
+                              wrapperStyle={{ width: '100%', height: '100%' }}
                             />
                           </div>
                           <div>

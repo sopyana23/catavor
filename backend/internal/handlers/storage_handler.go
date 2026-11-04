@@ -262,10 +262,10 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	uploadSize := int64(buf.Len())
 
 	// Validate Storage Quota for Store Media:
-	// - Exclude support tickets (support messages)
-	// - Exclude billing/payment proofs (allows merchants to upload upgrade payment proof even when media quota is full)
-	// - Exclude platform-level assets
-	isQuotaCounted := storeID > 0 && category != "support" && category != "billing" && !isPlatformScope
+	// Kebijakan Kuota Penyimpanan: HANYA penambahan berkas item katalog/produk yang mengurangi kuota penyimpanan toko.
+	// Berkas profil katalog (logo toko, banner promo), bukti transfer billing, tiket bantuan,
+	// dan aset platform TIDAK dihitung dalam pemakaian kuota storage toko.
+	isQuotaCounted := storeID > 0 && category == "products"
 	if isQuotaCounted {
 		if allowed, msg := services.CanUploadStorage(h.db, storeID, uploadSize); !allowed {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{

@@ -1,23 +1,43 @@
 package handlers
 
 import (
+	"context"
 	"strings"
 	"time"
 
 	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
+	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
 type SettingHandler struct {
-	db *gorm.DB
+	db      *gorm.DB
+	storage storage.StorageService
 }
 
-func NewSettingHandler(db *gorm.DB) *SettingHandler {
-	return &SettingHandler{db: db}
+func NewSettingHandler(db *gorm.DB, storageService ...storage.StorageService) *SettingHandler {
+	var s storage.StorageService
+	if len(storageService) > 0 {
+		s = storageService[0]
+	}
+	return &SettingHandler{db: db, storage: s}
+}
+
+// extractPlatformStorageKey extracts a relative platform object key (e.g. platform/payments/qris/... or platform/partners/...)
+// from either a storage URL or raw object key string.
+func extractPlatformStorageKey(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if idx := strings.Index(raw, "platform/"); idx != -1 {
+		return strings.TrimLeft(raw[idx:], "/")
+	}
+	return ""
 }
 
 // PublicIndex returns ONLY allowlisted public platform settings with safe defaults.
@@ -362,19 +382,55 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 		})
 	}
 
-	for k, v := range payload {
-		sanitizedKey := security.SanitizePlainText(k, 100)
-		if sanitizedKey == "" {
-			continue
-		}
-		sanitizedVal := security.SanitizeRichText(v, 10000)
+	var filesToDelete []string
 
-		var s models.Setting
-		if err := h.db.Where("key = ?", sanitizedKey).First(&s).Error; err != nil {
-			h.db.Create(&models.Setting{Key: sanitizedKey, Value: sanitizedVal})
-		} else {
-			s.Value = sanitizedVal
-			h.db.Save(&s)
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		for k, v := range payload {
+			sanitizedKey := security.SanitizePlainText(k, 100)
+			if sanitizedKey == "" {
+				continue
+			}
+			sanitizedVal := security.SanitizeRichText(v, 10000)
+
+			var s models.Setting
+			if err := tx.Where("key = ?", sanitizedKey).First(&s).Error; err != nil {
+				if err := tx.Create(&models.Setting{Key: sanitizedKey, Value: sanitizedVal}).Error; err != nil {
+					return err
+				}
+			} else {
+				// Standar Industri: jika aset dinamis platform diganti atau dikosongkan,
+				// catat file lama untuk dibersihkan dari Cloudflare R2 / Storage setelah commit.
+				if h.storage != nil && (sanitizedKey == "payment_qris_manual_image" || sanitizedKey == "rekber_logo_url") {
+					oldKey := extractPlatformStorageKey(s.Value)
+					newKey := extractPlatformStorageKey(sanitizedVal)
+					if oldKey != "" && oldKey != newKey {
+						filesToDelete = append(filesToDelete, oldKey)
+					}
+				}
+				s.Value = sanitizedVal
+				if err := tx.Save(&s).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+
+	if txErr != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menyimpan pengaturan platform.",
+		})
+	}
+
+	// Multi-Layer Rollback (AGENTS.md Rule 10): Hapus berkas fisik lama dari Cloudflare R2 / storage
+	// HANYA setelah transaksi database berhasil di-commit.
+	if len(filesToDelete) > 0 && h.storage != nil {
+		for _, k := range filesToDelete {
+			go func(key string) {
+				_ = h.storage.Delete(context.Background(), key)
+			}(k)
 		}
 	}
 
@@ -439,7 +495,28 @@ func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
 		"rekber_template_fauna",
 	}
 
-	h.db.Where("key IN ?", keys).Delete(&models.Setting{})
+	var fileToDelete string
+	if h.storage != nil {
+		var oldLogo models.Setting
+		if err := h.db.Where("key = ?", "rekber_logo_url").First(&oldLogo).Error; err == nil && oldLogo.Value != "" {
+			fileToDelete = extractPlatformStorageKey(oldLogo.Value)
+		}
+	}
+
+	// ACID Atomic Database Transaction: Hapus entri setting rekber
+	if err := h.db.Where("key IN ?", keys).Delete(&models.Setting{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mereset konfigurasi Rekber Syariah.",
+		})
+	}
+
+	// Multi-Layer Rollback: Hapus berkas fisik lama dari storage HANYA setelah DB delete sukses
+	if fileToDelete != "" && h.storage != nil {
+		go func(k string) {
+			_ = h.storage.Delete(context.Background(), k)
+		}(fileToDelete)
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,

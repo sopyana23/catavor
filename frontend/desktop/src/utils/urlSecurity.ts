@@ -18,8 +18,22 @@ export const MASTER_SAFE_DOMAINS: string[] = [
   '127.0.0.1'
 ];
 
-// Dynamic runtime cache
-let dynamicSafeDomainsCache: string[] = [];
+// Dynamic runtime cache initialized synchronously from localStorage for instant zero-latency boot
+const getInitialCachedSafeDomains = (): string[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const cached = localStorage.getItem('catavor_safe_domains');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+};
+
+let dynamicSafeDomainsCache: string[] = getInitialCachedSafeDomains();
 let isFetchingDomains = false;
 
 /**
@@ -67,6 +81,7 @@ export async function loadDynamicSafeDomains(forceRefresh: boolean = false): Pro
           try {
             localStorage.setItem('catavor_safe_domains', JSON.stringify(json.data));
             localStorage.setItem('catavor_safe_domains_time', String(Date.now()));
+            window.dispatchEvent(new CustomEvent('catavor_safe_domains_updated', { detail: json.data }));
           } catch {
             // ignore
           }
@@ -214,8 +229,43 @@ export interface SanitizedUrlResult {
 }
 
 /**
+ * Detects if a string resembles a web domain (e.g. google.com, www.example.org, sub.site.co.id, localhost:3000)
+ */
+export function isDomainLike(str: string): boolean {
+  if (!str) return false;
+  const clean = str.trim().toLowerCase();
+  
+  // Exclude explicit relative paths and anchors
+  if (clean.startsWith('/') || clean.startsWith('?') || clean.startsWith('#')) {
+    return false;
+  }
+  
+  // Extract host part (before first slash, query, or hash)
+  const hostPart = clean.split(/[/?#]/)[0].trim();
+  if (!hostPart) return false;
+
+  // Starts with www.
+  if (hostPart.startsWith('www.')) return true;
+
+  // Localhost (with or without port)
+  if (hostPart === 'localhost' || hostPart.startsWith('localhost:')) return true;
+
+  // IPv4 address with optional port
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(hostPart)) return true;
+
+  // Standard domain name: at least one dot, valid TLD (2+ chars)
+  // e.g. example.com, shopee.co.id, catavor.id, api.v1.service.org
+  if (/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}(:\d+)?$/.test(hostPart)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Validates and sanitizes a URL string.
  * Strips dangerous schemes like javascript:, data:, vbscript:, file:, etc.
+ * Automatically normalizes naked domains (e.g. "google.com") to "https://google.com".
  */
 export function sanitizeUrl(rawUrl?: string): SanitizedUrlResult {
   if (!rawUrl || typeof rawUrl !== 'string') {
@@ -227,11 +277,13 @@ export function sanitizeUrl(rawUrl?: string): SanitizedUrlResult {
     return { isSafe: false, sanitizedUrl: '#', isExternal: false, isTrustedDomain: false, protocol: '', hostname: '' };
   }
 
-  // 1. Internal Relative Paths (/path, ?query, #anchor) are always safe and internal
+  // 1. Block protocol-relative URLs (e.g. //evil.com)
+  if (trimmed.startsWith('//')) {
+    return { isSafe: false, sanitizedUrl: '#', isExternal: true, isTrustedDomain: false, protocol: '', hostname: '' };
+  }
+
+  // 2. Internal Relative Paths (/path, ?query, #anchor) are always safe and internal
   if (trimmed.startsWith('/') || trimmed.startsWith('?') || trimmed.startsWith('#')) {
-    if (trimmed.startsWith('//')) {
-      return { isSafe: false, sanitizedUrl: '#', isExternal: true, isTrustedDomain: false, protocol: '', hostname: '' };
-    }
     return {
       isSafe: true,
       sanitizedUrl: trimmed,
@@ -242,9 +294,30 @@ export function sanitizeUrl(rawUrl?: string): SanitizedUrlResult {
     };
   }
 
-  // 2. Absolute URLs with protocols
+  // 3. Normalization: If string looks like a domain without protocol or relative path without leading slash
+  let urlToParse = trimmed;
+  // If no scheme/protocol prefix (colon not followed immediately by digits):
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:(?!\d)/.test(trimmed)) {
+    if (isDomainLike(trimmed)) {
+      urlToParse = (trimmed.toLowerCase().startsWith('localhost') || trimmed.startsWith('127.0.0.1'))
+        ? 'http://' + trimmed
+        : 'https://' + trimmed;
+    } else {
+      // Relative path without leading slash (e.g. "admin/products" or "help")
+      return {
+        isSafe: true,
+        sanitizedUrl: '/' + trimmed,
+        isExternal: false,
+        isTrustedDomain: true,
+        protocol: 'internal',
+        hostname: ''
+      };
+    }
+  }
+
+  // 4. Absolute URLs with protocols
   try {
-    const parsed = new URL(trimmed, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+    const parsed = new URL(urlToParse);
     const protocol = parsed.protocol.toLowerCase();
 
     // Block dangerous protocols explicitly
@@ -263,9 +336,27 @@ export function sanitizeUrl(rawUrl?: string): SanitizedUrlResult {
       return { isSafe: false, sanitizedUrl: '#', isExternal: false, isTrustedDomain: false, protocol, hostname: parsed.hostname };
     }
 
+    // Direct protocols
+    if (protocol === 'mailto:' || protocol === 'tel:') {
+      return {
+        isSafe: true,
+        sanitizedUrl: parsed.href,
+        isExternal: false,
+        isTrustedDomain: true,
+        protocol,
+        hostname: ''
+      };
+    }
+
     const currentHost = typeof window !== 'undefined' ? window.location.host.toLowerCase() : '';
+    const currentHostname = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
     const targetHost = parsed.host.toLowerCase();
-    const isExternal = targetHost !== currentHost && targetHost !== '';
+    const targetHostname = parsed.hostname.toLowerCase();
+
+    // Determine if external:
+    // It is internal ONLY IF host or hostname matches current window host or hostname
+    const isSameHost = currentHost && (targetHost === currentHost || targetHostname === currentHostname);
+    const isExternal = !isSameHost;
     const trusted = isTrustedDomain(parsed.hostname);
 
     return {
@@ -277,29 +368,6 @@ export function sanitizeUrl(rawUrl?: string): SanitizedUrlResult {
       hostname: parsed.hostname
     };
   } catch {
-    // Fallback: Check if it's a plain domain like "example.com" or "www.example.com"
-    if (/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(\/.*)?$/.test(trimmed)) {
-      const fixedUrl = 'https://' + trimmed;
-      try {
-        const parsed = new URL(fixedUrl);
-        const currentHost = typeof window !== 'undefined' ? window.location.host.toLowerCase() : '';
-        const targetHost = parsed.host.toLowerCase();
-        const isExternal = targetHost !== currentHost;
-        const trusted = isTrustedDomain(parsed.hostname);
-
-        return {
-          isSafe: true,
-          sanitizedUrl: fixedUrl,
-          isExternal,
-          isTrustedDomain: trusted || !isExternal,
-          protocol: 'https:',
-          hostname: parsed.hostname
-        };
-      } catch {
-        return { isSafe: false, sanitizedUrl: '#', isExternal: false, isTrustedDomain: false, protocol: '', hostname: '' };
-      }
-    }
-
     return { isSafe: false, sanitizedUrl: '#', isExternal: false, isTrustedDomain: false, protocol: '', hostname: '' };
   }
 }
@@ -366,17 +434,31 @@ export function safeOpenUrl(
   if (!security.isSafe || security.sanitizedUrl === '#') return;
 
   if (security.isExternal) {
-    if (security.requiresWarning && onExternalConfirmPrompt) {
-      onExternalConfirmPrompt(security.sanitizedUrl);
-    } else {
-      const newWin = window.open(security.sanitizedUrl, '_blank', 'noopener,noreferrer');
-      if (newWin) newWin.opener = null;
+    if (security.requiresWarning) {
+      if (onExternalConfirmPrompt) {
+        onExternalConfirmPrompt(security.sanitizedUrl);
+        return;
+      }
+      if (typeof window !== 'undefined') {
+        const evt = new CustomEvent('catavor_prompt_external_url', {
+          detail: { url: security.sanitizedUrl }
+        });
+        window.dispatchEvent(evt);
+        return;
+      }
     }
+    const newWin = window.open(security.sanitizedUrl, '_blank', 'noopener,noreferrer');
+    if (newWin) newWin.opener = null;
   } else {
     if (onInternalNavigate) {
       onInternalNavigate(security.sanitizedUrl);
     } else if (typeof window !== 'undefined') {
-      window.location.href = security.sanitizedUrl;
+      if (security.sanitizedUrl.startsWith('/')) {
+        window.history.pushState({}, '', security.sanitizedUrl);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } else {
+        window.location.href = security.sanitizedUrl;
+      }
     }
   }
 }

@@ -1076,16 +1076,23 @@ func (h *NotificationHandler) SuperadminDelete(c *fiber.Ctx) error {
 	cleanID = strings.TrimSpace(cleanID)
 
 	var notif models.Notification
+	targetID := notifID
 	// L1: escape wildcard pada prefix lookup agar "%" tidak mencocokkan sembarang notifikasi.
 	if err := h.DB.Where("id = ? OR id = ? OR id LIKE ?",
 		notifID, cleanID, escapeLikePattern(cleanID)+"%").First(&notif).Error; err == nil {
-		h.DB.Where("notification_id = ?", notif.ID).Delete(&models.NotificationRead{})
-		h.DB.Where("id = ?", notif.ID).Delete(&models.Notification{})
-	} else {
-		h.DB.Where("notification_id = ?", notifID).Delete(&models.NotificationRead{})
-		if err := h.DB.Where("id = ?", notifID).Delete(&models.Notification{}).Error; err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menghapus siaran"})
+		targetID = notif.ID
+	}
+
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+	txErr := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("notification_id = ?", targetID).Delete(&models.NotificationRead{}).Error; err != nil {
+			return err
 		}
+		return tx.Where("id = ?", targetID).Delete(&models.Notification{}).Error
+	})
+
+	if txErr != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menghapus siaran"})
 	}
 
 	// Invalidate redis broadcast cache
@@ -1465,6 +1472,17 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 			"success": true,
 			"message": fmt.Sprintf("Bot Retensi Item Moderasi berhasil diproses: %d pengingat H-7 dikirim, %d item di-soft delete (H-30), %d item di-hard delete total (H-90).", stats.RemindersSent, stats.SoftDeleted, stats.HardDeleted),
 			"stats":   stats,
+		})
+
+	case "storage_sweeper", "storage_sweep", "sweeper", "orphan_cleanup":
+		total, err := tracker.TriggerStorageSweeperManual(h.DB)
+		if err != nil {
+			log.Error().Err(err).Msg("admin: TriggerStorageSweeperManual gagal")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot audit penyimpanan."})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": fmt.Sprintf("Bot Audit Kuota & Pembersih Yatim Piatu berhasil dieksekusi: %d toko diaudit dan disinkronkan.", total),
 		})
 
 	case "test_guide", "sandbox_test", "test_sandbox", "guide":

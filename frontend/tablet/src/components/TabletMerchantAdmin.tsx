@@ -372,8 +372,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         url.searchParams.set('tab', 'profile');
         url.searchParams.set('sub', 'audit_logs');
         url.searchParams.delete('action');
+        url.searchParams.delete('id');
         url.searchParams.delete('type');
         url.searchParams.delete('catalog_type');
+        url.searchParams.delete('item');
         window.history.pushState({ tab: 'profile', sub: 'audit_logs' }, '', url.toString());
       }
       return;
@@ -383,8 +385,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       const url = new URL(window.location.href);
       url.searchParams.set('tab', tab);
       url.searchParams.delete('action');
+      url.searchParams.delete('id');
       url.searchParams.delete('type');
       url.searchParams.delete('catalog_type');
+      url.searchParams.delete('item');
       if (tab !== 'profile') {
         url.searchParams.delete('sub');
       }
@@ -513,6 +517,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           try {
             localStorage.setItem('catavor_stores', JSON.stringify(mapped));
           } catch {}
+          const currentStore = mapped.find((s: CatalogStoreItem) => s.slug.toLowerCase() === storeSlug.toLowerCase());
+          if (currentStore?.store_logo_url) {
+            setStoreSettings(prev => ({
+              ...prev,
+              logo_url: prev.logo_url || currentStore.store_logo_url || '',
+              name: prev.name || currentStore.store_title || ''
+            }));
+          }
         }
       }
     } catch (err) {
@@ -654,22 +666,38 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   // 1. STORE SETTINGS STATE
   // =========================================================================
   const [settingsTab, setSettingsTab] = useState<'general' | 'contact' | 'about' | 'domain' | 'danger'>('general');
-  const [storeSettings, setStoreSettings] = useState({
-    name: '',
-    slogan: '',
-    whatsapp_number: '',
-    address: '',
-    operating_hours: 'Senin - Sabtu: 08:00 - 17:00 WIB',
-    service_commitment: 'Jaminan kualitas terbaik dan garansi kepuasan pelanggan.',
-    logo_url: '',
-    banner_url: '',
-    store_theme: 'navy',
-    slug: storeSlug,
-    official_website: '',
-    instagram: '',
-    custom_domain: '',
-    show_hours: true,
-    is_paused: false
+  const [storeSettings, setStoreSettings] = useState(() => {
+    let cachedLogo = '';
+    let cachedName = '';
+    let cachedTheme = 'navy';
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const raw = (storeSlug && localStorage.getItem(`catavor_store_${storeSlug.toLowerCase()}`)) || localStorage.getItem('catavor_settings');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          cachedLogo = parsed.store_logo_url || parsed.logo_url || '';
+          cachedName = parsed.store_title || parsed.name || '';
+          cachedTheme = parsed.store_theme || parsed.theme || 'navy';
+        }
+      } catch {}
+    }
+    return {
+      name: cachedName,
+      slogan: '',
+      whatsapp_number: '',
+      address: '',
+      operating_hours: 'Senin - Sabtu: 08:00 - 17:00 WIB',
+      service_commitment: 'Jaminan kualitas terbaik dan garansi kepuasan pelanggan.',
+      logo_url: cachedLogo,
+      banner_url: '',
+      store_theme: cachedTheme,
+      slug: storeSlug,
+      official_website: '',
+      instagram: '',
+      custom_domain: '',
+      show_hours: true,
+      is_paused: false
+    };
   });
 
   // Master Categories State (Two-Tier Architecture matching Mobile & Desktop)
@@ -919,19 +947,42 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const [selectedProductId, setSelectedProductId] = useState<number | string | null>(() => {
     if (typeof window !== 'undefined') {
-      const isActionNew = new URLSearchParams(window.location.search).get('action') === 'new';
+      const p = window.location.pathname.toLowerCase();
+      const q = new URLSearchParams(window.location.search);
+      const isActionNew = q.get('action') === 'new' || q.get('action') === 'create' || p.includes('/admin/items/create') || p.includes('/admin/items/new');
       if (isActionNew) {
         return 'new';
+      }
+      const qEdit = q.get('edit') || q.get('id');
+      const isActionEdit = q.get('action') === 'edit' || Boolean(q.get('edit')) || p.includes('/admin/items/edit');
+      if (isActionEdit) {
+        if (qEdit) {
+          const parsed = parseInt(qEdit, 10);
+          if (!isNaN(parsed)) return parsed;
+        }
+        const parts = p.split('/').filter(Boolean);
+        const editIdx = parts.indexOf('edit');
+        if (editIdx !== -1 && parts.length > editIdx + 1) {
+          const lastPart = parts[parts.length - 1];
+          const parsed = parseInt(lastPart, 10);
+          if (!isNaN(parsed)) return parsed;
+        }
       }
     }
     return null;
   });
   const [isSelectingProductType, setIsSelectingProductType] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const isActionNew = new URLSearchParams(window.location.search).get('action') === 'new';
-      const hasType = Boolean(new URLSearchParams(window.location.search).get('type') || new URLSearchParams(window.location.search).get('catalog_type'));
-      if (isActionNew && !hasType) {
-        return true;
+      const p = window.location.pathname.toLowerCase();
+      const q = new URLSearchParams(window.location.search);
+      const isActionNew = q.get('action') === 'new' || q.get('action') === 'create' || p.includes('/admin/items/create') || p.includes('/admin/items/new');
+      if (isActionNew) {
+        const parts = p.split('/').filter(Boolean);
+        const createIdx = parts.indexOf('create');
+        const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+        const hasSpecificType = (createIdx !== -1 && parts[createIdx + 1] && ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(parts[createIdx + 1].toLowerCase())) ||
+          ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType);
+        return !hasSpecificType;
       }
     }
     return false;
@@ -1130,33 +1181,75 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [isBatchUploading, setIsBatchUploading] = useState<boolean>(false);
   const [uploadingPhotoIndex, setUploadingPhotoIndex] = useState<number | null>(null);
 
-  const [productForm, setProductForm] = useState({
-    id: 0,
-    name: '',
-    price: 0,
-    stock: 1,
-    category_id: '',
-    class: '',
-    product_type: '',
-    conservation_status: 'Tersedia',
-    scientific_name: '',
-    unit: 'Pcs',
-    description: '',
-    image_url: '',
-    video_url: '',
-    is_active: true,
-    is_shipping_available: true,
-    min_order: 1,
-    max_order: '' as string | number,
-    shipping_terms: '',
-    warranty_info: '',
-    shipping_coverage: 'Bisa Kirim se-Indonesia',
-    purchase_links: [] as Array<{ platform: string; url: string }>,
-    enable_wa_rekber: true,
-    enable_wa_direct: true,
-    whatsapp_contact_id: 'default',
-    gallery_images: [] as string[],
-    attributes: {} as Record<string, any>
+  const [productForm, setProductForm] = useState(() => {
+    let initialType = '';
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase();
+      const q = new URLSearchParams(window.location.search);
+      const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+      if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType)) {
+        initialType = qType;
+      } else {
+        const parts = p.split('/').filter(Boolean);
+        const createIdx = parts.indexOf('create');
+        if (createIdx !== -1 && parts[createIdx + 1]) {
+          const cand = parts[createIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(cand)) {
+            initialType = cand;
+          }
+        }
+        const editIdx = parts.indexOf('edit');
+        if (editIdx !== -1 && parts[editIdx + 1]) {
+          const cand = parts[editIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(cand)) {
+            initialType = cand;
+          }
+        }
+      }
+    }
+    const defaultAttrs: Record<string, any> = {};
+    if (initialType) {
+      if (initialType === 'physical') {
+        defaultAttrs.condition = 'Baru';
+        defaultAttrs.weight = 100;
+      } else if (initialType === 'food') {
+        defaultAttrs.halal_status = 'Bersertifikat Halal Resmi (BPJPH / MUI)';
+        defaultAttrs.storage_temp = 'Suhu Ruang';
+      } else if (initialType === 'digital') {
+        defaultAttrs.file_format = 'PDF';
+        defaultAttrs.file_size = '10 MB';
+        defaultAttrs.license_type = 'Lisensi Personal';
+      }
+      defaultAttrs.conservation_status = getAvailabilityStatusOptions(initialType as ItemCategoryType)[0].value;
+    }
+    return {
+      id: 0,
+      name: '',
+      price: 0,
+      stock: 1,
+      category_id: '',
+      class: '',
+      product_type: initialType,
+      conservation_status: initialType ? getAvailabilityStatusOptions(initialType as ItemCategoryType)[0].value : 'Tersedia',
+      scientific_name: '',
+      unit: 'Pcs',
+      description: '',
+      image_url: '',
+      video_url: '',
+      is_active: true,
+      is_shipping_available: true,
+      min_order: 1,
+      max_order: '' as string | number,
+      shipping_terms: '',
+      warranty_info: '',
+      shipping_coverage: 'Bisa Kirim se-Indonesia',
+      purchase_links: [] as Array<{ platform: string; url: string }>,
+      enable_wa_rekber: true,
+      enable_wa_direct: true,
+      whatsapp_contact_id: 'default',
+      gallery_images: [] as string[],
+      attributes: defaultAttrs
+    };
   });
 
   const storeWAContacts = useMemo(() => {
@@ -1332,6 +1425,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       const url = new URL(window.location.href);
       url.searchParams.set('tab', 'items');
       url.searchParams.set('action', 'new');
+      url.searchParams.delete('item');
       if (isValidType) {
         url.searchParams.set('type', targetType);
       } else {
@@ -1473,6 +1567,31 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         setProductTotalPages(totalPages);
         setProductTotalRecords(totalItems);
         setHasEverLoadedProducts(true);
+
+        if (selectedProductId && selectedProductId !== 'new') {
+          const targetId = typeof selectedProductId === 'number' ? selectedProductId : parseInt(String(selectedProductId), 10);
+          const found = list.find((p: any) => p && p.id === targetId);
+          if (found) {
+            handleSelectProduct(found);
+          } else {
+            try {
+              const singleRes = await fetch(`/api/products/${targetId}`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'X-Store-Slug': storeSlug,
+                  'Accept': 'application/json'
+                }
+              });
+              if (singleRes.ok) {
+                const sJson = await singleRes.json();
+                const singleProd = sJson.data || sJson.product;
+                if (singleProd) {
+                  handleSelectProduct(singleProd);
+                }
+              }
+            } catch {}
+          }
+        }
       }
     } catch {
       // safe fallback
@@ -1505,10 +1624,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     setIsSelectingProductType(false);
     try {
       const url = new URL(window.location.href);
-      url.searchParams.delete('action');
-      url.searchParams.delete('type');
-      url.searchParams.delete('catalog_type');
-      window.history.pushState({}, '', url.toString());
+      url.searchParams.set('tab', 'items');
+      url.searchParams.set('action', 'edit');
+      url.searchParams.set('id', String(prod.id));
+      url.searchParams.set('type', prod.product_type || 'physical');
+      url.searchParams.delete('item');
+      window.history.pushState({ tab: 'items', action: 'edit', id: prod.id, type: prod.product_type }, '', url.toString());
     } catch {}
 
     let loadedPhotos: string[] = [];
@@ -1703,6 +1824,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     isOpen: activeTab === 'items' && typeof selectedProductId === 'number',
     onClose: () => {
       setSelectedProductId(null);
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('action');
+        url.searchParams.delete('id');
+        url.searchParams.delete('type');
+        url.searchParams.delete('catalog_type');
+        window.history.replaceState({ tab: 'items' }, '', url.toString());
+      } catch {}
     },
     modalId: 'tablet_edit_item_modal'
   });
@@ -1720,7 +1849,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   useModalBackHandler({
     isOpen: activeTab === 'items' && Boolean(previewProduct),
     onClose: () => {
-      setPreviewProduct(null);
+      handleCloseProductDetail();
     },
     modalId: 'tablet_preview_item_modal'
   });
@@ -1817,7 +1946,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!productForm.name.trim()) {
-      showToast('Nama produk wajib diisi', 'error');
+      showToast('Nama item wajib diisi', 'error');
       return;
     }
     if (!productForm.product_type) {
@@ -1827,7 +1956,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
     const validPhotos = productPhotos.map(p => p.trim()).filter(Boolean);
     if (validPhotos.length === 0) {
-      showToast('Unggah minimal 1 foto produk (Foto Sampul Utama)', 'error');
+      showToast('Unggah minimal 1 foto item (Foto Sampul Utama)', 'error');
       return;
     }
     setSaving(true);
@@ -1938,7 +2067,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
       if (res.ok) {
         const json = await res.json();
-        showToast(isNew ? 'Produk berhasil ditambahkan!' : 'Perubahan produk berhasil disimpan!');
+        showToast(isNew ? 'Item berhasil ditambahkan!' : 'Perubahan item berhasil disimpan!');
         await fetchProducts(
           productPage,
           productSearch,
@@ -1960,17 +2089,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         } catch {}
       } else {
         const err = await res.json();
-        showToast(err.message || 'Gagal menyimpan produk', 'error');
+        showToast(err.message || 'Gagal menyimpan item', 'error');
       }
     } catch {
-      showToast('Terjadi kesalahan sistem saat menyimpan produk', 'error');
+      showToast('Terjadi kesalahan sistem saat menyimpan item', 'error');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteProduct = async (id: number) => {
-    if (!confirm('Yakin ingin menghapus produk ini dari katalog?')) return;
+    if (!confirm('Yakin ingin menghapus item ini dari katalog?')) return;
     try {
       const res = await fetch(`/api/products/${id}`, {
         method: 'DELETE',
@@ -1980,7 +2109,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         }
       });
       if (res.ok) {
-        showToast('Produk berhasil dihapus');
+        showToast('Item berhasil dihapus');
         setSelectedProductId(null);
         await fetchProducts(
           1,
@@ -1994,7 +2123,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         );
         fetchCatalogMetrics();
       } else {
-        showToast('Gagal menghapus produk', 'error');
+        showToast('Gagal menghapus item', 'error');
       }
     } catch {
       showToast('Terjadi kesalahan jaringan', 'error');
@@ -2038,10 +2167,30 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   };
 
+  const handleCloseProductDetail = useCallback(() => {
+    setPreviewProduct(null);
+    setShowPreviewLightbox(false);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('item');
+      window.history.replaceState({ tab: 'items' }, '', url.toString());
+    } catch {}
+  }, []);
+
   const handleOpenProductDetail = async (item: any) => {
     setPreviewProduct(item);
     setPreviewImageIndex(0);
     setShowPreviewLightbox(false);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'items');
+      url.searchParams.set('item', String(item.id));
+      url.searchParams.delete('action');
+      url.searchParams.delete('id');
+      url.searchParams.delete('type');
+      url.searchParams.delete('catalog_type');
+      window.history.pushState({ tab: 'items', item: item.id }, '', url.toString());
+    } catch {}
     try {
       const res = await fetch(`/api/products/${item.id}`, {
         headers: getHeaders()
@@ -2057,6 +2206,37 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       // optimistic item remains
     }
   };
+
+  // Auto-open product detail preview modal if ?item=ID is in URL or across refresh
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const detailParam = new URLSearchParams(window.location.search).get('item');
+    if (!detailParam || previewProduct) return;
+    const detailId = parseInt(detailParam, 10);
+    if (isNaN(detailId)) return;
+
+    const foundDetail = products.find((p: any) => p && p.id === detailId);
+    if (foundDetail) {
+      handleOpenProductDetail(foundDetail);
+    } else {
+      (async () => {
+        try {
+          const res = await fetch(`/api/products/${detailId}`, {
+            headers: getHeaders()
+          });
+          if (res.ok) {
+            const json = await res.json();
+            const fullItem = json.data || json.product || json;
+            if (fullItem && fullItem.id) {
+              setPreviewProduct(fullItem);
+              setPreviewImageIndex(0);
+              setShowPreviewLightbox(false);
+            }
+          }
+        } catch {}
+      })();
+    }
+  }, [products]);
 
 
   // Add Gallery Image URL
@@ -3334,15 +3514,29 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     width: '38px',
                     height: '38px',
                     borderRadius: '0.65rem',
-                    backgroundColor: 'rgba(30, 58, 138, 0.12)',
+                    backgroundColor: storeSettings.logo_url ? 'transparent' : 'rgba(30, 58, 138, 0.12)',
                     border: '1px solid var(--border-light)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: 'var(--primary)',
-                    flexShrink: 0
+                    flexShrink: 0,
+                    overflow: 'hidden'
                   }}>
-                    <StoreIcon size={20} />
+                    {storeSettings.logo_url ? (
+                      <img
+                        src={storeSettings.logo_url}
+                        alt={storeSettings.name || 'Logo'}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) parent.style.backgroundColor = 'rgba(30, 58, 138, 0.12)';
+                        }}
+                      />
+                    ) : (
+                      <StoreIcon size={20} />
+                    )}
                   </div>
                   <div style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
                     <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -3385,17 +3579,32 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   width: '42px',
                   height: '42px',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(30, 58, 138, 0.12)',
+                  backgroundColor: storeSettings.logo_url ? 'transparent' : 'rgba(30, 58, 138, 0.12)',
                   border: '1px solid var(--border-light)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: 'var(--primary)',
                   cursor: 'pointer',
-                  position: 'relative'
+                  position: 'relative',
+                  overflow: 'hidden',
+                  padding: 0
                 }}
               >
-                <StoreIcon size={20} />
+                {storeSettings.logo_url ? (
+                  <img
+                    src={storeSettings.logo_url}
+                    alt={storeSettings.name || 'Logo'}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      const parent = e.currentTarget.parentElement;
+                      if (parent) parent.style.backgroundColor = 'rgba(30, 58, 138, 0.12)';
+                    }}
+                  />
+                ) : (
+                  <StoreIcon size={20} />
+                )}
                 <span style={{
                   position: 'absolute',
                   bottom: '-2px',
@@ -3643,13 +3852,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             display: 'flex',
             flexDirection: 'column',
             gap: '1rem',
-            padding: '1.25rem 1.5rem 3rem 1.5rem',
+            padding: isNarrowScreen || isNavExpanded ? '1rem 0.85rem 3.5rem 0.85rem' : '1.25rem 1.5rem 3.5rem 1.5rem',
             maxWidth: '100%',
             width: '100%',
             margin: '0 auto',
             boxSizing: 'border-box',
             overflowY: 'auto',
-            height: '100%'
+            height: '100%',
+            WebkitOverflowScrolling: 'touch'
           }}>
             {/* Page Header Bar: Title & Desktop-style Action Buttons */}
             <div style={{
@@ -3664,10 +3874,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             }}>
               <div>
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  Katalog Produk &amp; Inventaris
+                  Katalog Item &amp; Inventaris
                 </h2>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Kelola seluruh produk, harga, dan inventaris toko Anda
+                  Kelola seluruh item, harga, dan inventaris toko Anda
                 </span>
               </div>
 
@@ -3699,8 +3909,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 </button>
 
                 <button
-                  id="btn-tambah-produk"
-                  data-testid="btn-tambah-produk"
+                  id="btn-tambah-item"
+                  data-testid="btn-tambah-item"
                   type="button"
                   onClick={() => handleCancelToProductTypeSelection()}
                   style={{
@@ -3720,7 +3930,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   }}
                 >
                   <Plus size={17} />
-                  <span>Tambah Produk</span>
+                  <span>Tambah Item</span>
                 </button>
               </div>
             </div>
@@ -3735,18 +3945,19 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             {/* Top Control Bar: Search & Active/Archived Filter (Desktop Concept Adaptive for Tablet) */}
             <div style={{
               backgroundColor: 'var(--bg-card)',
-              padding: '1rem 1.15rem',
+              padding: '0.85rem 1rem',
               borderRadius: '0.85rem',
               border: '1px solid var(--border-light)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.75rem',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+              gap: '0.65rem',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              flexShrink: 0
             }}>
               {/* Search Bar + Secondary Dropdowns: adapts between wide (grid) and compact tablet */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: isNarrowFilterBar ? '1fr' : 'minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) auto',
+                gridTemplateColumns: isNarrowFilterBar ? '1fr' : 'minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr)',
                 gap: '0.65rem',
                 alignItems: 'center',
                 width: '100%',
@@ -3816,7 +4027,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     width: '100%',
                     boxSizing: 'border-box'
                   }}>
-                    <div style={{ flex: '1 1 180px', minWidth: '130px' }}>
+                    <div style={{ flex: '1 1 140px', minWidth: '120px' }}>
                       <TabletCustomSelect
                         value={productCategoryFilter}
                         onChange={(val) => {
@@ -3838,11 +4049,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           }))
                         ]}
                         placeholder="Semua Kategori"
-                        ariaLabel="Filter Kategori Produk"
+                        ariaLabel="Filter Kategori Item"
                       />
                     </div>
 
-                    <div style={{ flex: '1 1 150px', minWidth: '120px' }}>
+                    <div style={{ flex: '1 1 130px', minWidth: '110px' }}>
                       <TabletCustomSelect
                         value={productSortFilter}
                         onChange={(val) => {
@@ -3858,36 +4069,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         ]}
                         placeholder="Urutan Item"
                         ariaLabel="Urutan Item"
-                      />
-                    </div>
-
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                      marginLeft: 'auto',
-                      flexShrink: 0
-                    }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                        Baris:
-                      </span>
-                      <TabletCustomSelect
-                        value={String(productPerPage)}
-                        onChange={(val) => {
-                          const n = Number(val);
-                          setProductPerPage(n);
-                          setProductPage(1);
-                        }}
-                        options={[
-                          { value: '10', label: '10' },
-                          { value: '25', label: '25' },
-                          { value: '50', label: '50' }
-                        ]}
-                        placeholder="10"
-                        variant="compact"
-                        style={{ width: '72px', minWidth: '65px' }}
-                        triggerStyle={{ padding: '0.45rem 0.65rem' }}
-                        ariaLabel="Jumlah Baris per Halaman"
                       />
                     </div>
                   </div>
@@ -3915,7 +4096,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           }))
                         ]}
                         placeholder="Semua Kategori"
-                        ariaLabel="Filter Kategori Produk"
+                        ariaLabel="Filter Kategori Item"
                       />
                     </div>
 
@@ -3935,30 +4116,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         ]}
                         placeholder="Urutan Item"
                         ariaLabel="Urutan Item"
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', justifyContent: 'flex-end', flexShrink: 0 }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                        Baris:
-                      </span>
-                      <TabletCustomSelect
-                        value={String(productPerPage)}
-                        onChange={(val) => {
-                          const n = Number(val);
-                          setProductPerPage(n);
-                          setProductPage(1);
-                        }}
-                        options={[
-                          { value: '10', label: '10' },
-                          { value: '25', label: '25' },
-                          { value: '50', label: '50' }
-                        ]}
-                        placeholder="10"
-                        variant="compact"
-                        style={{ width: '72px', minWidth: '65px' }}
-                        triggerStyle={{ padding: '0.45rem 0.65rem' }}
-                        ariaLabel="Jumlah Baris per Halaman"
                       />
                     </div>
                   </>
@@ -4088,7 +4245,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       type="button"
                       onClick={() => { setProductTypeFilter('all'); setProductCategoryFilter('all'); setProductPage(1); }}
                       style={{
-                        padding: '0.32rem 0.8rem',
+                        minHeight: '34px',
+                        padding: '0.35rem 0.85rem',
                         borderRadius: '20px',
                         fontSize: '0.76rem',
                         fontWeight: 700,
@@ -4100,6 +4258,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         alignItems: 'center',
                         gap: '0.4rem',
                         flexShrink: 0,
+                        whiteSpace: 'nowrap',
                         transition: 'all 0.15s ease'
                       }}
                     >
@@ -4110,7 +4269,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         fontSize: '0.68rem',
                         fontWeight: 800,
                         backgroundColor: productTypeFilter === 'all' ? 'var(--primary)' : 'rgba(148, 163, 184, 0.15)',
-                        color: productTypeFilter === 'all' ? '#ffffff' : 'var(--text-secondary)'
+                        color: productTypeFilter === 'all' ? '#ffffff' : 'var(--text-secondary)',
+                        flexShrink: 0
                       }}>
                         {catalogMetrics?.total_items ?? productTotalRecords}
                       </span>
@@ -4130,30 +4290,33 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           type="button"
                           onClick={() => { setProductTypeFilter(opt.id); setProductCategoryFilter('all'); setProductPage(1); }}
                           style={{
-                            padding: '0.32rem 0.8rem',
+                            minHeight: '34px',
+                            padding: '0.35rem 0.85rem',
                             borderRadius: '20px',
                             fontSize: '0.76rem',
                             fontWeight: 700,
-                            border: isSelected ? `1px solid ${opt.color}` : '1px solid var(--border-light)',
+                            border: isSelected ? `1.5px solid ${opt.color}` : '1px solid var(--border-light)',
                             cursor: 'pointer',
                             backgroundColor: isSelected ? opt.bgColor : 'transparent',
                             color: isSelected ? opt.color : 'var(--text-secondary)',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.4rem',
+                            gap: '0.45rem',
                             flexShrink: 0,
+                            whiteSpace: 'nowrap',
                             transition: 'all 0.15s ease'
                           }}
                         >
-                          <Icon size={14} style={{ color: isSelected ? opt.color : undefined }} />
-                          <span>{opt.name}</span>
+                          <Icon size={14} style={{ color: isSelected ? opt.color : undefined, flexShrink: 0 }} />
+                          <span style={{ whiteSpace: 'nowrap' }}>{opt.name}</span>
                           <span style={{
                             padding: '0.08rem 0.45rem',
                             borderRadius: '999px',
                             fontSize: '0.68rem',
                             fontWeight: 800,
                             backgroundColor: isSelected ? opt.color : 'rgba(148, 163, 184, 0.15)',
-                            color: isSelected ? '#ffffff' : 'var(--text-secondary)'
+                            color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                            flexShrink: 0
                           }}>
                             {count}
                           </span>
@@ -4165,25 +4328,156 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               </div>
             </div>
 
-            {/* Table Container with smooth horizontal scrolling for tablet */}
-            <div style={{
-              width: '100%',
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch',
-              borderRadius: '0.85rem',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'var(--bg-card)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-            }}>
-              <table style={{ width: '100%', minWidth: '760px', borderCollapse: 'collapse', textAlign: 'left' }}>
+            {/* Table Container with sticky first column freeze panes for tablet */}
+            <div
+              className="tablet-sticky-table-container catavor-table-scrollbar"
+              style={{
+                width: '100%',
+                maxHeight: 'none',
+                overflowY: 'hidden',
+                overflowX: 'auto',
+                flexShrink: 0,
+                WebkitOverflowScrolling: 'touch',
+                borderRadius: '0.85rem',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-card)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+              }}
+            >
+              <table
+                className="tablet-sticky-table"
+                style={{
+                  width: '100%',
+                  minWidth: '680px',
+                  borderCollapse: 'separate',
+                  borderSpacing: 0,
+                  textAlign: 'left'
+                }}
+              >
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
-                    <th style={{ width: '68px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Foto</th>
-                    <th style={{ padding: '0.85rem 0.85rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Nama Item &amp; Spesifikasi</th>
-                    <th style={{ width: '160px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Kategori &amp; Tipe</th>
-                    <th style={{ width: '130px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Harga</th>
-                    <th style={{ width: '120px', padding: '0.85rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Status</th>
-                    <th style={{ width: '180px', padding: '0.85rem 0.85rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aksi</th>
+                  <tr style={{ backgroundColor: 'var(--bg-deep)' }}>
+                    <th
+                      className="sticky-col"
+                      style={{
+                        width: '58px',
+                        minWidth: '58px',
+                        maxWidth: '58px',
+                        padding: '0.85rem 0.65rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        left: 0,
+                        top: 0,
+                        zIndex: 20,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        borderRight: '1px solid var(--border-light)',
+                        boxShadow: '3px 0 8px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      Foto
+                    </th>
+                    <th
+                      style={{
+                        padding: '0.85rem 0.85rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Nama Item &amp; Spesifikasi
+                    </th>
+                    <th
+                      style={{
+                        width: '140px',
+                        minWidth: '130px',
+                        padding: '0.85rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Kategori &amp; Tipe
+                    </th>
+                    <th
+                      style={{
+                        width: '115px',
+                        minWidth: '105px',
+                        padding: '0.85rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Harga
+                    </th>
+                    <th
+                      style={{
+                        width: '100px',
+                        minWidth: '95px',
+                        padding: '0.85rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Status
+                    </th>
+                    <th
+                      style={{
+                        width: '150px',
+                        minWidth: '140px',
+                        padding: '0.85rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
+                        borderBottom: '1px solid var(--border-light)',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Aksi
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -4269,15 +4563,38 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         <tr
                           key={item.id}
                           style={{
-                            borderBottom: '1px solid var(--border-light)',
                             transition: 'background-color 0.15s ease'
                           }}
-                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))';
+                            const stickyTd = e.currentTarget.querySelector('.sticky-col') as HTMLElement;
+                            if (stickyTd) stickyTd.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            const stickyTd = e.currentTarget.querySelector('.sticky-col') as HTMLElement;
+                            if (stickyTd) stickyTd.style.backgroundColor = 'var(--bg-card)';
+                          }}
                         >
-                          {/* Foto */}
-                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
-                            <div style={{ width: '52px', height: '42px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {/* Foto (Sticky Left First Column) */}
+                          <td
+                            className="sticky-col"
+                            style={{
+                              width: '58px',
+                              minWidth: '58px',
+                              maxWidth: '58px',
+                              padding: '0.65rem 0.65rem',
+                              verticalAlign: 'middle',
+                              position: 'sticky',
+                              left: 0,
+                              zIndex: 5,
+                              backgroundColor: 'var(--bg-card)',
+                              borderBottom: '1px solid var(--border-light)',
+                              borderRight: '1px solid var(--border-light)',
+                              boxShadow: '3px 0 8px rgba(0,0,0,0.04)'
+                            }}
+                          >
+                            <div style={{ width: '46px', height: '40px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               {item.image_url ? (
                                 <img
                                   src={item.image_url}
@@ -4294,7 +4611,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           </td>
 
                           {/* Nama Item & Spesifikasi */}
-                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle', borderBottom: '1px solid var(--border-light)' }}>
                             <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.88rem' }}>
                               {item.name}
                             </div>
@@ -4324,7 +4641,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           </td>
 
                           {/* Kategori & Tipe */}
-                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle', borderBottom: '1px solid var(--border-light)' }}>
                             <span
                               style={{
                                 fontSize: '0.72rem',
@@ -4350,14 +4667,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           </td>
 
                           {/* Harga */}
-                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle', borderBottom: '1px solid var(--border-light)' }}>
                             <div style={{ fontWeight: 800, color: '#ef4444', fontSize: '0.88rem', whiteSpace: 'nowrap' }}>
                               Rp {Number(item.price || 0).toLocaleString('id-ID')}
                             </div>
                           </td>
 
                           {/* Status */}
-                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle', borderBottom: '1px solid var(--border-light)' }}>
                             {(item as any).moderation_status === 'hidden' ? (
                               <span
                                 style={{
@@ -4422,12 +4739,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           </td>
 
                           {/* Aksi */}
-                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle' }}>
+                          <td style={{ padding: '0.75rem 0.85rem', verticalAlign: 'middle', borderBottom: '1px solid var(--border-light)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                               <button
                                 type="button"
                                 onClick={() => handleOpenProductDetail(item)}
-                                title="Lihat Detail Produk"
+                                title="Lihat Detail Item"
                                 style={{
                                   minHeight: '34px',
                                   padding: '0.35rem 0.7rem',
@@ -4516,11 +4833,34 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               fontSize: '0.82rem',
               color: 'var(--text-secondary)',
               flexWrap: 'wrap',
-              gap: '0.75rem'
+              gap: '0.75rem',
+              flexShrink: 0
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
                 <div>
                   Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{products.length}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{productTotalRecords}</strong> total item
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Baris:</span>
+                  <TabletCustomSelect
+                    value={String(productPerPage)}
+                    onChange={(val) => {
+                      const n = Number(val);
+                      setProductPerPage(n);
+                      setProductPage(1);
+                      fetchProducts(1, debouncedProductSearch, productStatusFilter, productCategoryFilter, productTypeFilter, productSortFilter, productStockFilter, n);
+                    }}
+                    options={[
+                      { value: '10', label: '10' },
+                      { value: '25', label: '25' },
+                      { value: '50', label: '50' }
+                    ]}
+                    placeholder="10"
+                    variant="compact"
+                    style={{ width: '70px', minWidth: '65px' }}
+                    triggerStyle={{ padding: '0.35rem 0.6rem', fontSize: '0.78rem' }}
+                    ariaLabel="Jumlah Baris per Halaman"
+                  />
                 </div>
                 {loading && (
                   <Loader size={14} className="animate-spin" style={{ color: 'var(--primary)', opacity: 0.8 }} />
@@ -4635,6 +4975,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   try {
                     const url = new URL(window.location.href);
                     url.searchParams.delete('action');
+                    url.searchParams.delete('id');
                     url.searchParams.delete('type');
                     url.searchParams.delete('catalog_type');
                     window.history.replaceState({ tab: 'items' }, '', url.toString());
@@ -4715,6 +5056,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             try {
                               const url = new URL(window.location.href);
                               url.searchParams.delete('action');
+                              url.searchParams.delete('id');
                               url.searchParams.delete('type');
                               url.searchParams.delete('catalog_type');
                               window.history.replaceState({ tab: 'items' }, '', url.toString());
@@ -4951,6 +5293,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             try {
                               const url = new URL(window.location.href);
                               url.searchParams.delete('action');
+                              url.searchParams.delete('id');
                               url.searchParams.delete('type');
                               url.searchParams.delete('catalog_type');
                               window.history.replaceState({ tab: 'items' }, '', url.toString());
@@ -6622,14 +6965,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <label style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
                           <MessageCircle size={15} style={{ color: 'var(--primary)' }} />
-                          <span>Tujuan Kontak WhatsApp Produk Ini</span>
+                          <span>Tujuan Kontak WhatsApp Item Ini</span>
                         </label>
                         <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
                           Bawaan: Kontak Utama Toko
                         </span>
                       </div>
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
-                        Pilih nomor WhatsApp yang akan menerima pesanan / konsultasi khusus produk ini.
+                        Pilih nomor WhatsApp yang akan menerima pesanan / konsultasi khusus item ini.
                       </span>
                       <div style={{ marginTop: '0.25rem' }}>
                         <TabletCustomSelect
@@ -6783,6 +7126,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           try {
                             const url = new URL(window.location.href);
                             url.searchParams.delete('action');
+                            url.searchParams.delete('id');
                             url.searchParams.delete('type');
                             url.searchParams.delete('catalog_type');
                             window.history.replaceState({ tab: 'items' }, '', url.toString());
@@ -6823,7 +7167,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         }}
                       >
                         <Save size={16} />
-                        {saving ? 'Menyimpan...' : (selectedProductId === 'new' ? 'Terbitkan Produk' : 'Simpan Perubahan')}
+                        {saving ? 'Menyimpan...' : (selectedProductId === 'new' ? 'Terbitkan Item' : 'Simpan Perubahan')}
                       </button>
                     </div>
                   </form>
@@ -7002,9 +7346,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             default:
               return (
                 <>
-                  {renderSpecRow('Kategori Produk', prod.class)}
+                  {renderSpecRow('Kategori Item', prod.class)}
                   {renderSpecRow('Kondisi Barang', attrs.condition || 'Baru')}
-                  {attrs.weight && renderSpecRow('Berat Produk', `${attrs.weight} Gram`)}
+                  {attrs.weight && renderSpecRow('Berat Item', `${attrs.weight} Gram`)}
                   {renderSpecRow('Merek / Brand', attrs.brand)}
                   {renderSpecRow('Varian / Opsi', attrs.variant)}
                   {renderSpecRow('Minimal Beli', `${minOrder} ${unit}`)}
@@ -7021,7 +7365,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         return (
           <div
             className="modal-overlay"
-            onClick={() => setPreviewProduct(null)}
+            onClick={handleCloseProductDetail}
             style={{
               position: 'fixed',
               inset: 0,
@@ -7115,7 +7459,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   type="button"
                   id="btn-close-detail-preview"
                   data-testid="btn-close-detail-preview"
-                  onClick={() => setPreviewProduct(null)}
+                  onClick={handleCloseProductDetail}
                   style={{
                     width: '38px',
                     height: '38px',
@@ -7165,7 +7509,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         position: 'relative',
                         cursor: 'zoom-in'
                       }}
-                      title="Klik untuk perbesar & lihat detail foto produk"
+                      title="Klik untuk perbesar & lihat detail foto item"
                     >
                       <img
                         src={currentActiveImg}
@@ -7348,7 +7692,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 {/* Description */}
                 <div>
                   <h4 style={{ fontSize: '0.92rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>
-                    Deskripsi Produk
+                    Deskripsi Item
                   </h4>
                   <div style={{
                     fontSize: '0.85rem',
@@ -7362,7 +7706,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     {prod.description ? (
                       <FormattedText text={prod.description} />
                     ) : (
-                      <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>Belum ada deskripsi rincian untuk produk ini.</span>
+                      <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>Belum ada deskripsi rincian untuk item ini.</span>
                     )}
                   </div>
                 </div>
@@ -7413,7 +7757,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   data-testid="btn-hapus-dari-preview"
                   onClick={() => {
                     const targetId = prod.id;
-                    setPreviewProduct(null);
+                    handleCloseProductDetail();
                     handleDeleteProduct(targetId);
                   }}
                   style={{
@@ -7431,7 +7775,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     cursor: 'pointer',
                     transition: 'all 0.15s ease'
                   }}
-                  title="Hapus produk ini dari katalog"
+                  title="Hapus item ini dari katalog"
                 >
                   <Trash2 size={16} />
                   <span>Hapus</span>
@@ -7443,7 +7787,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     type="button"
                     id="btn-tutup-detail-preview"
                     data-testid="btn-tutup-detail-preview"
-                    onClick={() => setPreviewProduct(null)}
+                    onClick={handleCloseProductDetail}
                     style={{
                       minHeight: '44px',
                       padding: '0.55rem 1.25rem',
@@ -7506,7 +7850,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     id="btn-edit-dari-preview"
                     data-testid="btn-edit-dari-preview"
                     onClick={() => {
-                      setPreviewProduct(null);
+                      handleCloseProductDetail();
                       handleSelectProduct(prod);
                     }}
                     style={{
@@ -7761,14 +8105,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             <div style={{
               height: '100vh',
               overflowY: 'auto',
-              padding: '1.5rem',
+              padding: isNarrowScreen || isNavExpanded ? '1rem 1.15rem 5rem 1.15rem' : '1.5rem 2rem 5rem 2rem',
               maxWidth: '1040px',
               margin: '0 auto',
               width: '100%',
               boxSizing: 'border-box',
               display: 'flex',
               flexDirection: 'column',
-              gap: '1.25rem'
+              gap: '1.25rem',
+              transition: 'padding 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
             }}>
               {/* 1. Header & Stats Card */}
               <div style={{
@@ -7833,60 +8178,86 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 </div>
               </div>
 
-              {/* 2. Direct Context Switcher Pills (Tablet Ergonomics: Touch Target >= 44px, Instant Type Toggle) */}
+              {/* 2. Direct Context Switcher Pills (Tablet Ergonomics: Touch Target >= 44px, Fixed Aspect Ratio Icon Badges) */}
               <div style={{
-                display: 'flex',
-                gap: '0.5rem',
-                overflowX: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                scrollbarWidth: 'none',
-                alignItems: 'center',
-                paddingBottom: '0.25rem'
+                position: 'relative',
+                width: '100%',
+                boxSizing: 'border-box'
               }}>
-                {MASTER_CATEGORY_DEFINITIONS.map(tab => {
-                  const isSelected = masterCategoryContextTab === tab.id;
-                  const TabIcon = tab.icon;
-                  const opts = getCategoryOptionsForType(tab.id);
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  padding: '0.35rem',
+                  borderRadius: '0.85rem',
+                  border: '1px solid var(--border-light)',
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  scrollbarWidth: 'none',
+                  boxSizing: 'border-box'
+                }}>
+                  {MASTER_CATEGORY_DEFINITIONS.map(tab => {
+                    const isSelected = masterCategoryContextTab === tab.id;
+                    const TabIcon = tab.icon;
+                    const opts = getCategoryOptionsForType(tab.id);
 
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setMasterCategoryContextTab(tab.id)}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0.45rem 0.95rem',
-                        borderRadius: '0.65rem',
-                        fontSize: '0.82rem',
-                        fontWeight: isSelected ? 800 : 600,
-                        whiteSpace: 'nowrap',
-                        flexShrink: 0,
-                        border: isSelected ? `1.5px solid ${tab.color}` : '1px solid var(--border-light)',
-                        backgroundColor: isSelected ? tab.color : 'var(--bg-card)',
-                        color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        transition: 'all 0.15s ease',
-                        boxShadow: isSelected ? `0 2px 8px ${tab.color}35` : '0 1px 2px rgba(0,0,0,0.03)'
-                      }}
-                    >
-                      <TabIcon size={16} color={isSelected ? '#ffffff' : tab.color} />
-                      <span>{tab.label}</span>
-                      <span style={{
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        padding: '0.1rem 0.45rem',
-                        borderRadius: '999px',
-                        backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-deep)',
-                        color: isSelected ? '#ffffff' : 'var(--text-secondary)'
-                      }}>
-                        {opts.length}
-                      </span>
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setMasterCategoryContextTab(tab.id)}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.45rem 0.95rem',
+                          borderRadius: '0.65rem',
+                          fontSize: '0.82rem',
+                          fontWeight: isSelected ? 800 : 600,
+                          whiteSpace: 'nowrap',
+                          flex: '0 0 auto',
+                          flexShrink: 0,
+                          border: isSelected ? `1.5px solid ${tab.color}` : '1px solid transparent',
+                          backgroundColor: isSelected ? tab.color : 'transparent',
+                          color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.55rem',
+                          transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                          boxShadow: isSelected ? `0 2px 10px ${tab.color}35` : 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <div style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '0.5rem',
+                          backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.22)' : `${tab.color}15`,
+                          border: isSelected ? '1px solid rgba(255, 255, 255, 0.35)' : `1px solid ${tab.color}25`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <TabIcon size={16} color={isSelected ? '#ffffff' : tab.color} />
+                        </div>
+                        <span style={{ fontWeight: isSelected ? 800 : 600, whiteSpace: 'nowrap' }}>{tab.label}</span>
+                        <span style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          padding: '0.1rem 0.45rem',
+                          borderRadius: '999px',
+                          backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : 'var(--bg-card)',
+                          color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                          border: isSelected ? 'none' : '1px solid var(--border-light)',
+                          flexShrink: 0
+                        }}>
+                          {opts.length}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* 3. Active Type Description Banner */}
@@ -7952,18 +8323,21 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.45rem',
+                          gap: '0.5rem',
                           padding: '0.45rem 0.85rem',
+                          minHeight: '38px',
                           borderRadius: '0.55rem',
                           backgroundColor: 'var(--bg-card)',
                           border: '1px solid var(--border-light)',
                           fontSize: '0.84rem',
-                          color: 'var(--text-primary)'
+                          color: 'var(--text-primary)',
+                          boxSizing: 'border-box',
+                          flexShrink: 0
                         }}
                         title="Kategori bawaan standar sistem yang terkunci"
                       >
-                        <Lock size={12} strokeWidth={2.2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                        <span style={{ fontWeight: 500 }}>{c}</span>
+                        <Lock size={13} strokeWidth={2.2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                        <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{c}</span>
                         {count > 0 && (
                           <span style={{
                             fontSize: '0.7rem',
@@ -7972,7 +8346,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             borderRadius: '999px',
                             backgroundColor: 'var(--bg-deep)',
                             color: 'var(--text-secondary)',
-                            border: '1px solid var(--border-light)'
+                            border: '1px solid var(--border-light)',
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap'
                           }}>
                             {count} item
                           </span>
@@ -8030,17 +8406,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.45rem',
+                            gap: '0.5rem',
                             padding: '0.4rem 0.55rem 0.4rem 0.85rem',
+                            minHeight: '38px',
                             borderRadius: '0.55rem',
                             backgroundColor: 'var(--bg-card)',
                             border: '1px solid rgba(16, 185, 129, 0.3)',
                             fontSize: '0.84rem',
-                            color: 'var(--text-primary)'
+                            color: 'var(--text-primary)',
+                            boxSizing: 'border-box',
+                            flexShrink: 0
                           }}
                         >
-                          <Tag size={13} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                          <span style={{ fontWeight: 600 }}>{c}</span>
+                          <Tag size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                          <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{c}</span>
                           {count > 0 && (
                             <span style={{
                               fontSize: '0.7rem',
@@ -8048,12 +8427,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               padding: '0.1rem 0.45rem',
                               borderRadius: '999px',
                               backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                              color: '#10b981'
+                              color: '#10b981',
+                              flexShrink: 0,
+                              whiteSpace: 'nowrap'
                             }}>
                               {count} item
                             </span>
                           )}
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.35rem', paddingLeft: '0.4rem', borderLeft: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.35rem', paddingLeft: '0.4rem', borderLeft: '1px solid var(--border-light)', flexShrink: 0 }}>
                             <button
                               type="button"
                               onClick={() => setRenameMasterModalData({
@@ -8073,7 +8454,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                flexShrink: 0
                               }}
                               title={`Ubah nama kategori "${c}"`}
                             >
@@ -8092,7 +8474,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                flexShrink: 0
                               }}
                               title={`Hapus kategori "${c}"`}
                             >
@@ -8532,6 +8915,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             onUnauthorized={onUnauthorized}
             onSlugChanged={(_newSlug) => {
               fetchStoreProfile();
+            }}
+            onStoreUpdated={(updated) => {
+              if (updated.store_logo_url || updated.logo_url) {
+                setStoreSettings(prev => ({
+                  ...prev,
+                  logo_url: updated.store_logo_url || updated.logo_url,
+                  name: updated.name || updated.store_title || prev.name
+                }));
+              }
+              fetchStoreProfile();
+              fetchUserStores();
             }}
             handleUploadImage={handleUploadImage}
           />
@@ -11141,7 +11535,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     Ekspor Data Item Katalog
                   </h3>
                   <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                    Pilih format berkas untuk mengunduh daftar produk dan inventaris katalog Anda.
+                    Pilih format berkas untuk mengunduh daftar item dan inventaris katalog Anda.
                   </p>
                 </div>
               </div>
@@ -11198,7 +11592,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     </span>
                   </div>
                   <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                    Tabel data produk terstruktur (ID, nama, tipe, kategori, harga, stok, dan spesifikasi). Dilengkapi UTF-8 BOM untuk Excel &amp; Google Sheets.
+                    Tabel data item terstruktur (ID, nama, tipe, kategori, harga, stok, dan spesifikasi). Dilengkapi UTF-8 BOM untuk Excel &amp; Google Sheets.
                   </p>
                 </div>
                 <button
@@ -11258,11 +11652,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       <FileCode size={15} style={{ color: 'var(--primary)' }} />
                     </div>
                     <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      Format JSON (Data Item Produk)
+                      Format JSON (Data Item Katalog)
                     </span>
                   </div>
                   <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                    Salinan digital teknis berisi data item produk, varian harga, galeri foto, dan atribut spesifikasi domain untuk kebutuhan portabilitas &amp; arsip.
+                    Salinan digital teknis berisi data item katalog, varian harga, galeri foto, dan atribut spesifikasi domain untuk kebutuhan portabilitas &amp; arsip.
                   </p>
                 </div>
                 <button

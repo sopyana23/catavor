@@ -804,6 +804,7 @@ export interface TabletStoreSettingsViewProps {
   onViewPublicCatalog?: () => void;
   onUnauthorized?: () => void;
   onSlugChanged?: (newSlug: string) => void;
+  onStoreUpdated?: (settings: any) => void;
   handleUploadImage: (file: File, category?: 'products' | 'branding') => Promise<string | null>;
   isNavExpanded?: boolean;
 }
@@ -818,6 +819,7 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
   onViewPublicCatalog: _onViewPublicCatalog,
   onUnauthorized,
   onSlugChanged,
+  onStoreUpdated,
   handleUploadImage,
   isNavExpanded = false
 }) => {
@@ -1079,6 +1081,10 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
           }
           localStorage.setItem('catavor_settings', JSON.stringify(payload));
         } catch {}
+
+        if (onStoreUpdated) {
+          onStoreUpdated(payload);
+        }
 
         if (data.slug_changed && data.new_slug) {
           const newSlug = data.new_slug;

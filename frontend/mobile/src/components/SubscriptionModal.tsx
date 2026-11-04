@@ -30,6 +30,7 @@ import {
   RefreshCw,
   Calendar
 } from 'lucide-react';
+import { SafeImage } from './SafeImage';
 
 export interface SubscriptionPlanData {
   id: number;
@@ -1470,8 +1471,20 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                         gap: '0.65rem', 
                         textAlign: 'center' 
                       }}>
-                        <div style={{ width: '140px', height: '140px', borderRadius: '12px', background: '#ffffff', padding: '8px', border: '2px solid var(--primary)', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}>
-                          <img src={manualQrisImage} alt="QRIS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        <div style={{ width: '140px', height: '140px', borderRadius: '12px', background: '#ffffff', padding: '8px', border: '2px solid var(--primary)', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+                          <SafeImage
+                            src={manualQrisImage}
+                            fallbackSrc="/img/qris_demo.svg"
+                            alt="QRIS"
+                            objectFit="contain"
+                            emptyLabel="QRIS Belum Diunggah"
+                            emptySubLabel="Hubungi admin platform"
+                            errorLabel="QRIS Rusak"
+                            errorSubLabel="Gagal memuat berkas"
+                            isDark={false}
+                            compact={true}
+                            wrapperStyle={{ width: '100%', height: '100%' }}
+                          />
                         </div>
                         <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)' }}>{manualQrisMerchant}</strong>
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>

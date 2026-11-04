@@ -196,35 +196,50 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				},
 			})
 
-			// B. Prune heavy media files from storage to save server disk space
+			// B. Collect heavy media files for deferred prune
+			var filesToPrune []string
 			if p.ImageURL != "" {
-				_, _ = HardDeleteLocalStorageFile(p.ImageURL)
+				filesToPrune = append(filesToPrune, p.ImageURL)
+			}
+			for _, pImg := range p.Images {
+				if pImg.ImageURL != "" {
+					filesToPrune = append(filesToPrune, pImg.ImageURL)
+				}
+			}
+
+			// C. Execute Soft Delete in ACID Atomic Transaction (AGENTS.md Rule 5 & Rule 10)
+			txErr := db.Transaction(func(tx *gorm.DB) error {
+				if err := tx.Model(&models.Product{}).Where("id = ?", p.ID).Updates(map[string]interface{}{
+					"is_active":  false,
+					"deleted_at": now,
+				}).Error; err != nil {
+					return err
+				}
+				if tx.Migrator().HasTable("faunas") {
+					if err := tx.Table("faunas").Where("id = ?", p.ID).Updates(map[string]interface{}{
+						"is_active":  false,
+						"deleted_at": now,
+					}).Error; err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+
+			if txErr != nil {
+				log.Error().Err(txErr).Uint("product_id", p.ID).Msg("Failed to soft-delete compliance violation product")
+				continue
+			}
+
+			// Multi-Layer Rollback (AGENTS.md Rule 10): Prune media files ONLY AFTER DB commit
+			for _, rawImg := range filesToPrune {
+				_, _ = HardDeleteLocalStorageFile(rawImg)
 				if strg != nil {
-					if k := extractStorageKeyFromURL(p.ImageURL); k != "" {
+					if k := extractStorageKeyFromURL(rawImg); k != "" {
 						_ = strg.Delete(ctx, k)
 					}
 				}
 			}
-			for _, pImg := range p.Images {
-				if pImg.ImageURL != "" {
-					_, _ = HardDeleteLocalStorageFile(pImg.ImageURL)
-					if strg != nil {
-						if k := extractStorageKeyFromURL(pImg.ImageURL); k != "" {
-							_ = strg.Delete(ctx, k)
-						}
-					}
-				}
-			}
-
-			// C. Execute Soft Delete
-			_ = db.Model(&models.Product{}).Where("id = ?", p.ID).Updates(map[string]interface{}{
-				"is_active":  false,
-				"deleted_at": now,
-			}).Error
-			_ = db.Table("faunas").Where("id = ?", p.ID).Updates(map[string]interface{}{
-				"is_active":  false,
-				"deleted_at": now,
-			}).Error
 
 			// Recalculate store storage used and invalidate quota cache
 			SyncStoreStorageUsed(db, p.StoreID)
@@ -294,39 +309,61 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				continue
 			}
 
-			// Clean remaining images from local disk and cloud storage
+			// Collect images for deferred permanent deletion
+			var filesToDelete []string
 			if p.ImageURL != "" {
-				_, _ = HardDeleteLocalStorageFile(p.ImageURL)
+				filesToDelete = append(filesToDelete, p.ImageURL)
+			}
+			for _, pImg := range p.Images {
+				if pImg.ImageURL != "" {
+					filesToDelete = append(filesToDelete, pImg.ImageURL)
+				}
+			}
+
+			// Clean remaining relations and delete Product in ACID Atomic Transaction (AGENTS.md Rule 5 & Rule 10)
+			txErr := db.Transaction(func(tx *gorm.DB) error {
+				if err := tx.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductImage{}).Error; err != nil {
+					return err
+				}
+				if err := tx.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductVariant{}).Error; err != nil {
+					return err
+				}
+				if tx.Migrator().HasTable("sightings") {
+					if err := tx.Unscoped().Where("fauna_id = ?", p.ID).Delete(&models.Sighting{}).Error; err != nil {
+						return err
+					}
+				}
+
+				// Nullify FK in reports to preserve historical violation records without constraint error
+				if err := tx.Model(&models.Report{}).Where("fauna_id = ?", p.ID).Update("fauna_id", nil).Error; err != nil {
+					return err
+				}
+
+				if err := tx.Unscoped().Where("id = ?", p.ID).Delete(&models.Product{}).Error; err != nil {
+					return err
+				}
+				if tx.Migrator().HasTable("faunas") {
+					if err := tx.Unscoped().Table("faunas").Where("id = ?", p.ID).Delete(nil).Error; err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+
+			if txErr != nil {
+				log.Error().Err(txErr).Uint("product_id", p.ID).Msg("Failed to hard-delete compliance product in transaction")
+				continue
+			}
+
+			// Multi-Layer Rollback (AGENTS.md Rule 10): Delete remaining images ONLY AFTER DB commit
+			for _, imgURL := range filesToDelete {
+				_, _ = HardDeleteLocalStorageFile(imgURL)
 				if strg != nil {
-					if k := extractStorageKeyFromURL(p.ImageURL); k != "" {
+					if k := extractStorageKeyFromURL(imgURL); k != "" {
 						_ = strg.Delete(ctx, k)
 					}
 				}
 			}
-			for _, pImg := range p.Images {
-				if pImg.ImageURL != "" {
-					_, _ = HardDeleteLocalStorageFile(pImg.ImageURL)
-					if strg != nil {
-						if k := extractStorageKeyFromURL(pImg.ImageURL); k != "" {
-							_ = strg.Delete(ctx, k)
-						}
-					}
-				}
-			}
-
-			// Clean remaining relations
-			_ = db.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductImage{}).Error
-			_ = db.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductVariant{}).Error
-			if db.Migrator().HasTable("sightings") {
-				_ = db.Unscoped().Where("fauna_id = ?", p.ID).Delete(&models.Sighting{}).Error
-			}
-
-			// Nullify FK in reports to preserve historical violation records without constraint error
-			_ = db.Model(&models.Report{}).Where("fauna_id = ?", p.ID).Update("fauna_id", nil).Error
-
-			// Hard Delete Product row permanently
-			_ = db.Unscoped().Where("id = ?", p.ID).Delete(&models.Product{}).Error
-			_ = db.Unscoped().Table("faunas").Where("id = ?", p.ID).Delete(nil).Error
 
 			// Log Hard Delete in Activity Logs
 			RecordActivity(RecordActivityParams{
@@ -393,7 +430,8 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				}
 			}
 
-			// Hard delete each physical image file from storage if not used by any active product
+			// Determine which image files can be safely deleted (not used by other active products)
+			var confirmedFilesToDelete []string
 			for _, imgURL := range imagesToDelete {
 				var otherProdCount int64
 				db.Model(&models.Product{}).Where("deleted_at IS NULL AND id != ? AND image_url = ?", p.ID, imgURL).Count(&otherProdCount)
@@ -403,31 +441,55 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 					Where("products.deleted_at IS NULL AND product_images.product_id != ? AND product_images.image_url = ?", p.ID, imgURL).
 					Count(&otherImgCount)
 				if otherProdCount == 0 && otherImgCount == 0 {
-					if _, errDel := HardDeleteLocalStorageFile(imgURL); errDel == nil {
-						stats.PurgedFiles++
-					}
-					if strg != nil {
-						if k := extractStorageKeyFromURL(imgURL); k != "" {
-							_ = strg.Delete(ctx, k)
-						}
-					}
+					confirmedFilesToDelete = append(confirmedFilesToDelete, imgURL)
 				}
 			}
 
-			// Clean child relations permanently
-			_ = db.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductImage{}).Error
-			_ = db.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductVariant{}).Error
-			if db.Migrator().HasTable("sightings") {
-				_ = db.Unscoped().Where("fauna_id = ?", p.ID).Delete(&models.Sighting{}).Error
+			// Clean child relations and delete product in ACID Atomic Transaction (AGENTS.md Rule 5 & Rule 10)
+			txErr := db.Transaction(func(tx *gorm.DB) error {
+				if err := tx.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductImage{}).Error; err != nil {
+					return err
+				}
+				if err := tx.Unscoped().Where("product_id = ?", p.ID).Delete(&models.ProductVariant{}).Error; err != nil {
+					return err
+				}
+				if tx.Migrator().HasTable("sightings") {
+					if err := tx.Unscoped().Where("fauna_id = ?", p.ID).Delete(&models.Sighting{}).Error; err != nil {
+						return err
+					}
+				}
+
+				// Nullify FK in reports if any archived report references it
+				if err := tx.Model(&models.Report{}).Where("fauna_id = ?", p.ID).Update("fauna_id", nil).Error; err != nil {
+					return err
+				}
+
+				if err := tx.Unscoped().Where("id = ?", p.ID).Delete(&models.Product{}).Error; err != nil {
+					return err
+				}
+				if tx.Migrator().HasTable("faunas") {
+					if err := tx.Unscoped().Table("faunas").Where("id = ?", p.ID).Delete(nil).Error; err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+
+			if txErr != nil {
+				log.Error().Err(txErr).Uint("product_id", p.ID).Msg("Failed to hard-delete regular product in transaction")
+				continue
 			}
 
-			// Nullify FK in reports if any archived report references it
-			_ = db.Model(&models.Report{}).Where("fauna_id = ?", p.ID).Update("fauna_id", nil).Error
-
-			// Hard Delete Product row permanently
-			_ = db.Unscoped().Where("id = ?", p.ID).Delete(&models.Product{}).Error
-			if db.Migrator().HasTable("faunas") {
-				_ = db.Unscoped().Table("faunas").Where("id = ?", p.ID).Delete(nil).Error
+			// Multi-Layer Rollback (AGENTS.md Rule 10): Delete physical files ONLY AFTER DB commit
+			for _, imgURL := range confirmedFilesToDelete {
+				if _, errDel := HardDeleteLocalStorageFile(imgURL); errDel == nil {
+					stats.PurgedFiles++
+				}
+				if strg != nil {
+					if k := extractStorageKeyFromURL(imgURL); k != "" {
+						_ = strg.Delete(ctx, k)
+					}
+				}
 			}
 
 			// Record permanent purge in Activity Log
@@ -474,7 +536,53 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				continue
 			}
 
-			// Clean physical media folders from disk & cloud storage
+			// 1. Gather product IDs for cascading removal
+			var prodIDs []uint
+			db.Unscoped().Model(&models.Product{}).Where("store_id = ?", s.ID).Pluck("id", &prodIDs)
+
+			// 2. Cascade delete records and anonymize store in ACID Atomic Transaction (AGENTS.md Rule 5 & Rule 10)
+			txErr := db.Transaction(func(tx *gorm.DB) error {
+				if len(prodIDs) > 0 {
+					if err := tx.Unscoped().Where("product_id IN ?", prodIDs).Delete(&models.ProductImage{}).Error; err != nil {
+						return err
+					}
+					if err := tx.Unscoped().Where("product_id IN ?", prodIDs).Delete(&models.ProductVariant{}).Error; err != nil {
+						return err
+					}
+					if tx.Migrator().HasTable("sightings") {
+						if err := tx.Unscoped().Where("fauna_id IN ?", prodIDs).Delete(&models.Sighting{}).Error; err != nil {
+							return err
+						}
+					}
+					if err := tx.Unscoped().Where("id IN ?", prodIDs).Delete(&models.Product{}).Error; err != nil {
+						return err
+					}
+					if tx.Migrator().HasTable("faunas") {
+						if err := tx.Unscoped().Table("faunas").Where("id IN ?", prodIDs).Delete(nil).Error; err != nil {
+							return err
+						}
+					}
+				}
+
+				// Mark store dormancy status as 'purged' and anonymize personal details (UU PDP compliance)
+				return tx.Model(&models.Store{}).Where("id = ?", s.ID).Updates(map[string]interface{}{
+					"dormancy_status":   "purged",
+					"whatsapp_number":   "",
+					"about_description": "",
+					"about_location":    "",
+					"store_slogan":      "",
+					"promo_banner":      "",
+					"store_logo_url":    "",
+				}).Error
+			})
+
+			if txErr != nil {
+				log.Error().Err(txErr).Uint("store_id", s.ID).Msg("Failed to purge banned store database records in transaction")
+				continue
+			}
+
+			// 3. Multi-Layer Rollback (AGENTS.md Rule 10):
+			// Clean physical media folders from disk & cloud storage ONLY AFTER DB commit
 			storePrefix := fmt.Sprintf("stores/%d/", s.ID)
 			if strg != nil {
 				_ = strg.DeletePrefix(ctx, storePrefix)
@@ -489,32 +597,6 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 					_ = os.RemoveAll(filepath.Join(cfg.StorageDir, "stores", fmt.Sprintf("%d", s.ID)))
 				}
 			}
-
-			// Clean products, variants, and product images belonging to this store
-			var prodIDs []uint
-			db.Unscoped().Model(&models.Product{}).Where("store_id = ?", s.ID).Pluck("id", &prodIDs)
-			if len(prodIDs) > 0 {
-				_ = db.Unscoped().Where("product_id IN ?", prodIDs).Delete(&models.ProductImage{}).Error
-				_ = db.Unscoped().Where("product_id IN ?", prodIDs).Delete(&models.ProductVariant{}).Error
-				if db.Migrator().HasTable("sightings") {
-					_ = db.Unscoped().Where("fauna_id IN ?", prodIDs).Delete(&models.Sighting{}).Error
-				}
-				_ = db.Unscoped().Where("id IN ?", prodIDs).Delete(&models.Product{}).Error
-				if db.Migrator().HasTable("faunas") {
-					_ = db.Unscoped().Table("faunas").Where("id IN ?", prodIDs).Delete(nil).Error
-				}
-			}
-
-			// Mark store dormancy status as 'purged' and anonymize personal details (UU PDP compliance)
-			_ = db.Model(&models.Store{}).Where("id = ?", s.ID).Updates(map[string]interface{}{
-				"dormancy_status":   "purged",
-				"whatsapp_number":   "",
-				"about_description": "",
-				"about_location":    "",
-				"store_slogan":      "",
-				"promo_banner":      "",
-				"store_logo_url":    "",
-			}).Error
 
 			// Record permanent purge in Activity Log
 			RecordActivity(RecordActivityParams{

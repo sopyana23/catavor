@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { createAuthFetch } from '../utils/auth';
 import { useModalBackHandler } from '../utils/navigation';
+import { SafeImage } from './SafeImage';
 
 export interface SubscriptionPlanData {
   id: number;
@@ -811,8 +812,20 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                       </>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem', padding: '0.5rem 0' }}>
-                        <div style={{ width: '140px', height: '140px', background: '#ffffff', borderRadius: '10px', padding: '6px', border: '2px solid var(--primary)' }}>
-                          <img src={manualQrisImage} alt="QRIS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        <div style={{ width: '140px', height: '140px', background: '#ffffff', borderRadius: '10px', padding: '6px', border: '2px solid var(--primary)', overflow: 'hidden' }}>
+                          <SafeImage
+                            src={manualQrisImage}
+                            fallbackSrc="/img/qris_demo.svg"
+                            alt="QRIS"
+                            objectFit="contain"
+                            emptyLabel="QRIS Belum Diunggah"
+                            emptySubLabel="Hubungi admin platform"
+                            errorLabel="QRIS Rusak"
+                            errorSubLabel="Gagal memuat berkas"
+                            isDark={false}
+                            compact={true}
+                            wrapperStyle={{ width: '100%', height: '100%' }}
+                          />
                         </div>
                         <strong style={{ fontSize: '0.86rem' }}>{manualQrisMerchant}</strong>
                       </div>

@@ -403,25 +403,89 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
                     <Layers size={16} style={{ color: 'var(--primary)' }} />
                     Benchmark Rentang Harga Pasar Wajar per Kategori
                   </h4>
-                  <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.76rem' }}>
+                  <div
+                    className="tablet-sticky-table-container catavor-table-scrollbar"
+                    style={{
+                      maxHeight: 'min(45vh, 420px)',
+                      overflowY: 'auto',
+                      overflowX: 'auto',
+                      WebkitOverflowScrolling: 'touch',
+                      borderRadius: '0.65rem',
+                      border: '1px solid var(--border-light)'
+                    }}
+                  >
+                    <table
+                      className="tablet-sticky-table"
+                      style={{
+                        width: '100%',
+                        borderCollapse: 'separate',
+                        borderSpacing: 0,
+                        fontSize: '0.76rem'
+                      }}
+                    >
                       <thead>
-                        <tr style={{ borderBottom: '1px solid var(--border-light)', color: 'var(--text-secondary)', textAlign: 'left' }}>
-                          <th style={{ padding: '0.5rem 0.65rem' }}>Kategori</th>
-                          <th style={{ padding: '0.5rem 0.65rem' }}>Harga Min</th>
-                          <th style={{ padding: '0.5rem 0.65rem' }}>Rata-rata</th>
-                          <th style={{ padding: '0.5rem 0.65rem' }}>Harga Maks</th>
-                          <th style={{ padding: '0.5rem 0.65rem' }}>Sampel</th>
+                        <tr style={{ color: 'var(--text-secondary)', textAlign: 'left', backgroundColor: 'var(--bg-deep)' }}>
+                          <th
+                            className="sticky-col"
+                            style={{
+                              padding: '0.6rem 0.75rem',
+                              position: 'sticky',
+                              left: 0,
+                              top: 0,
+                              zIndex: 20,
+                              backgroundColor: 'var(--bg-deep)',
+                              borderBottom: '1px solid var(--border-light)',
+                              borderRight: '1px solid var(--border-light)',
+                              boxShadow: '3px 0 8px rgba(0,0,0,0.04)',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Kategori
+                          </th>
+                          <th style={{ padding: '0.6rem 0.75rem', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Harga Min</th>
+                          <th style={{ padding: '0.6rem 0.75rem', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Rata-rata</th>
+                          <th style={{ padding: '0.6rem 0.75rem', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Harga Maks</th>
+                          <th style={{ padding: '0.6rem 0.75rem', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Sampel</th>
                         </tr>
                       </thead>
                       <tbody>
                         {data.price_benchmarks.map((pb, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px dashed var(--border-light)' }}>
-                            <td style={{ padding: '0.55rem 0.65rem', fontWeight: 700, color: 'var(--text-primary)' }}>{pb.category_name}</td>
-                            <td style={{ padding: '0.55rem 0.65rem', color: 'var(--text-secondary)' }}>{formatPrice(pb.min_price)}</td>
-                            <td style={{ padding: '0.55rem 0.65rem', fontWeight: 800, color: 'var(--primary)' }}>{formatPrice(pb.avg_price)}</td>
-                            <td style={{ padding: '0.55rem 0.65rem', color: 'var(--text-secondary)' }}>{formatPrice(pb.max_price)}</td>
-                            <td style={{ padding: '0.55rem 0.65rem', color: 'var(--text-muted)' }}>{pb.sample_count} item</td>
+                          <tr
+                            key={idx}
+                            style={{ transition: 'background-color 0.15s ease' }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))';
+                              const stickyTd = e.currentTarget.querySelector('.sticky-col') as HTMLElement;
+                              if (stickyTd) stickyTd.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                              const stickyTd = e.currentTarget.querySelector('.sticky-col') as HTMLElement;
+                              if (stickyTd) stickyTd.style.backgroundColor = 'var(--bg-card)';
+                            }}
+                          >
+                            <td
+                              className="sticky-col"
+                              style={{
+                                padding: '0.55rem 0.75rem',
+                                fontWeight: 700,
+                                color: 'var(--text-primary)',
+                                position: 'sticky',
+                                left: 0,
+                                zIndex: 5,
+                                backgroundColor: 'var(--bg-card)',
+                                borderBottom: '1px dashed var(--border-light)',
+                                borderRight: '1px solid var(--border-light)',
+                                boxShadow: '3px 0 8px rgba(0,0,0,0.04)',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {pb.category_name}
+                            </td>
+                            <td style={{ padding: '0.55rem 0.75rem', color: 'var(--text-secondary)', borderBottom: '1px dashed var(--border-light)', whiteSpace: 'nowrap' }}>{formatPrice(pb.min_price)}</td>
+                            <td style={{ padding: '0.55rem 0.75rem', fontWeight: 800, color: 'var(--primary)', borderBottom: '1px dashed var(--border-light)', whiteSpace: 'nowrap' }}>{formatPrice(pb.avg_price)}</td>
+                            <td style={{ padding: '0.55rem 0.75rem', color: 'var(--text-secondary)', borderBottom: '1px dashed var(--border-light)', whiteSpace: 'nowrap' }}>{formatPrice(pb.max_price)}</td>
+                            <td style={{ padding: '0.55rem 0.75rem', color: 'var(--text-muted)', borderBottom: '1px dashed var(--border-light)', whiteSpace: 'nowrap' }}>{pb.sample_count} item</td>
                           </tr>
                         ))}
                       </tbody>

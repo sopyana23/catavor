@@ -149,7 +149,9 @@ import { PlatformRolePortal } from './components/PlatformRolePortal'
 import { SwipeableToast } from './components/SwipeableToast'
 import { DocumentPreviewModal, type DocumentPreviewData } from './components/DocumentPreviewModal'
 import { StoreChooserSheet, type CatalogStoreItem } from './components/StoreChooserSheet'
-import { FormattedText, ExternalLinkWarningModal } from './components/RichTextarea'
+import { RichTextarea, HeadingDropdown, ListDropdown, FormattedText, ExternalLinkWarningModal, type RichTextareaProps } from './components/RichTextarea'
+export { RichTextarea, HeadingDropdown, ListDropdown, type RichTextareaProps }
+import { SafeImage } from './components/SafeImage'
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from './utils/urlSecurity'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
@@ -2313,894 +2315,6 @@ export const ProductImportantInfoSection: React.FC<{ item: any; isMobile?: boole
   );
 };
 
-export const HeadingDropdown: React.FC<{
-  onSelect: (level: 1 | 2 | 3) => void;
-  btnClassName?: string;
-  isZen?: boolean;
-}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  const calculateCoords = () => {
-    if (!buttonRef.current) return { top: 0, left: 0 };
-    const rect = buttonRef.current.getBoundingClientRect();
-    const menuWidth = isZen ? 205 : 190;
-    const menuHeight = 150;
-    let top = rect.bottom + 5;
-    if (top + menuHeight > window.innerHeight - 8 && rect.top > menuHeight + 10) {
-      top = Math.max(10, rect.top - menuHeight - 5);
-    }
-    let left = rect.left;
-    if (left + menuWidth > window.innerWidth - 10) {
-      left = Math.max(10, rect.right - menuWidth);
-    }
-    if (left < 10) left = 10;
-    return { top, left };
-  };
-
-  const handleToggle = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isOpen) {
-      setCoords(calculateCoords());
-    }
-    setIsOpen(prev => !prev);
-  };
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleScrollOrResize = () => {
-      if (!buttonRef.current) return;
-      const rect = buttonRef.current.getBoundingClientRect();
-      if (rect.bottom < 0 || rect.top > window.innerHeight) {
-        setIsOpen(false);
-        return;
-      }
-      setCoords(calculateCoords());
-    };
-
-    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as Node;
-      if (
-        buttonRef.current && !buttonRef.current.contains(target) &&
-        menuRef.current && !menuRef.current.contains(target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
-    };
-
-    window.addEventListener('resize', handleScrollOrResize);
-    window.addEventListener('scroll', handleScrollOrResize, true);
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('resize', handleScrollOrResize);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, isZen]);
-
-  const handleSelect = (level: 1 | 2 | 3) => {
-    onSelect(level);
-    setIsOpen(false);
-  };
-
-  return (
-    <>
-      <button
-        ref={buttonRef}
-        type="button"
-        className={btnClassName}
-        title="Pilih Ukuran Judul (Heading H1, H2, H3)"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={handleToggle}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '3px',
-          backgroundColor: isOpen ? 'var(--primary-glow, rgba(59,130,246,0.15))' : undefined,
-          borderColor: isOpen ? 'var(--primary)' : undefined,
-          color: isOpen ? 'var(--primary)' : undefined,
-          cursor: 'pointer',
-          flexShrink: 0
-        }}
-      >
-        <span style={{ fontWeight: 700 }}>Judul</span>
-        <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
-      </button>
-
-      {isOpen && createPortal(
-        <div
-          ref={menuRef}
-          style={{
-            position: 'fixed',
-            top: coords.top,
-            left: coords.left,
-            zIndex: 9999999,
-            minWidth: isZen ? '205px' : '190px',
-            maxWidth: 'calc(100vw - 20px)',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
-            borderRadius: '0.55rem',
-            boxShadow: '0 14px 35px rgba(0,0,0,0.55), 0 4px 14px rgba(0,0,0,0.2)',
-            padding: '0.4rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.25rem',
-            boxSizing: 'border-box'
-          }}
-        >
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleSelect(1)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.65rem',
-              padding: '0.45rem 0.65rem',
-              borderRadius: '0.35rem',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-              e.currentTarget.style.color = 'var(--primary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = 'var(--text-primary)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--primary)', width: '20px' }}>H1</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>Judul Utama</span>
-            </div>
-            <code style={{ fontSize: '0.72rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>#</code>
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleSelect(2)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.65rem',
-              padding: '0.45rem 0.65rem',
-              borderRadius: '0.35rem',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-              e.currentTarget.style.color = 'var(--primary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = 'var(--text-primary)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary)', width: '20px' }}>H2</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Judul Bab</span>
-            </div>
-            <code style={{ fontSize: '0.72rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>##</code>
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleSelect(3)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.65rem',
-              padding: '0.45rem 0.65rem',
-              borderRadius: '0.35rem',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-              e.currentTarget.style.color = 'var(--primary-hover, #60a5fa)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = 'var(--text-primary)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--primary-hover, #60a5fa)', width: '20px' }}>H3</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Sub-Judul</span>
-            </div>
-            <code style={{ fontSize: '0.72rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>###</code>
-          </button>
-        </div>,
-        document.body
-      )}
-    </>
-  );
-};
-
-export const ListDropdown: React.FC<{
-  onSelect: (type: 'bullet' | 'number') => void;
-  btnClassName?: string;
-  isZen?: boolean;
-}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  const calculateCoords = () => {
-    if (!buttonRef.current) return { top: 0, left: 0 };
-    const rect = buttonRef.current.getBoundingClientRect();
-    const menuWidth = isZen ? 205 : 190;
-    const menuHeight = 110;
-    let top = rect.bottom + 5;
-    if (top + menuHeight > window.innerHeight - 8 && rect.top > menuHeight + 10) {
-      top = Math.max(10, rect.top - menuHeight - 5);
-    }
-    let left = rect.left;
-    if (left + menuWidth > window.innerWidth - 10) {
-      left = Math.max(10, rect.right - menuWidth);
-    }
-    if (left < 10) left = 10;
-    return { top, left };
-  };
-
-  const handleToggle = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isOpen) {
-      setCoords(calculateCoords());
-    }
-    setIsOpen(prev => !prev);
-  };
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleScrollOrResize = () => {
-      if (!buttonRef.current) return;
-      const rect = buttonRef.current.getBoundingClientRect();
-      if (rect.bottom < 0 || rect.top > window.innerHeight) {
-        setIsOpen(false);
-        return;
-      }
-      setCoords(calculateCoords());
-    };
-
-    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as Node;
-      if (
-        buttonRef.current && !buttonRef.current.contains(target) &&
-        menuRef.current && !menuRef.current.contains(target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
-    };
-
-    window.addEventListener('resize', handleScrollOrResize);
-    window.addEventListener('scroll', handleScrollOrResize, true);
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('resize', handleScrollOrResize);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, isZen]);
-
-  const handleSelect = (type: 'bullet' | 'number') => {
-    onSelect(type);
-    setIsOpen(false);
-  };
-
-  return (
-    <>
-      <button
-        ref={buttonRef}
-        type="button"
-        className={btnClassName}
-        title="Pilih Format Daftar (Daftar Poin, Nomor)"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={handleToggle}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '3px',
-          backgroundColor: isOpen ? 'var(--primary-glow, rgba(59,130,246,0.15))' : undefined,
-          borderColor: isOpen ? 'var(--primary)' : undefined,
-          color: isOpen ? 'var(--primary)' : undefined,
-          cursor: 'pointer',
-          flexShrink: 0
-        }}
-      >
-        <span style={{ fontWeight: 700 }}>List</span>
-        <ChevronDown size={11} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
-      </button>
-
-      {isOpen && createPortal(
-        <div
-          ref={menuRef}
-          style={{
-            position: 'fixed',
-            top: coords.top,
-            left: coords.left,
-            zIndex: 9999999,
-            minWidth: isZen ? '205px' : '190px',
-            maxWidth: 'calc(100vw - 20px)',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
-            borderRadius: '0.55rem',
-            boxShadow: '0 14px 35px rgba(0,0,0,0.55), 0 4px 14px rgba(0,0,0,0.2)',
-            padding: '0.4rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.25rem',
-            boxSizing: 'border-box'
-          }}
-        >
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleSelect('bullet')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.65rem',
-              padding: '0.45rem 0.65rem',
-              borderRadius: '0.35rem',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-              e.currentTarget.style.color = 'var(--primary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = 'var(--text-primary)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary)', width: '20px', textAlign: 'center', lineHeight: 1 }}>•</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Daftar Poin</span>
-            </div>
-            <code style={{ fontSize: '0.72rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>-</code>
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleSelect('number')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.65rem',
-              padding: '0.45rem 0.65rem',
-              borderRadius: '0.35rem',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-              e.currentTarget.style.color = 'var(--primary)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.color = 'var(--text-primary)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary)', width: '20px', textAlign: 'center' }}>1.</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Daftar Nomor</span>
-            </div>
-            <code style={{ fontSize: '0.72rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-card-hover)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>1.</code>
-          </button>
-        </div>,
-        document.body
-      )}
-    </>
-  );
-};
-
-
-export interface RichTextareaProps {
-  label?: string;
-  value: string;
-  onChange: (val: string) => void;
-  placeholder?: string;
-  rows?: number;
-  required?: boolean;
-  className?: string;
-  style?: React.CSSProperties;
-}
-
-export const RichTextarea: React.FC<RichTextareaProps> = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  rows = 4,
-  required = false,
-  className = "form-textarea",
-  style
-}) => {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const fullscreenTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showFullscreenPreview, setShowFullscreenPreview] = useState(true);
-  const [mobileTab, setMobileTab] = useState<'editor' | 'preview'>('editor');
-
-  // Lock body scroll when Fullscreen is active
-  useEffect(() => {
-    if (isFullscreen) {
-      document.body.style.overflow = 'hidden';
-      setTimeout(() => {
-        fullscreenTextareaRef.current?.focus();
-      }, 50);
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isFullscreen]);
-
-  // Handle ESC key to exit fullscreen
-  useEffect(() => {
-    const handleKeyDownGlobal = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) {
-        setIsFullscreen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDownGlobal);
-    return () => window.removeEventListener('keydown', handleKeyDownGlobal);
-  }, [isFullscreen]);
-
-  // Handle hardware / browser back to close Zen Fullscreen editor
-  useModalBackHandler({
-    isOpen: isFullscreen,
-    onClose: () => setIsFullscreen(false),
-    modalId: 'rich-textarea-fullscreen-mobile'
-  });
-
-  const applyFormatToRef = (
-    targetRef: React.RefObject<HTMLTextAreaElement | null>,
-    prefix: string,
-    suffix: string,
-    defaultText: string
-  ) => {
-    const el = targetRef.current;
-    const currentVal = value || '';
-    if (!el) {
-      onChange(currentVal + `${prefix}${defaultText}${suffix}`);
-      return;
-    }
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = currentVal.substring(start, end);
-
-    // List & Checklist insertion logic
-    if (prefix === '- ' || prefix === '1. ' || prefix === '- [ ] ') {
-      const textBefore = currentVal.substring(0, start);
-      const lastNewlineIdx = textBefore.lastIndexOf('\n');
-      const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
-      const lineText = currentVal.substring(lineStart, start);
-
-      if (lineText.trim() === '') {
-        const newText = currentVal.substring(0, lineStart) + prefix + currentVal.substring(start);
-        onChange(newText);
-        setTimeout(() => {
-          el.focus();
-          const newPos = lineStart + prefix.length;
-          el.setSelectionRange(newPos, newPos);
-        }, 0);
-        return;
-      } else {
-        const insertText = '\n' + prefix;
-        const newText = currentVal.substring(0, start) + insertText + currentVal.substring(end);
-        onChange(newText);
-        setTimeout(() => {
-          el.focus();
-          const newPos = start + insertText.length;
-          el.setSelectionRange(newPos, newPos);
-        }, 0);
-        return;
-      }
-    }
-
-    const replacement = selected ? `${prefix}${selected}${suffix}` : `${prefix}${defaultText}${suffix}`;
-    const newValue = currentVal.substring(0, start) + replacement + currentVal.substring(end);
-    onChange(newValue);
-    setTimeout(() => {
-      el.focus();
-      const newCursor = selected ? start + prefix.length + selected.length + suffix.length : start + prefix.length;
-      el.setSelectionRange(newCursor, newCursor + (selected ? 0 : defaultText.length));
-    }, 0);
-  };
-
-  const handleKeyDownSmartList = (
-    targetRef: React.RefObject<HTMLTextAreaElement | null>,
-    e: React.KeyboardEvent<HTMLTextAreaElement>
-  ) => {
-    if (e.key === 'Enter') {
-      const el = targetRef.current;
-      if (!el) return;
-
-      const currentVal = value || '';
-      const start = el.selectionStart;
-      const end = el.selectionEnd;
-      const textBefore = currentVal.substring(0, start);
-      const textAfter = currentVal.substring(end);
-
-      const lastNewlineIdx = textBefore.lastIndexOf('\n');
-      const currentLine = textBefore.substring(lastNewlineIdx + 1);
-
-      const checklistMatch = currentLine.match(/^([-*•]?\s*\[[ xX]?\]\s+)(.*)$/);
-      const bulletMatch = !checklistMatch ? currentLine.match(/^([-*•]\s+)(.*)$/) : null;
-      const numberMatch = currentLine.match(/^(\d+)(\.\s+)(.*)$/);
-
-      if (checklistMatch) {
-        e.preventDefault();
-        const content = checklistMatch[2];
-        if (content.trim() === '') {
-          const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
-          const newText = currentVal.substring(0, lineStart) + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            el.setSelectionRange(lineStart, lineStart);
-          }, 0);
-        } else {
-          const nextChecklist = '\n- [ ] ';
-          const newText = textBefore + nextChecklist + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            const newPos = start + nextChecklist.length;
-            el.setSelectionRange(newPos, newPos);
-          }, 0);
-        }
-      } else if (bulletMatch) {
-        e.preventDefault();
-        const prefix = bulletMatch[1];
-        const content = bulletMatch[2];
-
-        if (content.trim() === '') {
-          const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
-          const newText = currentVal.substring(0, lineStart) + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            el.setSelectionRange(lineStart, lineStart);
-          }, 0);
-        } else {
-          const nextBullet = '\n' + prefix;
-          const newText = textBefore + nextBullet + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            const newPos = start + nextBullet.length;
-            el.setSelectionRange(newPos, newPos);
-          }, 0);
-        }
-      } else if (numberMatch) {
-        e.preventDefault();
-        const num = parseInt(numberMatch[1], 10);
-        const dotSpace = numberMatch[2];
-        const content = numberMatch[3];
-
-        if (content.trim() === '') {
-          const lineStart = lastNewlineIdx === -1 ? 0 : lastNewlineIdx + 1;
-          const newText = currentVal.substring(0, lineStart) + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            el.setSelectionRange(lineStart, lineStart);
-          }, 0);
-        } else {
-          const nextPrefix = `\n${num + 1}${dotSpace}`;
-          const newText = textBefore + nextPrefix + textAfter;
-          onChange(newText);
-          setTimeout(() => {
-            el.focus();
-            const newPos = start + nextPrefix.length;
-            el.setSelectionRange(newPos, newPos);
-          }, 0);
-        }
-      }
-    }
-  };
-
-  const wordCount = (value || '').trim() ? (value || '').trim().split(/\s+/).length : 0;
-  const charCount = (value || '').length;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', width: '100%', ...style }}>
-      {label && <label className="form-label" style={{ marginBottom: '0.1rem' }}>{label}</label>}
-      
-      {/* Inline Formatting Helper Toolbar: Single Row Bar */}
-      <div className="rich-toolbar-wrapper">
-        <button
-          type="button"
-          className="rich-btn-format"
-          title="Teks Tebal (Bold)"
-          onClick={() => applyFormatToRef(textareaRef, '**', '**', 'teks tebal')}
-          style={{ flexShrink: 0 }}
-        >
-          <strong>B</strong>
-        </button>
-        <button
-          type="button"
-          className="rich-btn-format"
-          title="Teks Miring (Italic)"
-          onClick={() => applyFormatToRef(textareaRef, '*', '*', 'teks miring')}
-          style={{ flexShrink: 0 }}
-        >
-          <em>I</em>
-        </button>
-        <HeadingDropdown
-          onSelect={(level) => {
-            if (level === 1) applyFormatToRef(textareaRef, '\n# ', '\n', 'Judul Utama H1');
-            else if (level === 2) applyFormatToRef(textareaRef, '\n## ', '\n', 'Judul Bab H2');
-            else if (level === 3) applyFormatToRef(textareaRef, '\n### ', '\n', 'Sub Judul H3');
-          }}
-          btnClassName="rich-btn-format"
-        />
-        <ListDropdown
-          onSelect={(type) => {
-            if (type === 'bullet') applyFormatToRef(textareaRef, '- ', '', 'Poin list');
-            else if (type === 'number') applyFormatToRef(textareaRef, '1. ', '', 'Langkah');
-          }}
-          btnClassName="rich-btn-format"
-        />
-
-        {/* Fullscreen Button */}
-        <button
-          type="button"
-          className="rich-btn-fullscreen"
-          title="Buka Layar Penuh (Fullscreen Zen Mode)"
-          onClick={() => setIsFullscreen(true)}
-          style={{ flexShrink: 0, marginLeft: 'auto' }}
-        >
-          <Maximize2 size={12} /> Fullscreen
-        </button>
-      </div>
-
-      {/* Actual Textarea */}
-      <textarea
-        ref={textareaRef}
-        rows={rows}
-        className={className}
-        style={{
-          borderTopLeftRadius: 0,
-          borderTopRightRadius: 0,
-          marginTop: 0,
-          fontFamily: 'inherit',
-          lineHeight: 1.6,
-          fontSize: '0.88rem',
-          resize: 'vertical',
-          width: '100%',
-          maxWidth: '100%',
-          boxSizing: 'border-box',
-          minHeight: `${Math.max(rows * 28 + 20, 100)}px`
-        }}
-        placeholder={placeholder}
-        required={required}
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => handleKeyDownSmartList(textareaRef, e)}
-      />
-
-      {/* ==========================================================
-          FULLSCREEN ZEN-MODE EDITOR OVERLAY (Standard UI/UX Mobile)
-          ========================================================== */}
-      {isFullscreen && typeof document !== 'undefined' && createPortal(
-        <div className="zen-fullscreen-overlay">
-          {/* Mobile App Bar Header: Minimalist & Clean Bar */}
-          <div className="zen-fullscreen-header-mobile">
-            {/* Left: Title */}
-            <div className="zen-mobile-title-col">
-              <span className="zen-mobile-title">{label || 'Editor Teks'}</span>
-            </div>
-
-            {/* Right: Tab Switcher (Edit / Preview) */}
-            <div className="zen-mobile-tab-switch">
-              <button
-                type="button"
-                className={`zen-mobile-tab-btn ${mobileTab === 'editor' ? 'active' : 'inactive'}`}
-                onClick={() => setMobileTab('editor')}
-              >
-                <Edit3 size={11} /> Edit
-              </button>
-              <button
-                type="button"
-                className={`zen-mobile-tab-btn ${mobileTab === 'preview' ? 'active' : 'inactive'}`}
-                onClick={() => setMobileTab('preview')}
-              >
-                <Eye size={11} /> Preview
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Formatting Toolbar: Horizontal Scrolling Bar (Only shown in Editor tab) */}
-          {mobileTab === 'editor' && (
-            <div className="zen-mobile-toolbar-bar">
-              <button
-                type="button"
-                className="zen-mobile-toolbar-btn"
-                title="Teks Tebal"
-                onClick={() => applyFormatToRef(fullscreenTextareaRef, '**', '**', 'teks tebal')}
-              >
-                <strong>B</strong>
-              </button>
-              <button
-                type="button"
-                className="zen-mobile-toolbar-btn"
-                title="Teks Miring"
-                onClick={() => applyFormatToRef(fullscreenTextareaRef, '*', '*', 'teks miring')}
-              >
-                <em>I</em>
-              </button>
-              <HeadingDropdown
-                onSelect={(level) => {
-                  if (level === 1) applyFormatToRef(fullscreenTextareaRef, '\n# ', '\n', 'Judul Utama H1');
-                  else if (level === 2) applyFormatToRef(fullscreenTextareaRef, '\n## ', '\n', 'Judul Bab H2');
-                  else if (level === 3) applyFormatToRef(fullscreenTextareaRef, '\n### ', '\n', 'Sub Judul H3');
-                }}
-                btnClassName="zen-mobile-toolbar-btn"
-                isZen
-              />
-              <ListDropdown
-                onSelect={(type) => {
-                  if (type === 'bullet') applyFormatToRef(fullscreenTextareaRef, '- ', '', 'Poin list');
-                  else if (type === 'number') applyFormatToRef(fullscreenTextareaRef, '1. ', '', 'Langkah');
-                }}
-                btnClassName="zen-mobile-toolbar-btn"
-                isZen
-              />
-            </div>
-          )}
-
-          {/* Mobile Fullscreen Body */}
-          <div className="zen-fullscreen-body-mobile">
-            {mobileTab === 'editor' ? (
-              <div className="zen-mobile-textarea-wrap">
-                <textarea
-                  ref={fullscreenTextareaRef}
-                  className="zen-mobile-textarea"
-                  placeholder={placeholder || 'Tulis deskripsi atau konten lengkap di sini...'}
-                  value={value || ''}
-                  onChange={(e) => onChange(e.target.value)}
-                  onKeyDown={(e) => handleKeyDownSmartList(fullscreenTextareaRef, e)}
-                />
-              </div>
-            ) : (
-              <div className="zen-mobile-preview-wrap">
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  color: 'var(--primary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  marginBottom: '0.75rem',
-                  paddingBottom: '0.4rem',
-                  borderBottom: '1px solid var(--border-light)'
-                }}>
-                  <Eye size={12} />
-                  <span>Pratinjau Tampilan Konsumen (Live Preview)</span>
-                </div>
-
-                {(value || '').trim() ? (
-                  <FormattedText
-                    text={value}
-                    style={{ fontSize: '0.92rem', color: 'var(--text-primary)', lineHeight: '1.7' }}
-                  />
-                ) : (
-                  <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                    Belum ada teks yang ditulis. Ketik sesuatu di tab Edit untuk melihat hasil pratinjaunya secara rapi.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Mobile Footer Action Bar */}
-          <div className="zen-mobile-footer-bar">
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              fontSize: '0.74rem',
-              color: 'var(--text-muted)'
-            }}>
-              <span style={{
-                padding: '0.2rem 0.55rem',
-                borderRadius: '0.375rem',
-                backgroundColor: 'var(--bg-card-hover)',
-                border: '1px solid var(--border-light)',
-                color: 'var(--text-secondary)',
-                fontWeight: 700
-              }}>
-                {wordCount} kata
-              </span>
-              <span>•</span>
-              <span style={{
-                padding: '0.2rem 0.55rem',
-                borderRadius: '0.375rem',
-                backgroundColor: 'var(--bg-card-hover)',
-                border: '1px solid var(--border-light)',
-                color: 'var(--text-secondary)',
-                fontWeight: 700
-              }}>
-                {charCount} karakter
-              </span>
-            </div>
-
-            <button
-              type="button"
-              className="zen-mobile-done-btn"
-              onClick={() => setIsFullscreen(false)}
-            >
-              <Check size={14} /> Selesai
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-};
-
 export const safeHref = (url?: string): string => {
   if (!url || typeof url !== 'string') return '#';
   const trimmed = url.trim();
@@ -5195,6 +4309,16 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    const handleGlobalExternalPrompt = (e: any) => {
+      if (e.detail?.url) {
+        setExternalUrlWarning(e.detail.url);
+      }
+    };
+    window.addEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
+    return () => window.removeEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
+  }, []);
+
   const [notifications, setNotifications] = useState<Array<{
     id: number | string;
     title: string;
@@ -6656,7 +5780,37 @@ Terima kasih.`;
     };
   }, [markUserNavigation])
 
-  const [view, setView] = useState<'tabs' | 'fauna-editor' | 'product-type-selector'>('tabs')
+  // Persistent device classification cookie for resilient form-factor retention across refreshes
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('view') === 'mobile' || window.innerWidth < 768) {
+          document.cookie = 'catavor_device=mobile; path=/; max-age=2592000; SameSite=Lax';
+        }
+      }
+    } catch {}
+  }, []);
+
+  const [view, setView] = useState<'tabs' | 'fauna-editor' | 'product-type-selector'>(() => {
+    if (typeof window === 'undefined') return 'tabs';
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    const hasCreate = p.includes('/admin/items/create') || p.includes('/admin/items/new') || q.get('action') === 'create' || q.get('action') === 'new';
+    const hasEdit = p.includes('/admin/items/edit') || Boolean(q.get('edit')) || (q.get('action') === 'edit' && Boolean(q.get('id')));
+    if (hasCreate) {
+      const parts = p.split('/').filter(Boolean);
+      const createIdx = parts.indexOf('create');
+      const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+      const hasSpecificType = (createIdx !== -1 && parts[createIdx + 1] && ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(parts[createIdx + 1].toLowerCase())) ||
+        ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType);
+      return hasSpecificType ? 'fauna-editor' : 'product-type-selector';
+    }
+    if (hasEdit) {
+      return 'fauna-editor';
+    }
+    return 'tabs';
+  })
   const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'admin'>(() => {
     if (typeof window !== 'undefined') {
       const savedTab = sessionStorage.getItem('catavor_mobile_active_tab');
@@ -7205,7 +6359,21 @@ Terima kasih.`;
   const [showSortSheet, setShowSortSheet] = useState<boolean>(false)
   const [showFilterSheet, setShowFilterSheet] = useState<boolean>(false)
   const [categorySearch, setCategorySearch] = useState<string>('')
-  const [showProductTypeSelector, setShowProductTypeSelector] = useState<boolean>(false)
+  const [showProductTypeSelector, setShowProductTypeSelector] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    const hasCreate = p.includes('/admin/items/create') || p.includes('/admin/items/new') || q.get('action') === 'create' || q.get('action') === 'new';
+    if (hasCreate) {
+      const parts = p.split('/').filter(Boolean);
+      const createIdx = parts.indexOf('create');
+      const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+      const hasSpecificType = (createIdx !== -1 && parts[createIdx + 1] && ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(parts[createIdx + 1].toLowerCase())) ||
+        ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType);
+      return !hasSpecificType;
+    }
+    return false;
+  })
 
   // Context-Aware Action Menu (Three-Dots) & Report Sheet State
   const [actionMenuData, setActionMenuData] = useState<{ type: 'store' | 'item' | 'admin_menu'; item?: any } | null>(null)
@@ -7603,12 +6771,13 @@ Terima kasih.`;
         (
           (adminUser.store_slug && adminUser.store_slug.toLowerCase() === storeSlug.toLowerCase()) ||
           ((adminUser as any).username && (adminUser as any).username.toLowerCase() === storeSlug.toLowerCase()) ||
-          (userStores && userStores.some(s => s.slug.toLowerCase() === storeSlug.toLowerCase()))
+          (userStores && userStores.some(s => s.slug.toLowerCase() === storeSlug.toLowerCase())) ||
+          (Array.isArray((adminUser as any).stores) && (adminUser as any).stores.some((s: any) => s.slug?.toLowerCase() === storeSlug.toLowerCase()))
         )
       ) ||
       (
         (!storeSlug || isReservedStoreSlug(storeSlug || '')) &&
-        Boolean(adminUser.store_slug || resolveActiveStoreSlug() || (userStores && userStores.length > 0))
+        Boolean(adminUser.store_slug || resolveActiveStoreSlug() || (userStores && userStores.length > 0) || (Array.isArray((adminUser as any).stores) && (adminUser as any).stores.length > 0))
       )
     )
   );
@@ -9914,10 +9083,65 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [firstPasswordError, setFirstPasswordError] = useState<string | null>(null)
 
   // CRUD Form State
-  const [crudMode, setCrudMode] = useState<'create' | 'edit'>('create')
-  const [editId, setEditId] = useState<number | null>(null)
+  const [crudMode, setCrudMode] = useState<'create' | 'edit'>(() => {
+    if (typeof window === 'undefined') return 'create';
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    if (p.includes('/admin/items/edit') || Boolean(q.get('edit')) || (q.get('action') === 'edit' && Boolean(q.get('id')))) {
+      return 'edit';
+    }
+    return 'create';
+  });
+
+  const [editId, setEditId] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    const qEdit = q.get('edit') || q.get('id');
+    if (qEdit) {
+      const parsed = parseInt(qEdit, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    const parts = p.split('/').filter(Boolean);
+    const editIdx = parts.indexOf('edit');
+    if (editIdx !== -1 && parts.length > editIdx + 1) {
+      const lastPart = parts[parts.length - 1];
+      const parsed = parseInt(lastPart, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return null;
+  });
+
   const [isChangingTypeInEditor, setIsChangingTypeInEditor] = useState<boolean>(false)
-  const [crudForm, setCrudForm] = useState(() => getInitialCrudForm('physical'))
+
+  const [crudForm, setCrudForm] = useState(() => {
+    let initialType: ItemCategoryType = 'physical';
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase();
+      const q = new URLSearchParams(window.location.search);
+      const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+      if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType)) {
+        initialType = qType as ItemCategoryType;
+      } else {
+        const parts = p.split('/').filter(Boolean);
+        const createIdx = parts.indexOf('create');
+        if (createIdx !== -1 && parts[createIdx + 1]) {
+          const typeCandidate = parts[createIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(typeCandidate)) {
+            initialType = typeCandidate as ItemCategoryType;
+          }
+        }
+        const editIdx = parts.indexOf('edit');
+        if (editIdx !== -1 && parts[editIdx + 1]) {
+          const typeCandidate = parts[editIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(typeCandidate)) {
+            initialType = typeCandidate as ItemCategoryType;
+          }
+        }
+      }
+    }
+    return getInitialCrudForm(initialType);
+  });
 
   const resetCrudState = (type: ItemCategoryType = 'physical') => {
     // Revoke any pending ObjectURLs to prevent browser memory leaks
@@ -11040,16 +10264,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
     if (!faunas || faunas.length === 0) return;
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    if (parts.length >= 5 && parts[1] === 'admin' && parts[2] === 'items' && parts[3] === 'edit') {
-      const targetId = parts.length >= 6 ? parseInt(parts[5], 10) : parseInt(parts[4], 10);
+    const editIdx = parts.indexOf('edit');
+    let targetId: number | null = null;
+    if (editIdx !== -1 && parts.length > editIdx + 1) {
+      const candidate = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(candidate)) targetId = candidate;
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const editParam = urlParams.get('edit') || urlParams.get('id');
+    if (!targetId && editParam) {
+      const candidate = parseInt(editParam, 10);
+      if (!isNaN(candidate)) targetId = candidate;
+    }
+
+    if (targetId) {
       const found = faunas.find(f => f.id === targetId);
-      if (found && (!showCrudSheet || editId !== targetId)) {
+      if (found && (view !== 'fauna-editor' || editId !== targetId || !crudForm.name)) {
         openEditSheet(found);
       }
       return;
     }
 
-    const urlParams = new URLSearchParams(window.location.search);
     const itemId = urlParams.get('item') || activeDetailItemIdRef.current;
     if (itemId && !selectedFauna) {
       const found = faunas.find(f => f && f.id !== undefined && String(f.id) === itemId);
@@ -12668,6 +11903,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
           targetPath += `/admin`;
         }
       } else if (adminSubTab === 'items') {
+        const curP = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+        const curQ = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const isInitialCrudUrl = isInitialLoadRef.current && (
+          curP.includes('/admin/items/create') ||
+          curP.includes('/admin/items/edit') ||
+          curQ?.get('action') === 'create' ||
+          curQ?.get('action') === 'new' ||
+          curQ?.get('action') === 'edit' ||
+          Boolean(curQ?.get('edit'))
+        );
+        if (isInitialCrudUrl) {
+          return;
+        }
         targetPath += `/admin/items`;
       } else if (adminSubTab === 'analytics') {
         targetPath += `/admin/analytics`;
@@ -14259,6 +13507,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setShowCreateStoreModal(false);
     setIsCreatingTicket(false);
     setSelectedTicket(null);
+    setSelectedNotification(null);
+    try {
+      sessionStorage.removeItem('catavor_merchant_active_ticket_id');
+      sessionStorage.removeItem('catavor_merchant_active_ticket_data');
+      sessionStorage.removeItem('catavor_active_notification_id');
+      sessionStorage.removeItem('catavor_active_notification_data');
+    } catch {}
     setShowCategorySheet(false);
     setShowSortSheet(false);
     setShowFilterSheet(false);
@@ -14274,11 +13529,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const goToCatalog = () => {
     closeAllTransientOverlays()
     setActiveTab('catalog')
+    const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+    if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}`));
   }
 
   const goToAbout = () => {
     closeAllTransientOverlays()
     setActiveTab('about')
+    const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+    if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/about`));
   }
 
 
@@ -18209,18 +17468,26 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0f172a' }}>
                               {platformSettings.payment_qris_manual_merchant || 'Catavor Official Store'}
                             </div>
-                            <div style={{ width: '160px', height: '160px', borderRadius: '10px', background: '#ffffff', padding: '6px', border: '2px solid #2563eb' }}>
-                              <img 
-                                src={platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || '/img/qris_demo.svg'} 
+                            <div style={{ width: '160px', height: '160px', borderRadius: '10px', background: '#ffffff', padding: '6px', border: '2px solid #2563eb', overflow: 'hidden' }}>
+                              <SafeImage 
+                                src={platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || settings.payment_qris_manual_image || settings.payment_qris_image} 
+                                fallbackSrc="/img/qris_demo.svg" 
                                 alt="QRIS Catavor" 
-                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                objectFit="contain"
+                                emptyLabel="QRIS Belum Tersedia"
+                                emptySubLabel="Hubungi admin platform"
+                                errorLabel="QRIS Rusak"
+                                errorSubLabel="Gagal memuat gambar"
+                                isDark={false}
+                                compact={true}
+                                wrapperStyle={{ width: '100%', height: '100%' }}
                               />
                             </div>
                             <p style={{ fontSize: '0.72rem', color: '#64748b', margin: 0 }}>
                               Scan QRIS dengan GoPay, OVO, ShopeePay, BCA Mobile, atau aplikasi bank lainnya.
                             </p>
                             <a 
-                              href={platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || '/img/qris_demo.svg'} 
+                              href={platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || settings.payment_qris_manual_image || settings.payment_qris_image || '/img/qris_demo.svg'} 
                               download="QRIS_Catavor_Payment.svg"
                               style={{ 
                                 display: 'inline-flex', 
@@ -19499,35 +18766,35 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
   );
 
 
-  // Native App Standard: Show bottom nav at top-level merchant pages (menu, items, settings), hide on modal/detail views
+  // Native App Standard: Show bottom nav across all primary merchant admin & storefront tabs, hide on modal/detail views
   const isBottomNavVisible = Boolean(
     settings?.dormancy_status !== 'suspended' &&
     !settings?.is_suspended &&
     settings?.dormancy_status !== 'banned' &&
     !showLightbox &&
-    !selectedFauna &&
-    !isDetailActive &&
     !actionMenuData &&
     !showStoreSwitcherModal &&
     !showCreateStoreModal &&
-    !isCreatingTicket &&
-    !selectedTicket &&
     view === 'tabs' &&
     (
-      // 1. In Admin Mode: Show bottom bar on 'menu', 'items' (Inventaris), and root 'settings' (Pengaturan menu)
+      // 1. In Admin Mode: Show bottom bar ONLY across primary root merchant screens
+      // (Menu dashboard, Inventaris items list, Settings root menu).
+      // Automatically hide on all feature sub-pages / deep drill-downs:
+      // (Analitik, Langganan, Profil Akun, Bantuan, Bagikan, Riwayat Log, RBAC, Kebijakan, Notifikasi, serta sub-halaman Pengaturan seperti Tema, Master, Profil, Kontak, Domain, dll.)
       (
         activeTab === 'admin' &&
         token &&
-        isStoreOwner &&
         (
           adminSubTab === 'menu' ||
           adminSubTab === 'items' ||
           (adminSubTab === 'settings' && (!mobileSettingsTab || mobileSettingsTab === 'menu'))
         )
       ) ||
-      // 2. In Public Storefront Mode: Show bottom bar on root tabs
+      // 2. In Public Storefront Mode: Show bottom bar on root tabs (catalog, about), hide on item detail modal and QR code view
       (
         activeTab !== 'admin' &&
+        !selectedFauna &&
+        !isDetailActive &&
         !(activeTab === 'about' && aboutSubView === 'qrcode')
       )
     )
@@ -32962,7 +32229,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       {isBottomNavVisible && !isSuspendedAccountState && !(activeTab === 'admin' && !token) && (
         <ErrorBoundary sectionName="Bilah Navigasi Bawah (Mobile)">
         <nav className="bottom-nav">
-          {activeTab === 'admin' && token && isStoreOwner ? (
+          {activeTab === 'admin' && token && (isStoreOwner || Boolean(adminUser)) ? (
             /* MERCHANT ADMIN BOTTOM BAR (NATIVE APP STYLE) */
             <>
               <button 
@@ -32971,6 +32238,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 onClick={() => {
                   closeAllTransientOverlays();
                   setAdminSubTab('menu');
+                  const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+                  if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/admin`));
                 }}
               >
                 <div style={{ position: 'relative', display: 'inline-flex' }}>
@@ -32998,6 +32267,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   closeAllTransientOverlays();
                   setAdminSubTab('items');
                   setEditId(null);
+                  const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+                  if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/admin/items`));
                 }}
               >
                 <Layers size={20} />
@@ -33010,7 +32281,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   closeAllTransientOverlays();
                   setAdminSubTab('settings');
                   setMobileSettingsTab('menu');
-                  if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/settings`);
+                  const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+                  if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/admin/settings`));
                 }}
               >
                 <Settings size={20} />
@@ -33022,7 +32294,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 onClick={() => {
                   closeAllTransientOverlays();
                   setActiveTab('catalog');
-                  window.history.pushState({}, '', `/${storeSlug}`);
+                  const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+                  if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}`));
                 }}
               >
                 <ExternalLink size={20} />
@@ -33056,7 +32329,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     closeAllTransientOverlays();
                     setActiveTab('admin');
                     setAdminSubTab('menu');
-                    window.history.pushState({}, '', `/${storeSlug}/admin`);
+                    const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+                    if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/admin`));
                   }}
                 >
                   <div style={{ position: 'relative', display: 'inline-flex' }}>

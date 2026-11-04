@@ -1112,9 +1112,11 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
 
             {/* Scrollable Container with Custom Elegant Scrollbar */}
             <div
-              className="catavor-table-scrollbar"
+              className="catavor-table-scrollbar tablet-sticky-table-container"
               style={{
                 width: '100%',
+                maxHeight: 'min(62vh, 640px)',
+                overflowY: 'auto',
                 overflowX: 'auto',
                 WebkitOverflowScrolling: 'touch',
                 borderRadius: '0.85rem',
@@ -1124,6 +1126,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
               }}
             >
               <table
+                className="tablet-sticky-table"
                 style={{
                   width: '100%',
                   minWidth: '1240px',
@@ -1137,6 +1140,7 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                   <tr style={{ backgroundColor: 'var(--bg-deep)' }}>
                     {/* Sticky Left Header: Profil Merchant */}
                     <th
+                      className="sticky-col"
                       style={{
                         padding: '0.95rem 1.25rem',
                         fontWeight: 700,
@@ -1169,6 +1173,10 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                         fontSize: '0.78rem',
                         textTransform: 'uppercase',
                         letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
                         borderBottom: '1px solid var(--border-light)',
                         width: '230px',
                         minWidth: '230px',
@@ -1187,6 +1195,10 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                         fontSize: '0.78rem',
                         textTransform: 'uppercase',
                         letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
                         borderBottom: '1px solid var(--border-light)',
                         width: '190px',
                         minWidth: '190px',
@@ -1206,6 +1218,10 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                         textTransform: 'uppercase',
                         letterSpacing: '0.04em',
                         textAlign: 'center',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
                         borderBottom: '1px solid var(--border-light)',
                         width: '120px',
                         minWidth: '120px',
@@ -1224,6 +1240,10 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                         fontSize: '0.78rem',
                         textTransform: 'uppercase',
                         letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
                         borderBottom: '1px solid var(--border-light)',
                         width: '200px',
                         minWidth: '200px',
@@ -1242,6 +1262,10 @@ export const TabletPlatformStoresView: React.FC<TabletPlatformStoresViewProps> =
                         fontSize: '0.78rem',
                         textTransform: 'uppercase',
                         letterSpacing: '0.04em',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10,
+                        backgroundColor: 'var(--bg-deep)',
                         borderBottom: '1px solid var(--border-light)',
                         width: '190px',
                         minWidth: '190px',

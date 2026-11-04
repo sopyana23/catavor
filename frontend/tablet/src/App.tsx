@@ -33,6 +33,7 @@ import {
 import { initGoogleAdSense } from './utils/googleAdSense';
 import { initGoogleAnalytics } from './utils/googleAnalytics';
 import { smartBack } from './utils/navigation';
+import { ExternalLinkWarningModal } from './components/ExternalLinkWarningModal';
 
 const RESERVED_SLUGS = [
   'api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'ops',
@@ -63,6 +64,24 @@ export const extractSlugFromPath = (pathname: string): string | null => {
     } catch { }
   }
   return null;
+};
+
+
+export const TabletGlobalSecurityModal: React.FC = () => {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handlePrompt = (e: any) => {
+      if (e.detail?.url) {
+        setUrl(e.detail.url);
+      }
+    };
+    window.addEventListener('catavor_prompt_external_url', handlePrompt);
+    return () => window.removeEventListener('catavor_prompt_external_url', handlePrompt);
+  }, []);
+
+  if (!url) return null;
+  return <ExternalLinkWarningModal url={url} onClose={() => setUrl(null)} />;
 };
 
 export const App: React.FC = () => {
@@ -111,6 +130,18 @@ export const App: React.FC = () => {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginRedirectPortal, setLoginRedirectPortal] = useState<string | null>(null);
+
+  // Persistent device classification cookie for resilient form-factor retention across refreshes
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('view') === 'tablet' || (!urlParams.get('view') && window.innerWidth >= 768 && window.innerWidth < 1024)) {
+          document.cookie = 'catavor_device=tablet; path=/; max-age=2592000; SameSite=Lax';
+        }
+      }
+    } catch {}
+  }, []);
 
   // Dynamic Theme Sync (navy, emerald, cyberpunk, ocean, pastel, sage, nordic, cream)
   useEffect(() => {
@@ -868,7 +899,9 @@ export const App: React.FC = () => {
     }
   }, [token, currentUser, currentPath, merchantSlug]);
 
+  const renderContent = () => {
   // 1. PUBLIC STORE CATALOG ROUTE (e.g. /:slug and not admin, platform, ops, or login)
+
   if (activeSlug && !isStoreAdminRoute && !isLoginRoute && !isPlatformAdminPath) {
     return (
       <TabletStoreCatalog
@@ -2023,7 +2056,14 @@ export const App: React.FC = () => {
       currentUser={currentUser}
     />
   );
+  };
+
+  return (
+    <>
+      {renderContent()}
+      <TabletGlobalSecurityModal />
+    </>
+  );
 };
 
 export default App;
-

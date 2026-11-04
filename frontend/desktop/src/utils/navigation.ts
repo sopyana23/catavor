@@ -17,11 +17,26 @@ interface ModalEntry {
 const modalStack: ModalEntry[] = [];
 let isPopstateListenerActive = false;
 let isInternalBackTriggered = false;
+let pendingProgrammaticPops = 0;
 
 function ensurePopstateListener() {
   if (isPopstateListenerActive || typeof window === 'undefined') return;
 
   window.addEventListener('popstate', (event) => {
+    // If popstate was triggered by our own modal cleanup popping its own dummy entry,
+    // consume the pop and do NOT pop or close any parent modal from the stack!
+    if (pendingProgrammaticPops > 0) {
+      pendingProgrammaticPops--;
+      if (pendingProgrammaticPops === 0) {
+        window.__catavor_is_modal_popping = false;
+      }
+      return;
+    }
+
+    if (window.__catavor_is_modal_popping) {
+      return;
+    }
+
     // If there is an open modal on the stack, intercept popstate to close the topmost modal
     if (modalStack.length > 0) {
       const topModal = modalStack.pop();
@@ -210,11 +225,17 @@ export function useModalBackHandler({
 
       // If closed by UI action (click ✕ or backdrop, not via popstate), pop the dummy history entry
       if (!isInternalBackTriggered && window.history.state?.modalKey === uniqueKey) {
+        pendingProgrammaticPops++;
         window.__catavor_is_modal_popping = true;
         window.history.back();
         setTimeout(() => {
-          window.__catavor_is_modal_popping = false;
-        }, 120);
+          if (pendingProgrammaticPops > 0) {
+            pendingProgrammaticPops--;
+          }
+          if (pendingProgrammaticPops === 0) {
+            window.__catavor_is_modal_popping = false;
+          }
+        }, 400);
       }
       isInternalBackTriggered = false;
     };
@@ -246,11 +267,17 @@ export function setupModalBackInterceptor(onClose: () => void, modalId: string =
       modalStack.splice(index, 1);
     }
     if (!isInternalBackTriggered && window.history.state?.modalKey === uniqueKey) {
+      pendingProgrammaticPops++;
       window.__catavor_is_modal_popping = true;
       window.history.back();
       setTimeout(() => {
-        window.__catavor_is_modal_popping = false;
-      }, 120);
+        if (pendingProgrammaticPops > 0) {
+          pendingProgrammaticPops--;
+        }
+        if (pendingProgrammaticPops === 0) {
+          window.__catavor_is_modal_popping = false;
+        }
+      }, 400);
     }
     isInternalBackTriggered = false;
   };

@@ -543,33 +543,6 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		UpdatedAt:     now,
 	}
 
-	if err := h.db.Create(&ticket).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal membuat tiket bantuan baru.",
-		})
-	}
-
-	// Create initial message
-	msg := models.SupportMessage{
-		TicketID:       ticket.ID,
-		SenderID:       user.ID,
-		SenderType:     "user",
-		Message:        initialMessage,
-		IsInternalNote: false,
-		CreatedAt:      now,
-	}
-	h.db.Create(&msg)
-
-	// Save attachments
-	if len(req.Attachments) > 0 {
-		for _, att := range req.Attachments {
-			if attachment, ok := h.buildSupportAttachment(msg.ID, att, now); ok {
-				h.db.Create(&attachment)
-			}
-		}
-	}
-
 	// 🤖 Automated SLA & Welcome Auto-Responder (Instant Trigger)
 	var systemUserID uint = 1
 	var firstAdmin models.User
@@ -593,15 +566,54 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		autoMsgContent = fmt.Sprintf("Halo %s, pesan Anda pada tiket #%s telah kami terima. Saat ini layanan bantuan sedang berada di luar jam operasional (Senin - Jumat, 08:00 - 17:00 WIB). Tim CS Catavor akan segera membalas kendala Anda mulai pukul 08:00 WIB pada hari kerja berikutnya.", merchantName, ticket.TicketNumber)
 	}
 
-	autoMsg := models.SupportMessage{
-		TicketID:       ticket.ID,
-		SenderID:       systemUserID,
-		SenderType:     "system",
-		Message:        autoMsgContent,
-		IsInternalNote: false,
-		CreatedAt:      now.Add(time.Second),
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&ticket).Error; err != nil {
+			return err
+		}
+
+		// Create initial message
+		msg := models.SupportMessage{
+			TicketID:       ticket.ID,
+			SenderID:       user.ID,
+			SenderType:     "user",
+			Message:        initialMessage,
+			IsInternalNote: false,
+			CreatedAt:      now,
+		}
+		if err := tx.Create(&msg).Error; err != nil {
+			return err
+		}
+
+		// Save attachments
+		if len(req.Attachments) > 0 {
+			for _, att := range req.Attachments {
+				if attachment, ok := h.buildSupportAttachment(msg.ID, att, now); ok {
+					if err := tx.Create(&attachment).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		autoMsg := models.SupportMessage{
+			TicketID:       ticket.ID,
+			SenderID:       systemUserID,
+			SenderType:     "system",
+			Message:        autoMsgContent,
+			IsInternalNote: false,
+			CreatedAt:      now.Add(time.Second),
+		}
+		return tx.Create(&autoMsg).Error
+	})
+
+	if txErr != nil {
+		log.Error().Err(txErr).Uint("user_id", user.ID).Msg("support: gagal membuat tiket dalam DB transaction")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal membuat tiket bantuan baru.",
+		})
 	}
-	h.db.Create(&autoMsg)
 
 	// Preload ticket relations
 	h.db.Preload("User").Preload("Store").Preload("Messages.Attachments").First(&ticket, ticket.ID)
@@ -685,16 +697,6 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 		IsInternalNote: false,
 		CreatedAt:      now,
 	}
-	h.db.Create(&msg)
-
-	// Save attachments
-	if len(req.Attachments) > 0 {
-		for _, att := range req.Attachments {
-			if attachment, ok := h.buildSupportAttachment(msg.ID, att, now); ok {
-				h.db.Create(&attachment)
-			}
-		}
-	}
 
 	// Auto-Reopen if ticket was resolved, or set to waiting_agent
 	if ticket.Status == "resolved" {
@@ -708,7 +710,35 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 	ticket.ReminderSentAt = nil
 	ticket.LastMessageAt = now
 	ticket.UpdatedAt = now
-	h.db.Save(&ticket)
+
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&msg).Error; err != nil {
+			return err
+		}
+
+		// Save attachments
+		if len(req.Attachments) > 0 {
+			for _, att := range req.Attachments {
+				if attachment, ok := h.buildSupportAttachment(msg.ID, att, now); ok {
+					if err := tx.Create(&attachment).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		return tx.Save(&ticket).Error
+	})
+
+	if txErr != nil {
+		log.Error().Err(txErr).Uint("ticket_id", ticket.ID).Msg("support: gagal membalas tiket dalam DB transaction")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mengirim balasan tiket.",
+		})
+	}
+
 	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
 	// Preload created message
@@ -1082,18 +1112,11 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 		IsInternalNote: req.IsInternalNote,
 		CreatedAt:      now,
 	}
-	h.db.Create(&msg)
 
-	// Save attachments
-	if len(req.Attachments) > 0 {
-		for _, att := range req.Attachments {
-			if attachment, ok := h.buildSupportAttachment(msg.ID, att, now); ok {
-				h.db.Create(&attachment)
-			}
-		}
-	}
+	var notif *models.Notification
+	var actionURL string
 
-	// If not internal note, update ticket status to waiting_user, track First Response SLA & notify merchant
+	// If not internal note, update ticket status to waiting_user, track First Response SLA & prepare merchant notification
 	if !req.IsInternalNote {
 		ticket.Status = "waiting_user"
 
@@ -1108,7 +1131,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 		// Multi-Channel Outbound Alert: Create In-App Notification for merchant (Store-Scoped)
 		notifTargetType := "single_user"
 		notifTargetID := ticket.UserID
-		actionURL := fmt.Sprintf("/admin/help?ticket=%s", ticket.TicketNumber)
+		actionURL = fmt.Sprintf("/admin/help?ticket=%s", ticket.TicketNumber)
 
 		if ticket.StoreID != nil && *ticket.StoreID > 0 {
 			notifTargetType = "single_store"
@@ -1120,7 +1143,7 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			}
 		}
 
-		notif := models.Notification{
+		notif = &models.Notification{
 			ID:          fmt.Sprintf("notif-supp-%d-%d", ticket.ID, now.UnixNano()),
 			TargetType:  notifTargetType,
 			TargetID:    notifTargetID,
@@ -1135,9 +1158,48 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			CreatedAt:   now,
 			UpdatedAt:   now,
 		}
-		if err := h.db.Create(&notif).Error; err == nil {
-			services.GetNotificationHub().Broadcast(&notif)
+	}
+	ticket.LastMessageAt = now
+	ticket.UpdatedAt = now
+
+	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&msg).Error; err != nil {
+			return err
 		}
+
+		// Save attachments
+		if len(req.Attachments) > 0 {
+			for _, att := range req.Attachments {
+				if attachment, ok := h.buildSupportAttachment(msg.ID, att, now); ok {
+					if err := tx.Create(&attachment).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		if notif != nil {
+			if err := tx.Create(notif).Error; err != nil {
+				return err
+			}
+		}
+
+		return tx.Save(&ticket).Error
+	})
+
+	if txErr != nil {
+		log.Error().Err(txErr).Uint("ticket_id", ticket.ID).Msg("support: gagal membalas tiket sebagai admin dalam DB transaction")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mengirim balasan tiket.",
+		})
+	}
+
+	database.InvalidateTicketCache(c.Context(), ticket.ID)
+
+	if notif != nil {
+		services.GetNotificationHub().Broadcast(notif)
 
 		// Transactional Outbox Email Dispatch: Enqueue professional notification email for merchant
 		var ticketUser models.User
@@ -1179,10 +1241,6 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			)
 		}
 	}
-	ticket.LastMessageAt = now
-	ticket.UpdatedAt = now
-	h.db.Save(&ticket)
-	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
 	h.db.Preload("Attachments").Preload("Sender").First(&msg, msg.ID)
 
