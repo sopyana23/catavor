@@ -943,19 +943,42 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const [selectedProductId, setSelectedProductId] = useState<number | string | null>(() => {
     if (typeof window !== 'undefined') {
-      const isActionNew = new URLSearchParams(window.location.search).get('action') === 'new';
+      const p = window.location.pathname.toLowerCase();
+      const q = new URLSearchParams(window.location.search);
+      const isActionNew = q.get('action') === 'new' || q.get('action') === 'create' || p.includes('/admin/items/create') || p.includes('/admin/items/new');
       if (isActionNew) {
         return 'new';
+      }
+      const qEdit = q.get('edit') || q.get('id');
+      const isActionEdit = q.get('action') === 'edit' || Boolean(q.get('edit')) || p.includes('/admin/items/edit');
+      if (isActionEdit) {
+        if (qEdit) {
+          const parsed = parseInt(qEdit, 10);
+          if (!isNaN(parsed)) return parsed;
+        }
+        const parts = p.split('/').filter(Boolean);
+        const editIdx = parts.indexOf('edit');
+        if (editIdx !== -1 && parts.length > editIdx + 1) {
+          const lastPart = parts[parts.length - 1];
+          const parsed = parseInt(lastPart, 10);
+          if (!isNaN(parsed)) return parsed;
+        }
       }
     }
     return null;
   });
   const [isSelectingProductType, setIsSelectingProductType] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const isActionNew = new URLSearchParams(window.location.search).get('action') === 'new';
-      const hasType = Boolean(new URLSearchParams(window.location.search).get('type') || new URLSearchParams(window.location.search).get('catalog_type'));
-      if (isActionNew && !hasType) {
-        return true;
+      const p = window.location.pathname.toLowerCase();
+      const q = new URLSearchParams(window.location.search);
+      const isActionNew = q.get('action') === 'new' || q.get('action') === 'create' || p.includes('/admin/items/create') || p.includes('/admin/items/new');
+      if (isActionNew) {
+        const parts = p.split('/').filter(Boolean);
+        const createIdx = parts.indexOf('create');
+        const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+        const hasSpecificType = (createIdx !== -1 && parts[createIdx + 1] && ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(parts[createIdx + 1].toLowerCase())) ||
+          ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType);
+        return !hasSpecificType;
       }
     }
     return false;
@@ -1154,33 +1177,75 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [isBatchUploading, setIsBatchUploading] = useState<boolean>(false);
   const [uploadingPhotoIndex, setUploadingPhotoIndex] = useState<number | null>(null);
 
-  const [productForm, setProductForm] = useState({
-    id: 0,
-    name: '',
-    price: 0,
-    stock: 1,
-    category_id: '',
-    class: '',
-    product_type: '',
-    conservation_status: 'Tersedia',
-    scientific_name: '',
-    unit: 'Pcs',
-    description: '',
-    image_url: '',
-    video_url: '',
-    is_active: true,
-    is_shipping_available: true,
-    min_order: 1,
-    max_order: '' as string | number,
-    shipping_terms: '',
-    warranty_info: '',
-    shipping_coverage: 'Bisa Kirim se-Indonesia',
-    purchase_links: [] as Array<{ platform: string; url: string }>,
-    enable_wa_rekber: true,
-    enable_wa_direct: true,
-    whatsapp_contact_id: 'default',
-    gallery_images: [] as string[],
-    attributes: {} as Record<string, any>
+  const [productForm, setProductForm] = useState(() => {
+    let initialType = '';
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase();
+      const q = new URLSearchParams(window.location.search);
+      const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+      if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType)) {
+        initialType = qType;
+      } else {
+        const parts = p.split('/').filter(Boolean);
+        const createIdx = parts.indexOf('create');
+        if (createIdx !== -1 && parts[createIdx + 1]) {
+          const cand = parts[createIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(cand)) {
+            initialType = cand;
+          }
+        }
+        const editIdx = parts.indexOf('edit');
+        if (editIdx !== -1 && parts[editIdx + 1]) {
+          const cand = parts[editIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(cand)) {
+            initialType = cand;
+          }
+        }
+      }
+    }
+    const defaultAttrs: Record<string, any> = {};
+    if (initialType) {
+      if (initialType === 'physical') {
+        defaultAttrs.condition = 'Baru';
+        defaultAttrs.weight = 100;
+      } else if (initialType === 'food') {
+        defaultAttrs.halal_status = 'Bersertifikat Halal Resmi (BPJPH / MUI)';
+        defaultAttrs.storage_temp = 'Suhu Ruang';
+      } else if (initialType === 'digital') {
+        defaultAttrs.file_format = 'PDF';
+        defaultAttrs.file_size = '10 MB';
+        defaultAttrs.license_type = 'Lisensi Personal';
+      }
+      defaultAttrs.conservation_status = getAvailabilityStatusOptions(initialType as ItemCategoryType)[0].value;
+    }
+    return {
+      id: 0,
+      name: '',
+      price: 0,
+      stock: 1,
+      category_id: '',
+      class: '',
+      product_type: initialType,
+      conservation_status: initialType ? getAvailabilityStatusOptions(initialType as ItemCategoryType)[0].value : 'Tersedia',
+      scientific_name: '',
+      unit: 'Pcs',
+      description: '',
+      image_url: '',
+      video_url: '',
+      is_active: true,
+      is_shipping_available: true,
+      min_order: 1,
+      max_order: '' as string | number,
+      shipping_terms: '',
+      warranty_info: '',
+      shipping_coverage: 'Bisa Kirim se-Indonesia',
+      purchase_links: [] as Array<{ platform: string; url: string }>,
+      enable_wa_rekber: true,
+      enable_wa_direct: true,
+      whatsapp_contact_id: 'default',
+      gallery_images: [] as string[],
+      attributes: defaultAttrs
+    };
   });
 
   const storeWAContacts = useMemo(() => {
@@ -1497,6 +1562,31 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         setProductTotalPages(totalPages);
         setProductTotalRecords(totalItems);
         setHasEverLoadedProducts(true);
+
+        if (selectedProductId && selectedProductId !== 'new') {
+          const targetId = typeof selectedProductId === 'number' ? selectedProductId : parseInt(String(selectedProductId), 10);
+          const found = list.find((p: any) => p && p.id === targetId);
+          if (found) {
+            handleSelectProduct(found);
+          } else {
+            try {
+              const singleRes = await fetch(`/api/products/${targetId}`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'X-Store-Slug': storeSlug,
+                  'Accept': 'application/json'
+                }
+              });
+              if (singleRes.ok) {
+                const sJson = await singleRes.json();
+                const singleProd = sJson.data || sJson.product;
+                if (singleProd) {
+                  handleSelectProduct(singleProd);
+                }
+              }
+            } catch {}
+          }
+        }
       }
     } catch {
       // safe fallback
@@ -1529,10 +1619,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     setIsSelectingProductType(false);
     try {
       const url = new URL(window.location.href);
-      url.searchParams.delete('action');
-      url.searchParams.delete('type');
-      url.searchParams.delete('catalog_type');
-      window.history.pushState({}, '', url.toString());
+      url.searchParams.set('tab', 'items');
+      url.searchParams.set('action', 'edit');
+      url.searchParams.set('id', String(prod.id));
+      url.searchParams.set('type', prod.product_type || 'physical');
+      window.history.pushState({ tab: 'items', action: 'edit', id: prod.id, type: prod.product_type }, '', url.toString());
     } catch {}
 
     let loadedPhotos: string[] = [];
@@ -1727,6 +1818,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     isOpen: activeTab === 'items' && typeof selectedProductId === 'number',
     onClose: () => {
       setSelectedProductId(null);
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('action');
+        url.searchParams.delete('id');
+        url.searchParams.delete('type');
+        url.searchParams.delete('catalog_type');
+        window.history.replaceState({ tab: 'items' }, '', url.toString());
+      } catch {}
     },
     modalId: 'tablet_edit_item_modal'
   });
@@ -4819,6 +4918,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   try {
                     const url = new URL(window.location.href);
                     url.searchParams.delete('action');
+                    url.searchParams.delete('id');
                     url.searchParams.delete('type');
                     url.searchParams.delete('catalog_type');
                     window.history.replaceState({ tab: 'items' }, '', url.toString());
@@ -4899,6 +4999,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             try {
                               const url = new URL(window.location.href);
                               url.searchParams.delete('action');
+                              url.searchParams.delete('id');
                               url.searchParams.delete('type');
                               url.searchParams.delete('catalog_type');
                               window.history.replaceState({ tab: 'items' }, '', url.toString());
@@ -5135,6 +5236,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             try {
                               const url = new URL(window.location.href);
                               url.searchParams.delete('action');
+                              url.searchParams.delete('id');
                               url.searchParams.delete('type');
                               url.searchParams.delete('catalog_type');
                               window.history.replaceState({ tab: 'items' }, '', url.toString());
@@ -6967,6 +7069,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           try {
                             const url = new URL(window.location.href);
                             url.searchParams.delete('action');
+                            url.searchParams.delete('id');
                             url.searchParams.delete('type');
                             url.searchParams.delete('catalog_type');
                             window.history.replaceState({ tab: 'items' }, '', url.toString());

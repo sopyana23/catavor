@@ -6408,7 +6408,14 @@ Terima kasih.`;
   }, [view, serverCatalogItems, faunas, search, classFilter, habitatFilter, productTypeFilter, sortBy]);
 
   // Modals
-  const [showCrudModal, setShowCrudModal] = useState<boolean>(false)
+  const [showCrudModal, setShowCrudModal] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    const hasCreate = p.includes('/admin/items/create') || p.includes('/admin/items/new') || q.get('action') === 'create' || q.get('action') === 'new';
+    const hasEdit = p.includes('/admin/items/edit') || Boolean(q.get('edit')) || (q.get('action') === 'edit' && Boolean(q.get('id')));
+    return hasCreate || hasEdit;
+  })
   const [isDetailActive, setIsDetailActive] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const initialItem = new URLSearchParams(window.location.search).get('item');
@@ -8963,9 +8970,63 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [firstPasswordError, setFirstPasswordError] = useState<string | null>(null)
 
   // CRUD Form State
-  const [crudMode, setCrudMode] = useState<'create' | 'edit'>('create')
-  const [editId, setEditId] = useState<number | null>(null)
-  const [crudForm, setCrudForm] = useState(() => getInitialCrudForm('physical'))
+  const [crudMode, setCrudMode] = useState<'create' | 'edit'>(() => {
+    if (typeof window === 'undefined') return 'create';
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    if (p.includes('/admin/items/edit') || Boolean(q.get('edit')) || (q.get('action') === 'edit' && Boolean(q.get('id')))) {
+      return 'edit';
+    }
+    return 'create';
+  });
+
+  const [editId, setEditId] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    const qEdit = q.get('edit') || q.get('id');
+    if (qEdit) {
+      const parsed = parseInt(qEdit, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    const parts = p.split('/').filter(Boolean);
+    const editIdx = parts.indexOf('edit');
+    if (editIdx !== -1 && parts.length > editIdx + 1) {
+      const lastPart = parts[parts.length - 1];
+      const parsed = parseInt(lastPart, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return null;
+  });
+
+  const [crudForm, setCrudForm] = useState(() => {
+    let initialType: ItemCategoryType = 'physical';
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase();
+      const q = new URLSearchParams(window.location.search);
+      const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+      if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType)) {
+        initialType = qType as ItemCategoryType;
+      } else {
+        const parts = p.split('/').filter(Boolean);
+        const createIdx = parts.indexOf('create');
+        if (createIdx !== -1 && parts[createIdx + 1]) {
+          const typeCandidate = parts[createIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(typeCandidate)) {
+            initialType = typeCandidate as ItemCategoryType;
+          }
+        }
+        const editIdx = parts.indexOf('edit');
+        if (editIdx !== -1 && parts[editIdx + 1]) {
+          const typeCandidate = parts[editIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(typeCandidate)) {
+            initialType = typeCandidate as ItemCategoryType;
+          }
+        }
+      }
+    }
+    return getInitialCrudForm(initialType);
+  });
 
   // Multi-image management states (Deferred Upload Architecture)
   const [crudImages, setCrudImages] = useState<string[]>([''])
@@ -9833,7 +9894,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     if (parts.length >= 5 && parts[1] === 'admin' && parts[2] === 'items' && parts[3] === 'edit') {
       const targetId = parts.length >= 6 ? parseInt(parts[5], 10) : parseInt(parts[4], 10);
       const found = faunas.find(f => f.id === targetId);
-      if (found && (!showCrudModal || editId !== targetId)) {
+      if (found && (!showCrudModal || editId !== targetId || !crudForm.name)) {
         openEditModal(found);
       }
       return;
@@ -9844,7 +9905,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
     if (editParam) {
       const targetId = parseInt(editParam, 10);
       const found = faunas.find(f => f && f.id === targetId);
-      if (found && (!showCrudModal || editId !== targetId)) {
+      if (found && (!showCrudModal || editId !== targetId || !crudForm.name)) {
         openEditModal(found);
         return;
       }
@@ -11272,6 +11333,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
             targetPath += `/admin/items`;
           }
         } else {
+          const curP = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+          const curQ = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+          const isInitialCrudUrl = isInitialLoadRef.current && (
+            curP.includes('/admin/items/create') ||
+            curP.includes('/admin/items/edit') ||
+            curQ?.get('action') === 'create' ||
+            curQ?.get('action') === 'new' ||
+            curQ?.get('action') === 'edit' ||
+            Boolean(curQ?.get('edit'))
+          );
+          if (isInitialCrudUrl) {
+            return;
+          }
           targetPath += `/admin/items`;
         }
       } else if (adminTab === 'categories') {

@@ -5760,7 +5760,25 @@ Terima kasih.`;
     } catch {}
   }, []);
 
-  const [view, setView] = useState<'tabs' | 'fauna-editor' | 'product-type-selector'>('tabs')
+  const [view, setView] = useState<'tabs' | 'fauna-editor' | 'product-type-selector'>(() => {
+    if (typeof window === 'undefined') return 'tabs';
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    const hasCreate = p.includes('/admin/items/create') || p.includes('/admin/items/new') || q.get('action') === 'create' || q.get('action') === 'new';
+    const hasEdit = p.includes('/admin/items/edit') || Boolean(q.get('edit')) || (q.get('action') === 'edit' && Boolean(q.get('id')));
+    if (hasCreate) {
+      const parts = p.split('/').filter(Boolean);
+      const createIdx = parts.indexOf('create');
+      const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+      const hasSpecificType = (createIdx !== -1 && parts[createIdx + 1] && ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(parts[createIdx + 1].toLowerCase())) ||
+        ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType);
+      return hasSpecificType ? 'fauna-editor' : 'product-type-selector';
+    }
+    if (hasEdit) {
+      return 'fauna-editor';
+    }
+    return 'tabs';
+  })
   const [activeTab, setActiveTab] = useState<'catalog' | 'about' | 'sightings' | 'admin'>(() => {
     if (typeof window !== 'undefined') {
       const savedTab = sessionStorage.getItem('catavor_mobile_active_tab');
@@ -6309,7 +6327,21 @@ Terima kasih.`;
   const [showSortSheet, setShowSortSheet] = useState<boolean>(false)
   const [showFilterSheet, setShowFilterSheet] = useState<boolean>(false)
   const [categorySearch, setCategorySearch] = useState<string>('')
-  const [showProductTypeSelector, setShowProductTypeSelector] = useState<boolean>(false)
+  const [showProductTypeSelector, setShowProductTypeSelector] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    const hasCreate = p.includes('/admin/items/create') || p.includes('/admin/items/new') || q.get('action') === 'create' || q.get('action') === 'new';
+    if (hasCreate) {
+      const parts = p.split('/').filter(Boolean);
+      const createIdx = parts.indexOf('create');
+      const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+      const hasSpecificType = (createIdx !== -1 && parts[createIdx + 1] && ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(parts[createIdx + 1].toLowerCase())) ||
+        ['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType);
+      return !hasSpecificType;
+    }
+    return false;
+  })
 
   // Context-Aware Action Menu (Three-Dots) & Report Sheet State
   const [actionMenuData, setActionMenuData] = useState<{ type: 'store' | 'item' | 'admin_menu'; item?: any } | null>(null)
@@ -9019,10 +9051,65 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [firstPasswordError, setFirstPasswordError] = useState<string | null>(null)
 
   // CRUD Form State
-  const [crudMode, setCrudMode] = useState<'create' | 'edit'>('create')
-  const [editId, setEditId] = useState<number | null>(null)
+  const [crudMode, setCrudMode] = useState<'create' | 'edit'>(() => {
+    if (typeof window === 'undefined') return 'create';
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    if (p.includes('/admin/items/edit') || Boolean(q.get('edit')) || (q.get('action') === 'edit' && Boolean(q.get('id')))) {
+      return 'edit';
+    }
+    return 'create';
+  });
+
+  const [editId, setEditId] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const p = window.location.pathname.toLowerCase();
+    const q = new URLSearchParams(window.location.search);
+    const qEdit = q.get('edit') || q.get('id');
+    if (qEdit) {
+      const parsed = parseInt(qEdit, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    const parts = p.split('/').filter(Boolean);
+    const editIdx = parts.indexOf('edit');
+    if (editIdx !== -1 && parts.length > editIdx + 1) {
+      const lastPart = parts[parts.length - 1];
+      const parsed = parseInt(lastPart, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return null;
+  });
+
   const [isChangingTypeInEditor, setIsChangingTypeInEditor] = useState<boolean>(false)
-  const [crudForm, setCrudForm] = useState(() => getInitialCrudForm('physical'))
+
+  const [crudForm, setCrudForm] = useState(() => {
+    let initialType: ItemCategoryType = 'physical';
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase();
+      const q = new URLSearchParams(window.location.search);
+      const qType = (q.get('type') || q.get('catalog_type') || '').toLowerCase();
+      if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(qType)) {
+        initialType = qType as ItemCategoryType;
+      } else {
+        const parts = p.split('/').filter(Boolean);
+        const createIdx = parts.indexOf('create');
+        if (createIdx !== -1 && parts[createIdx + 1]) {
+          const typeCandidate = parts[createIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(typeCandidate)) {
+            initialType = typeCandidate as ItemCategoryType;
+          }
+        }
+        const editIdx = parts.indexOf('edit');
+        if (editIdx !== -1 && parts[editIdx + 1]) {
+          const typeCandidate = parts[editIdx + 1].toLowerCase();
+          if (['physical', 'digital', 'service', 'food', 'fauna', 'property', 'plant'].includes(typeCandidate)) {
+            initialType = typeCandidate as ItemCategoryType;
+          }
+        }
+      }
+    }
+    return getInitialCrudForm(initialType);
+  });
 
   const resetCrudState = (type: ItemCategoryType = 'physical') => {
     // Revoke any pending ObjectURLs to prevent browser memory leaks
@@ -10054,16 +10141,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
     if (!faunas || faunas.length === 0) return;
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    if (parts.length >= 5 && parts[1] === 'admin' && parts[2] === 'items' && parts[3] === 'edit') {
-      const targetId = parts.length >= 6 ? parseInt(parts[5], 10) : parseInt(parts[4], 10);
+    const editIdx = parts.indexOf('edit');
+    let targetId: number | null = null;
+    if (editIdx !== -1 && parts.length > editIdx + 1) {
+      const candidate = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(candidate)) targetId = candidate;
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const editParam = urlParams.get('edit') || urlParams.get('id');
+    if (!targetId && editParam) {
+      const candidate = parseInt(editParam, 10);
+      if (!isNaN(candidate)) targetId = candidate;
+    }
+
+    if (targetId) {
       const found = faunas.find(f => f.id === targetId);
-      if (found && (!showCrudSheet || editId !== targetId)) {
+      if (found && (view !== 'fauna-editor' || editId !== targetId || !crudForm.name)) {
         openEditSheet(found);
       }
       return;
     }
 
-    const urlParams = new URLSearchParams(window.location.search);
     const itemId = urlParams.get('item') || activeDetailItemIdRef.current;
     if (itemId && !selectedFauna) {
       const found = faunas.find(f => f && f.id !== undefined && String(f.id) === itemId);
@@ -11656,6 +11754,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
           targetPath += `/admin`;
         }
       } else if (adminSubTab === 'items') {
+        const curP = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
+        const curQ = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const isInitialCrudUrl = isInitialLoadRef.current && (
+          curP.includes('/admin/items/create') ||
+          curP.includes('/admin/items/edit') ||
+          curQ?.get('action') === 'create' ||
+          curQ?.get('action') === 'new' ||
+          curQ?.get('action') === 'edit' ||
+          Boolean(curQ?.get('edit'))
+        );
+        if (isInitialCrudUrl) {
+          return;
+        }
         targetPath += `/admin/items`;
       } else if (adminSubTab === 'analytics') {
         targetPath += `/admin/analytics`;
