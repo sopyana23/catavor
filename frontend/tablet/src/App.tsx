@@ -35,7 +35,7 @@ import { initGoogleAnalytics } from './utils/googleAnalytics';
 import { smartBack } from './utils/navigation';
 
 const RESERVED_SLUGS = [
-  'api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'ops', 
+  'api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'ops',
   'catalogs', 'select-catalog', 'stores', 'terms', 'privacy', 'syarat-ketentuan', 'kebijakan-privasi', 'acceptable-use'
 ];
 
@@ -60,7 +60,7 @@ export const extractSlugFromPath = (pathname: string): string | null => {
     try {
       const q = new URLSearchParams(window.location.search).get('slug');
       if (q && !RESERVED_SLUGS.includes(q.toLowerCase())) return q.toLowerCase();
-    } catch {}
+    } catch { }
   }
   return null;
 };
@@ -100,7 +100,7 @@ export const App: React.FC = () => {
           const s = JSON.parse(raw);
           return { title: s.store_title, logo_url: s.store_logo_url, theme: s.store_theme };
         }
-      } catch {}
+      } catch { }
     }
     return null;
   });
@@ -206,7 +206,7 @@ export const App: React.FC = () => {
             if (data.stores && Array.isArray(data.stores)) {
               try {
                 localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
-              } catch {}
+              } catch { }
             }
             if (data.active_store?.store_theme || data.user?.store_theme) {
               setStoreTheme(data.active_store?.store_theme || data.user?.store_theme);
@@ -274,7 +274,7 @@ export const App: React.FC = () => {
         const rawUser = localStorage.getItem('catavor_user');
         let u: any = currentUser;
         if (!u && rawUser) {
-          try { u = JSON.parse(rawUser); } catch {}
+          try { u = JSON.parse(rawUser); } catch { }
         }
         const isStaff = isPlatformAdmin(u);
         const shouldRedirect =
@@ -309,7 +309,7 @@ export const App: React.FC = () => {
       const rawUser = localStorage.getItem('catavor_user');
       let u: any = currentUser;
       if (!u && rawUser) {
-        try { u = JSON.parse(rawUser); } catch {}
+        try { u = JSON.parse(rawUser); } catch { }
       }
       const isStaff = isPlatformAdmin(u);
       const shouldRedirect =
@@ -351,7 +351,7 @@ export const App: React.FC = () => {
     localStorage.removeItem('catavor_user');
     localStorage.removeItem('catavor_stores');
     localStorage.removeItem('catavor_active_slug');
-    try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch {}
+    try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch { }
     clearUserActiveSlug(currentUser?.id);
     setToken(null);
     setCurrentUser(null);
@@ -369,7 +369,7 @@ export const App: React.FC = () => {
     localStorage.removeItem('catavor_user');
     localStorage.removeItem('catavor_stores');
     localStorage.removeItem('catavor_active_slug');
-    try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch {}
+    try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch { }
     clearUserActiveSlug(currentUser?.id);
     setToken(null);
     setCurrentUser(null);
@@ -395,7 +395,7 @@ export const App: React.FC = () => {
             try {
               parsedUser = JSON.parse(rawUser);
               setCurrentUser(parsedUser);
-            } catch {}
+            } catch { }
           }
           if (isPlatformAdminPath && isPlatformAdmin(parsedUser || currentUser)) {
             const currentTab = new URLSearchParams(window.location.search).get('tab');
@@ -453,11 +453,11 @@ export const App: React.FC = () => {
           const singleSlug = String(availableStores[0].slug);
           targetSlug = singleSlug;
           localStorage.setItem('catavor_active_slug', singleSlug);
-          try { sessionStorage.setItem('catavor_active_slug_selected', singleSlug); } catch {}
+          try { sessionStorage.setItem('catavor_active_slug_selected', singleSlug); } catch { }
           if (json.user?.id) saveUserActiveSlug(json.user.id, singleSlug);
         } else {
           localStorage.removeItem('catavor_active_slug');
-          try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch {}
+          try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch { }
         }
 
         setLoginEmail('');
@@ -521,7 +521,7 @@ export const App: React.FC = () => {
                 return;
               }
             }
-          } catch {}
+          } catch { }
         }
 
         // New User Google SSO Registration -> Proceed to Step 2 (Profil Toko)
@@ -541,7 +541,7 @@ export const App: React.FC = () => {
         };
         try {
           sessionStorage.setItem('catavor_register_form', JSON.stringify(updatedForm));
-        } catch {}
+        } catch { }
         window.dispatchEvent(new CustomEvent('catavor:register-form-updated', { detail: updatedForm }));
         navigateTo('/register/step-2');
         return;
@@ -566,11 +566,11 @@ export const App: React.FC = () => {
           const singleSlug = String(availableStores[0].slug);
           targetSlug = singleSlug;
           localStorage.setItem('catavor_active_slug', singleSlug);
-          try { sessionStorage.setItem('catavor_active_slug_selected', singleSlug); } catch {}
+          try { sessionStorage.setItem('catavor_active_slug_selected', singleSlug); } catch { }
           if (data.user?.id) saveUserActiveSlug(data.user.id, singleSlug);
         } else {
           localStorage.removeItem('catavor_active_slug');
-          try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch {}
+          try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch { }
         }
 
         const destination = resolveAuthenticatedRedirect(data.user, targetSlug);
@@ -604,7 +604,7 @@ export const App: React.FC = () => {
           return;
         }
       }
-    } catch (_) {}
+    } catch (_) { }
     processGoogleUserPayload({ token: accessToken });
   };
 
@@ -648,18 +648,18 @@ export const App: React.FC = () => {
             return;
           }
           let currentHref = '';
-          try { currentHref = popup.location?.href || ''; } catch (_) {}
+          try { currentHref = popup.location?.href || ''; } catch (_) { }
           if (currentHref && currentHref.includes('access_token=')) {
             const hash = popup.location.hash.substring(1);
             const params = new URLSearchParams(hash);
             const accessToken = params.get('access_token');
-            try { popup.close(); } catch (_) {}
+            try { popup.close(); } catch (_) { }
             clearInterval(checkPopup);
             if (accessToken) {
               handleOAuthToken(accessToken);
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }, 500);
     }
   };
@@ -689,7 +689,7 @@ export const App: React.FC = () => {
             if (accessToken) handleOAuthToken(accessToken);
           }
         };
-      } catch (_) {}
+      } catch (_) { }
     }
 
     const handleStorage = (e: StorageEvent) => {
@@ -702,7 +702,7 @@ export const App: React.FC = () => {
             const accessToken = params.get('access_token');
             if (accessToken) handleOAuthToken(accessToken);
           }
-        } catch (_) {}
+        } catch (_) { }
       }
     };
     window.addEventListener('storage', handleStorage);
@@ -729,7 +729,7 @@ export const App: React.FC = () => {
             setToken(storedToken);
             const rawUser = localStorage.getItem('catavor_user');
             let parsedUser: any = null;
-            try { parsedUser = rawUser ? JSON.parse(rawUser) : null; } catch {}
+            try { parsedUser = rawUser ? JSON.parse(rawUser) : null; } catch { }
             if (parsedUser) setCurrentUser(parsedUser);
 
             const rawStores = localStorage.getItem('catavor_stores');
@@ -739,7 +739,7 @@ export const App: React.FC = () => {
                 if (Array.isArray(parsedStores) && parsedStores.length > 0 && parsedStores[0]?.slug) {
                   setActiveSlug(parsedStores[0].slug);
                 }
-              } catch {}
+              } catch { }
             }
           }
 
@@ -748,7 +748,7 @@ export const App: React.FC = () => {
           try {
             const rawUser = localStorage.getItem('catavor_user');
             if (rawUser) parsedUser = JSON.parse(rawUser);
-          } catch {}
+          } catch { }
           if (!parsedUser) parsedUser = currentUser;
 
           const isStaff = isPlatformAdmin(parsedUser);
@@ -777,7 +777,7 @@ export const App: React.FC = () => {
             setToken(storedToken);
             const rawUser = localStorage.getItem('catavor_user');
             let parsedUser: any = null;
-            try { parsedUser = rawUser ? JSON.parse(rawUser) : null; } catch {}
+            try { parsedUser = rawUser ? JSON.parse(rawUser) : null; } catch { }
             if (parsedUser) setCurrentUser(parsedUser);
 
             const rawStores = localStorage.getItem('catavor_stores');
@@ -787,7 +787,7 @@ export const App: React.FC = () => {
                 if (Array.isArray(parsedStores) && parsedStores.length > 0 && parsedStores[0]?.slug) {
                   setActiveSlug(parsedStores[0].slug);
                 }
-              } catch {}
+              } catch { }
             }
           }
           const currentP = window.location.pathname.toLowerCase();
@@ -795,7 +795,7 @@ export const App: React.FC = () => {
           try {
             const rawUser = localStorage.getItem('catavor_user');
             if (rawUser) parsedUser = JSON.parse(rawUser);
-          } catch {}
+          } catch { }
           if (!parsedUser) parsedUser = currentUser;
 
           const isStaff = isPlatformAdmin(parsedUser);
@@ -851,7 +851,7 @@ export const App: React.FC = () => {
             return parsed[0].slug;
           }
         }
-      } catch {}
+      } catch { }
     }
     return activeSlug || '';
   })();
@@ -1539,7 +1539,7 @@ export const App: React.FC = () => {
       try {
         const raw = localStorage.getItem('catavor_stores');
         if (raw) storesList = JSON.parse(raw);
-      } catch {}
+      } catch { }
       if (!storesList.length && Array.isArray((currentUser as any)?.stores)) {
         storesList = (currentUser as any).stores;
       }
@@ -1549,7 +1549,7 @@ export const App: React.FC = () => {
         try {
           sessionStorage.setItem('catavor_active_slug_selected', singleSlug);
           localStorage.setItem('catavor_active_slug', singleSlug);
-        } catch {}
+        } catch { }
         navigateTo(`/${singleSlug}/admin`);
         return null;
       }
@@ -1579,7 +1579,7 @@ export const App: React.FC = () => {
         const parsed = JSON.parse(saved);
         if (parsed.email && parsed.name) hasRegDraft = true;
       }
-    } catch {}
+    } catch { }
 
     if (!hasRegDraft) {
       navigateTo('/register');
@@ -1602,7 +1602,7 @@ export const App: React.FC = () => {
             sessionStorage.removeItem('catavor_payment_method');
             sessionStorage.removeItem('catavor_portal_tab');
             sessionStorage.removeItem('catavor_register_step');
-          } catch {}
+          } catch { }
           navigateTo('/');
         }}
         onSuccess={(regUser) => {
@@ -1645,7 +1645,7 @@ export const App: React.FC = () => {
             sessionStorage.removeItem('catavor_payment_method');
             sessionStorage.removeItem('catavor_portal_tab');
             sessionStorage.removeItem('catavor_register_step');
-          } catch {}
+          } catch { }
           navigateTo('/');
         }}
         onLoginClick={(email) => {
@@ -2017,7 +2017,7 @@ export const App: React.FC = () => {
         try {
           sessionStorage.setItem('catavor_register_plan', plan);
           sessionStorage.setItem('catavor_register_billing', 'monthly');
-        } catch {}
+        } catch { }
         navigateTo(`/register?plan=${plan}`);
       }}
       currentUser={currentUser}

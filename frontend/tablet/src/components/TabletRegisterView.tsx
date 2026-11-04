@@ -601,21 +601,29 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '0.35rem',
-                              backgroundColor: '#dc2626',
-                              color: '#ffffff',
-                              border: 'none',
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.45rem',
-                              fontSize: '0.74rem',
+                              gap: '0.4rem',
+                              backgroundColor: '#ffffff',
+                              color: '#2563eb',
+                              border: '1px solid #bfdbfe',
+                              padding: '0.45rem 0.85rem',
+                              borderRadius: '0.55rem',
+                              fontSize: '0.76rem',
                               fontWeight: 700,
                               cursor: 'pointer',
-                              boxShadow: '0 1px 3px rgba(220, 38, 38, 0.2)',
-                              transition: 'background-color 0.15s ease'
+                              boxShadow: '0 1px 2px rgba(37, 99, 235, 0.08)',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#eff6ff';
+                              e.currentTarget.style.borderColor = '#93c5fd';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                              e.currentTarget.style.borderColor = '#bfdbfe';
                             }}
                           >
                             <span>Masuk ke Akun Anda</span>
-                            <ArrowRight size={13} />
+                            <ArrowRight size={13} style={{ color: '#2563eb' }} />
                           </button>
                         </div>
                       )}
