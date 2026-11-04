@@ -823,3 +823,70 @@ button, a, input, select, textarea {
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.06);
 }
 
+/* ==========================================================================
+   TABLET CATALOG & RECOMMENDATION CARDS (STANDARDIZED & EQUAL-HEIGHT)
+   ========================================================================== */
+.tablet-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.15rem;
+  width: 100%;
+}
+@media (min-width: 768px) {
+  .tablet-catalog-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+.tablet-recs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.15rem;
+  width: 100%;
+}
+@media (min-width: 768px) {
+  .tablet-recs-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+}
+@media (min-width: 960px) {
+  .tablet-recs-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+.tablet-catalog-card {
+  background-color: var(--bg-card);
+  border-radius: 0.85rem;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tablet-catalog-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--primary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.tablet-catalog-card .tablet-card-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tablet-catalog-card:hover .tablet-card-thumb-img {
+  transform: scale(1.05);
+}
+
+

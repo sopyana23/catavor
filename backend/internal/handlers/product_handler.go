@@ -604,6 +604,7 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 	h.db.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
 
 	InvalidateStoreProductsCache(store.ID)
+	InvalidateStoreProfileCache(store.Slug)
 	services.SyncStoreStorageUsed(h.db, store.ID)
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 	go services.BroadcastStoreQuotaSync(h.db, store.ID)
@@ -1063,6 +1064,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	}
 
 	InvalidateStoreProductsCache(store.ID)
+	InvalidateStoreProfileCache(store.Slug)
 	database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 	go services.BroadcastStoreQuotaSync(h.db, store.ID)
 
@@ -1170,6 +1172,7 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 	go services.BroadcastStoreQuotaSync(h.db, store.ID)
 
 	InvalidateStoreProductsCache(store.ID)
+	InvalidateStoreProfileCache(store.Slug)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -1260,6 +1263,7 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 	}
 
 	InvalidateStoreProductsCache(store.ID)
+	InvalidateStoreProfileCache(store.Slug)
 
 	// Update associated reports to 're_review'
 	var itemReports []models.Report

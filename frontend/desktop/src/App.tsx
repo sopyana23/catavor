@@ -14315,9 +14315,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        apiClient.invalidate();
         showToast(newActive ? 'Produk berhasil diaktifkan kembali!' : 'Produk berhasil diarsipkan.');
         setSelectedFauna((prev: any) => prev ? { ...prev, is_active: newActive } : null);
-        loadData();
+        loadData(slug);
       } else {
         showToast(data.message || 'Gagal memperbarui status produk.', 'error');
       }
@@ -14687,6 +14688,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setSelectedFauna(data.data);
         }
 
+        apiClient.invalidate();
         loadData();
         fetchMyQuota();
         showToast(crudMode === 'create' ? 'Item katalog berhasil ditambahkan!' : 'Item katalog berhasil diperbarui!');
@@ -14990,6 +14992,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        apiClient.invalidate();
         showToast('Data item berhasil dihapus permanen!');
         setItemToDelete(null);
         handleCloseDetail();

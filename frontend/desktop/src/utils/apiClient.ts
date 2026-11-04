@@ -467,22 +467,40 @@ export const apiClient = {
   get: <T = any>(endpoint: string, options?: ApiRequestOptions) => 
     request<T>(endpoint, { method: 'GET', ...options }),
   
-  post: <T = any>(endpoint: string, body?: any, options?: ApiRequestOptions) => 
-    request<T>(endpoint, { 
+  post: async <T = any>(endpoint: string, body?: any, options?: ApiRequestOptions) => {
+    const res = await request<T>(endpoint, { 
       method: 'POST', 
       body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined), 
       ...options 
-    }),
+    });
+    if (endpoint.includes('/products') || endpoint.includes('/stores') || endpoint.includes('/categories') || endpoint.includes('/u/')) {
+      invalidateCache('/products');
+      invalidateCache('/u/');
+    }
+    return res;
+  },
 
-  put: <T = any>(endpoint: string, body?: any, options?: ApiRequestOptions) => 
-    request<T>(endpoint, { 
+  put: async <T = any>(endpoint: string, body?: any, options?: ApiRequestOptions) => {
+    const res = await request<T>(endpoint, { 
       method: 'PUT', 
       body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined), 
       ...options 
-    }),
+    });
+    if (endpoint.includes('/products') || endpoint.includes('/stores') || endpoint.includes('/categories') || endpoint.includes('/u/')) {
+      invalidateCache('/products');
+      invalidateCache('/u/');
+    }
+    return res;
+  },
 
-  delete: <T = any>(endpoint: string, options?: ApiRequestOptions) => 
-    request<T>(endpoint, { method: 'DELETE', ...options }),
+  delete: async <T = any>(endpoint: string, options?: ApiRequestOptions) => {
+    const res = await request<T>(endpoint, { method: 'DELETE', ...options });
+    if (endpoint.includes('/products') || endpoint.includes('/stores') || endpoint.includes('/categories') || endpoint.includes('/u/')) {
+      invalidateCache('/products');
+      invalidateCache('/u/');
+    }
+    return res;
+  },
 
   dedupe: deduplicatedGet,
   swr: swrGet,

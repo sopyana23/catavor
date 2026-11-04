@@ -801,6 +801,7 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		}
 	}
 
+	c.Set("Cache-Control", "private, no-cache, must-revalidate")
 	c.Set("X-Cache", "MISS")
 	return c.JSON(responsePayload)
 }

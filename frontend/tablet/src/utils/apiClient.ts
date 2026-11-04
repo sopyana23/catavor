@@ -1,0 +1,574 @@
+/**
+ * Centralized Industrial-Grade API Client for Catavor (Desktop & Mobile)
+ * Features:
+ * 1. Automatic header injection (Authorization Bearer, X-Store-Slug, X-Request-ID, Content-Type)
+ * 2. In-flight request deduplication to eliminate redundant network hits
+ * 3. SWR (Stale-While-Revalidate) caching layer with configurable TTL
+ * 4. Centralized 401/403 session interception
+ * 5. Safe AbortController integration
+ */
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message?: string;
+  data?: T;
+  code?: string;
+  [key: string]: any;
+}
+
+export interface ApiRequestOptions extends RequestInit {
+  slug?: string | null;
+  skipAuth?: boolean;
+  timeoutMs?: number;
+}
+
+export interface SwrOptions<T = any> {
+  ttlMs?: number; // Time-to-live before cache is considered stale (default 5 min)
+  maxAgeMs?: number; // Maximum age before cache is discarded completely (default 24 hours)
+  forceFresh?: boolean;
+  onFresh?: (data: T) => void;
+  slug?: string | null;
+}
+
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  data?: any;
+
+  constructor(message: string, status: number, code?: string, data?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.data = data;
+  }
+}
+
+// In-Memory Cache Store for 0ms SWR Data Retrieval
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  etag?: string;
+}
+
+const memoryCache = new Map<string, CacheEntry<any>>();
+const inFlightRequests = new Map<string, Promise<any>>();
+
+// Global Unauthorized Event Dispatcher
+type UnauthorizedListener = (message?: string) => void;
+const unauthorizedListeners = new Set<UnauthorizedListener>();
+
+export function onApiUnauthorized(listener: UnauthorizedListener): () => void {
+  unauthorizedListeners.add(listener);
+  return () => {
+    unauthorizedListeners.delete(listener);
+  };
+}
+
+export function notifyUnauthorized(message?: string) {
+  unauthorizedListeners.forEach(listener => {
+    try {
+      listener(message || 'Sesi Anda telah berakhir. Silakan login kembali.');
+    } catch (e) {
+      console.error('Error in unauthorized listener:', e);
+    }
+  });
+}
+
+// Global Store Banned Switch Event Dispatcher
+export interface StoreBannedPayload {
+  message?: string;
+  bannedSlug?: string;
+}
+type StoreBannedListener = (payload: StoreBannedPayload) => void;
+const storeBannedListeners = new Set<StoreBannedListener>();
+
+export function onApiStoreBanned(listener: StoreBannedListener): () => void {
+  storeBannedListeners.add(listener);
+  return () => {
+    storeBannedListeners.delete(listener);
+  };
+}
+
+export function notifyStoreBanned(payload: StoreBannedPayload) {
+  storeBannedListeners.forEach(listener => {
+    try {
+      listener(payload);
+    } catch (e) {
+      console.error('Error in store banned listener:', e);
+    }
+  });
+}
+
+// Helper to get active JWT token safely
+export function getStoredToken(): string | null {
+  try {
+    return localStorage.getItem('catavor_token');
+  } catch {
+    return null;
+  }
+}
+
+// Helper to get active store slug safely
+export function getActiveStoreSlug(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const path = window.location.pathname.toLowerCase();
+    const parts = path.split('/').filter(Boolean);
+    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'catalogs', 'stores'];
+    if (parts.length > 0 && !reserved.includes(parts[0])) {
+      return parts[0];
+    }
+
+    const rawUser = localStorage.getItem('catavor_user');
+    if (rawUser) {
+      try {
+        const user = JSON.parse(rawUser);
+        if (user?.id) {
+          const scoped = localStorage.getItem(`catavor_active_slug_${user.id}`);
+          if (scoped) return scoped;
+        }
+      } catch {}
+    }
+
+    const fromStorage = localStorage.getItem('catavor_active_slug');
+    if (fromStorage) return fromStorage;
+  } catch {}
+  return null;
+}
+
+export const API_BASE = '/api';
+
+/**
+ * Core unified request runner
+ */
+export async function request<T = any>(
+  endpoint: string,
+  options: ApiRequestOptions = {}
+): Promise<T> {
+  const {
+    slug = getActiveStoreSlug(),
+    skipAuth = false,
+    timeoutMs = 15000,
+    headers: customHeaders = {},
+    ...customOptions
+  } = options;
+
+  const url = endpoint.startsWith('http') || endpoint.startsWith('/api') 
+    ? endpoint 
+    : `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+
+  const token = !skipAuth ? getStoredToken() : null;
+
+  const headers: Record<string, string> = {
+    'Accept': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(slug ? { 'X-Store-Slug': slug } : {}),
+    ...(customHeaders as Record<string, string>)
+  };
+
+  // Only attach Content-Type if there is a body and it's not FormData
+  if (customOptions.body && !(customOptions.body instanceof FormData)) {
+    if (!headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+  }
+
+  // Setup Timeout Controller
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      ...customOptions,
+      headers,
+      signal: customOptions.signal || controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    // Global 401 Unauthorized Interception
+    if (res.status === 401) {
+      const latestToken = getStoredToken();
+      if (token && latestToken && latestToken !== token) {
+        // The token has already been refreshed or renewed in localStorage!
+        // A stale request from a previous token must NOT invalidate the current active session.
+        throw new ApiError('Sesi akun telah diperbarui.', 401, 'STALE_SESSION');
+      }
+      let data: any = {};
+      try { data = await res.json(); } catch {}
+      notifyUnauthorized(data?.message);
+      throw new ApiError(data?.message || 'Sesi login tidak valid.', 401, data?.code || 'UNAUTHORIZED', data);
+    }
+
+    // Global 403 Forbidden Interception
+    if (res.status === 403) {
+      let data: any = {};
+      try { data = await res.json(); } catch {}
+      if (data?.code === 'STORE_BANNED_SWITCH_REQUIRED') {
+        notifyStoreBanned({
+          message: data?.message,
+          bannedSlug: data?.banned_slug || slug || getActiveStoreSlug() || undefined
+        });
+      }
+      if (data?.code === 'STORE_SUSPENDED') {
+        try {
+          const currentSlug = slug || getActiveStoreSlug();
+          if (currentSlug) {
+            sessionStorage.setItem(`catavor_store_suspended_${currentSlug.toLowerCase()}`, '1');
+            const cached = localStorage.getItem(`catavor_store_${currentSlug.toLowerCase()}`);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              parsed.is_suspended = true;
+              parsed.dormancy_status = 'suspended';
+              localStorage.setItem(`catavor_store_${currentSlug.toLowerCase()}`, JSON.stringify(parsed));
+            }
+          }
+        } catch {}
+      }
+      throw new ApiError(data?.message || 'Akses ditolak.', 403, data?.code || 'FORBIDDEN', data);
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      if (!res.ok && data.success === false) {
+        throw new ApiError(data.message || `Request gagal dengan status ${res.status}`, res.status, data.code, data);
+      }
+      return data;
+    }
+
+    if (!res.ok) {
+      throw new ApiError(`Request gagal dengan status ${res.status}`, res.status);
+    }
+
+    return (await res.text()) as unknown as T;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new ApiError('Permintaan timeout. Silakan periksa koneksi internet Anda.', 408, 'TIMEOUT');
+    }
+    if (err instanceof ApiError) {
+      throw err;
+    }
+    throw new ApiError(err.message || 'Koneksi terputus. Pastikan server backend aktif.', 0, 'NETWORK_ERROR');
+  }
+}
+
+/**
+ * Deduplicated Request Wrapper:
+ * If an identical GET request is currently in-flight, return the existing Promise.
+ */
+export function deduplicatedGet<T = any>(endpoint: string, options?: ApiRequestOptions): Promise<T> {
+  const cacheKey = `GET:${endpoint}:${options?.slug || ''}:${options?.skipAuth ? 'noauth' : 'auth'}`;
+  
+  if (inFlightRequests.has(cacheKey)) {
+    return inFlightRequests.get(cacheKey)!;
+  }
+
+  const promise = request<T>(endpoint, { method: 'GET', ...options })
+    .finally(() => {
+      inFlightRequests.delete(cacheKey);
+    });
+
+  inFlightRequests.set(cacheKey, promise);
+  return promise;
+}
+
+const MEMORY_CACHE_MAX_SIZE = 50;
+const LOCAL_STORAGE_SWR_MAX_COUNT = 25;
+
+function pruneLocalStorageSwrCache(targetCount: number = 15): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const swrKeys: { key: string; timestamp: number }[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('catavor_swr_')) {
+        try {
+          const item = JSON.parse(localStorage.getItem(k) || '{}');
+          swrKeys.push({ key: k, timestamp: item?.timestamp || 0 });
+        } catch {
+          swrKeys.push({ key: k, timestamp: 0 });
+        }
+      }
+    }
+    swrKeys.sort((a, b) => a.timestamp - b.timestamp);
+    const toRemove = swrKeys.length - targetCount;
+    for (let i = 0; i < Math.max(0, toRemove); i++) {
+      localStorage.removeItem(swrKeys[i].key);
+    }
+  } catch {}
+}
+
+export function safeSetLocalStorage(key: string, value: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (key.startsWith('catavor_swr_')) {
+      let count = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        if (localStorage.key(i)?.startsWith('catavor_swr_')) count++;
+      }
+      if (count >= LOCAL_STORAGE_SWR_MAX_COUNT) {
+        pruneLocalStorageSwrCache(LOCAL_STORAGE_SWR_MAX_COUNT - 10);
+      }
+    }
+    localStorage.setItem(key, value);
+  } catch (err: any) {
+    if (err?.name === 'QuotaExceededError' || err?.code === 22 || err?.number === -2147024882) {
+      console.warn('[apiClient] LocalStorage quota reached. Purging all catavor_swr_* caches to liberate space.');
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('catavor_swr_')) keysToRemove.push(k);
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        localStorage.setItem(key, value);
+      } catch {}
+    }
+  }
+}
+
+/**
+ * SWR (Stale-While-Revalidate) Cache Engine:
+ * Returns cached data immediately if available, then triggers background fetch to update cache.
+ */
+export async function swrGet<T = any>(
+  endpoint: string,
+  options: SwrOptions<T> = {}
+): Promise<{ data: T; isStale: boolean }> {
+  const {
+    ttlMs = 3 * 60 * 1000, // 3 minutes default freshness
+    maxAgeMs = 24 * 60 * 60 * 1000, // 24 hours max cache retention
+    forceFresh = false,
+    onFresh,
+    slug = getActiveStoreSlug()
+  } = options;
+
+  const cacheKey = `SWR:${endpoint}:${slug || ''}`;
+  const now = Date.now();
+
+  // 1. Check in-memory cache first (0ms)
+  let cached = memoryCache.get(cacheKey);
+
+  // 2. Check localStorage fallback if not in RAM
+  if (!cached && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(`catavor_swr_${cacheKey}`);
+      if (stored) {
+        cached = JSON.parse(stored);
+        if (cached) {
+          if (memoryCache.size >= MEMORY_CACHE_MAX_SIZE) {
+            const oldestKey = memoryCache.keys().next().value;
+            if (oldestKey) memoryCache.delete(oldestKey);
+          }
+          memoryCache.set(cacheKey, cached);
+        }
+      }
+    } catch {}
+  }
+
+  const hasCachedData = cached && (now - cached.timestamp < maxAgeMs);
+  const isStale = !cached || (now - cached.timestamp > ttlMs);
+
+  // Background fetch worker
+  const fetchFresh = async () => {
+    try {
+      const freshData = await deduplicatedGet<T>(endpoint, { slug });
+      
+      const newEntry: CacheEntry<T> = {
+        data: freshData,
+        timestamp: Date.now()
+      };
+
+      if (memoryCache.size >= MEMORY_CACHE_MAX_SIZE) {
+        const oldestKey = memoryCache.keys().next().value;
+        if (oldestKey) memoryCache.delete(oldestKey);
+      }
+      memoryCache.set(cacheKey, newEntry);
+      safeSetLocalStorage(`catavor_swr_${cacheKey}`, JSON.stringify(newEntry));
+
+      if (onFresh) {
+        onFresh(freshData);
+      }
+      return freshData;
+    } catch (err: any) {
+      // If resource is explicitly 404 Not Found (e.g., store was banned or purged),
+      // NEVER return stale cached data! Invalidate cache immediately so banned stores do not linger.
+      if (err?.status === 404 || err?.statusCode === 404) {
+        memoryCache.delete(cacheKey);
+        try {
+          localStorage.removeItem(`catavor_swr_${cacheKey}`);
+          if (slug) {
+            localStorage.removeItem(`catavor_store_${slug.toLowerCase()}`);
+          }
+        } catch {}
+        throw err;
+      }
+
+      // If fresh fetch fails but we had stale data, don't throw to caller
+      if (hasCachedData) {
+        console.warn(`[SWR] Background refresh failed for ${endpoint}, using cached data.`);
+        return cached!.data;
+      }
+      throw err;
+    }
+  };
+
+  // If forceFresh or no cache exists, await fresh data directly
+  if (forceFresh || !hasCachedData) {
+    const data = await fetchFresh();
+    return { data, isStale: false };
+  }
+
+  // If we have cached data but it's stale, trigger background refresh
+  if (isStale) {
+    // Non-blocking background revalidation
+    fetchFresh().catch(() => {});
+  }
+
+  return { data: cached!.data, isStale };
+}
+
+/**
+ * Cache Invalidation Helper:
+ * Invalidate specific endpoint or pattern when mutations (Create, Update, Delete) occur.
+ */
+export function invalidateCache(pattern?: string) {
+  if (!pattern) {
+    memoryCache.clear();
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('catavor_swr_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch {}
+    return;
+  }
+
+  memoryCache.forEach((_, key) => {
+    if (key.includes(pattern)) {
+      memoryCache.delete(key);
+    }
+  });
+
+  try {
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('catavor_swr_') && key.includes(pattern)) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch {}
+}
+
+export const apiClient = {
+  get: <T = any>(endpoint: string, options?: ApiRequestOptions) => 
+    request<T>(endpoint, { method: 'GET', ...options }),
+  
+  post: async <T = any>(endpoint: string, body?: any, options?: ApiRequestOptions) => {
+    const res = await request<T>(endpoint, { 
+      method: 'POST', 
+      body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined), 
+      ...options 
+    });
+    if (endpoint.includes('/products') || endpoint.includes('/stores') || endpoint.includes('/categories') || endpoint.includes('/u/')) {
+      invalidateCache('/products');
+      invalidateCache('/u/');
+    }
+    return res;
+  },
+
+  put: async <T = any>(endpoint: string, body?: any, options?: ApiRequestOptions) => {
+    const res = await request<T>(endpoint, { 
+      method: 'PUT', 
+      body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined), 
+      ...options 
+    });
+    if (endpoint.includes('/products') || endpoint.includes('/stores') || endpoint.includes('/categories') || endpoint.includes('/u/')) {
+      invalidateCache('/products');
+      invalidateCache('/u/');
+    }
+    return res;
+  },
+
+  delete: async <T = any>(endpoint: string, options?: ApiRequestOptions) => {
+    const res = await request<T>(endpoint, { method: 'DELETE', ...options });
+    if (endpoint.includes('/products') || endpoint.includes('/stores') || endpoint.includes('/categories') || endpoint.includes('/u/')) {
+      invalidateCache('/products');
+      invalidateCache('/u/');
+    }
+    return res;
+  },
+
+  dedupe: deduplicatedGet,
+  swr: swrGet,
+  invalidate: invalidateCache,
+  onUnauthorized: onApiUnauthorized
+};
+
+/**
+ * Global Network Interceptor on window.fetch
+ * Ensures all raw fetch calls across Desktop that receive 401 Unauthorized
+ * automatically trigger session eviction to the login screen.
+ */
+let isFetchInterceptorInstalled = false;
+export function setupGlobalAuthInterceptor() {
+  if (isFetchInterceptorInstalled || typeof window === 'undefined') return;
+  isFetchInterceptorInstalled = true;
+
+  const originalFetch = window.fetch;
+  window.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const res = await originalFetch.apply(this, arguments as any);
+
+    if (res.status === 401) {
+      const urlStr = typeof input === 'string'
+        ? input
+        : input instanceof URL
+        ? input.toString()
+        : (input as Request)?.url || '';
+
+      const isAuthAttempt = urlStr.includes('/api/login') ||
+                            urlStr.includes('/api/register') ||
+                            urlStr.includes('/api/auth/google') ||
+                            urlStr.includes('/api/auth/verify-registration-otp') ||
+                            urlStr.includes('/api/auth/forgot-password');
+      const hasToken = typeof localStorage !== 'undefined' && Boolean(localStorage.getItem('catavor_token'));
+
+      if (!isAuthAttempt && hasToken) {
+        const tokenAtRequest = localStorage.getItem('catavor_token');
+        try {
+          const clone = res.clone();
+          clone.json().then(data => {
+            const currentToken = localStorage.getItem('catavor_token');
+            if (tokenAtRequest && currentToken && tokenAtRequest !== currentToken) {
+              return; // Token rotated/renewed, ignore stale 401
+            }
+            const msg = data?.code === 'TOKEN_EXPIRED'
+              ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'
+              : (data?.message || 'Sesi login tidak valid. Silakan login kembali.');
+            notifyUnauthorized(msg);
+          }).catch(() => {
+            const currentToken = localStorage.getItem('catavor_token');
+            if (tokenAtRequest && currentToken && tokenAtRequest !== currentToken) {
+              return;
+            }
+            notifyUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+          });
+        } catch {
+          notifyUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+        }
+      }
+    }
+
+    return res;
+  };
+}
+
+if (typeof window !== 'undefined') {
+  setupGlobalAuthInterceptor();
+}
+
+export default apiClient;
+
