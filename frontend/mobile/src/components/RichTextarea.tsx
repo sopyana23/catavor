@@ -94,8 +94,8 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
     isBlock: boolean = false,
     size: string = 'md'
   ) => {
-    const { isSafe, isExternal } = sanitizeUrl(rawUrl);
-    if (!isSafe) return null;
+    const sec = checkUrlSecurity(rawUrl);
+    if (!sec.isSafe || sec.sanitizedUrl === '#') return null;
 
     let bg = 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)';
     let textColor = '#ffffff';
@@ -152,7 +152,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       <button
         key={key}
         type="button"
-        onClick={(e) => handleLinkClick(rawUrl, e)}
+        onClick={(e) => handleLinkClick(sec.sanitizedUrl, e)}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -176,7 +176,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
         onMouseLeave={(e) => { e.currentTarget.style.filter = 'none'; }}
       >
         <span>{label}</span>
-        {isExternal ? <ExternalLink size={iconSize} /> : <MousePointer size={iconSize} />}
+        {sec.isExternal ? <ExternalLink size={iconSize} /> : <MousePointer size={iconSize} />}
       </button>
     );
 
@@ -227,16 +227,16 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       else if (match[10] !== undefined && match[11] !== undefined) {
         const linkText = match[10];
         const rawUrl = match[11];
-        const { isSafe, isExternal } = sanitizeUrl(rawUrl);
+        const sec = checkUrlSecurity(rawUrl);
 
-        if (isSafe) {
+        if (sec.isSafe && sec.sanitizedUrl !== '#') {
           parts.push(
             <a
               key={`lnk-${idx++}`}
-              href={rawUrl}
-              target={isExternal ? '_blank' : undefined}
-              rel={isExternal ? 'noopener noreferrer' : undefined}
-              onClick={(e) => handleLinkClick(rawUrl, e)}
+              href={sec.sanitizedUrl}
+              target={sec.isExternal ? '_blank' : undefined}
+              rel={sec.isExternal ? 'noopener noreferrer' : undefined}
+              onClick={(e) => handleLinkClick(sec.sanitizedUrl, e)}
               style={{
                 color: 'var(--primary, #1e3a8a)',
                 textDecoration: 'underline',
@@ -249,7 +249,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
               }}
             >
               <span>{linkText}</span>
-              {isExternal && <ExternalLink size={11} style={{ flexShrink: 0 }} />}
+              {sec.isExternal && <ExternalLink size={11} style={{ flexShrink: 0 }} />}
             </a>
           );
         } else {
@@ -504,7 +504,8 @@ export const LinkInsertModal: React.FC<{
       e.stopPropagation();
     }
     if (!text.trim() || !url.trim() || !urlSec.isSafe) return;
-    onInsert(text.trim(), url.trim());
+    const finalUrl = urlSec.sanitizedUrl !== '#' ? urlSec.sanitizedUrl : url.trim();
+    onInsert(text.trim(), finalUrl);
     setText('');
     setUrl('');
     onClose();
@@ -689,33 +690,64 @@ export const LinkInsertModal: React.FC<{
                     )}
                   </div>
 
-                  {urlSec.isExternal && !urlSec.isMasterTrusted && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setPreviewExternalUrl(urlSec.sanitizedUrl);
-                      }}
-                      style={{
-                        padding: '0.22rem 0.55rem',
-                        borderRadius: '0.45rem',
-                        backgroundColor: 'rgba(245, 158, 11, 0.16)',
-                        border: '1px solid rgba(245, 158, 11, 0.35)',
-                        color: '#d97706',
-                        fontSize: '0.68rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        flexShrink: 0
-                      }}
-                      title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
-                    >
-                      <Eye size={12} />
-                      <span>Uji Modal Konfirmasi</span>
-                    </button>
+                  {urlSec.isExternal && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          safeOpenUrl(urlSec.sanitizedUrl);
+                        }}
+                        style={{
+                          padding: '0.22rem 0.55rem',
+                          borderRadius: '0.45rem',
+                          backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.12))',
+                          border: '1px solid var(--primary, #1e3a8a)',
+                          color: 'var(--primary, #1e3a8a)',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          flexShrink: 0
+                        }}
+                        title="Buka atau tes tautan ini langsung dengan alur keamanan sistem"
+                      >
+                        <ExternalLink size={12} />
+                        <span>Buka Tautan</span>
+                      </button>
+
+                      {!urlSec.isMasterTrusted && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setPreviewExternalUrl(urlSec.sanitizedUrl);
+                          }}
+                          style={{
+                            padding: '0.22rem 0.55rem',
+                            borderRadius: '0.45rem',
+                            backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                            border: '1px solid rgba(245, 158, 11, 0.35)',
+                            color: '#d97706',
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            flexShrink: 0
+                          }}
+                          title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
+                        >
+                          <Eye size={12} />
+                          <span>Uji Modal Konfirmasi</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -890,7 +922,8 @@ export const ButtonInsertModal: React.FC<{
       e.stopPropagation();
     }
     if (!label.trim() || !url.trim() || !urlSec.isSafe) return;
-    onInsert(label.trim(), url.trim(), variant, size);
+    const finalUrl = urlSec.sanitizedUrl !== '#' ? urlSec.sanitizedUrl : url.trim();
+    onInsert(label.trim(), finalUrl, variant, size);
     setLabel('');
     setUrl('');
     onClose();
@@ -1075,33 +1108,64 @@ export const ButtonInsertModal: React.FC<{
                     )}
                   </div>
 
-                  {urlSec.isExternal && !urlSec.isMasterTrusted && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setPreviewExternalUrl(urlSec.sanitizedUrl);
-                      }}
-                      style={{
-                        padding: '0.22rem 0.55rem',
-                        borderRadius: '0.45rem',
-                        backgroundColor: 'rgba(245, 158, 11, 0.16)',
-                        border: '1px solid rgba(245, 158, 11, 0.35)',
-                        color: '#d97706',
-                        fontSize: '0.68rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        flexShrink: 0
-                      }}
-                      title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
-                    >
-                      <Eye size={12} />
-                      <span>Uji Modal Konfirmasi</span>
-                    </button>
+                  {urlSec.isExternal && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          safeOpenUrl(urlSec.sanitizedUrl);
+                        }}
+                        style={{
+                          padding: '0.22rem 0.55rem',
+                          borderRadius: '0.45rem',
+                          backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.12))',
+                          border: '1px solid var(--primary, #1e3a8a)',
+                          color: 'var(--primary, #1e3a8a)',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          flexShrink: 0
+                        }}
+                        title="Buka atau tes tautan ini langsung dengan alur keamanan sistem"
+                      >
+                        <ExternalLink size={12} />
+                        <span>Buka Tautan</span>
+                      </button>
+
+                      {!urlSec.isMasterTrusted && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setPreviewExternalUrl(urlSec.sanitizedUrl);
+                          }}
+                          style={{
+                            padding: '0.22rem 0.55rem',
+                            borderRadius: '0.45rem',
+                            backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                            border: '1px solid rgba(245, 158, 11, 0.35)',
+                            color: '#d97706',
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            flexShrink: 0
+                          }}
+                          title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
+                        >
+                          <Eye size={12} />
+                          <span>Uji Modal Konfirmasi</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -2557,14 +2621,22 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       return;
     }
 
-    // 2. Clicked on an atomic link
-    const linkNode = target.closest('[data-rich-type="link"]') as HTMLAnchorElement | null;
+    // 2. Clicked on an atomic link or any anchor
+    const linkNode = (target.closest('[data-rich-type="link"]') || target.closest('a')) as HTMLAnchorElement | null;
     if (linkNode) {
       e.preventDefault();
       e.stopPropagation();
+      const targetUrl = linkNode.getAttribute('data-url') || linkNode.getAttribute('href') || '';
+
+      // Ctrl+Click or Cmd+Click: Open/follow link immediately through safe redirect
+      if (e.ctrlKey || e.metaKey) {
+        safeOpenUrl(targetUrl);
+        return;
+      }
+
       setEditingLinkNode(linkNode);
       setModalInitialText(linkNode.innerText || linkNode.textContent || '');
-      setModalInitialUrl(linkNode.getAttribute('data-url') || linkNode.getAttribute('href') || '');
+      setModalInitialUrl(targetUrl);
       setIsLinkEditing(true);
       setShowLinkModal(true);
       return;
@@ -2835,18 +2907,20 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
 
   const handleInsertOrUpdateLink = (linkText: string, linkUrl: string) => {
     const targetDivRef = activeEditorRef.current === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
+    const sec = sanitizeUrl(linkUrl);
+    const finalUrl = sec.isSafe && sec.sanitizedUrl !== '#' ? sec.sanitizedUrl : linkUrl;
     if (editorMode === 'visual') {
       if (isLinkEditing && editingLinkNode) {
         editingLinkNode.innerText = linkText;
-        editingLinkNode.setAttribute('data-url', linkUrl);
-        editingLinkNode.setAttribute('href', linkUrl);
+        editingLinkNode.setAttribute('data-url', finalUrl);
+        editingLinkNode.setAttribute('href', finalUrl);
         isInternalUpdateRef.current = true;
         handleVisualInput(targetDivRef);
       } else {
         const link = document.createElement('a');
         link.setAttribute('data-rich-type', 'link');
-        link.setAttribute('data-url', linkUrl);
-        link.setAttribute('href', linkUrl);
+        link.setAttribute('data-url', finalUrl);
+        link.setAttribute('href', finalUrl);
         link.className = 'rich-visual-link';
         link.innerText = linkText;
 
@@ -2916,10 +2990,12 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
 
   const handleInsertOrUpdateButton = (btnLabel: string, btnUrl: string, btnVariant: string, btnSize: string = 'md') => {
     const targetDivRef = activeEditorRef.current === 'fullscreen' ? fullscreenVisualRef : visualEditorRef;
+    const sec = sanitizeUrl(btnUrl);
+    const finalUrl = sec.isSafe && sec.sanitizedUrl !== '#' ? sec.sanitizedUrl : btnUrl;
     if (editorMode === 'visual') {
       if (isButtonEditing && editingButtonNode) {
         editingButtonNode.setAttribute('data-label', btnLabel);
-        editingButtonNode.setAttribute('data-url', btnUrl);
+        editingButtonNode.setAttribute('data-url', finalUrl);
         editingButtonNode.setAttribute('data-variant', btnVariant);
         editingButtonNode.setAttribute('data-size', btnSize);
         editingButtonNode.className = `rich-visual-badge rich-btn-${btnVariant} rich-btn-size-${btnSize}`;
@@ -2930,7 +3006,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         const btn = document.createElement('span');
         btn.setAttribute('data-rich-type', 'button');
         btn.setAttribute('data-label', btnLabel);
-        btn.setAttribute('data-url', btnUrl);
+        btn.setAttribute('data-url', finalUrl);
         btn.setAttribute('data-variant', btnVariant);
         btn.setAttribute('data-size', btnSize);
         btn.setAttribute('contenteditable', 'false');
