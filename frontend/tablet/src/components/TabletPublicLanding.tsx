@@ -359,14 +359,17 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
   const FormatIcon = activeFormatData.icon;
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: 'var(--bg-deep)',
-      color: 'var(--text-primary)',
-      display: 'flex',
-      flexDirection: 'column',
-      fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif"
-    }}>
+    <div
+      className="portal-container"
+      style={{
+        minHeight: '100vh',
+        backgroundColor: '#f8fafc',
+        backgroundImage: 'radial-gradient(at top center, #eff6ff 0%, #f8fafc 55%), radial-gradient(at bottom right, #f1f5f9 0%, transparent 600px)',
+        color: '#0f172a',
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+      }}>
       {/* 1. TABLET UNIFIED STICKY TOP CONTAINER (Header + Floating Sub-Nav Always Floating Together) */}
       <div
         ref={stickyContainerRef}
@@ -375,7 +378,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           top: 0,
           zIndex: 50,
           width: '100%',
-          backgroundColor: 'var(--bg-card)'
+          backgroundColor: 'transparent'
         }}>
         {/* Header */}
         <header style={{
@@ -384,9 +387,11 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          backgroundColor: 'var(--bg-card)',
-          borderBottom: '1px solid var(--border-light)',
-          boxShadow: !showFloatingMenu ? '0 2px 8px rgba(0,0,0,0.03)' : 'none'
+          backgroundColor: 'rgba(255, 255, 255, 0.92)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderBottom: '1px solid #e2e8f0',
+          boxShadow: !showFloatingMenu ? '0 1px 3px 0 rgba(15, 23, 42, 0.04)' : 'none'
         }}>
         {/* Brand */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer' }} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
@@ -404,14 +409,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             <StoreIcon size={isMiniTablet ? 18 : 20} />
           </div>
           <div>
-            <div style={{ fontSize: isMiniTablet ? '1.15rem' : '1.25rem', fontWeight: 900, letterSpacing: '-0.02em', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <div style={{ fontSize: isMiniTablet ? '1.15rem' : '1.25rem', fontWeight: 900, letterSpacing: '-0.02em', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               Catavor
               <span style={{ fontSize: '0.62rem', fontWeight: 800, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '0.12rem 0.45rem', borderRadius: '999px' }}>
                 COMMERCE
               </span>
             </div>
             {!isMiniTablet && (
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>
                 Platform Katalog Digital &amp; Biolink Usaha
               </div>
             )}
@@ -429,14 +434,15 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               height: '44px',
               flexShrink: 0,
               borderRadius: '0.65rem',
-              border: showFloatingMenu ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
-              backgroundColor: showFloatingMenu ? '#eff6ff' : 'var(--bg-deep)',
-              color: showFloatingMenu ? 'var(--primary)' : 'var(--text-primary)',
+              border: showFloatingMenu ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+              backgroundColor: showFloatingMenu ? '#eff6ff' : '#ffffff',
+              color: showFloatingMenu ? '#2563eb' : '#475569',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'all 0.15s ease'
+              transition: 'all 0.15s ease',
+              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)'
             }}
             title={showFloatingMenu ? 'Tutup Navigasi' : 'Buka Navigasi'}
           >
@@ -451,7 +457,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 minHeight: '44px',
                 padding: '0 1.25rem',
                 borderRadius: '0.65rem',
-                backgroundColor: 'var(--primary)',
+                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                 color: '#ffffff',
                 fontSize: '0.86rem',
                 fontWeight: 700,
@@ -460,7 +466,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 alignItems: 'center',
                 gap: '0.5rem',
                 border: 'none',
-                boxShadow: 'var(--shadow-premium)'
+                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
               }}
             >
               <StoreIcon size={15} />
@@ -475,15 +481,16 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   minHeight: '44px',
                   padding: '0 0.95rem',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border-light)',
+                  backgroundColor: '#ffffff',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
                   fontSize: '0.84rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.4rem'
+                  gap: '0.4rem',
+                  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)'
                 }}
               >
                 <LogIn size={15} />
@@ -496,7 +503,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   minHeight: '44px',
                   padding: '0 1.15rem',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'var(--primary)',
+                  background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                   color: '#ffffff',
                   border: 'none',
                   fontSize: '0.84rem',
@@ -505,7 +512,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.45rem',
-                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
+                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.25)'
                 }}
               >
                 <span>Buat Katalog</span>
@@ -520,11 +527,11 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         <nav
           aria-label="Navigasi Seksi Halaman"
           style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: 'rgba(255, 255, 255, 0.96)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
-            borderBottom: '1px solid var(--border-light)',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
+            borderBottom: '1px solid #e2e8f0',
+            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
             padding: isCompact ? '0.65rem 1.25rem' : isRegular ? '0.7rem 1.5rem' : '0.8rem 2.25rem',
             display: 'flex',
             alignItems: 'center',
@@ -553,13 +560,13 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 <Compass size={14} />
                 <span>JELAJAHI</span>
               </div>
-              <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '0.84rem', color: '#64748b' }}>
                 Melihat:{' '}
-                <strong style={{ color: 'var(--text-primary)', transition: 'color 0.25s ease' }}>
+                <strong style={{ color: '#0f172a', transition: 'color 0.25s ease' }}>
                   {SECTION_NAV_ITEMS.find(s => s.id === activeSection)?.label || 'Tipe Katalog'}
                 </strong>
                 <span style={{ margin: '0 0.4rem', opacity: 0.5 }}>•</span>
-                <span style={{ color: 'var(--primary)', fontWeight: 700, transition: 'color 0.25s ease' }}>
+                <span style={{ color: '#2563eb', fontWeight: 700, transition: 'color 0.25s ease' }}>
                   {SECTION_NAV_ITEMS.find(s => s.id === activeSection)?.subtitle || 'Platform'}
                 </span>
               </div>
@@ -600,23 +607,23 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                     minHeight: '44px',
                     padding: isCompact ? '0.5rem 0.95rem' : '0.55rem 1.25rem',
                     borderRadius: '999px',
-                    backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
-                    color: isActive ? '#ffffff' : 'var(--text-primary)',
-                    border: isActive ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                    backgroundColor: isActive ? '#2563eb' : '#ffffff',
+                    color: isActive ? '#ffffff' : '#334155',
+                    border: isActive ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
                     textDecoration: 'none',
                     fontSize: isMiniTablet ? '0.78rem' : '0.88rem',
                     fontWeight: 700,
                     whiteSpace: 'nowrap',
                     cursor: 'pointer',
                     transition: 'all 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: isActive ? '0 3px 12px var(--primary-glow)' : 'none',
+                    boxShadow: isActive ? '0 3px 12px rgba(37, 99, 235, 0.25)' : '0 1px 2px rgba(15, 23, 42, 0.03)',
                     transform: isActive ? 'translateY(-1px)' : 'none',
                     flexShrink: 0
                   }}
                 >
                   <Icon
                     size={isMiniTablet ? 15 : 17}
-                    color={isActive ? '#ffffff' : 'var(--primary)'}
+                    color={isActive ? '#ffffff' : '#2563eb'}
                     style={{ transition: 'color 0.25s ease' }}
                   />
                   <span style={{ transition: 'color 0.25s ease' }}>{item.label}</span>
@@ -682,18 +689,18 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           fontWeight: 900,
           lineHeight: 1.18,
           letterSpacing: '-0.03em',
-          color: 'var(--text-primary)',
+          color: '#0f172a',
           margin: '0 0 1rem 0',
           textWrap: 'balance'
         }}>
           Katalog Produk Interaktif untuk{' '}
-          <span style={{ color: 'var(--primary)' }}>Segala Jenis Usaha</span>
+          <span style={{ color: '#2563eb' }}>Segala Jenis Usaha</span>
         </h1>
 
         {/* Subtitle */}
         <p style={{
           fontSize: isCompact ? '0.92rem' : isRegular ? '0.95rem' : '0.98rem',
-          color: 'var(--text-secondary)',
+          color: '#475569',
           lineHeight: 1.6,
           maxWidth: isCompact ? '560px' : isRegular ? '640px' : '720px',
           margin: '0 auto 1.5rem auto'
@@ -715,13 +722,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             gap: '0.45rem',
             padding: isMiniTablet ? '0.38rem 0.82rem' : '0.45rem 0.95rem',
             borderRadius: '999px',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
             fontSize: isMiniTablet ? '0.78rem' : '0.84rem',
             fontWeight: 700,
-            color: 'var(--text-primary)'
+            color: '#334155',
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)'
           }}>
-            <Zap size={15} color="var(--primary)" /> Siap dalam 60 Detik
+            <Zap size={15} color="#2563eb" /> Siap dalam 60 Detik
           </span>
           <span style={{
             display: 'inline-flex',
@@ -729,13 +737,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             gap: '0.45rem',
             padding: isMiniTablet ? '0.38rem 0.82rem' : '0.45rem 0.95rem',
             borderRadius: '999px',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
             fontSize: isMiniTablet ? '0.78rem' : '0.84rem',
             fontWeight: 700,
-            color: 'var(--text-primary)'
+            color: '#334155',
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)'
           }}>
-            <Layers size={15} color="var(--primary)" /> 7 Format Spesifik Usaha
+            <Layers size={15} color="#2563eb" /> 7 Format Spesifik Usaha
           </span>
           <span style={{
             display: 'inline-flex',
@@ -743,11 +752,12 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             gap: '0.45rem',
             padding: isMiniTablet ? '0.38rem 0.82rem' : '0.45rem 0.95rem',
             borderRadius: '999px',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
             fontSize: isMiniTablet ? '0.78rem' : '0.84rem',
             fontWeight: 700,
-            color: 'var(--text-primary)'
+            color: '#334155',
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)'
           }}>
             <MessageCircle size={15} color="#16a34a" /> Direct WhatsApp Order
           </span>
@@ -757,13 +767,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             gap: '0.45rem',
             padding: isMiniTablet ? '0.38rem 0.82rem' : '0.45rem 0.95rem',
             borderRadius: '999px',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
             fontSize: isMiniTablet ? '0.78rem' : '0.84rem',
             fontWeight: 700,
-            color: 'var(--text-primary)'
+            color: '#334155',
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)'
           }}>
-            <ShieldCheck size={15} color="var(--primary)" /> Proteksi Rekber Syariah
+            <ShieldCheck size={15} color="#2563eb" /> Proteksi Rekber Syariah
           </span>
           <span style={{
             display: 'inline-flex',
@@ -771,13 +782,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             gap: '0.45rem',
             padding: isMiniTablet ? '0.38rem 0.82rem' : '0.45rem 0.95rem',
             borderRadius: '999px',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
+            backgroundColor: '#ffffff',
+            border: '1px solid #e2e8f0',
             fontSize: isMiniTablet ? '0.78rem' : '0.84rem',
             fontWeight: 700,
-            color: 'var(--text-primary)'
+            color: '#334155',
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)'
           }}>
-            <Scale size={15} color="var(--primary)" /> 0% Komisi Penjualan
+            <Scale size={15} color="#2563eb" /> 0% Komisi Penjualan
           </span>
         </div>
 
@@ -798,7 +810,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               minHeight: '44px',
               padding: isMiniTablet ? '0 1.65rem' : '0 1.85rem',
               borderRadius: '0.75rem',
-              backgroundColor: 'var(--primary)',
+              background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
               color: '#ffffff',
               border: 'none',
               fontSize: '0.92rem',
@@ -822,9 +834,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               minHeight: '44px',
               padding: isMiniTablet ? '0 1.35rem' : '0 1.65rem',
               borderRadius: '0.75rem',
-              backgroundColor: 'var(--bg-card)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-light)',
+              backgroundColor: '#ffffff',
+              color: '#0f172a',
+              border: '1px solid #cbd5e1',
               fontSize: '0.9rem',
               fontWeight: 700,
               cursor: 'pointer',
@@ -832,6 +844,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               textDecoration: 'none',
+              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
               width: isNarrow ? '100%' : 'auto'
             }}
           >
@@ -846,10 +859,11 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           gap: '0.65rem',
           padding: '0.45rem 1.15rem',
           borderRadius: '999px',
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border-light)',
+          backgroundColor: '#ffffff',
+          border: '1px solid #e2e8f0',
           fontSize: '0.82rem',
-          color: 'var(--text-muted)'
+          color: '#64748b',
+          boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)'
         }}>
           <CheckCircle2 size={16} color="#16a34a" />
           <span>
@@ -870,13 +884,13 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         scrollMarginTop: '135px'
       }}>
         <div style={{ textAlign: 'center', marginBottom: isMiniTablet ? '1.25rem' : '1.75rem' }}>
-          <div style={{ fontSize: isMiniTablet ? '0.74rem' : '0.82rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div style={{ fontSize: isMiniTablet ? '0.74rem' : '0.82rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Spesialisasi Format
           </div>
-          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.25rem 0 0.45rem 0', letterSpacing: '-0.02em' }}>
+          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: '#0f172a', margin: '0.25rem 0 0.45rem 0', letterSpacing: '-0.02em' }}>
             7 Tipe Katalog untuk Berbagai Bidang Usaha
           </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: isMiniTablet ? '0.86rem' : '0.94rem', maxWidth: '720px', margin: '0 auto', lineHeight: 1.6 }}>
+          <p style={{ color: '#64748b', fontSize: isMiniTablet ? '0.86rem' : '0.94rem', maxWidth: '720px', margin: '0 auto', lineHeight: 1.6 }}>
             Bukan sekadar tautan teks biasa. Setiap tipe katalog memiliki struktur formulir dan atribut khusus yang relevan dengan karakteristik produk atau layanan Anda.
           </p>
         </div>
@@ -885,9 +899,6 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         <div style={{
           display: 'flex',
           gap: '0.5rem',
-          // Tablet mini (744px) masih cukup lebar untuk wrap 2 baris — jauh lebih
-          // nyaman daripada rail horizontal yang memotong label. Scroll hanya
-          // dipakai untuk layar sempit non-tablet (< 600px).
           overflowX: viewportWidth < 600 ? 'auto' : 'visible',
           flexWrap: viewportWidth < 600 ? 'nowrap' : 'wrap',
           justifyContent: viewportWidth < 600 ? 'flex-start' : 'center',
@@ -911,14 +922,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   minHeight: '44px',
                   padding: isCompact ? '0.5rem 0.95rem' : '0.55rem 1.1rem',
                   borderRadius: '0.65rem',
-                  border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
-                  backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-card)',
-                  color: isSelected ? '#ffffff' : 'var(--text-primary)',
+                  border: isSelected ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
+                  backgroundColor: isSelected ? '#2563eb' : '#ffffff',
+                  color: isSelected ? '#ffffff' : '#0f172a',
                   fontSize: '0.82rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
-                  boxShadow: isSelected ? '0 2px 8px var(--primary-glow)' : 'none',
+                  boxShadow: isSelected ? '0 2px 8px rgba(37, 99, 235, 0.25)' : '0 1px 2px rgba(15, 23, 42, 0.03)',
                   transition: 'all 0.15s ease'
                 }}
               >
@@ -933,11 +944,11 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         {isMiniTablet ? (
           /* Mini Tablet (768px): Single-Column Snug Card */
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: '1.35rem 1.25rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 4px 16px rgba(15, 23, 42, 0.05)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -955,7 +966,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   <FormatIcon size={20} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
                     {activeFormatData.name}
                   </h3>
                   <div style={{ fontSize: '0.78rem', color: activeFormatData.color, fontWeight: 700 }}>
@@ -977,29 +988,29 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             </div>
 
             <div style={{
-              backgroundColor: 'var(--bg-deep)',
+              backgroundColor: '#f8fafc',
               borderRadius: '0.75rem',
               padding: '1rem',
-              border: '1px solid var(--border-light)',
+              border: '1px solid #e2e8f0',
               marginBottom: '0.85rem'
             }}>
-              <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+              <p style={{ fontSize: '0.86rem', color: '#475569', lineHeight: 1.6, margin: 0 }}>
                 {activeFormatData.description}
               </p>
             </div>
 
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              <strong style={{ color: 'var(--text-primary)' }}>Contoh Penggunaan:</strong> {activeFormatData.examples}
+            <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+              <strong style={{ color: '#0f172a' }}>Contoh Penggunaan:</strong> {activeFormatData.examples}
             </div>
           </div>
         ) : (
           /* Wide Tablet (>=880px): Balanced 2-Column Split Showcase Card */
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: '1.5rem 1.65rem',
-            boxShadow: 'var(--shadow-premium)',
+            boxShadow: '0 4px 16px rgba(15, 23, 42, 0.05)',
             display: 'grid',
             gridTemplateColumns: isRegular ? '300px 1fr' : '360px 1fr',
             gap: '1.5rem',
@@ -1024,7 +1035,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
                       {activeFormatData.name}
                     </h3>
                     <span style={{
@@ -1046,14 +1057,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               </div>
 
               <div style={{
-                backgroundColor: 'var(--bg-deep)',
+                backgroundColor: '#f8fafc',
                 borderRadius: '0.75rem',
                 padding: '0.75rem 0.95rem',
-                border: '1px solid var(--border-light)',
+                border: '1px solid #e2e8f0',
                 fontSize: '0.8rem',
-                color: 'var(--text-muted)'
+                color: '#64748b'
               }}>
-                <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.2rem' }}>
+                <strong style={{ color: '#0f172a', display: 'block', marginBottom: '0.2rem' }}>
                   Contoh Penggunaan:
                 </strong>
                 <span>{activeFormatData.examples}</span>
@@ -1062,23 +1073,23 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 
             {/* Right Column: Structured Overview Panel */}
             <div style={{
-              backgroundColor: 'var(--bg-deep)',
+              backgroundColor: '#f8fafc',
               borderRadius: '0.85rem',
               padding: '1.15rem 1.25rem',
-              border: '1px solid var(--border-light)',
+              border: '1px solid #e2e8f0',
               display: 'flex',
               flexDirection: 'column',
               gap: '0.75rem'
             }}>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+              <p style={{ fontSize: '0.88rem', color: '#475569', lineHeight: 1.6, margin: 0 }}>
                 {activeFormatData.description}
               </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.65rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.65rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#334155' }}>
                   <CheckCircle2 size={15} color="#16a34a" />
                   <span>Formulir atribut industri spesifik</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#334155' }}>
                   <MessageCircle size={15} color="#16a34a" />
                   <span>Draf pesan WhatsApp terstruktur</span>
                 </div>
@@ -1100,13 +1111,13 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         scrollMarginTop: '135px'
       }}>
         <div style={{ textAlign: 'center', marginBottom: isMiniTablet ? '1.25rem' : '1.75rem' }}>
-          <div style={{ fontSize: isMiniTablet ? '0.74rem' : '0.82rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div style={{ fontSize: isMiniTablet ? '0.74rem' : '0.82rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Keunggulan Utama
           </div>
-          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.25rem 0 0.45rem 0', letterSpacing: '-0.02em' }}>
+          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: '#0f172a', margin: '0.25rem 0 0.45rem 0', letterSpacing: '-0.02em' }}>
             Mengapa Pemilik Usaha Memilih Catavor?
           </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: isMiniTablet ? '0.86rem' : '0.94rem', maxWidth: '720px', margin: '0 auto', lineHeight: 1.6 }}>
+          <p style={{ color: '#64748b', fontSize: isMiniTablet ? '0.86rem' : '0.94rem', maxWidth: '720px', margin: '0 auto', lineHeight: 1.6 }}>
             Solusi terpadu untuk digitalisasi etalase produk, efisiensi pemesanan WhatsApp, dan branding toko fisik maupun online.
           </p>
         </div>
@@ -1118,14 +1129,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         }}>
           {/* Card 1 */}
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: isMiniTablet ? '1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.65rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03)'
           }}>
             <div style={{
               width: '40px',
@@ -1140,24 +1151,24 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             }}>
               <Layers size={20} />
             </div>
-            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>
               7 Format Spesialisasi Produk
             </h3>
-            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.55 }}>
+            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.55 }}>
               Mendukung Barang Fisik, Kuliner, Jasa, Digital, Hewan, Tanaman, dan Properti dengan formulir atribut spesifik sesuai kebutuhan industri Anda.
             </p>
           </div>
 
           {/* Card 2 */}
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: isMiniTablet ? '1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.65rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03)'
           }}>
             <div style={{
               width: '40px',
@@ -1172,24 +1183,24 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             }}>
               <MessageCircle size={20} />
             </div>
-            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>
               Pesanan Terstruktur WhatsApp
             </h3>
-            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.55 }}>
+            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.55 }}>
               Tombol pesan otomatis mengisi nama produk, harga, varian, dan catatan sehingga penjual dan pembeli tidak perlu mengetik manual.
             </p>
           </div>
 
           {/* Card 3 */}
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: isMiniTablet ? '1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.65rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03)'
           }}>
             <div style={{
               width: '40px',
@@ -1204,24 +1215,24 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             }}>
               <Palette size={20} />
             </div>
-            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>
               Kustomisasi Identitas &amp; Tema
             </h3>
-            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.55 }}>
+            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.55 }}>
               Sesuaikan warna tema katalog, foto profil toko, deskripsi usaha, tautan media sosial, serta jam operasional bisnis Anda.
             </p>
           </div>
 
           {/* Card 4 */}
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: isMiniTablet ? '1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.65rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03)'
           }}>
             <div style={{
               width: '40px',
@@ -1236,24 +1247,24 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             }}>
               <PackageCheck size={20} />
             </div>
-            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>
               Dashboard Manajemen Produk &amp; Stok
             </h3>
-            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.55 }}>
+            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.55 }}>
               Kelola ratusan produk, atur status ketersediaan (Tersedia, Pre-Order, Buka Jadwal), kompresi WebP otomatis, dan kelola varian dari satu panel admin terpadu.
             </p>
           </div>
 
           {/* Card 5 */}
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: isMiniTablet ? '1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.65rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03)'
           }}>
             <div style={{
               width: '40px',
@@ -1268,24 +1279,24 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             }}>
               <ShieldCheck size={20} />
             </div>
-            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>
               0% Biaya Komisi Transaksi
             </h3>
-            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.55 }}>
+            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.55 }}>
               Seluruh hasil penjualan dari pelanggan 100% milik Anda seutuhnya. Tidak ada biaya transaksi tersembunyi per order.
             </p>
           </div>
 
           {/* Card 6 */}
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: isMiniTablet ? '1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.65rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03)'
           }}>
             <div style={{
               width: '40px',
@@ -1300,10 +1311,10 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             }}>
               <Globe size={20} />
             </div>
-            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+            <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.05rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>
               Biolink Toko Mandiri Responsif
             </h3>
-            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.55 }}>
+            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.86rem', color: '#64748b', margin: 0, lineHeight: 1.55 }}>
               Miliki alamat katalog web pribadi (catavor.com/nama-usaha) yang super ringan dibuka dari ponsel pelanggan dan siap dipasang di profil media sosial.
             </p>
           </div>
@@ -1322,13 +1333,13 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         scrollMarginTop: '135px'
       }}>
         <div style={{ textAlign: 'center', marginBottom: isMiniTablet ? '1.25rem' : '1.75rem' }}>
-          <div style={{ fontSize: isMiniTablet ? '0.74rem' : '0.82rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div style={{ fontSize: isMiniTablet ? '0.74rem' : '0.82rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Kemudahan Operasional
           </div>
-          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.25rem 0 0.45rem 0', letterSpacing: '-0.02em' }}>
+          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: '#0f172a', margin: '0.25rem 0 0.45rem 0', letterSpacing: '-0.02em' }}>
             Mulai dalam 3 Langkah Sederhana
           </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: isMiniTablet ? '0.86rem' : '0.94rem', maxWidth: '700px', margin: '0 auto', lineHeight: 1.6 }}>
+          <p style={{ color: '#64748b', fontSize: isMiniTablet ? '0.86rem' : '0.94rem', maxWidth: '700px', margin: '0 auto', lineHeight: 1.6 }}>
             Buka katalog interaktif Anda dalam hitungan menit tanpa keahlian teknis pemrograman.
           </p>
         </div>
@@ -1340,29 +1351,29 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         }}>
           {/* Step 1 */}
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: isMiniTablet ? '1.25rem 1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
             flexDirection: isRegular ? 'row' : 'column',
             alignItems: isRegular ? 'center' : 'stretch',
             gap: isRegular ? '1.25rem' : '0.85rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03)'
           }}>
             <div style={{
               width: '38px',
               height: '38px',
               flexShrink: 0,
               borderRadius: '0.65rem',
-              backgroundColor: 'var(--primary)',
+              backgroundColor: '#2563eb',
               color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 900,
               fontSize: '1.05rem',
-              boxShadow: '0 4px 12px var(--primary-glow)'
+              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
             }}>
               1
             </div>
@@ -1372,10 +1383,10 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               alignItems: 'center',
               gap: isRegular ? '1.25rem' : 0
             }}>
-              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: isRegular ? 0 : '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
+              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: isRegular ? 0 : '0 0 0.35rem 0', color: '#0f172a' }}>
                 Klaim Tautan &amp; Daftarkan Akun
               </h3>
-              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55, maxWidth: isRegular ? '54ch' : undefined }}>
+              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: '#475569', margin: 0, lineHeight: 1.55, maxWidth: isRegular ? '54ch' : undefined }}>
                 Daftar gratis dalam 30 detik dan pilih slug nama toko Anda (contoh: <strong>catavor.com/usaha-anda</strong>).
               </p>
             </div>
@@ -1383,29 +1394,29 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 
           {/* Step 2 */}
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: isMiniTablet ? '1.25rem 1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
             flexDirection: isRegular ? 'row' : 'column',
             alignItems: isRegular ? 'center' : 'stretch',
             gap: isRegular ? '1.25rem' : '0.85rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03)'
           }}>
             <div style={{
               width: '38px',
               height: '38px',
               flexShrink: 0,
               borderRadius: '0.65rem',
-              backgroundColor: 'var(--primary)',
+              backgroundColor: '#2563eb',
               color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 900,
               fontSize: '1.05rem',
-              boxShadow: '0 4px 12px var(--primary-glow)'
+              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
             }}>
               2
             </div>
@@ -1415,10 +1426,10 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               alignItems: 'center',
               gap: isRegular ? '1.25rem' : 0
             }}>
-              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: isRegular ? 0 : '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
+              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: isRegular ? 0 : '0 0 0.35rem 0', color: '#0f172a' }}>
                 Upload Produk &amp; Atur Tarif
               </h3>
-              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55, maxWidth: isRegular ? '54ch' : undefined }}>
+              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: '#475569', margin: 0, lineHeight: 1.55, maxWidth: isRegular ? '54ch' : undefined }}>
                 Unggah foto produk, isi harga promo, kategori, profil bisnis, nomor WhatsApp, dan jam operasional.
               </p>
             </div>
@@ -1426,29 +1437,29 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 
           {/* Step 3 */}
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: isMiniTablet ? '1.25rem 1.15rem' : '1.35rem 1.25rem',
             display: 'flex',
             flexDirection: isRegular ? 'row' : 'column',
             alignItems: isRegular ? 'center' : 'stretch',
             gap: isRegular ? '1.25rem' : '0.85rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 2px 8px -2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03)'
           }}>
             <div style={{
               width: '38px',
               height: '38px',
               flexShrink: 0,
               borderRadius: '0.65rem',
-              backgroundColor: 'var(--primary)',
+              backgroundColor: '#2563eb',
               color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 900,
               fontSize: '1.05rem',
-              boxShadow: '0 4px 12px var(--primary-glow)'
+              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)'
             }}>
               3
             </div>
@@ -1458,10 +1469,10 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               alignItems: 'center',
               gap: isRegular ? '1.25rem' : 0
             }}>
-              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: isRegular ? 0 : '0 0 0.35rem 0', color: 'var(--text-primary)' }}>
+              <h3 style={{ fontSize: isMiniTablet ? '0.98rem' : '1.08rem', fontWeight: 800, margin: isRegular ? 0 : '0 0 0.35rem 0', color: '#0f172a' }}>
                 Bagikan Biolink &amp; Terima Pesanan
               </h3>
-              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55, maxWidth: isRegular ? '54ch' : undefined }}>
+              <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.86rem', color: '#475569', margin: 0, lineHeight: 1.55, maxWidth: isRegular ? '54ch' : undefined }}>
                 Pasang link di bio media sosial (Instagram, TikTok, WhatsApp). Pelanggan memesan langsung ke WhatsApp atau transaksi terproteksi Rekber Syariah.
               </p>
             </div>
@@ -1486,9 +1497,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             display: 'inline-flex',
             alignItems: 'center',
             gap: '0.45rem',
-            backgroundColor: 'rgba(22, 163, 74, 0.1)',
+            backgroundColor: '#f0fdf4',
             color: '#16a34a',
-            border: '1px solid rgba(22, 163, 74, 0.25)',
+            border: '1px solid #bbf7d0',
             padding: isMiniTablet ? '0.35rem 0.95rem' : '0.4rem 1.05rem',
             borderRadius: '999px',
             fontSize: isMiniTablet ? '0.76rem' : '0.84rem',
@@ -1498,11 +1509,11 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             <ShieldCheck size={16} color="#16a34a" />
             <span>Kemitraan Resmi &amp; Transaksi Aman Escrow</span>
           </div>
-          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0 0 0.5rem 0', letterSpacing: '-0.02em', lineHeight: 1.25 }}>
-            Belanja Tenang &amp; Bebas Ragu Bersama <span style={{ color: 'var(--primary)' }}>Rekber Syariah</span>
+          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: '#0f172a', margin: '0 0 0.5rem 0', letterSpacing: '-0.02em', lineHeight: 1.25 }}>
+            Belanja Tenang &amp; Bebas Ragu Bersama <span style={{ color: '#2563eb' }}>Rekber Syariah</span>
           </h2>
-          <p style={{ fontSize: isMiniTablet ? '0.86rem' : '0.94rem', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: '750px', margin: '0 auto' }}>
-            Platform Catavor bekerja sama resmi dengan <strong>Rekber Syariah</strong> (<a href="https://rekbersyariah.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 700 }}>rekbersyariah.com</a>) guna menghadirkan fasilitas rekening bersama pihak ketiga yang amanah, adil, transparan, dan 100% bebas riba.
+          <p style={{ fontSize: isMiniTablet ? '0.86rem' : '0.94rem', color: '#64748b', lineHeight: 1.6, maxWidth: '750px', margin: '0 auto' }}>
+            Platform Catavor bekerja sama resmi dengan <strong>Rekber Syariah</strong> (<a href="https://rekbersyariah.com" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 700 }}>rekbersyariah.com</a>) guna menghadirkan fasilitas rekening bersama pihak ketiga yang amanah, adil, transparan, dan 100% bebas riba.
           </p>
         </div>
 
@@ -1515,14 +1526,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         }}>
           {/* Card 1: What is Escrow & Protection */}
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
             padding: isMiniTablet ? '1.25rem 1.15rem' : '1.45rem 1.35rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.85rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 4px 16px rgba(15, 23, 42, 0.05)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{
@@ -1540,42 +1551,42 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 <Scale size={20} />
               </div>
               <div>
-                <h3 style={{ fontSize: isMiniTablet ? '1rem' : '1.12rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                <h3 style={{ fontSize: isMiniTablet ? '1rem' : '1.12rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>
                   Apa Itu Rekening Bersama (Escrow)?
                 </h3>
-                <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                <span style={{ fontSize: '0.76rem', color: '#64748b', fontWeight: 600 }}>
                   Perlindungan transaksi netral antara Pembeli &amp; Penjual
                 </span>
               </div>
             </div>
 
-            <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>
+            <p style={{ fontSize: isMiniTablet ? '0.82rem' : '0.88rem', color: '#475569', lineHeight: 1.55, margin: 0 }}>
               Catavor adalah direktori dan katalog usaha langsung tanpa memotong komisi penjualan sepeser pun (0% komisi). Namun, saat bertransaksi jarak jauh antar kota atau untuk barang bernilai tinggi, rasa khawatir tertipu sering kali menjadi kendala.
             </p>
 
             <div style={{
               padding: '0.75rem 0.95rem',
               borderRadius: '0.75rem',
-              backgroundColor: 'var(--bg-deep)',
-              border: '1px solid var(--border-light)',
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
               fontSize: isMiniTablet ? '0.78rem' : '0.84rem',
-              color: 'var(--text-primary)',
+              color: '#334155',
               lineHeight: 1.55
             }}>
               <strong>Cara Kerja Proteksi:</strong> Dana pembayaran pembeli ditampung sementara di rekening escrow resmi mitra. Uang <em>tidak akan diteruskan</em> ke penjual hingga pembeli menerima dan memverifikasi barang dalam kondisi baik.
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
                 <CheckCircle2 size={16} color="#16a34a" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
-                <div style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  <strong style={{ color: 'var(--text-primary)' }}>Bagi Pembeli:</strong> Tenang dan bebas risiko penipuan online. Barang pasti dikirim atau dana kembali utuh.
+                <div style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: '#475569', lineHeight: 1.5 }}>
+                  <strong style={{ color: '#0f172a' }}>Bagi Pembeli:</strong> Tenang dan bebas risiko penipuan online. Barang pasti dikirim atau dana kembali utuh.
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
                 <CheckCircle2 size={16} color="#16a34a" style={{ flexShrink: 0, marginTop: '0.15rem' }} />
-                <div style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  <strong style={{ color: 'var(--text-primary)' }}>Bagi Penjual:</strong> Meningkatkan kepercayaan calon pembeli luar kota secara instan sehingga penjualan lebih cepat closing.
+                <div style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: '#475569', lineHeight: 1.5 }}>
+                  <strong style={{ color: '#0f172a' }}>Bagi Penjual:</strong> Meningkatkan kepercayaan calon pembeli luar kota secara instan sehingga penjualan lebih cepat closing.
                 </div>
               </div>
             </div>
@@ -1583,14 +1594,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 
           {/* Card 2: Official Partner Profile */}
           <div style={{
-            backgroundColor: 'var(--bg-card)',
+            backgroundColor: '#ffffff',
             borderRadius: '1.15rem',
             border: '1.5px solid #bfdbfe',
             padding: isMiniTablet ? '1.25rem 1.15rem' : '1.45rem 1.35rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.85rem',
-            boxShadow: 'var(--shadow-premium)'
+            boxShadow: '0 4px 16px rgba(37, 99, 235, 0.08)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{
@@ -1609,7 +1620,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                  <h3 style={{ fontSize: isMiniTablet ? '1.05rem' : isRegular ? '1.12rem' : '1.2rem', fontWeight: 900, margin: 0, color: 'var(--text-primary)' }}>
+                  <h3 style={{ fontSize: isMiniTablet ? '1.05rem' : isRegular ? '1.12rem' : '1.2rem', fontWeight: 900, margin: 0, color: '#0f172a' }}>
                     Rekber Syariah
                   </h3>
                   <span style={{
@@ -1624,39 +1635,39 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                     TERVERIFIKASI
                   </span>
                 </div>
-                <span style={{ fontSize: '0.76rem', color: 'var(--primary)', fontWeight: 700 }}>
+                <span style={{ fontSize: '0.76rem', color: '#2563eb', fontWeight: 700 }}>
                   Mitra Escrow Resmi Platform Catavor
                 </span>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: isRegular ? '1fr' : 'repeat(2, 1fr)', gap: '0.65rem' }}>
-              <div style={{ padding: '0.65rem 0.85rem', backgroundColor: 'var(--bg-deep)', borderRadius: '0.65rem', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.15rem' }}>Sistem Transaksi</div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>Grup WA 3 Pihak</div>
+              <div style={{ padding: '0.65rem 0.85rem', backgroundColor: '#f8fafc', borderRadius: '0.65rem', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.15rem' }}>Sistem Transaksi</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>Grup WA 3 Pihak</div>
               </div>
-              <div style={{ padding: '0.65rem 0.85rem', backgroundColor: 'var(--bg-deep)', borderRadius: '0.65rem', border: '1px solid var(--border-light)' }}>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.15rem' }}>Prinsip Syariah</div>
+              <div style={{ padding: '0.65rem 0.85rem', backgroundColor: '#f8fafc', borderRadius: '0.65rem', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.15rem' }}>Prinsip Syariah</div>
                 <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#16a34a' }}>Amanah &amp; Bebas Riba</div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', backgroundColor: 'var(--bg-deep)', padding: '0.75rem 0.95rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', fontSize: '0.82rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', backgroundColor: '#f8fafc', padding: '0.75rem 0.95rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0', fontSize: '0.82rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Situs Web Resmi:</span>
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Situs Web Resmi:</span>
                 <a
                   href="https://rekbersyariah.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: 'var(--primary)', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none', minHeight: '44px' }}
+                  style={{ color: '#2563eb', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none', minHeight: '44px' }}
                 >
                   <span>rekbersyariah.com</span>
                   <ExternalLink size={13} />
                 </a>
               </div>
-              <div style={{ height: '1px', backgroundColor: 'var(--border-light)' }} />
+              <div style={{ height: '1px', backgroundColor: '#f1f5f9' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>WhatsApp Admin:</span>
+                <span style={{ color: '#64748b', fontWeight: 600 }}>WhatsApp Admin:</span>
                 <a
                   href="https://wa.me/62811220227"
                   target="_blank"
@@ -1679,16 +1690,17 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   minHeight: '44px',
                   padding: '0 0.85rem',
                   borderRadius: '0.65rem',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-card)',
-                  color: 'var(--text-primary)',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#334155',
                   fontSize: '0.84rem',
                   fontWeight: 700,
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '0.45rem',
-                  textDecoration: 'none'
+                  textDecoration: 'none',
+                  boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)'
                 }}
               >
                 <ExternalLink size={14} />
@@ -1724,20 +1736,20 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 
         {/* 4-Step Interactive Escrow Flow Card */}
         <div style={{
-          backgroundColor: 'var(--bg-card)',
+          backgroundColor: '#ffffff',
           borderRadius: '1.15rem',
-          border: '1px solid var(--border-light)',
+          border: '1px solid #e2e8f0',
           padding: isMiniTablet ? '1.25rem 1.15rem' : '1.5rem 1.45rem',
-          boxShadow: 'var(--shadow-premium)'
+          boxShadow: '0 4px 16px rgba(15, 23, 42, 0.05)'
         }}>
           <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-            <span style={{ fontSize: isMiniTablet ? '0.72rem' : '0.8rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <span style={{ fontSize: isMiniTablet ? '0.72rem' : '0.8rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Panduan Transaksi Mudah
             </span>
-            <h3 style={{ fontSize: isMiniTablet ? '1.15rem' : '1.35rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.25rem 0 0.35rem 0' }}>
+            <h3 style={{ fontSize: isMiniTablet ? '1.15rem' : '1.35rem', fontWeight: 900, color: '#0f172a', margin: '0.25rem 0 0.35rem 0' }}>
               Bagaimana Alur Transaksi via Rekber di Catavor?
             </h3>
-            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
+            <p style={{ fontSize: isMiniTablet ? '0.8rem' : '0.88rem', color: '#64748b', margin: 0 }}>
               Proses aman, transparan, dan terkoordinasi dalam 4 langkah terarah
             </p>
           </div>
@@ -1748,34 +1760,34 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             gap: isMiniTablet ? '0.75rem' : '0.85rem',
             marginBottom: '1.25rem'
           }}>
-            <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-              <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: 'var(--primary)', color: '#ffffff', fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>1</div>
-              <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Pilih &amp; Sepakati</h4>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+            <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)' }}>1</div>
+              <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Pilih &amp; Sepakati</h4>
+              <p style={{ fontSize: '0.78rem', color: '#475569', margin: 0, lineHeight: 1.5 }}>
                 Pilih produk di katalog merchant dan pilih transaksi aman Rekber bersama penjual.
               </p>
             </div>
 
-            <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-              <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: 'var(--primary)', color: '#ffffff', fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>2</div>
-              <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Grup WA 3 Pihak</h4>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+            <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)' }}>2</div>
+              <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Grup WA 3 Pihak</h4>
+              <p style={{ fontSize: '0.78rem', color: '#475569', margin: 0, lineHeight: 1.5 }}>
                 Admin Rekber Syariah membuatkan grup WhatsApp resmi bersama Pembeli &amp; Penjual.
               </p>
             </div>
 
-            <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-              <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: 'var(--primary)', color: '#ffffff', fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>3</div>
-              <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Setor &amp; Kirim</h4>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+            <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#2563eb', color: '#ffffff', fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)' }}>3</div>
+              <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Setor &amp; Kirim</h4>
+              <p style={{ fontSize: '0.78rem', color: '#475569', margin: 0, lineHeight: 1.5 }}>
                 Pembeli transfer ke escrow. Setelah diverifikasi aman, Penjual mengirimkan barang pesanan.
               </p>
             </div>
 
-            <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-              <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#16a34a', color: '#ffffff', fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>4</div>
-              <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>Cek &amp; Cair</h4>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+            <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#16a34a', color: '#ffffff', fontWeight: 900, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(22, 163, 74, 0.25)' }}>4</div>
+              <h4 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: '#0f172a' }}>Cek &amp; Cair</h4>
+              <p style={{ fontSize: '0.78rem', color: '#475569', margin: 0, lineHeight: 1.5 }}>
                 Pembeli menerima paket &amp; cek isi. Saat dinyatakan sesuai, dana langsung dicairkan ke Penjual.
               </p>
             </div>
@@ -1795,7 +1807,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               width: '32px',
               height: '32px',
               borderRadius: '0.55rem',
-              backgroundColor: 'var(--primary)',
+              backgroundColor: '#2563eb',
               color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
@@ -1805,8 +1817,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             }}>
               <MessageCircle size={16} />
             </div>
-            <div style={{ flex: 1, fontSize: isMiniTablet ? '0.78rem' : '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
-              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.2rem', fontSize: isMiniTablet ? '0.82rem' : '0.92rem' }}>
+            <div style={{ flex: 1, fontSize: isMiniTablet ? '0.78rem' : '0.86rem', color: '#1e3a8a', lineHeight: 1.55 }}>
+              <strong style={{ color: '#0f172a', display: 'block', marginBottom: '0.2rem', fontSize: isMiniTablet ? '0.82rem' : '0.92rem' }}>
                 Tips Pembeli: Bagaimana Jika Penjual Belum Mengaktifkan Tombol Rekber?
               </strong>
               Jika opsi Rekber belum tampil di katalog, jangan ragu untuk <strong>meminta langsung via chat WhatsApp</strong>:
@@ -1814,9 +1826,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 marginTop: '0.45rem',
                 padding: '0.45rem 0.85rem',
                 borderRadius: '0.55rem',
-                backgroundColor: 'var(--bg-card)',
-                border: '1px dashed var(--border-light)',
-                color: 'var(--text-primary)',
+                backgroundColor: '#ffffff',
+                border: '1px dashed #bfdbfe',
+                color: '#0f172a',
                 fontStyle: 'italic',
                 fontWeight: 600,
                 fontSize: isMiniTablet ? '0.78rem' : '0.84rem'
@@ -1840,13 +1852,13 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         scrollMarginTop: '135px'
       }}>
         <div style={{ textAlign: 'center', marginBottom: isMiniTablet ? '1.25rem' : '1.75rem' }}>
-          <div style={{ fontSize: isMiniTablet ? '0.74rem' : '0.82rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div style={{ fontSize: isMiniTablet ? '0.74rem' : '0.82rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Investasi Terjangkau
           </div>
-          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.25rem 0 0.45rem 0', letterSpacing: '-0.02em' }}>
+          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: '#0f172a', margin: '0.25rem 0 0.45rem 0', letterSpacing: '-0.02em' }}>
             Pilihan Paket Sesuai Skala Usaha
           </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: isMiniTablet ? '0.86rem' : '0.94rem', maxWidth: '640px', margin: '0 auto 1rem auto', lineHeight: 1.6 }}>
+          <p style={{ color: '#64748b', fontSize: isMiniTablet ? '0.86rem' : '0.94rem', maxWidth: '640px', margin: '0 auto 1rem auto', lineHeight: 1.6 }}>
             Mulai gratis selamanya untuk pemula, atau upgrade ke Pro untuk fitur tanpa batas.
           </p>
 
@@ -1872,10 +1884,11 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         {useTabbedPricing && (
           <div style={{
             display: 'flex',
-            backgroundColor: 'var(--bg-card)',
-            padding: '0.3rem',
+            backgroundColor: '#ffffff',
+            padding: '0.35rem',
             borderRadius: '0.75rem',
-            border: '1px solid var(--border-light)',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
             marginBottom: '1rem'
           }}>
             {(['free', 'pro_starter', 'pro_business'] as const).map(planKey => {
@@ -1892,12 +1905,13 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                     padding: '0.5rem',
                     borderRadius: '0.55rem',
                     border: 'none',
-                    backgroundColor: isSelected ? 'var(--primary)' : 'transparent',
-                    color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                    backgroundColor: isSelected ? '#2563eb' : 'transparent',
+                    color: isSelected ? '#ffffff' : '#64748b',
                     fontWeight: 700,
                     fontSize: '0.8rem',
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease'
+                    transition: 'all 0.15s ease',
+                    boxShadow: isSelected ? '0 2px 8px rgba(37, 99, 235, 0.25)' : 'none'
                   }}
                 >
                   {label}
@@ -1916,37 +1930,37 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           {/* Plan 1: Free */}
           {(!useTabbedPricing || selectedPlanTab === 'free') && (
             <div style={{
-              backgroundColor: 'var(--bg-card)',
+              backgroundColor: '#ffffff',
               borderRadius: '1.15rem',
-              border: '1px solid var(--border-light)',
+              border: '1px solid #e2e8f0',
               padding: isMiniTablet ? '1.35rem 1.25rem' : '1.45rem 1.35rem',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
-              boxShadow: 'var(--shadow-premium)'
+              boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)'
             }}>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Gratis
                   </span>
                   <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#16a34a', backgroundColor: 'rgba(22, 163, 74, 0.12)', padding: '0.15rem 0.55rem', borderRadius: '999px' }}>
                     Rp 0
                   </span>
                 </div>
-                <div style={{ fontSize: isMiniTablet ? '1.85rem' : '2.1rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.35rem 0 0.55rem 0' }}>
-                  Rp 0 <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>/ selamanya</span>
+                <div style={{ fontSize: isMiniTablet ? '1.85rem' : '2.1rem', fontWeight: 900, color: '#0f172a', margin: '0.35rem 0 0.55rem 0' }}>
+                  Rp 0 <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 500 }}>/ selamanya</span>
                 </div>
-                <p style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-secondary)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
+                <p style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: '#64748b', marginBottom: '0.85rem', lineHeight: 1.5 }}>
                   Cocok untuk usaha rintisan yang baru memulai digitalisasi produk &amp; katalog online.
                 </p>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-secondary)' }}>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: '#334155' }}>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} color="#16a34a" /> Maksimal 15 item produk</li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} color="#16a34a" /> 100 MB Storage &amp; 5 foto/item</li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} color="#16a34a" /> Halaman profil bisnis</li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} color="#16a34a" /> Subdomain kustom (catavor.com/toko)</li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} color="#16a34a" /> WhatsApp Direct Order</li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}><X size={16} /> Watermark Catavor aktif</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8' }}><X size={16} /> Watermark Catavor aktif</li>
                 </ul>
               </div>
               <button
@@ -1963,16 +1977,17 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   minHeight: '44px',
                   padding: '0 1.15rem',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'var(--bg-deep)',
-                  border: '1px solid var(--border-light)',
-                  color: 'var(--text-primary)',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#0f172a',
                   fontSize: '0.86rem',
                   fontWeight: 700,
                   cursor: 'pointer',
                   marginTop: '1.25rem',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 Daftar Gratis Sekarang
@@ -1983,7 +1998,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           {/* Plan 2: Pro Starter */}
           {(!useTabbedPricing || selectedPlanTab === 'pro_starter') && (
             <div style={{
-              backgroundColor: 'var(--bg-card)',
+              backgroundColor: '#ffffff',
               borderRadius: '1.15rem',
               border: '2px solid #0284c7',
               padding: isMiniTablet ? '1.35rem 1.25rem' : '1.45rem 1.35rem',
@@ -2012,14 +2027,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                     Pro Starter
                   </span>
                 </div>
-                <div style={{ fontSize: isMiniTablet ? '1.85rem' : '2.1rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.35rem 0 0.55rem 0', display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
+                <div style={{ fontSize: isMiniTablet ? '1.85rem' : '2.1rem', fontWeight: 900, color: '#0f172a', margin: '0.35rem 0 0.55rem 0', display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
                   <span style={{ color: '#0284c7' }}>Rp 30.000</span>
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>/ bulan</span>
+                  <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 500 }}>/ bulan</span>
                 </div>
-                <p style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-secondary)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
+                <p style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: '#64748b', marginBottom: '0.85rem', lineHeight: 1.5 }}>
                   Untuk toko aktif &amp; UKM berkembang dengan kuota item besar &amp; branding mandiri.
                 </p>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-primary)' }}>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: '#0f172a' }}>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#0284c7" /> <strong>150 item produk aktif</strong></li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#0284c7" /> <strong>2 GB Storage &amp; 8 foto/item</strong></li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#0284c7" /> Lencana Toko Terverifikasi</li>
@@ -2037,6 +2052,11 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   }
                 }}
                 style={{
+                  width: '100%',
+                  minHeight: '44px',
+                  padding: '0 1.15rem',
+                  borderRadius: '0.65rem',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                   border: 'none',
                   color: '#ffffff',
                   fontSize: '0.86rem',
@@ -2059,7 +2079,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           {/* Plan 3: Pro Bisnis */}
           {(!useTabbedPricing || selectedPlanTab === 'pro_business') && (
             <div style={{
-              backgroundColor: 'var(--bg-card)',
+              backgroundColor: '#ffffff',
               borderRadius: '1.15rem',
               border: '2px solid #f59e0b',
               padding: isMiniTablet ? '1.35rem 1.25rem' : '1.45rem 1.35rem',
@@ -2094,14 +2114,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                     Pro Bisnis
                   </span>
                 </div>
-                <div style={{ fontSize: isMiniTablet ? '1.85rem' : '2.1rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.35rem 0 0.55rem 0', display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
+                <div style={{ fontSize: isMiniTablet ? '1.85rem' : '2.1rem', fontWeight: 900, color: '#0f172a', margin: '0.35rem 0 0.55rem 0', display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
                   <span style={{ color: '#d97706' }}>Rp 129.000</span>
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>/ bulan</span>
+                  <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 500 }}>/ bulan</span>
                 </div>
-                <p style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-secondary)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
+                <p style={{ fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: '#64748b', marginBottom: '0.85rem', lineHeight: 1.5 }}>
                   Solusi terlengkap dengan postingan tak terbatas dan alamat website domain Anda sendiri.
                 </p>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gridColumn: isRegular ? 2 : undefined, gridRow: isRegular ? '1 / span 4' : undefined, alignSelf: isRegular ? 'stretch' : undefined, alignContent: isRegular ? 'space-between' : undefined, gridTemplateColumns: useTabbedPricing || isRegular ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '0.5rem 1.25rem', fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: 'var(--text-primary)' }}>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gridColumn: isRegular ? 2 : undefined, gridRow: isRegular ? '1 / span 4' : undefined, alignSelf: isRegular ? 'stretch' : undefined, alignContent: isRegular ? 'space-between' : undefined, gridTemplateColumns: useTabbedPricing || isRegular ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: '0.5rem 1.25rem', fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: '#0f172a' }}>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#d97706" /> <strong>Unlimited Produk &amp; Jasa</strong></li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#d97706" /> <strong>10 GB Storage &amp; 10 foto/item</strong></li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#d97706" /> <strong>Custom Domain (toko.com)</strong></li>
@@ -2160,10 +2180,10 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         scrollMarginTop: '135px'
       }}>
         <div style={{ textAlign: 'center', marginBottom: isMiniTablet ? '1.25rem' : '1.75rem' }}>
-          <div style={{ fontSize: isMiniTablet ? '0.74rem' : '0.82rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div style={{ fontSize: isMiniTablet ? '0.74rem' : '0.82rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Pusat Bantuan
           </div>
-          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0.25rem 0 0.45rem 0', letterSpacing: '-0.02em' }}>
+          <h2 style={{ fontSize: isMiniTablet ? '1.65rem' : '2.1rem', fontWeight: 900, color: '#0f172a', margin: '0.25rem 0 0.45rem 0', letterSpacing: '-0.02em' }}>
             Pertanyaan yang Sering Diajukan
           </h2>
         </div>
@@ -2175,12 +2195,12 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               <div
                 key={idx}
                 style={{
-                  backgroundColor: 'var(--bg-card)',
+                  backgroundColor: '#ffffff',
                   borderRadius: '0.85rem',
-                  border: isOpen ? '1.5px solid var(--primary)' : '1px solid var(--border-light)',
+                  border: isOpen ? '1.5px solid #93c5fd' : '1px solid #e2e8f0',
                   overflow: 'hidden',
                   transition: 'all 0.15s ease',
-                  boxShadow: isOpen ? '0 4px 15px rgba(37, 99, 235, 0.12)' : 'none'
+                  boxShadow: isOpen ? '0 4px 15px rgba(37, 99, 235, 0.08)' : '0 1px 3px rgba(0, 0, 0, 0.04)'
                 }}
               >
                 <div
@@ -2194,13 +2214,13 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                     userSelect: 'none'
                   }}
                 >
-                  <h3 style={{ fontSize: isMiniTablet ? '0.88rem' : '0.98rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, paddingRight: '0.75rem', lineHeight: 1.45 }}>
+                  <h3 style={{ fontSize: isMiniTablet ? '0.88rem' : '0.98rem', fontWeight: 700, color: '#0f172a', margin: 0, paddingRight: '0.75rem', lineHeight: 1.45 }}>
                     {faq.q}
                   </h3>
                   <ChevronDown
                     size={18}
                     style={{
-                      color: isOpen ? 'var(--primary)' : 'var(--text-muted)',
+                      color: isOpen ? '#2563eb' : '#94a3b8',
                       transform: isOpen ? 'rotate(180deg)' : 'none',
                       transition: 'transform 0.2s ease',
                       flexShrink: 0
@@ -2211,9 +2231,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   <div style={{
                     padding: isMiniTablet ? '0 1.15rem 0.95rem 1.15rem' : '0 1.35rem 1.1rem 1.35rem',
                     fontSize: isMiniTablet ? '0.82rem' : '0.9rem',
-                    color: 'var(--text-secondary)',
+                    color: '#475569',
                     lineHeight: 1.6,
-                    borderTop: '1px solid var(--border-light)',
+                    borderTop: '1px solid #f1f5f9',
                     paddingTop: '0.75rem'
                   }}>
                     {faq.a}
@@ -2282,9 +2302,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           SECTION 8: TABLET FOOTER
           ========================================================================= */}
       <footer style={{
-        borderTop: '1px solid var(--border-light)',
+        borderTop: '1px solid #e2e8f0',
         padding: isMiniTablet ? '1.75rem 1.25rem' : '2.25rem 1.5rem',
-        backgroundColor: 'var(--bg-card)',
+        backgroundColor: '#ffffff',
         marginTop: 'auto'
       }}>
         <div style={{
@@ -2301,7 +2321,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               width: '30px',
               height: '30px',
               borderRadius: '6px',
-              backgroundColor: 'var(--primary)',
+              backgroundColor: '#2563eb',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -2309,17 +2329,17 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             }}>
               <StoreIcon size={16} />
             </div>
-            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>Catavor</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: '0.35rem' }}>
+            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>Catavor</span>
+            <span style={{ color: '#64748b', fontSize: '0.8rem', marginLeft: '0.35rem' }}>
               &copy; 2026 Catavor. Hak Cipta Dilindungi.
             </span>
           </div>
 
-          <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', fontSize: '0.8rem', color: '#64748b' }}>
             <button
               type="button"
               onClick={() => setShowPolicyModal(true)}
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
+              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
             >
               Syarat &amp; Ketentuan
             </button>
@@ -2327,7 +2347,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             <button
               type="button"
               onClick={() => setShowPolicyModal(true)}
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
+              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
             >
               Kebijakan Privasi
             </button>
@@ -2335,7 +2355,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             <button
               type="button"
               onClick={() => setShowPolicyModal(true)}
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
+              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
             >
               Ketentuan Penggunaan
             </button>
@@ -2360,8 +2380,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
         >
           <div
             style={{
-              backgroundColor: 'var(--bg-main, #0b1120)',
-              border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
+              backgroundColor: '#0f172a',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
               borderRadius: '1.25rem',
               width: '100%',
               maxWidth: '960px',
@@ -2375,15 +2395,15 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             <div
               style={{
                 padding: '1rem 1.5rem',
-                borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                backgroundColor: 'var(--bg-card, #0f172a)'
+                backgroundColor: '#1e293b'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Scale size={18} style={{ color: 'var(--primary, #10b981)' }} />
+                <Scale size={18} style={{ color: '#2563eb' }} />
                 <span style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff' }}>
                   Pedoman Legal &amp; Kebijakan Platform
                 </span>
@@ -2396,7 +2416,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   borderRadius: '0.5rem',
                   backgroundColor: 'rgba(255, 255, 255, 0.08)',
                   color: '#ffffff',
-                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.15))',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
                   fontSize: '0.8rem',
                   fontWeight: 700,
                   cursor: 'pointer'
