@@ -18,8 +18,22 @@ export const MASTER_SAFE_DOMAINS: string[] = [
   '127.0.0.1'
 ];
 
-// Dynamic runtime cache
-let dynamicSafeDomainsCache: string[] = [];
+// Dynamic runtime cache initialized synchronously from localStorage for instant zero-latency boot
+const getInitialCachedSafeDomains = (): string[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const cached = localStorage.getItem('catavor_safe_domains');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+};
+
+let dynamicSafeDomainsCache: string[] = getInitialCachedSafeDomains();
 let isFetchingDomains = false;
 
 /**
@@ -67,6 +81,7 @@ export async function loadDynamicSafeDomains(forceRefresh: boolean = false): Pro
           try {
             localStorage.setItem('catavor_safe_domains', JSON.stringify(json.data));
             localStorage.setItem('catavor_safe_domains_time', String(Date.now()));
+            window.dispatchEvent(new CustomEvent('catavor_safe_domains_updated', { detail: json.data }));
           } catch {
             // ignore
           }
@@ -366,12 +381,21 @@ export function safeOpenUrl(
   if (!security.isSafe || security.sanitizedUrl === '#') return;
 
   if (security.isExternal) {
-    if (security.requiresWarning && onExternalConfirmPrompt) {
-      onExternalConfirmPrompt(security.sanitizedUrl);
-    } else {
-      const newWin = window.open(security.sanitizedUrl, '_blank', 'noopener,noreferrer');
-      if (newWin) newWin.opener = null;
+    if (security.requiresWarning) {
+      if (onExternalConfirmPrompt) {
+        onExternalConfirmPrompt(security.sanitizedUrl);
+        return;
+      }
+      if (typeof window !== 'undefined') {
+        const evt = new CustomEvent('catavor_prompt_external_url', {
+          detail: { url: security.sanitizedUrl }
+        });
+        window.dispatchEvent(evt);
+        return;
+      }
     }
+    const newWin = window.open(security.sanitizedUrl, '_blank', 'noopener,noreferrer');
+    if (newWin) newWin.opener = null;
   } else {
     if (onInternalNavigate) {
       onInternalNavigate(security.sanitizedUrl);

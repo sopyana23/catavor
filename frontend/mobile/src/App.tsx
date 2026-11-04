@@ -4281,6 +4281,16 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    const handleGlobalExternalPrompt = (e: any) => {
+      if (e.detail?.url) {
+        setExternalUrlWarning(e.detail.url);
+      }
+    };
+    window.addEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
+    return () => window.removeEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
+  }, []);
+
   const [notifications, setNotifications] = useState<Array<{
     id: number | string;
     title: string;

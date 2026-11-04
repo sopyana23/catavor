@@ -4232,6 +4232,16 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    const handleGlobalExternalPrompt = (e: any) => {
+      if (e.detail?.url) {
+        setExternalUrlWarning(e.detail.url);
+      }
+    };
+    window.addEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
+    return () => window.removeEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
+  }, []);
+
   const [notifications, setNotifications] = useState<any[]>([
     {
       id: 'notif_about_guide',
@@ -34337,6 +34347,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }}
           apiBase={API_BASE}
           token={token}
+        />
+      )}
+
+      {/* External Link Safety Prompt Modal (Desktop) */}
+      {externalUrlWarning && (
+        <ExternalLinkWarningModal
+          url={externalUrlWarning}
+          onClose={() => setExternalUrlWarning(null)}
         />
       )}
 

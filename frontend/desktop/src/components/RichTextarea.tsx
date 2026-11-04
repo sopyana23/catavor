@@ -17,7 +17,9 @@ import {
   Copy,
   Trash2,
   Type,
-  FileText
+  FileText,
+  ShieldAlert,
+  ShieldCheck
 } from 'lucide-react';
 import { sanitizeUrl, safeOpenUrl, checkUrlSecurity } from '../utils/urlSecurity';
 import { ExternalLinkWarningModal, type ExternalLinkWarningModalProps } from './ExternalLinkWarningModal';
@@ -32,6 +34,8 @@ export interface FormattedTextProps {
   className?: string;
   onNavigate?: (path: string) => void;
   showExternalWarning?: boolean;
+  theme?: any;
+  isDark?: boolean;
 }
 
 export const FormattedText: React.FC<FormattedTextProps> = ({
@@ -39,7 +43,9 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
   style,
   className,
   onNavigate,
-  showExternalWarning = true
+  showExternalWarning = true,
+  theme,
+  isDark = false
 }) => {
   const [externalUrlToPrompt, setExternalUrlToPrompt] = useState<string | null>(null);
 
@@ -228,6 +234,8 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
             <a
               key={`lnk-${idx++}`}
               href={rawUrl}
+              target={isExternal ? '_blank' : undefined}
+              rel={isExternal ? 'noopener noreferrer' : undefined}
               onClick={(e) => handleLinkClick(rawUrl, e)}
               style={{
                 color: 'var(--primary, #1e3a8a)',
@@ -427,6 +435,8 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
         <ExternalLinkWarningModal
           url={externalUrlToPrompt}
           onClose={() => setExternalUrlToPrompt(null)}
+          theme={theme}
+          isDark={isDark}
         />
       )}
     </>
@@ -459,11 +469,19 @@ export const LinkInsertModal: React.FC<{
 }) => {
   const [text, setText] = useState(initialText);
   const [url, setUrl] = useState(initialUrl);
+  const [previewExternalUrl, setPreviewExternalUrl] = useState<string | null>(null);
+
+  useModalBackHandler({
+    isOpen,
+    onClose,
+    modalId: 'rich-link-insert-modal-desktop'
+  });
 
   useEffect(() => {
     if (isOpen) {
       setText(initialText || '');
       setUrl(initialUrl || '');
+      setPreviewExternalUrl(null);
     }
   }, [isOpen, initialText, initialUrl]);
 
@@ -478,14 +496,14 @@ export const LinkInsertModal: React.FC<{
 
   if (!isOpen) return null;
 
-  const { isSafe, isExternal } = sanitizeUrl(url);
+  const urlSec = checkUrlSecurity(url);
 
   const handleConfirm = (e?: React.SyntheticEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    if (!text.trim() || !url.trim() || !isSafe) return;
+    if (!text.trim() || !url.trim() || !urlSec.isSafe) return;
     onInsert(text.trim(), url.trim());
     setText('');
     setUrl('');
@@ -614,31 +632,102 @@ export const LinkInsertModal: React.FC<{
                 padding: '0.55rem 0.75rem',
                 borderRadius: '0.65rem',
                 backgroundColor: inputBg,
-                border: `1px solid ${url ? (isSafe ? (isExternal ? '#3b82f6' : '#10b981') : '#ef4444') : inputBorder}`,
+                border: `1px solid ${url ? (!urlSec.isSafe ? '#ef4444' : !urlSec.isExternal ? '#10b981' : urlSec.isMasterTrusted ? '#3b82f6' : '#f59e0b') : inputBorder}`,
                 color: textPrimary,
                 fontSize: '0.8rem',
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
             />
-            {url && (
-              <div style={{ fontSize: '0.66rem', marginTop: '0.3rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                {!isSafe ? (
-                  <>
-                    <AlertTriangle size={12} color="#ef4444" />
-                    <span style={{ color: '#ef4444' }}>Protokol tidak aman / dilarang (XSS Protection)</span>
-                  </>
-                ) : isExternal ? (
-                  <>
-                    <Globe size={12} color="#3b82f6" />
-                    <span style={{ color: '#3b82f6' }}>Tautan Eksternal Aman (Akan dibuka di tab baru)</span>
-                  </>
-                ) : (
-                  <>
-                    <Check size={12} color="#10b981" />
-                    <span style={{ color: '#10b981' }}>Rute Internal Platform (Navigasi cepat)</span>
-                  </>
-                )}
+            {url.trim() && (
+              <div style={{
+                marginTop: '0.45rem',
+                padding: '0.65rem 0.85rem',
+                borderRadius: '0.75rem',
+                backgroundColor: !urlSec.isSafe
+                  ? 'rgba(239, 68, 68, 0.08)'
+                  : !urlSec.isExternal
+                    ? 'rgba(16, 185, 129, 0.08)'
+                    : urlSec.isMasterTrusted
+                      ? 'rgba(59, 130, 246, 0.08)'
+                      : 'rgba(245, 158, 11, 0.08)',
+                border: `1px solid ${
+                  !urlSec.isSafe
+                    ? 'rgba(239, 68, 68, 0.25)'
+                    : !urlSec.isExternal
+                      ? 'rgba(16, 185, 129, 0.25)'
+                      : urlSec.isMasterTrusted
+                        ? 'rgba(59, 130, 246, 0.25)'
+                        : 'rgba(245, 158, 11, 0.25)'
+                }`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.35rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.74rem', fontWeight: 800 }}>
+                    {!urlSec.isSafe ? (
+                      <>
+                        <AlertTriangle size={14} color="#ef4444" />
+                        <span style={{ color: '#ef4444' }}>Protokol Dilarang (XSS Protection)</span>
+                      </>
+                    ) : !urlSec.isExternal ? (
+                      <>
+                        <Check size={14} color="#10b981" />
+                        <span style={{ color: '#10b981' }}>Rute Internal Platform</span>
+                      </>
+                    ) : urlSec.isMasterTrusted ? (
+                      <>
+                        <ShieldCheck size={14} color="#3b82f6" />
+                        <span style={{ color: '#3b82f6' }}>Master Safe Domain ({urlSec.domain})</span>
+                      </>
+                    ) : (
+                      <>
+                        <Globe size={14} color="#d97706" />
+                        <span style={{ color: '#d97706' }}>Domain Pihak Ketiga ({urlSec.domain || 'Eksternal'})</span>
+                      </>
+                    )}
+                  </div>
+
+                  {urlSec.isExternal && !urlSec.isMasterTrusted && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPreviewExternalUrl(urlSec.sanitizedUrl);
+                      }}
+                      style={{
+                        padding: '0.22rem 0.55rem',
+                        borderRadius: '0.45rem',
+                        backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        color: '#d97706',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        flexShrink: 0
+                      }}
+                      title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
+                    >
+                      <Eye size={12} />
+                      <span>Uji Modal Konfirmasi</span>
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ fontSize: '0.68rem', color: textSecondary, lineHeight: 1.45 }}>
+                  {!urlSec.isSafe
+                    ? 'Protokol tidak aman dicegah demi keamanan sistem. Gunakan https:// atau rute internal (/...).'
+                    : !urlSec.isExternal
+                      ? 'Tautan internal sistem Catavor. Pengunjung bernavigasi langsung di dalam aplikasi tanpa konfirmasi eksternal.'
+                      : urlSec.isMasterTrusted
+                        ? 'Domain ini terdaftar resmi dalam Master Whitelist Sistem Catavor. Pengunjung langsung diarahkan ke halaman tujuan tanpa modal peringatan.'
+                        : 'Domain ini berada di luar Master Safe Domain. Pengunjung toko akan melihat modal konfirmasi peringatan keamanan sebelum dialihkan.'}
+                </div>
               </div>
             )}
           </div>
@@ -695,20 +784,20 @@ export const LinkInsertModal: React.FC<{
             <button
               type="button"
               onClick={handleConfirm}
-              disabled={!text.trim() || !url.trim() || !isSafe}
+              disabled={!text.trim() || !url.trim() || !urlSec.isSafe}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.3rem',
                 padding: '0.5rem 1.1rem',
                 borderRadius: '0.65rem',
-                background: (!text.trim() || !url.trim() || !isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
+                background: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
                 color: '#ffffff',
-                boxShadow: (!text.trim() || !url.trim() || !isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
+                boxShadow: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
                 border: 'none',
                 fontSize: '0.76rem',
                 fontWeight: 800,
-                cursor: (!text.trim() || !url.trim() || !isSafe) ? 'not-allowed' : 'pointer'
+                cursor: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'not-allowed' : 'pointer'
               }}
             >
               {isEditing && <Check size={13} />}
@@ -717,6 +806,16 @@ export const LinkInsertModal: React.FC<{
           </div>
         </div>
       </div>
+
+      {/* Visualisasi Konfirmasi Keamanan (Preview Modal) */}
+      {previewExternalUrl && (
+        <ExternalLinkWarningModal
+          url={previewExternalUrl}
+          onClose={() => setPreviewExternalUrl(null)}
+          theme={theme}
+          isDark={isDark}
+        />
+      )}
     </div>,
     document.body
   );
@@ -754,6 +853,13 @@ export const ButtonInsertModal: React.FC<{
   const [url, setUrl] = useState(initialUrl);
   const [variant, setVariant] = useState<'primary' | 'amber' | 'emerald' | 'outline'>(initialVariant);
   const [size, setSize] = useState<'sm' | 'md' | 'lg' | 'xl'>(initialSize);
+  const [previewExternalUrl, setPreviewExternalUrl] = useState<string | null>(null);
+
+  useModalBackHandler({
+    isOpen,
+    onClose,
+    modalId: 'rich-button-insert-modal-desktop'
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -761,6 +867,7 @@ export const ButtonInsertModal: React.FC<{
       setUrl(initialUrl || '');
       setVariant(initialVariant || 'primary');
       setSize(initialSize || 'md');
+      setPreviewExternalUrl(null);
     }
   }, [isOpen, initialLabel, initialUrl, initialVariant, initialSize]);
 
@@ -775,14 +882,14 @@ export const ButtonInsertModal: React.FC<{
 
   if (!isOpen) return null;
 
-  const { isSafe, isExternal } = sanitizeUrl(url);
+  const urlSec = checkUrlSecurity(url);
 
   const handleConfirm = (e?: React.SyntheticEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    if (!label.trim() || !url.trim() || !isSafe) return;
+    if (!label.trim() || !url.trim() || !urlSec.isSafe) return;
     onInsert(label.trim(), url.trim(), variant, size);
     setLabel('');
     setUrl('');
@@ -911,13 +1018,104 @@ export const ButtonInsertModal: React.FC<{
                 padding: '0.55rem 0.75rem',
                 borderRadius: '0.65rem',
                 backgroundColor: inputBg,
-                border: `1px solid ${url ? (isSafe ? '#3b82f6' : '#ef4444') : inputBorder}`,
+                border: `1px solid ${url ? (!urlSec.isSafe ? '#ef4444' : !urlSec.isExternal ? '#10b981' : urlSec.isMasterTrusted ? '#3b82f6' : '#f59e0b') : inputBorder}`,
                 color: textPrimary,
                 fontSize: '0.8rem',
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
             />
+            {url.trim() && (
+              <div style={{
+                marginTop: '0.45rem',
+                padding: '0.65rem 0.85rem',
+                borderRadius: '0.75rem',
+                backgroundColor: !urlSec.isSafe
+                  ? 'rgba(239, 68, 68, 0.08)'
+                  : !urlSec.isExternal
+                    ? 'rgba(16, 185, 129, 0.08)'
+                    : urlSec.isMasterTrusted
+                      ? 'rgba(59, 130, 246, 0.08)'
+                      : 'rgba(245, 158, 11, 0.08)',
+                border: `1px solid ${
+                  !urlSec.isSafe
+                    ? 'rgba(239, 68, 68, 0.25)'
+                    : !urlSec.isExternal
+                      ? 'rgba(16, 185, 129, 0.25)'
+                      : urlSec.isMasterTrusted
+                        ? 'rgba(59, 130, 246, 0.25)'
+                        : 'rgba(245, 158, 11, 0.25)'
+                }`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.35rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.74rem', fontWeight: 800 }}>
+                    {!urlSec.isSafe ? (
+                      <>
+                        <AlertTriangle size={14} color="#ef4444" />
+                        <span style={{ color: '#ef4444' }}>Protokol Dilarang (XSS Protection)</span>
+                      </>
+                    ) : !urlSec.isExternal ? (
+                      <>
+                        <Check size={14} color="#10b981" />
+                        <span style={{ color: '#10b981' }}>Rute Internal Platform</span>
+                      </>
+                    ) : urlSec.isMasterTrusted ? (
+                      <>
+                        <ShieldCheck size={14} color="#3b82f6" />
+                        <span style={{ color: '#3b82f6' }}>Master Safe Domain ({urlSec.domain})</span>
+                      </>
+                    ) : (
+                      <>
+                        <Globe size={14} color="#d97706" />
+                        <span style={{ color: '#d97706' }}>Domain Pihak Ketiga ({urlSec.domain || 'Eksternal'})</span>
+                      </>
+                    )}
+                  </div>
+
+                  {urlSec.isExternal && !urlSec.isMasterTrusted && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPreviewExternalUrl(urlSec.sanitizedUrl);
+                      }}
+                      style={{
+                        padding: '0.22rem 0.55rem',
+                        borderRadius: '0.45rem',
+                        backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        color: '#d97706',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        flexShrink: 0
+                      }}
+                      title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
+                    >
+                      <Eye size={12} />
+                      <span>Uji Modal Konfirmasi</span>
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ fontSize: '0.68rem', color: textSecondary, lineHeight: 1.45 }}>
+                  {!urlSec.isSafe
+                    ? 'Protokol tidak aman dicegah demi keamanan sistem. Gunakan https:// atau rute internal (/...).'
+                    : !urlSec.isExternal
+                      ? 'Tautan internal sistem Catavor. Pengunjung bernavigasi langsung di dalam aplikasi tanpa konfirmasi eksternal.'
+                      : urlSec.isMasterTrusted
+                        ? 'Domain ini terdaftar resmi dalam Master Whitelist Sistem Catavor. Pengunjung langsung diarahkan ke halaman tujuan tanpa modal peringatan.'
+                        : 'Domain ini berada di luar Master Safe Domain. Pengunjung toko akan melihat modal konfirmasi peringatan keamanan sebelum dialihkan.'}
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
@@ -1036,7 +1234,7 @@ export const ButtonInsertModal: React.FC<{
                 }}
               >
                 <span>{label.trim()}</span>
-                {isExternal ? <ExternalLink size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} /> : <MousePointer size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} />}
+                {urlSec.isExternal ? <ExternalLink size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} /> : <MousePointer size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} />}
               </div>
             </div>
           )}
@@ -1093,20 +1291,20 @@ export const ButtonInsertModal: React.FC<{
             <button
               type="button"
               onClick={handleConfirm}
-              disabled={!label.trim() || !url.trim() || !isSafe}
+              disabled={!label.trim() || !url.trim() || !urlSec.isSafe}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.3rem',
                 padding: '0.5rem 1.1rem',
                 borderRadius: '0.65rem',
-                background: (!label.trim() || !url.trim() || !isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
+                background: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
                 color: '#ffffff',
-                boxShadow: (!label.trim() || !url.trim() || !isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
+                boxShadow: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
                 border: 'none',
                 fontSize: '0.76rem',
                 fontWeight: 800,
-                cursor: (!label.trim() || !url.trim() || !isSafe) ? 'not-allowed' : 'pointer'
+                cursor: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'not-allowed' : 'pointer'
               }}
             >
               {isEditing && <Check size={13} />}
@@ -1115,6 +1313,16 @@ export const ButtonInsertModal: React.FC<{
           </div>
         </div>
       </div>
+
+      {/* Visualisasi Konfirmasi Keamanan (Preview Modal) */}
+      {previewExternalUrl && (
+        <ExternalLinkWarningModal
+          url={previewExternalUrl}
+          onClose={() => setPreviewExternalUrl(null)}
+          theme={theme}
+          isDark={isDark}
+        />
+      )}
     </div>,
     document.body
   );
@@ -1584,14 +1792,16 @@ export function inlineMarkdownToHtml(str: string): string {
     const v = variant ? variant.trim() : 'primary';
     const s = size ? size.trim() : 'md';
     const cleanLabel = (label || '').trim();
-    const cleanUrl = (url || '').trim();
+    const sec = sanitizeUrl((url || '').trim());
+    const cleanUrl = sec.isSafe ? sec.sanitizedUrl : '#';
     return `<span data-rich-type="button" data-label="${cleanLabel}" data-url="${cleanUrl}" data-variant="${v}" data-size="${s}" contenteditable="false" class="rich-visual-badge rich-btn-${v} rich-btn-size-${s}"><span>${cleanLabel}</span></span>`;
   });
 
   // 2. Markdown Link: [text](url)
   res = res.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, linkText, url) => {
     const cleanText = (linkText || '').trim();
-    const cleanUrl = (url || '').trim();
+    const sec = sanitizeUrl((url || '').trim());
+    const cleanUrl = sec.isSafe ? sec.sanitizedUrl : '#';
     return `<a data-rich-type="link" data-url="${cleanUrl}" href="${cleanUrl}" class="rich-visual-link">${cleanText}</a>`;
   });
 
