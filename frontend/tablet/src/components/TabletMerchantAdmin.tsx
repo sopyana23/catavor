@@ -372,8 +372,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         url.searchParams.set('tab', 'profile');
         url.searchParams.set('sub', 'audit_logs');
         url.searchParams.delete('action');
+        url.searchParams.delete('id');
         url.searchParams.delete('type');
         url.searchParams.delete('catalog_type');
+        url.searchParams.delete('item');
         window.history.pushState({ tab: 'profile', sub: 'audit_logs' }, '', url.toString());
       }
       return;
@@ -383,8 +385,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       const url = new URL(window.location.href);
       url.searchParams.set('tab', tab);
       url.searchParams.delete('action');
+      url.searchParams.delete('id');
       url.searchParams.delete('type');
       url.searchParams.delete('catalog_type');
+      url.searchParams.delete('item');
       if (tab !== 'profile') {
         url.searchParams.delete('sub');
       }
@@ -1421,6 +1425,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       const url = new URL(window.location.href);
       url.searchParams.set('tab', 'items');
       url.searchParams.set('action', 'new');
+      url.searchParams.delete('item');
       if (isValidType) {
         url.searchParams.set('type', targetType);
       } else {
@@ -1623,6 +1628,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       url.searchParams.set('action', 'edit');
       url.searchParams.set('id', String(prod.id));
       url.searchParams.set('type', prod.product_type || 'physical');
+      url.searchParams.delete('item');
       window.history.pushState({ tab: 'items', action: 'edit', id: prod.id, type: prod.product_type }, '', url.toString());
     } catch {}
 
@@ -1843,7 +1849,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   useModalBackHandler({
     isOpen: activeTab === 'items' && Boolean(previewProduct),
     onClose: () => {
-      setPreviewProduct(null);
+      handleCloseProductDetail();
     },
     modalId: 'tablet_preview_item_modal'
   });
@@ -2161,10 +2167,30 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   };
 
+  const handleCloseProductDetail = useCallback(() => {
+    setPreviewProduct(null);
+    setShowPreviewLightbox(false);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('item');
+      window.history.replaceState({ tab: 'items' }, '', url.toString());
+    } catch {}
+  }, []);
+
   const handleOpenProductDetail = async (item: any) => {
     setPreviewProduct(item);
     setPreviewImageIndex(0);
     setShowPreviewLightbox(false);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'items');
+      url.searchParams.set('item', String(item.id));
+      url.searchParams.delete('action');
+      url.searchParams.delete('id');
+      url.searchParams.delete('type');
+      url.searchParams.delete('catalog_type');
+      window.history.pushState({ tab: 'items', item: item.id }, '', url.toString());
+    } catch {}
     try {
       const res = await fetch(`/api/products/${item.id}`, {
         headers: getHeaders()
@@ -2180,6 +2206,37 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       // optimistic item remains
     }
   };
+
+  // Auto-open product detail preview modal if ?item=ID is in URL or across refresh
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const detailParam = new URLSearchParams(window.location.search).get('item');
+    if (!detailParam || previewProduct) return;
+    const detailId = parseInt(detailParam, 10);
+    if (isNaN(detailId)) return;
+
+    const foundDetail = products.find((p: any) => p && p.id === detailId);
+    if (foundDetail) {
+      handleOpenProductDetail(foundDetail);
+    } else {
+      (async () => {
+        try {
+          const res = await fetch(`/api/products/${detailId}`, {
+            headers: getHeaders()
+          });
+          if (res.ok) {
+            const json = await res.json();
+            const fullItem = json.data || json.product || json;
+            if (fullItem && fullItem.id) {
+              setPreviewProduct(fullItem);
+              setPreviewImageIndex(0);
+              setShowPreviewLightbox(false);
+            }
+          }
+        } catch {}
+      })();
+    }
+  }, [products]);
 
 
   // Add Gallery Image URL
@@ -7308,7 +7365,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         return (
           <div
             className="modal-overlay"
-            onClick={() => setPreviewProduct(null)}
+            onClick={handleCloseProductDetail}
             style={{
               position: 'fixed',
               inset: 0,
@@ -7402,7 +7459,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   type="button"
                   id="btn-close-detail-preview"
                   data-testid="btn-close-detail-preview"
-                  onClick={() => setPreviewProduct(null)}
+                  onClick={handleCloseProductDetail}
                   style={{
                     width: '38px',
                     height: '38px',
@@ -7700,7 +7757,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   data-testid="btn-hapus-dari-preview"
                   onClick={() => {
                     const targetId = prod.id;
-                    setPreviewProduct(null);
+                    handleCloseProductDetail();
                     handleDeleteProduct(targetId);
                   }}
                   style={{
@@ -7730,7 +7787,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     type="button"
                     id="btn-tutup-detail-preview"
                     data-testid="btn-tutup-detail-preview"
-                    onClick={() => setPreviewProduct(null)}
+                    onClick={handleCloseProductDetail}
                     style={{
                       minHeight: '44px',
                       padding: '0.55rem 1.25rem',
@@ -7793,7 +7850,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     id="btn-edit-dari-preview"
                     data-testid="btn-edit-dari-preview"
                     onClick={() => {
-                      setPreviewProduct(null);
+                      handleCloseProductDetail();
                       handleSelectProduct(prod);
                     }}
                     style={{
