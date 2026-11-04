@@ -409,11 +409,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             <StoreIcon size={isMiniTablet ? 18 : 20} />
           </div>
           <div>
-            <div style={{ fontSize: isMiniTablet ? '1.15rem' : '1.25rem', fontWeight: 900, letterSpacing: '-0.02em', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <div style={{ fontSize: isMiniTablet ? '1.15rem' : '1.25rem', fontWeight: 900, letterSpacing: '-0.02em', color: '#0f172a' }}>
               Catavor
-              <span style={{ fontSize: '0.62rem', fontWeight: 800, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '0.12rem 0.45rem', borderRadius: '999px' }}>
-                COMMERCE
-              </span>
             </div>
             {!isMiniTablet && (
               <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>

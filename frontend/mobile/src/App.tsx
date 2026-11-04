@@ -32706,6 +32706,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     isOpen={showOfficialContactSheet}
                     onClose={() => setShowOfficialContactSheet(false)}
                     showToast={showToast}
+                    platformSettings={platformSettings}
                   />
 
                 </div>

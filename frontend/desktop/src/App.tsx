@@ -15634,11 +15634,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       <Store size={20} />
                     </div>
                     <div>
-                      <span style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
                         Catavor
-                        <span style={{ fontSize: '0.65rem', fontWeight: 800, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '0.15rem 0.45rem', borderRadius: '999px' }}>
-                          COMMERCE
-                        </span>
                       </span>
                     </div>
                   </div>
@@ -29722,6 +29719,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     isOpen={showOfficialContactModal}
                     onClose={() => setShowOfficialContactModal(false)}
                     showToast={showToast}
+                    platformSettings={platformSettings}
                   />
                 </div>
               );

@@ -8,7 +8,6 @@ import {
   Check,
   ExternalLink,
   ShieldCheck,
-  Clock,
   X
 } from 'lucide-react';
 
@@ -16,14 +15,17 @@ export interface TabletOfficialContactModalProps {
   isOpen: boolean;
   onClose: () => void;
   showToast?: (msg: string, type?: 'success' | 'error' | 'info') => void;
+  platformSettings?: Record<string, string>;
 }
 
 export const TabletOfficialContactModal: React.FC<TabletOfficialContactModalProps> = ({
   isOpen,
   onClose,
-  showToast
+  showToast,
+  platformSettings
 }) => {
   const [copiedType, setCopiedType] = useState<'wa' | 'email' | null>(null);
+  const [internalSettings, setInternalSettings] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!isOpen) return;
@@ -36,11 +38,52 @@ export const TabletOfficialContactModal: React.FC<TabletOfficialContactModalProp
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  // Dynamically fetch platform contact settings if not provided by parent
+  useEffect(() => {
+    if (!isOpen) return;
+    if (platformSettings && (platformSettings.platform_official_whatsapp || platformSettings.contact_whatsapp || platformSettings.platform_official_email || platformSettings.contact_email)) {
+      return;
+    }
+
+    let isMounted = true;
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(json => {
+        if (isMounted && json && json.success && json.data) {
+          setInternalSettings(json.data);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, platformSettings]);
+
   if (!isOpen) return null;
 
-  const WA_NUMBER = '+62 812-3456-7890';
-  const WA_CLEAN = '6281234567890';
-  const EMAIL_ADDRESS = 'bantuan@catavor.com';
+  const activeSettings = platformSettings && (platformSettings.platform_official_whatsapp || platformSettings.contact_whatsapp || platformSettings.platform_official_email)
+    ? platformSettings
+    : { ...internalSettings, ...platformSettings };
+
+  const rawWa = (activeSettings.platform_official_whatsapp || activeSettings.contact_whatsapp || activeSettings.rekber_wa_number || '62811220227').trim();
+  const digitsOnly = rawWa.replace(/\D/g, '');
+  const cleanDigits = digitsOnly.startsWith('0') ? '62' + digitsOnly.slice(1) : digitsOnly.startsWith('8') ? '62' + digitsOnly : digitsOnly || '62811220227';
+  const WA_CLEAN = cleanDigits;
+
+  const formatWaNumber = (digits: string): string => {
+    if (!digits) return '+62 811-2202-27';
+    if (digits.startsWith('62')) {
+      const national = digits.slice(2);
+      if (national.length <= 4) return `+62 ${national}`;
+      if (national.length <= 8) return `+62 ${national.slice(0, 3)}-${national.slice(3)}`;
+      return `+62 ${national.slice(0, 3)}-${national.slice(3, 7)}-${national.slice(7)}`;
+    }
+    return `+${digits}`;
+  };
+
+  const WA_NUMBER = formatWaNumber(cleanDigits);
+  const EMAIL_ADDRESS = (activeSettings.platform_official_email || activeSettings.contact_email || 'support@catavor.com').trim().toLowerCase();
 
   const handleCopy = (text: string, type: 'wa' | 'email') => {
     try {
@@ -56,11 +99,11 @@ export const TabletOfficialContactModal: React.FC<TabletOfficialContactModalProp
   };
 
   const handleOpenWA = () => {
-    window.open(`https://wa.me/${WA_CLEAN}?text=Halo%20Tim%20Bantuan%20Catavor,%20saya%20memerlukan%20informasi%20layanan%20katalog`, '_blank', 'noopener,noreferrer');
+    window.open(`https://wa.me/${WA_CLEAN}?text=${encodeURIComponent('Halo Tim Bantuan Catavor, saya memerlukan informasi layanan katalog.')}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleOpenEmail = () => {
-    window.open(`mailto:${EMAIL_ADDRESS}?subject=Permintaan%20Bantuan%20Pengelolaan%20Katalog%20Catavor`, '_blank', 'noopener,noreferrer');
+    window.open(`mailto:${EMAIL_ADDRESS}?subject=${encodeURIComponent('Permintaan Bantuan Pengelolaan Katalog Catavor')}`, '_blank', 'noopener,noreferrer');
   };
 
   return createPortal(
@@ -196,58 +239,37 @@ export const TabletOfficialContactModal: React.FC<TabletOfficialContactModalProp
           }}
         >
 
-        {/* Channel 1: WhatsApp Resmi */}
+        {/* Channel 1: WhatsApp */}
         <div
           style={{
-            padding: '1.1rem 1.25rem',
+            padding: '1rem 1.15rem',
             borderRadius: '0.95rem',
             backgroundColor: 'var(--bg-deep, rgba(0, 0, 0, 0.2))',
             border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.85rem'
+            gap: '0.75rem'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div
-                style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(16, 185, 129, 0.14)',
-                  border: '1px solid rgba(16, 185, 129, 0.35)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#10b981',
-                  flexShrink: 0
-                }}
-              >
-                <MessageSquare size={19} strokeWidth={1.75} />
-              </div>
-              <div>
-                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)', display: 'block' }}>
-                  WhatsApp CS Resmi
-                </span>
-                <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.1rem' }}>
-                  <Clock size={12} /> Respon Cepat Operasional &bull; 08.00 - 22.00 WIB
-                </span>
-              </div>
-            </div>
-            <span
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
               style={{
-                fontSize: '0.68rem',
-                fontWeight: 800,
-                padding: '0.18rem 0.55rem',
-                borderRadius: '999px',
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                color: '#10b981',
+                width: '38px',
+                height: '38px',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgba(16, 185, 129, 0.14)',
                 border: '1px solid rgba(16, 185, 129, 0.35)',
-                whiteSpace: 'nowrap'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#10b981',
+                flexShrink: 0
               }}
             >
-              Terverifikasi
+              <MessageSquare size={19} strokeWidth={1.75} />
+            </div>
+            <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
+              WhatsApp CS
             </span>
           </div>
 
@@ -321,58 +343,37 @@ export const TabletOfficialContactModal: React.FC<TabletOfficialContactModalProp
           </div>
         </div>
 
-        {/* Channel 2: Email Resmi */}
+        {/* Channel 2: Email */}
         <div
           style={{
-            padding: '1.1rem 1.25rem',
+            padding: '1rem 1.15rem',
             borderRadius: '0.95rem',
             backgroundColor: 'var(--bg-deep, rgba(0, 0, 0, 0.2))',
             border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.85rem'
+            gap: '0.75rem'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <div
-                style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'var(--primary-glow, rgba(2, 132, 199, 0.14))',
-                  border: '1px solid var(--border-light, rgba(2, 132, 199, 0.35))',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--primary, #0284c7)',
-                  flexShrink: 0
-                }}
-              >
-                <Mail size={19} strokeWidth={1.75} />
-              </div>
-              <div>
-                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)', display: 'block' }}>
-                  Email Bantuan & Layanan
-                </span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--primary, #0284c7)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.1rem' }}>
-                  <Clock size={12} /> Kendala Formal & Laporan &bull; 1x24 Jam Kerja
-                </span>
-              </div>
-            </div>
-            <span
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
               style={{
-                fontSize: '0.68rem',
-                fontWeight: 800,
-                padding: '0.18rem 0.55rem',
-                borderRadius: '999px',
-                backgroundColor: 'var(--primary-glow, rgba(2, 132, 199, 0.15))',
-                color: 'var(--primary, #0284c7)',
+                width: '38px',
+                height: '38px',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--primary-glow, rgba(2, 132, 199, 0.14))',
                 border: '1px solid var(--border-light, rgba(2, 132, 199, 0.35))',
-                whiteSpace: 'nowrap'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary, #0284c7)',
+                flexShrink: 0
               }}
             >
-              Resmi
+              <Mail size={19} strokeWidth={1.75} />
+            </div>
+            <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
+              Email Layanan
             </span>
           </div>
 

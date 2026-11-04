@@ -88,6 +88,7 @@ export interface TabletHelpdeskViewProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'info' | string) => void;
   onUpdateUnreadCount?: (count: number) => void;
   isNavExpanded?: boolean;
+  platformSettings?: Record<string, string>;
 }
 
 export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
@@ -98,7 +99,8 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
   userStores = [],
   showToast,
   onUpdateUnreadCount,
-  isNavExpanded = false
+  isNavExpanded = false,
+  platformSettings
 }) => {
   // Check dormancy / suspended account mode
   const isSuspendedAccount = settings?.dormancy_status === 'suspended' || settings?.is_suspended;
@@ -2203,6 +2205,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
         isOpen={showOfficialContactModal}
         onClose={() => setShowOfficialContactModal(false)}
         showToast={showToast}
+        platformSettings={platformSettings}
       />
 
     </div>
