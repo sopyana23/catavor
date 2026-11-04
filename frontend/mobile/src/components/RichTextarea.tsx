@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   ChevronDown,
   Maximize2,
+  Minimize2,
   Edit3,
   Eye,
   Check,
@@ -90,10 +91,10 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
     const { isSafe, isExternal } = sanitizeUrl(rawUrl);
     if (!isSafe) return null;
 
-    let bg = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+    let bg = 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)';
     let textColor = '#ffffff';
     let borderColor = 'transparent';
-    let shadow = '0 2px 8px rgba(37, 99, 235, 0.3)';
+    let shadow = '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))';
 
     if (variant === 'amber' || variant === 'warning') {
       bg = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
@@ -104,9 +105,9 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       textColor = '#ffffff';
       shadow = '0 2px 8px rgba(16, 185, 129, 0.3)';
     } else if (variant === 'outline') {
-      bg = 'rgba(56, 189, 248, 0.08)';
-      textColor = '#38bdf8';
-      borderColor = 'rgba(56, 189, 248, 0.4)';
+      bg = 'var(--primary-glow, rgba(30, 58, 138, 0.08))';
+      textColor = 'var(--primary, #1e3a8a)';
+      borderColor = 'var(--primary, #1e3a8a)';
       shadow = 'none';
     } else if (variant === 'danger') {
       bg = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
@@ -207,13 +208,13 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
         const btnLabel = match[2];
         const btnUrl = match[3];
         const btnVariant = match[4] || 'primary';
-        const btnSize = (match[5] as 'sm' | 'md' | 'lg' | 'xl') || 'md';
+        const btnSize = match[5] || 'md';
         parts.push(renderButton(btnLabel, btnUrl, btnVariant, `btn-${idx++}`, false, btnSize));
       } else if (match[6] !== undefined && match[7] !== undefined) {
         const btnLabel = match[6];
         const btnUrl = match[7];
         const btnVariant = match[8] || 'primary';
-        const btnSize = (match[9] as 'sm' | 'md' | 'lg' | 'xl') || 'md';
+        const btnSize = match[9] || 'md';
         parts.push(renderButton(btnLabel, btnUrl, btnVariant, `cta-${idx++}`, false, btnSize));
       }
       // 2. Markdown Link [Text](URL)
@@ -229,7 +230,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
               href={rawUrl}
               onClick={(e) => handleLinkClick(rawUrl, e)}
               style={{
-                color: '#38bdf8',
+                color: 'var(--primary, #1e3a8a)',
                 textDecoration: 'underline',
                 textUnderlineOffset: '3px',
                 fontWeight: 600,
@@ -262,7 +263,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       // 5. Code
       else if (match[16] !== undefined) {
         parts.push(
-          <code key={`c-${idx++}`} style={{ backgroundColor: 'rgba(56, 189, 248, 0.12)', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.9em', color: 'var(--primary, #38bdf8)' }}>
+          <code key={`c-${idx++}`} style={{ backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.12))', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.9em', color: 'var(--primary, #1e3a8a)' }}>
             {match[16]}
           </code>
         );
@@ -306,7 +307,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       const btnLabel = blockButtonMatch[2];
       const btnUrl = blockButtonMatch[3];
       const btnVariant = blockButtonMatch[4] || 'primary';
-      const btnSize = (blockButtonMatch[5] as 'sm' | 'md' | 'lg' | 'xl') || 'md';
+      const btnSize = blockButtonMatch[5] || 'md';
       elements.push(renderButton(btnLabel, btnUrl, btnVariant, `blk-btn-${lineIdx}`, true, btnSize));
       return;
     }
@@ -325,8 +326,8 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
             width: '14px',
             height: '14px',
             borderRadius: '3px',
-            border: isChecked ? 'none' : '1.5px solid var(--border-hover, #64748b)',
-            backgroundColor: isChecked ? 'var(--primary, #38bdf8)' : 'transparent',
+            border: isChecked ? 'none' : '1.5px solid var(--border-hover, #cbd5e1)',
+            backgroundColor: isChecked ? 'var(--primary, #1e3a8a)' : 'transparent',
             color: '#ffffff',
             fontSize: '9px',
             flexShrink: 0
@@ -361,7 +362,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       if (trimmed === '') {
         elements.push(<div key={`br-${lineIdx}`} style={{ height: '0.4rem' }} />);
       } else if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
-        elements.push(<hr key={`hr-${lineIdx}`} style={{ border: 'none', borderTop: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))', margin: '0.85rem 0' }} />);
+        elements.push(<hr key={`hr-${lineIdx}`} style={{ border: 'none', borderTop: '1px solid var(--border-light, #e2e8f0)', margin: '0.85rem 0' }} />);
       } else if (trimmed.startsWith('> ') || trimmed.startsWith('>')) {
         const quoteText = trimmed.replace(/^>\s*/, '');
         elements.push(
@@ -370,7 +371,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
             padding: '0.6rem 0.9rem',
             borderRadius: '0.55rem',
             backgroundColor: 'rgba(255, 255, 255, 0.03)',
-            borderLeft: '3px solid var(--primary, #38bdf8)',
+            borderLeft: '3px solid var(--primary, #1e3a8a)',
             color: 'var(--text-secondary, #94a3b8)',
             fontStyle: 'italic',
             fontSize: '0.88rem'
@@ -454,7 +455,7 @@ export const LinkInsertModal: React.FC<{
   initialUrl = '',
   isEditing = false,
   theme,
-  isDark = true
+  isDark = false
 }) => {
   const [text, setText] = useState(initialText);
   const [url, setUrl] = useState(initialUrl);
@@ -491,12 +492,12 @@ export const LinkInsertModal: React.FC<{
     onClose();
   };
 
-  const bgModal = theme?.modalBg || (isDark ? '#0f172a' : '#ffffff');
-  const borderCol = theme?.borderStrong || (isDark ? '#334155' : '#cbd5e1');
-  const textPrimary = theme?.textPrimary || (isDark ? '#f8fafc' : '#0f172a');
-  const textSecondary = theme?.textSecondary || (isDark ? '#cbd5e1' : '#475569');
-  const inputBg = theme?.inputBg || (isDark ? '#1e293b' : '#f8fafc');
-  const inputBorder = theme?.inputBorder || (isDark ? 'rgba(255,255,255,0.12)' : '#cbd5e1');
+  const bgModal = theme?.modalBg || 'var(--bg-card, #ffffff)';
+  const borderCol = theme?.borderStrong || 'var(--border-light, #e2e8f0)';
+  const textPrimary = theme?.textPrimary || 'var(--text-primary, #0f172a)';
+  const textSecondary = theme?.textSecondary || 'var(--text-secondary, #334155)';
+  const inputBg = theme?.inputBg || 'var(--bg-deep, #f8fafc)';
+  const inputBorder = theme?.inputBorder || 'var(--border-light, #e2e8f0)';
 
   return createPortal(
     <div
@@ -527,7 +528,7 @@ export const LinkInsertModal: React.FC<{
           backgroundColor: bgModal,
           borderRadius: '1.25rem',
           border: `1px solid ${borderCol}`,
-          boxShadow: isDark ? '0 20px 50px rgba(0,0,0,0.6)' : '0 15px 35px rgba(0,0,0,0.15)',
+          boxShadow: 'var(--shadow-premium, 0 20px 50px rgba(0,0,0,0.25))',
           padding: '1.35rem',
           display: 'flex',
           flexDirection: 'column',
@@ -541,11 +542,11 @@ export const LinkInsertModal: React.FC<{
               width: '32px',
               height: '32px',
               borderRadius: '0.65rem',
-              backgroundColor: 'rgba(56, 189, 248, 0.15)',
+              backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.15))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#38bdf8'
+              color: 'var(--primary, #1e3a8a)'
             }}>
               <Link size={16} />
             </div>
@@ -701,8 +702,9 @@ export const LinkInsertModal: React.FC<{
                 gap: '0.3rem',
                 padding: '0.5rem 1.1rem',
                 borderRadius: '0.65rem',
-                backgroundColor: (!text.trim() || !url.trim() || !isSafe) ? 'rgba(56, 189, 248, 0.3)' : '#38bdf8',
-                color: '#000000',
+                background: (!text.trim() || !url.trim() || !isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
+                color: '#ffffff',
+                boxShadow: (!text.trim() || !url.trim() || !isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
                 border: 'none',
                 fontSize: '0.76rem',
                 fontWeight: 800,
@@ -726,7 +728,7 @@ export const LinkInsertModal: React.FC<{
 export const ButtonInsertModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
-  onInsert: (label: string, url: string, variant: string, size?: 'sm' | 'md' | 'lg' | 'xl') => void;
+  onInsert: (label: string, url: string, variant: string, size: string) => void;
   onDelete?: () => void;
   initialLabel?: string;
   initialUrl?: string;
@@ -746,12 +748,12 @@ export const ButtonInsertModal: React.FC<{
   initialSize = 'md',
   isEditing = false,
   theme,
-  isDark = true
+  isDark = false
 }) => {
   const [label, setLabel] = useState(initialLabel);
   const [url, setUrl] = useState(initialUrl);
   const [variant, setVariant] = useState<'primary' | 'amber' | 'emerald' | 'outline'>(initialVariant);
-  const [size, setSize] = useState<'sm' | 'md' | 'lg' | 'xl'>(initialSize || 'md');
+  const [size, setSize] = useState<'sm' | 'md' | 'lg' | 'xl'>(initialSize);
 
   useEffect(() => {
     if (isOpen) {
@@ -787,12 +789,12 @@ export const ButtonInsertModal: React.FC<{
     onClose();
   };
 
-  const bgModal = theme?.modalBg || (isDark ? '#0f172a' : '#ffffff');
-  const borderCol = theme?.borderStrong || (isDark ? '#334155' : '#cbd5e1');
-  const textPrimary = theme?.textPrimary || (isDark ? '#f8fafc' : '#0f172a');
-  const textSecondary = theme?.textSecondary || (isDark ? '#cbd5e1' : '#475569');
-  const inputBg = theme?.inputBg || (isDark ? '#1e293b' : '#f8fafc');
-  const inputBorder = theme?.inputBorder || (isDark ? 'rgba(255,255,255,0.12)' : '#cbd5e1');
+  const bgModal = theme?.modalBg || 'var(--bg-card, #ffffff)';
+  const borderCol = theme?.borderStrong || 'var(--border-light, #e2e8f0)';
+  const textPrimary = theme?.textPrimary || 'var(--text-primary, #0f172a)';
+  const textSecondary = theme?.textSecondary || 'var(--text-secondary, #334155)';
+  const inputBg = theme?.inputBg || 'var(--bg-deep, #f8fafc)';
+  const inputBorder = theme?.inputBorder || 'var(--border-light, #e2e8f0)';
 
   return createPortal(
     <div
@@ -802,7 +804,7 @@ export const ButtonInsertModal: React.FC<{
         left: 0,
         width: '100vw',
         height: '100vh',
-        backgroundColor: 'rgba(0, 0, 0, 0.72)',
+        backgroundColor: 'rgba(0, 0, 0, 0.45)',
         backdropFilter: 'blur(8px)',
         zIndex: 9999999,
         display: 'flex',
@@ -818,12 +820,12 @@ export const ButtonInsertModal: React.FC<{
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: '420px',
+          maxWidth: '430px',
           width: '100%',
           backgroundColor: bgModal,
           borderRadius: '1.25rem',
           border: `1px solid ${borderCol}`,
-          boxShadow: isDark ? '0 20px 50px rgba(0,0,0,0.6)' : '0 15px 35px rgba(0,0,0,0.15)',
+          boxShadow: 'var(--shadow-premium, 0 20px 50px rgba(0,0,0,0.25))',
           padding: '1.35rem',
           display: 'flex',
           flexDirection: 'column',
@@ -918,7 +920,6 @@ export const ButtonInsertModal: React.FC<{
             />
           </div>
 
-          {/* Button Size Selection */}
           <div>
             <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
               Ukuran Tombol
@@ -926,7 +927,7 @@ export const ButtonInsertModal: React.FC<{
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.35rem' }}>
               {[
                 { id: 'sm', label: 'Kecil', hint: 'sm' },
-                { id: 'md', label: 'Sedang', hint: 'md' },
+                { id: 'md', label: 'Sedang', hint: 'md (default)' },
                 { id: 'lg', label: 'Besar', hint: 'lg' },
                 { id: 'xl', label: 'Sangat Besar', hint: 'xl' }
               ].map(opt => (
@@ -941,9 +942,9 @@ export const ButtonInsertModal: React.FC<{
                   style={{
                     padding: '0.45rem 0.25rem',
                     borderRadius: '0.55rem',
-                    border: size === opt.id ? `2px solid ${isDark ? '#38bdf8' : '#0284c7'}` : `1px solid ${borderCol}`,
-                    backgroundColor: size === opt.id ? (isDark ? 'rgba(56, 189, 248, 0.16)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
-                    color: size === opt.id ? (isDark ? '#38bdf8' : '#0284c7') : textPrimary,
+                    border: size === opt.id ? '2px solid var(--primary, #1e3a8a)' : `1px solid ${borderCol}`,
+                    backgroundColor: size === opt.id ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
+                    color: size === opt.id ? 'var(--primary, #1e3a8a)' : textPrimary,
                     fontSize: '0.72rem',
                     fontWeight: size === opt.id ? 800 : 600,
                     cursor: 'pointer',
@@ -968,10 +969,10 @@ export const ButtonInsertModal: React.FC<{
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.4rem' }}>
               {[
-                { id: 'primary', label: 'Biru Utama (Primary)', color: '#3b82f6' },
+                { id: 'primary', label: 'Warna Tema (Primary)', color: 'var(--primary, #1e3a8a)' },
                 { id: 'amber', label: 'Amber Emas (Warning)', color: '#f59e0b' },
                 { id: 'emerald', label: 'Hijau Sukses (Success)', color: '#10b981' },
-                { id: 'outline', label: 'Garis Tepi (Outline)', color: '#38bdf8' }
+                { id: 'outline', label: 'Garis Tepi (Outline)', color: 'var(--primary, #1e3a8a)' }
               ].map(opt => (
                 <button
                   key={opt.id}
@@ -985,7 +986,7 @@ export const ButtonInsertModal: React.FC<{
                     padding: '0.45rem 0.6rem',
                     borderRadius: '0.55rem',
                     border: variant === opt.id ? `2px solid ${opt.color}` : `1px solid ${borderCol}`,
-                    backgroundColor: variant === opt.id ? (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)') : 'transparent',
+                    backgroundColor: variant === opt.id ? 'var(--primary-glow, rgba(30, 58, 138, 0.12))' : 'transparent',
                     color: textPrimary,
                     fontSize: '0.72rem',
                     fontWeight: variant === opt.id ? 800 : 600,
@@ -1007,7 +1008,7 @@ export const ButtonInsertModal: React.FC<{
             <div style={{
               padding: '0.65rem',
               borderRadius: '0.65rem',
-              backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.03)',
+              backgroundColor: 'var(--bg-card-hover, var(--bg-deep, #f8fafc))',
               border: `1px dashed ${borderCol}`,
               display: 'flex',
               flexDirection: 'column',
@@ -1027,11 +1028,11 @@ export const ButtonInsertModal: React.FC<{
                   fontWeight: 800,
                   background: variant === 'amber' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
                     : variant === 'emerald' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                    : variant === 'outline' ? (isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.08)')
-                    : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                  color: variant === 'amber' ? '#000000' : variant === 'outline' ? (isDark ? '#38bdf8' : '#0284c7') : '#ffffff',
-                  border: variant === 'outline' ? `1px solid ${isDark ? '#38bdf8' : '#0284c7'}` : 'none',
-                  boxShadow: variant === 'outline' ? 'none' : '0 2px 8px rgba(0,0,0,0.2)'
+                    : variant === 'outline' ? 'var(--primary-glow, rgba(30, 58, 138, 0.08))'
+                    : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
+                  color: variant === 'amber' ? '#000000' : variant === 'outline' ? 'var(--primary, #1e3a8a)' : '#ffffff',
+                  border: variant === 'outline' ? '1px solid var(--primary, #1e3a8a)' : 'none',
+                  boxShadow: variant === 'outline' ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))'
                 }}
               >
                 <span>{label.trim()}</span>
@@ -1099,8 +1100,9 @@ export const ButtonInsertModal: React.FC<{
                 gap: '0.3rem',
                 padding: '0.5rem 1.1rem',
                 borderRadius: '0.65rem',
-                backgroundColor: (!label.trim() || !url.trim() || !isSafe) ? 'rgba(245, 158, 11, 0.3)' : '#f59e0b',
-                color: '#000000',
+                background: (!label.trim() || !url.trim() || !isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
+                color: '#ffffff',
+                boxShadow: (!label.trim() || !url.trim() || !isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
                 border: 'none',
                 fontSize: '0.76rem',
                 fontWeight: 800,
@@ -1125,7 +1127,7 @@ export const HeadingDropdown: React.FC<{
   theme?: any;
   isDark?: boolean;
   activeHeading?: 1 | 2 | 3 | null;
-}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = true, activeHeading = null }) => {
+}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = false, activeHeading = null }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -1204,10 +1206,10 @@ export const HeadingDropdown: React.FC<{
   };
 
   const isHighlighted = isOpen || Boolean(activeHeading);
-  const bgCard = theme?.modalBg || theme?.surface || (isDark ? '#1e293b' : '#ffffff');
-  const borderCol = theme?.borderStrong || theme?.border || (isDark ? '#334155' : '#cbd5e1');
-  const textCol = theme?.textPrimary || (isDark ? '#ffffff' : '#0f172a');
-  const textMutedCol = theme?.textMuted || (isDark ? '#94a3b8' : '#64748b');
+  const bgCard = theme?.card || 'var(--bg-card, #ffffff)';
+  const borderCol = theme?.border || 'var(--border-light, #e2e8f0)';
+  const textCol = theme?.textPrimary || 'var(--text-primary, #0f172a)';
+  const textMutedCol = theme?.textMuted || 'var(--text-muted, #64748b)';
 
   return (
     <>
@@ -1222,16 +1224,16 @@ export const HeadingDropdown: React.FC<{
           display: 'flex',
           alignItems: 'center',
           gap: '3px',
-          backgroundColor: isHighlighted ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') : (theme?.surface || (isDark ? 'rgba(255,255,255,0.06)' : '#ffffff')),
-          borderColor: isHighlighted ? (isDark ? '#38bdf8' : '#0284c7') : (theme?.border || (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0')),
-          color: isHighlighted ? (isDark ? '#38bdf8' : '#0284c7') : (theme?.textPrimary || (isDark ? '#ffffff' : '#0f172a')),
+          backgroundColor: isHighlighted ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : (theme?.card || 'var(--bg-card, #ffffff)'),
+          borderColor: isHighlighted ? 'var(--primary, #1e3a8a)' : borderCol,
+          color: isHighlighted ? 'var(--primary, #1e3a8a)' : (theme?.textSecondary || 'var(--text-secondary, #334155)'),
           padding: '0.25rem 0.55rem',
           borderRadius: '0.35rem',
           fontSize: '0.78rem',
           fontWeight: isHighlighted ? 800 : 700,
           cursor: 'pointer',
           flexShrink: 0,
-          boxShadow: isHighlighted ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+          boxShadow: isHighlighted ? '0 0 0 1px var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'none',
           transition: 'all 0.15s ease'
         }}
       >
@@ -1252,7 +1254,7 @@ export const HeadingDropdown: React.FC<{
             backgroundColor: bgCard,
             border: `1px solid ${borderCol}`,
             borderRadius: '0.65rem',
-            boxShadow: isDark ? '0 14px 35px rgba(0,0,0,0.55)' : '0 10px 25px rgba(0,0,0,0.12)',
+            boxShadow: 'var(--shadow-premium, 0 14px 35px rgba(0,0,0,0.18))',
             padding: '0.4rem',
             display: 'flex',
             flexDirection: 'column',
@@ -1272,21 +1274,21 @@ export const HeadingDropdown: React.FC<{
               padding: '0.45rem 0.65rem',
               borderRadius: '0.45rem',
               border: 'none',
-              backgroundColor: activeHeading === 1 ? (isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
-              color: activeHeading === 1 ? (isDark ? '#38bdf8' : '#0284c7') : textCol,
+              backgroundColor: activeHeading === 1 ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
+              color: activeHeading === 1 ? 'var(--primary, #1e3a8a)' : textCol,
               cursor: 'pointer',
               textAlign: 'left',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { if (activeHeading !== 1) e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseEnter={(e) => { if (activeHeading !== 1) e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, #f1f5f9)'; }}
             onMouseLeave={(e) => { if (activeHeading !== 1) e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
-              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#38bdf8', width: '20px' }}>H1</span>
+              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--primary, #1e3a8a)', width: '20px' }}>H1</span>
               <span style={{ fontSize: '0.82rem', fontWeight: activeHeading === 1 ? 800 : 700 }}>Judul Utama</span>
-              {activeHeading === 1 && <Check size={13} style={{ color: isDark ? '#38bdf8' : '#0284c7', marginLeft: 'auto' }} />}
+              {activeHeading === 1 && <Check size={13} style={{ color: 'var(--primary, #1e3a8a)', marginLeft: 'auto' }} />}
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>#</code>
+            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, #f8fafc)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>#</code>
           </button>
 
           <button
@@ -1301,21 +1303,21 @@ export const HeadingDropdown: React.FC<{
               padding: '0.45rem 0.65rem',
               borderRadius: '0.45rem',
               border: 'none',
-              backgroundColor: activeHeading === 2 ? (isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
-              color: activeHeading === 2 ? (isDark ? '#38bdf8' : '#0284c7') : textCol,
+              backgroundColor: activeHeading === 2 ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
+              color: activeHeading === 2 ? 'var(--primary, #1e3a8a)' : textCol,
               cursor: 'pointer',
               textAlign: 'left',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { if (activeHeading !== 2) e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseEnter={(e) => { if (activeHeading !== 2) e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, #f1f5f9)'; }}
             onMouseLeave={(e) => { if (activeHeading !== 2) e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
-              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#38bdf8', width: '20px' }}>H2</span>
+              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary, #1e3a8a)', width: '20px' }}>H2</span>
               <span style={{ fontSize: '0.82rem', fontWeight: activeHeading === 2 ? 800 : 600 }}>Judul Bab</span>
-              {activeHeading === 2 && <Check size={13} style={{ color: isDark ? '#38bdf8' : '#0284c7', marginLeft: 'auto' }} />}
+              {activeHeading === 2 && <Check size={13} style={{ color: 'var(--primary, #1e3a8a)', marginLeft: 'auto' }} />}
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>##</code>
+            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, #f8fafc)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>##</code>
           </button>
 
           <button
@@ -1330,21 +1332,21 @@ export const HeadingDropdown: React.FC<{
               padding: '0.45rem 0.65rem',
               borderRadius: '0.45rem',
               border: 'none',
-              backgroundColor: activeHeading === 3 ? (isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
-              color: activeHeading === 3 ? (isDark ? '#38bdf8' : '#0284c7') : textCol,
+              backgroundColor: activeHeading === 3 ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
+              color: activeHeading === 3 ? 'var(--primary, #1e3a8a)' : textCol,
               cursor: 'pointer',
               textAlign: 'left',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { if (activeHeading !== 3) e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseEnter={(e) => { if (activeHeading !== 3) e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, #f1f5f9)'; }}
             onMouseLeave={(e) => { if (activeHeading !== 3) e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
-              <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#38bdf8', width: '20px' }}>H3</span>
+              <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--primary, #1e3a8a)', width: '20px' }}>H3</span>
               <span style={{ fontSize: '0.82rem', fontWeight: activeHeading === 3 ? 800 : 500 }}>Sub-Judul</span>
-              {activeHeading === 3 && <Check size={13} style={{ color: isDark ? '#38bdf8' : '#0284c7', marginLeft: 'auto' }} />}
+              {activeHeading === 3 && <Check size={13} style={{ color: 'var(--primary, #1e3a8a)', marginLeft: 'auto' }} />}
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>###</code>
+            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, #f8fafc)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>###</code>
           </button>
         </div>,
         document.body
@@ -1360,7 +1362,7 @@ export const ListDropdown: React.FC<{
   theme?: any;
   isDark?: boolean;
   activeList?: 'bullet' | 'number' | null;
-}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = true, activeList = null }) => {
+}> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = false, activeList = null }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -1439,10 +1441,10 @@ export const ListDropdown: React.FC<{
   };
 
   const isHighlighted = isOpen || Boolean(activeList);
-  const bgCard = theme?.modalBg || theme?.surface || (isDark ? '#1e293b' : '#ffffff');
-  const borderCol = theme?.borderStrong || theme?.border || (isDark ? '#334155' : '#cbd5e1');
-  const textCol = theme?.textPrimary || (isDark ? '#ffffff' : '#0f172a');
-  const textMutedCol = theme?.textMuted || (isDark ? '#94a3b8' : '#64748b');
+  const bgCard = theme?.modalBg || theme?.surface || 'var(--bg-card, #ffffff)';
+  const borderCol = theme?.borderStrong || theme?.border || 'var(--border-light, #e2e8f0)';
+  const textCol = theme?.textPrimary || 'var(--text-primary, #0f172a)';
+  const textMutedCol = theme?.textMuted || 'var(--text-muted, #64748b)';
 
   return (
     <>
@@ -1457,16 +1459,16 @@ export const ListDropdown: React.FC<{
           display: 'flex',
           alignItems: 'center',
           gap: '3px',
-          backgroundColor: isHighlighted ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') : (theme?.surface || (isDark ? 'rgba(255,255,255,0.06)' : '#ffffff')),
-          borderColor: isHighlighted ? (isDark ? '#38bdf8' : '#0284c7') : (theme?.border || (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0')),
-          color: isHighlighted ? (isDark ? '#38bdf8' : '#0284c7') : (theme?.textPrimary || (isDark ? '#ffffff' : '#0f172a')),
+          backgroundColor: isHighlighted ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : (theme?.card || 'var(--bg-card, #ffffff)'),
+          borderColor: isHighlighted ? 'var(--primary, #1e3a8a)' : borderCol,
+          color: isHighlighted ? 'var(--primary, #1e3a8a)' : (theme?.textSecondary || 'var(--text-secondary, #334155)'),
           padding: '0.25rem 0.55rem',
           borderRadius: '0.35rem',
           fontSize: '0.78rem',
           fontWeight: isHighlighted ? 800 : 700,
           cursor: 'pointer',
           flexShrink: 0,
-          boxShadow: isHighlighted ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+          boxShadow: isHighlighted ? '0 0 0 1px var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'none',
           transition: 'all 0.15s ease'
         }}
       >
@@ -1487,7 +1489,7 @@ export const ListDropdown: React.FC<{
             backgroundColor: bgCard,
             border: `1px solid ${borderCol}`,
             borderRadius: '0.65rem',
-            boxShadow: isDark ? '0 14px 35px rgba(0,0,0,0.55)' : '0 10px 25px rgba(0,0,0,0.12)',
+            boxShadow: 'var(--shadow-premium, 0 14px 35px rgba(0,0,0,0.18))',
             padding: '0.4rem',
             display: 'flex',
             flexDirection: 'column',
@@ -1507,21 +1509,21 @@ export const ListDropdown: React.FC<{
               padding: '0.45rem 0.65rem',
               borderRadius: '0.45rem',
               border: 'none',
-              backgroundColor: activeList === 'bullet' ? (isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
-              color: activeList === 'bullet' ? (isDark ? '#38bdf8' : '#0284c7') : textCol,
+              backgroundColor: activeList === 'bullet' ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
+              color: activeList === 'bullet' ? 'var(--primary, #1e3a8a)' : textCol,
               cursor: 'pointer',
               textAlign: 'left',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { if (activeList !== 'bullet') e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseEnter={(e) => { if (activeList !== 'bullet') e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, #f1f5f9)'; }}
             onMouseLeave={(e) => { if (activeList !== 'bullet') e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
-              <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#38bdf8', width: '20px', textAlign: 'center', lineHeight: 1 }}>•</span>
+              <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary, #1e3a8a)', width: '20px', textAlign: 'center', lineHeight: 1 }}>•</span>
               <span style={{ fontSize: '0.82rem', fontWeight: activeList === 'bullet' ? 800 : 600 }}>Daftar Poin</span>
-              {activeList === 'bullet' && <Check size={13} style={{ color: isDark ? '#38bdf8' : '#0284c7', marginLeft: 'auto' }} />}
+              {activeList === 'bullet' && <Check size={13} style={{ color: 'var(--primary, #1e3a8a)', marginLeft: 'auto' }} />}
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>-</code>
+            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, #f8fafc)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>-</code>
           </button>
 
           <button
@@ -1536,21 +1538,21 @@ export const ListDropdown: React.FC<{
               padding: '0.45rem 0.65rem',
               borderRadius: '0.45rem',
               border: 'none',
-              backgroundColor: activeList === 'number' ? (isDark ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 132, 199, 0.12)') : 'transparent',
-              color: activeList === 'number' ? (isDark ? '#38bdf8' : '#0284c7') : textCol,
+              backgroundColor: activeList === 'number' ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
+              color: activeList === 'number' ? 'var(--primary, #1e3a8a)' : textCol,
               cursor: 'pointer',
               textAlign: 'left',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => { if (activeList !== 'number') e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'; }}
+            onMouseEnter={(e) => { if (activeList !== 'number') e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, #f1f5f9)'; }}
             onMouseLeave={(e) => { if (activeList !== 'number') e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
-              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#38bdf8', width: '20px', textAlign: 'center' }}>1.</span>
+              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary, #1e3a8a)', width: '20px', textAlign: 'center' }}>1.</span>
               <span style={{ fontSize: '0.82rem', fontWeight: activeList === 'number' ? 800 : 600 }}>Daftar Nomor</span>
-              {activeList === 'number' && <Check size={13} style={{ color: isDark ? '#38bdf8' : '#0284c7', marginLeft: 'auto' }} />}
+              {activeList === 'number' && <Check size={13} style={{ color: 'var(--primary, #1e3a8a)', marginLeft: 'auto' }} />}
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>1.</code>
+            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, #f8fafc)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>1.</code>
           </button>
         </div>,
         document.body
@@ -1600,7 +1602,7 @@ export function inlineMarkdownToHtml(str: string): string {
   res = res.replace(/(^|[^*])\*([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
 
   // 5. Inline Code: `text`
-  res = res.replace(/`([^`]+?)`/g, '<code style="background-color: rgba(56, 189, 248, 0.12); padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; color: var(--primary, #38bdf8);">$1</code>');
+  res = res.replace(/`([^`]+?)`/g, '<code style="background-color: var(--primary-glow, rgba(30, 58, 138, 0.12)); padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; color: var(--primary, #1e3a8a);">$1</code>');
 
   return res;
 }
@@ -1794,6 +1796,119 @@ export function htmlToMarkdown(rootNode: Node): string {
   return blocks.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+/**
+ * Condenses and simplifies mobile Zen Fullscreen header titles.
+ * Prevents truncation with ellipsis ("...") by transforming long catalog/setting labels
+ * into concise, readable, and informative titles that fit cleanly on mobile screens.
+ */
+export const condenseMobileTitle = (rawLabel?: string): string => {
+  if (!rawLabel) return 'Editor Teks';
+  const clean = rawLabel.replace(/[\s*]+$/, '').trim();
+
+  // 1. Direct high-precision dictionary mapping for all 7 catalog types and store settings
+  const knownMap: Record<string, string> = {
+    // Physical
+    'Pengiriman & Ketentuan Packing (Ekspedisi / Kurir)': 'Ketentuan Pengiriman',
+    'Kebijakan Garansi / Retur Barang': 'Garansi & Retur',
+    'Deskripsi Lengkap Barang': 'Deskripsi Produk',
+
+    // Digital
+    'Pengiriman & Panduan Akses File Digital': 'Pengiriman File Digital',
+    'Ketentuan Lisensi & Hak Cipta': 'Lisensi & Hak Cipta',
+    'Deskripsi & Isi Materi Digital': 'Deskripsi Materi Digital',
+
+    // Fauna / Live Animals
+    'Pengiriman & Garansi Live Arrival (Satwa)': 'Pengiriman Satwa (Live Arrival)',
+    'Ketentuan Garansi D.O.A (Dead On Arrival)': 'Garansi Satwa (D.O.A)',
+    'Deskripsi & Kondisi Satwa': 'Deskripsi Satwa',
+
+    // Services
+    'Area Layanan, Reservasi & Ketentuan Pengerjaan': 'Layanan & Reservasi',
+    'Deskripsi Cakupan Layanan': 'Deskripsi Layanan',
+
+    // Food & Beverage
+    'Pengiriman & Ketentuan Kemasan (F&B)': 'Ketentuan Pengiriman F&B',
+    'Deskripsi & Detail Menu Kuliner': 'Detail Menu Kuliner',
+
+    // Property
+    'Akses & Ketentuan Booking / Survey Lokasi': 'Booking & Survey Lokasi',
+    'Legalitas & Kelengkapan Dokumen': 'Legalitas Dokumen',
+    'Deskripsi Lengkap & Keunggulan Properti': 'Deskripsi Properti',
+
+    // Plant / Flora
+    'Pengiriman & Ketentuan Packing Tanaman': 'Ketentuan Pengiriman Tanaman',
+    'Kebijakan Garansi Segar Sampai Tujuan': 'Garansi Segar Tanaman',
+    'Deskripsi Lengkap Tanaman': 'Deskripsi Tanaman',
+
+    // Store & Admin Profile Settings
+    'Lokasi / Alamat Resmi': 'Lokasi & Alamat Toko',
+    'Deskripsi Profil Lengkap': 'Deskripsi Profil Toko',
+  };
+
+  if (knownMap[clean]) {
+    return knownMap[clean];
+  }
+
+  // 2. Intelligent Domain Heuristics for any custom or variant labels
+  let simplified = clean;
+
+  // Domain terms simplification
+  if (/pengiriman/i.test(simplified)) {
+    if (/digital/i.test(simplified)) return 'Pengiriman File Digital';
+    if (/satwa/i.test(simplified)) return 'Pengiriman Satwa';
+    if (/tanaman/i.test(simplified)) return 'Pengiriman Tanaman';
+    if (/kemasan|f&b|kuliner/i.test(simplified)) return 'Ketentuan Pengiriman F&B';
+    return 'Ketentuan Pengiriman';
+  }
+
+  if (/garansi|retur|doa|d\.o\.a/i.test(simplified)) {
+    if (/doa|d\.o\.a/i.test(simplified)) return 'Garansi Satwa (D.O.A)';
+    if (/segar/i.test(simplified)) return 'Garansi Segar Tanaman';
+    if (/retur/i.test(simplified)) return 'Garansi & Retur';
+    return 'Ketentuan Garansi';
+  }
+
+  if (/lisensi|hak cipta/i.test(simplified)) {
+    return 'Lisensi & Hak Cipta';
+  }
+
+  if (/deskripsi/i.test(simplified)) {
+    if (/satwa/i.test(simplified)) return 'Deskripsi Satwa';
+    if (/tanaman/i.test(simplified)) return 'Deskripsi Tanaman';
+    if (/properti/i.test(simplified)) return 'Deskripsi Properti';
+    if (/layanan/i.test(simplified)) return 'Deskripsi Layanan';
+    if (/menu|kuliner/i.test(simplified)) return 'Detail Menu Kuliner';
+    if (/digital/i.test(simplified)) return 'Deskripsi Materi Digital';
+    if (/profil/i.test(simplified)) return 'Deskripsi Profil Toko';
+    return 'Deskripsi Produk';
+  }
+
+  if (/lokasi|alamat/i.test(simplified)) {
+    return 'Lokasi & Alamat Toko';
+  }
+
+  if (/booking|survey/i.test(simplified)) {
+    return 'Booking & Survey Lokasi';
+  }
+
+  if (/legalitas|dokumen/i.test(simplified)) {
+    return 'Legalitas Dokumen';
+  }
+
+  // If still long, remove parenthetical expressions (e.g., "(Catatan Penting)")
+  simplified = simplified.replace(/\s*\([^)]*\)/g, '').trim();
+
+  // If contains slashes, take the first segment
+  if (simplified.includes(' / ')) {
+    simplified = simplified.split(' / ')[0].trim();
+  }
+
+  // Clean redundant words
+  simplified = simplified.replace(/^(Kebijakan|Ketentuan|Deskripsi Lengkap & Keunggulan)\s+/i, '');
+
+  return simplified || clean;
+};
+
 export interface RichTextareaProps {
   label?: string;
   value: string;
@@ -1833,72 +1948,106 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobileTab, setMobileTab] = useState<'editor' | 'preview'>('editor');
 
-  // Dynamic Theme Auto-Detection (from localStorage / DOM when not explicitly provided)
-  const [detectedIsDark, setDetectedIsDark] = useState<boolean>(() => {
+  // Screen Width Tracking for Responsive Form-Factor Adaptation (Mobile Native)
+  const [isMobileScreen, setIsMobileScreen] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const adminMode = localStorage.getItem('catavor_admin_theme_mode');
-      if (adminMode) return adminMode === 'dark';
-      const storeTheme = localStorage.getItem('catavor_theme');
-      if (storeTheme) return storeTheme !== 'light';
-      return document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+      return window.innerWidth < 1024;
     }
     return true;
   });
 
   useEffect(() => {
-    const handleStorageChange = () => {
+    const handleResize = () => {
       if (typeof window !== 'undefined') {
+        setIsMobileScreen(window.innerWidth < 1024);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Dynamic Theme Auto-Detection (from localStorage / DOM when not explicitly provided)
+  const [detectedIsDark, setDetectedIsDark] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 
+                           document.body.getAttribute('data-theme') || 
+                           localStorage.getItem('catavor_theme');
+      if (currentTheme) {
+        const darkThemes = ['dark', 'emerald', 'cyberpunk', 'ocean', 'nordic'];
+        return darkThemes.includes(currentTheme.toLowerCase());
+      }
+      const adminMode = localStorage.getItem('catavor_admin_theme_mode');
+      if (adminMode) return adminMode === 'dark';
+      return document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const checkTheme = () => {
+      if (typeof window !== 'undefined') {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 
+                             document.body.getAttribute('data-theme') || 
+                             localStorage.getItem('catavor_theme');
+        if (currentTheme) {
+          const darkThemes = ['dark', 'emerald', 'cyberpunk', 'ocean', 'nordic'];
+          setDetectedIsDark(darkThemes.includes(currentTheme.toLowerCase()));
+          return;
+        }
         const adminMode = localStorage.getItem('catavor_admin_theme_mode');
         if (adminMode) {
           setDetectedIsDark(adminMode === 'dark');
-        } else {
-          const storeTheme = localStorage.getItem('catavor_theme');
-          if (storeTheme) {
-            setDetectedIsDark(storeTheme !== 'light');
-          }
+          return;
         }
+        setDetectedIsDark(document.documentElement.classList.contains('dark') || document.body.classList.contains('dark'));
       }
     };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+
+    window.addEventListener('storage', checkTheme);
+    let observer: MutationObserver | null = null;
+    if (typeof document !== 'undefined') {
+      observer = new MutationObserver(checkTheme);
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+      observer.observe(document.body, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+    }
+    return () => {
+      window.removeEventListener('storage', checkTheme);
+      if (observer) observer.disconnect();
+    };
   }, []);
 
   const activeIsDark = isDark !== undefined ? isDark : detectedIsDark;
 
-  // Mobile Native Form-Factor Standard
-  const isMobile = true;
-
-  // Robust Theme Tokens with Strict Light / Dark Fallback
+  // Robust Theme Tokens using CSS Variables for Instant Dynamic Synchronization
   const effectiveTheme = useMemo(() => {
-    const fallbackModalBg = activeIsDark ? '#0f172a' : '#ffffff';
-    const fallbackSurface = activeIsDark ? '#111827' : '#ffffff';
-    const fallbackCardAlt = activeIsDark ? '#0b1120' : '#f8fafc';
-    const fallbackInputBg = activeIsDark ? '#0b1120' : '#ffffff';
-    const fallbackOverlay = activeIsDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.55)';
-
     return {
-      surface: theme?.surface || fallbackSurface,
-      card: theme?.card || (activeIsDark ? '#1e293b' : '#ffffff'),
-      cardAlt: theme?.cardAlt || fallbackCardAlt,
-      cardHover: theme?.cardHover || (activeIsDark ? '#273549' : '#f8fafc'),
-      border: theme?.border || (activeIsDark ? 'rgba(255, 255, 255, 0.08)' : '#e2e8f0'),
-      borderStrong: theme?.borderStrong || (activeIsDark ? 'rgba(255, 255, 255, 0.16)' : '#cbd5e1'),
-      textPrimary: theme?.textPrimary || (activeIsDark ? '#f8fafc' : '#0f172a'),
-      textSecondary: theme?.textSecondary || (activeIsDark ? '#cbd5e1' : '#475569'),
-      textMuted: theme?.textMuted || (activeIsDark ? '#94a3b8' : '#64748b'),
-      inputBg: theme?.inputBg || fallbackInputBg,
-      inputBorder: theme?.inputBorder || (activeIsDark ? 'rgba(255, 255, 255, 0.14)' : '#cbd5e1'),
-      modalBg: theme?.modalBg || fallbackModalBg,
-      modalOverlay: theme?.modalOverlay || fallbackOverlay,
-      editorBg: activeIsDark ? '#0b1120' : '#ffffff',
-      shadow: theme?.shadow || (activeIsDark ? '0 8px 25px rgba(0, 0, 0, 0.35)' : '0 4px 20px rgba(0, 0, 0, 0.06)'),
-      cardShadow: theme?.cardShadow || (activeIsDark ? '0 4px 15px rgba(0, 0, 0, 0.2)' : '0 2px 10px rgba(0, 0, 0, 0.04)'),
-      chipActiveBg: theme?.chipActiveBg || (activeIsDark ? '#38bdf8' : '#0284c7'),
-      chipActiveText: theme?.chipActiveText || (activeIsDark ? '#000000' : '#ffffff'),
-      chipInactiveBg: theme?.chipInactiveBg || (activeIsDark ? '#1e293b' : '#f1f5f9'),
-      chipInactiveText: theme?.chipInactiveText || (activeIsDark ? '#94a3b8' : '#64748b')
+      surface: theme?.surface || 'var(--bg-card, #ffffff)',
+      card: theme?.card || 'var(--bg-card, #ffffff)',
+      cardAlt: theme?.cardAlt || 'var(--bg-deep, #f8fafc)',
+      cardHover: theme?.cardHover || 'var(--bg-card-hover, #f1f5f9)',
+      border: theme?.border || 'var(--border-light, #e2e8f0)',
+      borderStrong: theme?.borderStrong || 'var(--border-hover, #cbd5e1)',
+      textPrimary: theme?.textPrimary || 'var(--text-primary, #0f172a)',
+      textSecondary: theme?.textSecondary || 'var(--text-secondary, #334155)',
+      textMuted: theme?.textMuted || 'var(--text-muted, #64748b)',
+      inputBg: theme?.inputBg || 'var(--bg-card, #ffffff)',
+      inputBorder: theme?.inputBorder || 'var(--border-light, #e2e8f0)',
+      modalBg: theme?.modalBg || 'var(--bg-card, #ffffff)',
+      modalOverlay: theme?.modalOverlay || 'rgba(0, 0, 0, 0.65)',
+      editorBg: theme?.editorBg || 'var(--bg-card, #ffffff)',
+      shadow: theme?.shadow || 'var(--shadow-premium, 0 8px 25px rgba(0, 0, 0, 0.12))',
+      cardShadow: theme?.cardShadow || '0 4px 15px rgba(0, 0, 0, 0.05)',
+      chipActiveBg: theme?.chipActiveBg || 'var(--primary, #1e3a8a)',
+      chipActiveText: theme?.chipActiveText || '#ffffff',
+      chipInactiveBg: theme?.chipInactiveBg || 'var(--bg-deep, #f1f5f9)',
+      chipInactiveText: theme?.chipInactiveText || 'var(--text-muted, #64748b)',
+      primary: 'var(--primary, #1e3a8a)',
+      primaryGlow: 'var(--primary-glow, rgba(30, 58, 138, 0.2))',
+      primaryHover: 'var(--primary-hover, #172554)'
     };
-  }, [theme, activeIsDark]);
+  }, [theme]);
 
   // Helper to place cursor at the end of content
   const moveCursorToEnd = (element: HTMLElement | HTMLTextAreaElement) => {
@@ -2138,21 +2287,30 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
     };
   }, [isFullscreen, editorMode]);
 
+  // Safe Close / Minimize Fullscreen handler
+  const handleCloseFullscreen = useCallback((e?: React.MouseEvent | React.SyntheticEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setIsFullscreen(false);
+  }, []);
+
   // Handle ESC key to exit fullscreen
   useEffect(() => {
     const handleKeyDownGlobal = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isFullscreen) {
-        setIsFullscreen(false);
+        handleCloseFullscreen();
       }
     };
     window.addEventListener('keydown', handleKeyDownGlobal);
     return () => window.removeEventListener('keydown', handleKeyDownGlobal);
-  }, [isFullscreen]);
+  }, [isFullscreen, handleCloseFullscreen]);
 
   // Handle hardware / browser back to close Zen Fullscreen editor
   useModalBackHandler({
     isOpen: isFullscreen,
-    onClose: () => setIsFullscreen(false),
+    onClose: handleCloseFullscreen,
     modalId: 'rich-textarea-portal-mobile'
   });
 
@@ -2729,7 +2887,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         }
         .rich-wysiwyg-editor:empty:before {
           content: attr(data-placeholder);
-          color: ${activeIsDark ? '#94a3b8' : '#64748b'};
+          color: var(--text-muted, #64748b);
           pointer-events: none;
           font-style: italic;
         }
@@ -2768,7 +2926,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           margin: 0.3rem 0;
         }
         .rich-visual-link {
-          color: ${activeIsDark ? '#38bdf8' : '#0284c7'};
+          color: var(--primary, #1e3a8a);
           text-decoration: underline;
           text-underline-offset: 3px;
           font-weight: 600;
@@ -2781,7 +2939,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           transition: background-color 0.15s ease;
         }
         .rich-visual-link:hover {
-          background-color: ${activeIsDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.12)'};
+          background-color: var(--primary-glow, rgba(30, 58, 138, 0.12));
         }
         .rich-visual-badge {
           display: inline-flex;
@@ -2802,9 +2960,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           transform: translateY(-1px);
         }
         .rich-btn-primary {
-          background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+          background: linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%);
           color: #ffffff;
-          box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+          box-shadow: 0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3));
         }
         .rich-btn-amber {
           background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
@@ -2817,27 +2975,27 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
         }
         .rich-btn-outline {
-          background: ${activeIsDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.08)'};
-          color: ${activeIsDark ? '#38bdf8' : '#0284c7'};
-          border: 1px solid ${activeIsDark ? 'rgba(56, 189, 248, 0.4)' : 'rgba(2, 132, 199, 0.4)'};
+          background: var(--primary-glow, rgba(30, 58, 138, 0.08));
+          color: var(--primary, #1e3a8a);
+          border: 1px solid var(--primary, #1e3a8a);
         }
         .rich-btn-size-sm {
-          padding: 0.18rem 0.5rem;
+          padding: 0.2rem 0.5rem;
           font-size: 0.68rem;
           border-radius: 0.45rem;
         }
         .rich-btn-size-md {
-          padding: 0.25rem 0.65rem;
+          padding: 0.28rem 0.65rem;
           font-size: 0.74rem;
           border-radius: 0.6rem;
         }
         .rich-btn-size-lg {
-          padding: 0.38rem 0.95rem;
+          padding: 0.42rem 0.95rem;
           font-size: 0.85rem;
           border-radius: 0.75rem;
         }
         .rich-btn-size-xl {
-          padding: 0.52rem 1.25rem;
+          padding: 0.58rem 1.25rem;
           font-size: 0.96rem;
           border-radius: 0.85rem;
         }
@@ -2854,16 +3012,17 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
         display: 'flex',
         alignItems: 'center',
         padding: '0.35rem 0.5rem',
-        backgroundColor: bgSurface,
-        border: `1px solid ${borderDefault}`,
-        borderBottom: 'none',
+        backgroundColor: effectiveTheme.cardAlt,
+        border: `1px solid ${isFocused ? 'var(--primary, #1e3a8a)' : borderDefault}`,
+        borderBottom: `1px solid ${effectiveTheme.border}`,
         borderTopLeftRadius: '0.75rem',
         borderTopRightRadius: '0.75rem',
         gap: '0.3rem',
         flexWrap: 'nowrap',
         overflowX: 'auto',
         scrollbarWidth: 'none',
-        WebkitOverflowScrolling: 'touch'
+        WebkitOverflowScrolling: 'touch',
+        transition: 'border-color 0.15s ease'
       }}>
         {/* Bold Button */}
         <button
@@ -2880,19 +3039,19 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             padding: '0.25rem 0.5rem',
             borderRadius: '0.35rem',
             backgroundColor: activeFormats.bold 
-              ? (isDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
-              : btnBg,
+              ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+              : effectiveTheme.card,
             border: `1px solid ${activeFormats.bold 
-              ? (isDark ? '#38bdf8' : '#0284c7') 
-              : btnBorder}`,
+              ? 'var(--primary, #1e3a8a)' 
+              : effectiveTheme.border}`,
             color: activeFormats.bold 
-              ? (activeIsDark ? '#38bdf8' : '#0284c7') 
-              : textPrimary,
+              ? 'var(--primary, #1e3a8a)' 
+              : effectiveTheme.textSecondary,
             fontSize: '0.78rem',
             fontWeight: activeFormats.bold ? 800 : 700,
             cursor: 'pointer',
             flexShrink: 0,
-            boxShadow: activeFormats.bold ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+            boxShadow: activeFormats.bold ? '0 0 0 1px var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'none',
             transition: 'all 0.15s ease'
           }}
         >
@@ -2914,19 +3073,19 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             padding: '0.25rem 0.5rem',
             borderRadius: '0.35rem',
             backgroundColor: activeFormats.italic 
-              ? (activeIsDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
-              : btnBg,
+              ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+              : effectiveTheme.card,
             border: `1px solid ${activeFormats.italic 
-              ? (activeIsDark ? '#38bdf8' : '#0284c7') 
-              : btnBorder}`,
+              ? 'var(--primary, #1e3a8a)' 
+              : effectiveTheme.border}`,
             color: activeFormats.italic 
-              ? (activeIsDark ? '#38bdf8' : '#0284c7') 
-              : textPrimary,
+              ? 'var(--primary, #1e3a8a)' 
+              : effectiveTheme.textSecondary,
             fontSize: '0.78rem',
             fontWeight: activeFormats.italic ? 800 : 700,
             cursor: 'pointer',
             flexShrink: 0,
-            boxShadow: activeFormats.italic ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+            boxShadow: activeFormats.italic ? '0 0 0 1px var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'none',
             transition: 'all 0.15s ease'
           }}
         >
@@ -2966,14 +3125,12 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             padding: '0.25rem 0.5rem',
             borderRadius: '0.35rem',
             backgroundColor: activeFormats.link 
-              ? (activeIsDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
-              : btnBg,
+              ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+              : effectiveTheme.card,
             border: `1px solid ${activeFormats.link 
-              ? (activeIsDark ? '#38bdf8' : '#0284c7') 
-              : btnBorder}`,
-            color: activeFormats.link 
-              ? (activeIsDark ? '#38bdf8' : '#0284c7') 
-              : (activeIsDark ? '#38bdf8' : '#0284c7'),
+              ? 'var(--primary, #1e3a8a)' 
+              : effectiveTheme.border}`,
+            color: 'var(--primary, #1e3a8a)',
             fontSize: '0.78rem',
             fontWeight: activeFormats.link ? 800 : 700,
             cursor: 'pointer',
@@ -2981,7 +3138,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             alignItems: 'center',
             gap: '0.25rem',
             flexShrink: 0,
-            boxShadow: activeFormats.link ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+            boxShadow: activeFormats.link ? '0 0 0 1px var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'none',
             transition: 'all 0.15s ease'
           }}
         >
@@ -3004,10 +3161,10 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             padding: '0.25rem 0.55rem',
             borderRadius: '0.35rem',
             backgroundColor: activeFormats.button
-              ? (activeIsDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.22)')
-              : (activeIsDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)'),
-            border: `1px solid ${activeFormats.button ? '#f59e0b' : 'rgba(245, 158, 11, 0.3)'}`,
-            color: '#f59e0b',
+              ? 'var(--primary-glow, rgba(30, 58, 138, 0.2))'
+              : effectiveTheme.card,
+            border: `1px solid ${activeFormats.button ? 'var(--primary, #1e3a8a)' : effectiveTheme.border}`,
+            color: 'var(--primary, #1e3a8a)',
             fontSize: '0.78rem',
             fontWeight: activeFormats.button ? 800 : 700,
             cursor: 'pointer',
@@ -3015,7 +3172,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             alignItems: 'center',
             gap: '0.25rem',
             flexShrink: 0,
-            boxShadow: activeFormats.button ? '0 0 0 1px rgba(245, 158, 11, 0.35)' : 'none',
+            boxShadow: activeFormats.button ? '0 0 0 1px var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'none',
             transition: 'all 0.15s ease'
           }}
         >
@@ -3039,9 +3196,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             gap: '0.25rem',
             padding: '0.25rem 0.55rem',
             borderRadius: '0.35rem',
-            backgroundColor: editorMode === 'visual' ? (activeIsDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)') : (activeIsDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
-            border: `1px solid ${editorMode === 'visual' ? (activeIsDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)') : btnBorder}`,
-            color: editorMode === 'visual' ? (activeIsDark ? '#38bdf8' : '#0284c7') : textSecondary,
+            backgroundColor: editorMode === 'visual' ? 'var(--primary-glow, rgba(30, 58, 138, 0.12))' : effectiveTheme.card,
+            border: `1px solid ${editorMode === 'visual' ? 'var(--primary, #1e3a8a)' : effectiveTheme.border}`,
+            color: editorMode === 'visual' ? 'var(--primary, #1e3a8a)' : effectiveTheme.textSecondary,
             fontSize: '0.74rem',
             fontWeight: 700,
             cursor: 'pointer',
@@ -3072,9 +3229,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               gap: '0.25rem',
               padding: '0.25rem 0.55rem',
               borderRadius: '0.35rem',
-              backgroundColor: activeIsDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-              border: `1px solid ${activeIsDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
-              color: activeIsDark ? '#38bdf8' : '#0284c7',
+              backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.12))',
+              border: '1px solid var(--primary, #1e3a8a)',
+              color: 'var(--primary, #1e3a8a)',
               fontSize: '0.74rem',
               fontWeight: 700,
               cursor: 'pointer',
@@ -3104,9 +3261,11 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           onSelect={updateActiveFormats}
           onTouchEnd={updateActiveFormats}
           onFocus={() => {
+            setIsFocused(true);
             activeEditorRef.current = 'standard';
             updateActiveFormats();
           }}
+          onBlur={() => setIsFocused(false)}
           style={{
             width: '100%',
             minHeight: minHeight || '110px',
@@ -3115,13 +3274,15 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             borderBottomLeftRadius: '0.75rem',
             borderBottomRightRadius: '0.75rem',
             backgroundColor: inputBg,
-            border: `1px solid ${inputBorder}`,
+            border: `1px solid ${isFocused ? 'var(--primary, #1e3a8a)' : inputBorder}`,
+            boxShadow: isFocused ? '0 0 0 3px var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'none',
             color: textPrimary,
             fontSize: '0.84rem',
             lineHeight: 1.6,
             padding: '0.7rem 0.85rem',
             boxSizing: 'border-box',
-            overflowY: 'auto'
+            overflowY: 'auto',
+            transition: 'border-color 0.15s ease, box-shadow 0.15s ease'
           }}
         />
       ) : (
@@ -3148,9 +3309,11 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           onSelect={updateActiveFormats}
           onTouchEnd={updateActiveFormats}
           onFocus={() => {
+            setIsFocused(true);
             activeEditorRef.current = 'standard';
             updateActiveFormats();
           }}
+          onBlur={() => setIsFocused(false)}
           required={required}
           style={{
             width: '100%',
@@ -3160,13 +3323,16 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             borderBottomLeftRadius: '0.75rem',
             borderBottomRightRadius: '0.75rem',
             backgroundColor: inputBg,
-            borderColor: inputBorder,
+            border: `1px solid ${isFocused ? 'var(--primary, #1e3a8a)' : inputBorder}`,
+            boxShadow: isFocused ? '0 0 0 3px var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'none',
             color: textPrimary,
             fontSize: '0.82rem',
             lineHeight: 1.5,
             padding: '0.65rem 0.75rem',
             boxSizing: 'border-box',
-            resize: 'vertical'
+            resize: 'vertical',
+            outline: 'none',
+            transition: 'border-color 0.15s ease, box-shadow 0.15s ease'
           }}
         />
       )}
@@ -3205,7 +3371,13 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       {/* ========================================================================= */}
       {isFullscreen && createPortal(
         <div 
-          onClick={() => setIsFullscreen(false)}
+          id="rich-textarea-fullscreen-portal"
+          className="zen-fullscreen-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseFullscreen(e);
+            }
+          }}
           style={{
             position: 'fixed',
             top: 0,
@@ -3213,16 +3385,15 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             right: 0,
             bottom: 0,
             width: '100vw',
-            height: isMobile ? '100dvh' : '100vh',
-            minHeight: isMobile ? '100dvh' : undefined,
-            backgroundColor: isMobile ? effectiveTheme.modalBg : (effectiveTheme.modalOverlay || 'rgba(0, 0, 0, 0.72)'),
-            backdropFilter: isMobile ? undefined : 'blur(8px)',
-            WebkitBackdropFilter: isMobile ? undefined : 'blur(8px)',
-            zIndex: 1250,
+            height: '100dvh',
+            backgroundColor: effectiveTheme.modalOverlay || 'rgba(0, 0, 0, 0.45)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 999999,
             display: 'flex',
-            alignItems: isMobile ? 'stretch' : 'center',
+            alignItems: 'center',
             justifyContent: 'center',
-            padding: isMobile ? 0 : '1.5rem',
+            padding: 0,
             margin: 0,
             boxSizing: 'border-box'
           }}
@@ -3230,92 +3401,58 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           <div 
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: isMobile ? '100vw' : '100%',
-              maxWidth: isMobile ? '100vw' : '940px',
-              height: isMobile ? '100dvh' : 'min(800px, calc(100vh - 3.5rem))',
-              maxHeight: isMobile ? '100dvh' : 'calc(100vh - 3.5rem)',
-              minHeight: isMobile ? '100dvh' : undefined,
+              width: '100vw',
+              maxWidth: '100vw',
+              height: '100dvh',
+              maxHeight: '100dvh',
+              minHeight: '100dvh',
               backgroundColor: effectiveTheme.modalBg,
-              borderRadius: isMobile ? 0 : '1.25rem',
-              border: isMobile ? 'none' : `1px solid ${effectiveTheme.border}`,
-              boxShadow: isMobile ? 'none' : (activeIsDark ? '0 25px 70px rgba(0, 0, 0, 0.6)' : '0 20px 50px rgba(0, 0, 0, 0.12)'),
+              borderRadius: 0,
+              border: 'none',
+              boxShadow: 'none',
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
               position: 'relative',
               boxSizing: 'border-box',
-              paddingTop: 'env(safe-area-inset-top, 0px)',
-              paddingBottom: 0,
-              paddingLeft: 'env(safe-area-inset-left, 0px)',
-              paddingRight: 'env(safe-area-inset-right, 0px)'
+              margin: 0,
+              padding: 0
             }}
           >
-            {/* Zen Header */}
+            {/* Zen Header: Pure Clean Title (No Minimize/Close buttons on mobile) */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: isMobile ? '0.75rem 1rem' : '0.8rem 1.15rem',
+              padding: '0.85rem 1rem',
               backgroundColor: effectiveTheme.surface,
               borderBottom: `1px solid ${effectiveTheme.border}`,
-              gap: '0.75rem',
-              flexWrap: 'nowrap',
+              gap: '0.65rem',
               flexShrink: 0
             }}>
-              {/* Left: Icon + Title */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
-                <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--primary, #10b981)',
-                  flexShrink: 0
-                }}>
-                  <Edit3 size={15} />
-                </div>
-                <span style={{
-                  fontSize: '0.9rem',
-                  fontWeight: 800,
-                  color: textPrimary,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}>
-                  {label || 'Detail Artikel'}
-                </span>
+              {/* Icon + Title */}
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.15))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary, #1e3a8a)',
+                flexShrink: 0
+              }}>
+                <Edit3 size={15} />
               </div>
-
-              {/* Right: Close Button X */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsFullscreen(false);
-                  }}
-                  title="Tutup (Esc)"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '0.5rem',
-                    border: `1px solid ${effectiveTheme.border}`,
-                    backgroundColor: activeIsDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
-                    color: textSecondary,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              </div>
+              <span style={{
+                fontSize: '0.92rem',
+                fontWeight: 800,
+                color: textPrimary,
+                lineHeight: 1.25,
+                wordBreak: 'break-word',
+                flex: 1
+              }}>
+                {condenseMobileTitle(label)}
+              </span>
             </div>
 
             {/* Zen Editor Toolbar */}
@@ -3323,7 +3460,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '0.35rem',
-              padding: isMobile ? '0.4rem 0.75rem' : '0.45rem 1.1rem',
+              padding: '0.45rem 1.1rem',
               backgroundColor: effectiveTheme.cardAlt,
               borderBottom: `1px solid ${effectiveTheme.border}`,
               overflowX: 'auto',
@@ -3344,18 +3481,18 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   padding: '0.28rem 0.6rem',
                   borderRadius: '0.4rem',
                   backgroundColor: activeFormats.bold 
-                    ? (activeIsDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
-                    : btnBg,
+                    ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+                    : effectiveTheme.card,
                   border: `1px solid ${activeFormats.bold 
-                    ? (activeIsDark ? '#38bdf8' : '#0284c7') 
-                    : btnBorder}`,
+                    ? 'var(--primary, #1e3a8a)' 
+                    : effectiveTheme.border}`,
                   color: activeFormats.bold 
-                    ? (activeIsDark ? '#38bdf8' : '#0284c7') 
-                    : textPrimary,
+                    ? 'var(--primary, #1e3a8a)' 
+                    : effectiveTheme.textSecondary,
                   fontSize: '0.78rem',
                   fontWeight: activeFormats.bold ? 800 : 700,
                   cursor: 'pointer',
-                  boxShadow: activeFormats.bold ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+                  boxShadow: activeFormats.bold ? '0 0 0 1px var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'none',
                   transition: 'all 0.15s ease'
                 }}
               >
@@ -3374,18 +3511,18 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   padding: '0.28rem 0.6rem',
                   borderRadius: '0.4rem',
                   backgroundColor: activeFormats.italic 
-                    ? (activeIsDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
-                    : btnBg,
+                    ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+                    : effectiveTheme.card,
                   border: `1px solid ${activeFormats.italic 
-                    ? (activeIsDark ? '#38bdf8' : '#0284c7') 
-                    : btnBorder}`,
+                    ? 'var(--primary, #1e3a8a)' 
+                    : effectiveTheme.border}`,
                   color: activeFormats.italic 
-                    ? (activeIsDark ? '#38bdf8' : '#0284c7') 
-                    : textPrimary,
+                    ? 'var(--primary, #1e3a8a)' 
+                    : effectiveTheme.textSecondary,
                   fontSize: '0.78rem',
                   fontWeight: activeFormats.italic ? 800 : 700,
                   cursor: 'pointer',
-                  boxShadow: activeFormats.italic ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+                  boxShadow: activeFormats.italic ? '0 0 0 1px var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'none',
                   transition: 'all 0.15s ease'
                 }}
               >
@@ -3420,19 +3557,19 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   padding: '0.28rem 0.6rem',
                   borderRadius: '0.4rem',
                   backgroundColor: activeFormats.link 
-                    ? (activeIsDark ? 'rgba(56, 189, 248, 0.22)' : 'rgba(2, 132, 199, 0.15)') 
-                    : btnBg,
+                    ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+                    : effectiveTheme.card,
                   border: `1px solid ${activeFormats.link 
-                    ? (activeIsDark ? '#38bdf8' : '#0284c7') 
-                    : btnBorder}`,
-                  color: activeIsDark ? '#38bdf8' : '#0284c7',
+                    ? 'var(--primary, #1e3a8a)' 
+                    : effectiveTheme.border}`,
+                  color: 'var(--primary, #1e3a8a)',
                   fontSize: '0.78rem',
                   fontWeight: activeFormats.link ? 800 : 700,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.25rem',
-                  boxShadow: activeFormats.link ? '0 0 0 1px rgba(56, 189, 248, 0.25)' : 'none',
+                  boxShadow: activeFormats.link ? '0 0 0 1px var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'none',
                   transition: 'all 0.15s ease'
                 }}
               >
@@ -3454,17 +3591,17 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   padding: '0.28rem 0.6rem',
                   borderRadius: '0.4rem',
                   backgroundColor: activeFormats.button
-                    ? (activeIsDark ? 'rgba(245, 158, 11, 0.28)' : 'rgba(245, 158, 11, 0.22)')
-                    : (activeIsDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)'),
-                  border: `1px solid ${activeFormats.button ? '#f59e0b' : 'rgba(245, 158, 11, 0.3)'}`,
-                  color: '#f59e0b',
+                    ? 'var(--primary-glow, rgba(30, 58, 138, 0.2))'
+                    : effectiveTheme.card,
+                  border: `1px solid ${activeFormats.button ? 'var(--primary, #1e3a8a)' : effectiveTheme.border}`,
+                  color: 'var(--primary, #1e3a8a)',
                   fontSize: '0.78rem',
                   fontWeight: activeFormats.button ? 800 : 700,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.25rem',
-                  boxShadow: activeFormats.button ? '0 0 0 1px rgba(245, 158, 11, 0.35)' : 'none',
+                  boxShadow: activeFormats.button ? '0 0 0 1px var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'none',
                   transition: 'all 0.15s ease'
                 }}
               >
@@ -3488,9 +3625,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                   gap: '0.25rem',
                   padding: '0.28rem 0.65rem',
                   borderRadius: '0.4rem',
-                  backgroundColor: editorMode === 'visual' ? (activeIsDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)') : (activeIsDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'),
-                  border: `1px solid ${editorMode === 'visual' ? (activeIsDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)') : btnBorder}`,
-                  color: editorMode === 'visual' ? (activeIsDark ? '#38bdf8' : '#0284c7') : textSecondary,
+                  backgroundColor: editorMode === 'visual' ? 'var(--primary-glow, rgba(30, 58, 138, 0.12))' : effectiveTheme.card,
+                  border: `1px solid ${editorMode === 'visual' ? 'var(--primary, #1e3a8a)' : effectiveTheme.border}`,
+                  color: editorMode === 'visual' ? 'var(--primary, #1e3a8a)' : effectiveTheme.textSecondary,
                   fontSize: '0.74rem',
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -3499,6 +3636,39 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               >
                 {editorMode === 'visual' ? <Type size={12} /> : <FileText size={12} />}
                 <span>{editorMode === 'visual' ? 'Visual' : 'Markdown'}</span>
+              </button>
+
+              {/* Quick Minimize Action */}
+              <button
+                type="button"
+                title="Kecilkan Layar Penuh (Minimize)"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={handleCloseFullscreen}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.28rem 0.65rem',
+                  borderRadius: '0.4rem',
+                  backgroundColor: effectiveTheme.card,
+                  border: `1px solid ${effectiveTheme.border}`,
+                  color: effectiveTheme.textSecondary,
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--primary)';
+                  e.currentTarget.style.borderColor = 'var(--primary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = effectiveTheme.textSecondary;
+                  e.currentTarget.style.borderColor = effectiveTheme.border;
+                }}
+              >
+                <Minimize2 size={12} />
+                <span>Kecilkan</span>
               </button>
             </div>
 
@@ -3509,7 +3679,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               flexDirection: 'column',
               padding: '1.1rem',
               overflowY: 'auto',
-              backgroundColor: effectiveTheme.editorBg || effectiveTheme.modalBg || (activeIsDark ? '#0b1120' : '#ffffff')
+              backgroundColor: effectiveTheme.editorBg || effectiveTheme.modalBg || 'var(--bg-card, #ffffff)'
             }}>
               {editorMode === 'visual' ? (
                 <div
@@ -3592,30 +3762,26 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              paddingTop: '0.85rem',
-              paddingLeft: '1rem',
-              paddingRight: '1rem',
-              paddingBottom: 'max(1.35rem, calc(0.85rem + env(safe-area-inset-bottom, 0px)))',
+              padding: '0.85rem 1.25rem',
               backgroundColor: effectiveTheme.surface,
               borderTop: `1px solid ${effectiveTheme.border}`,
-              gap: '0.65rem',
-              flexShrink: 0,
-              boxSizing: 'border-box'
+              gap: '0.75rem',
+              flexShrink: 0
             }}>
               {/* Left: Word and Character Counts */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.35rem',
-                fontSize: '0.72rem',
+                fontSize: '0.74rem',
                 fontWeight: 600,
                 color: textMuted,
                 overflow: 'hidden'
               }}>
                 <span style={{
-                  padding: '0.2rem 0.5rem',
+                  padding: '0.22rem 0.55rem',
                   borderRadius: '0.45rem',
-                  backgroundColor: activeIsDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
+                  backgroundColor: effectiveTheme.cardAlt,
                   border: `1px solid ${effectiveTheme.border}`,
                   color: textSecondary,
                   fontWeight: 700,
@@ -3625,9 +3791,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 </span>
                 <span>•</span>
                 <span style={{
-                  padding: '0.2rem 0.5rem',
+                  padding: '0.22rem 0.55rem',
                   borderRadius: '0.45rem',
-                  backgroundColor: activeIsDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
+                  backgroundColor: effectiveTheme.cardAlt,
                   border: `1px solid ${effectiveTheme.border}`,
                   color: textSecondary,
                   fontWeight: 700,
@@ -3637,37 +3803,30 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 </span>
               </div>
 
-              {/* Right: Actions */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsFullscreen(false);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    padding: '0.55rem 1.25rem',
-                    minHeight: '38px',
-                    borderRadius: '0.65rem',
-                    background: 'linear-gradient(135deg, var(--primary, #10b981) 0%, var(--primary-hover, #059669) 100%)',
-                    border: 'none',
-                    color: '#ffffff',
-                    fontSize: '0.82rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 10px var(--primary-glow, rgba(16, 185, 129, 0.35))',
-                    flexShrink: 0,
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Check size={15} strokeWidth={2.5} color="#ffffff" />
-                  <span>Selesai</span>
-                </button>
-              </div>
+              {/* Right: Selesai Button */}
+              <button
+                type="button"
+                onClick={handleCloseFullscreen}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.55rem 1.35rem',
+                  borderRadius: '0.65rem',
+                  background: 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 10px var(--primary-glow, rgba(30, 58, 138, 0.35))',
+                  flexShrink: 0,
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Check size={15} strokeWidth={2.5} color="#ffffff" />
+                <span>Selesai</span>
+              </button>
             </div>
           </div>
         </div>,

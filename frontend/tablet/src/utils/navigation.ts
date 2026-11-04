@@ -14,16 +14,23 @@ interface ModalEntry {
 const modalStack: ModalEntry[] = [];
 let isPopstateListenerActive = false;
 let isInternalBackTriggered = false;
-let isProgrammaticCleanupPopping = false;
+let pendingProgrammaticPops = 0;
 
 function ensurePopstateListener() {
   if (isPopstateListenerActive || typeof window === 'undefined') return;
 
   window.addEventListener('popstate', () => {
     // If popstate was triggered by our own modal cleanup popping its own dummy entry,
-    // do NOT pop or close any parent modal from the stack!
-    if (isProgrammaticCleanupPopping || window.__catavor_is_modal_popping) {
-      isProgrammaticCleanupPopping = false;
+    // consume the pop and do NOT pop or close any parent modal from the stack!
+    if (pendingProgrammaticPops > 0) {
+      pendingProgrammaticPops--;
+      if (pendingProgrammaticPops === 0) {
+        window.__catavor_is_modal_popping = false;
+      }
+      return;
+    }
+
+    if (window.__catavor_is_modal_popping) {
       return;
     }
 
@@ -194,13 +201,17 @@ export function useModalBackHandler({
       }
 
       if (!isInternalBackTriggered && window.history.state?.modalKey === uniqueKey) {
-        isProgrammaticCleanupPopping = true;
+        pendingProgrammaticPops++;
         window.__catavor_is_modal_popping = true;
         window.history.back();
         setTimeout(() => {
-          isProgrammaticCleanupPopping = false;
-          window.__catavor_is_modal_popping = false;
-        }, 150);
+          if (pendingProgrammaticPops > 0) {
+            pendingProgrammaticPops--;
+          }
+          if (pendingProgrammaticPops === 0) {
+            window.__catavor_is_modal_popping = false;
+          }
+        }, 400);
       }
       isInternalBackTriggered = false;
     };
@@ -211,7 +222,7 @@ export function useModalBackHandler({
  * Procedural helper to setup a modal back interceptor within a useEffect cleanup cycle.
  */
 export function setupModalBackInterceptor(onClose: () => void, modalId: string = 'modal'): () => void {
-  if (typeof window === 'undefined') return () => {};
+  if (typeof window === 'undefined') return () => { };
 
   ensurePopstateListener();
 
@@ -233,13 +244,17 @@ export function setupModalBackInterceptor(onClose: () => void, modalId: string =
     }
 
     if (!isInternalBackTriggered && window.history.state?.modalKey === uniqueKey) {
-      isProgrammaticCleanupPopping = true;
+      pendingProgrammaticPops++;
       window.__catavor_is_modal_popping = true;
       window.history.back();
       setTimeout(() => {
-        isProgrammaticCleanupPopping = false;
-        window.__catavor_is_modal_popping = false;
-      }, 150);
+        if (pendingProgrammaticPops > 0) {
+          pendingProgrammaticPops--;
+        }
+        if (pendingProgrammaticPops === 0) {
+          window.__catavor_is_modal_popping = false;
+        }
+      }, 400);
     }
     isInternalBackTriggered = false;
   };
