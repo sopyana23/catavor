@@ -1604,28 +1604,23 @@ export const App: React.FC = () => {
 
   // 3B. DEDICATED CHECKOUT ROUTE (/checkout)
   if (isCheckoutRoute) {
-    // If user lands on /checkout directly without registration details, redirect to register
-    let hasRegDraft = false;
-    try {
-      const saved = sessionStorage.getItem('catavor_register_form');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.email && parsed.name) hasRegDraft = true;
-      }
-    } catch { }
-
-    if (!hasRegDraft) {
-      navigateTo('/register');
-      return null;
-    }
+    const qPlan = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('plan') : null;
+    const qBilling = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('billing') : null;
+    const resolvedPlan = (qPlan === 'pro_business' || qPlan === 'pro_starter' || qPlan === 'free')
+      ? qPlan
+      : ((sessionStorage.getItem('catavor_register_plan') as any) || 'pro_starter');
+    const resolvedBilling = (qBilling === 'annual' || qBilling === 'monthly')
+      ? qBilling
+      : ((sessionStorage.getItem('catavor_register_billing') as any) || 'monthly');
 
     return (
       <TabletCheckoutView
+        initialPlan={resolvedPlan}
+        initialBilling={resolvedBilling}
         onBack={() => {
-          const qPlan = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('plan') : null;
-          const plan = qPlan || sessionStorage.getItem('catavor_register_plan') || 'pro_starter';
-          navigateTo(`/register/step-3?plan=${plan}`);
+          navigateTo(`/register/step-3?plan=${resolvedPlan}`);
         }}
+        onNavigateToLogin={() => navigateTo('/login')}
         onCancel={() => {
           try {
             sessionStorage.removeItem('catavor_register_form');

@@ -134,7 +134,8 @@ import {
   History,
   Users,
   HardDriveDownload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  LogIn
 } from 'lucide-react'
 import './App.css'
 import logoHeaderImg from './assets/logo-header.png'
@@ -4245,12 +4246,6 @@ function App() {
       const finalForm = savedForm ? JSON.parse(savedForm) : { name: '', email: '', password: '', store_name: '', store_slug: '' };
       const finalCoupon = savedCoupon ? JSON.parse(savedCoupon) : null;
       const finalPaymentMethod: 'bank' | 'qris' = (savedPaymentMethod === 'qris' || savedPaymentMethod === 'bank') ? (savedPaymentMethod as 'bank' | 'qris') : 'bank';
-
-      // If user landed on /checkout directly but hasn't filled registration details yet, redirect to step 1 cleanly
-      if (pathTab === 'checkout' && (!finalForm.email || !finalForm.name)) {
-        pathTab = 'register';
-        pathStep = 1;
-      }
 
       return {
         tab: pathTab,
@@ -10703,7 +10698,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       } else if (path === '/checkout') {
         setPortalTab('checkout');
         setRegisterStep(3);
-        if (['pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
+        if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
           setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
         }
         const urlBilling = urlParams.get('billing');
@@ -12744,11 +12739,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
   };
 
-  const processCheckoutSubmission = async (isFreeCoupon: boolean, overrideToken?: string) => {
+  const processCheckoutSubmission = async (isFreeCoupon: boolean, overrideToken?: string, planOverride?: string) => {
     const paymentSystemMode = platformSettings.payment_system_mode || 'manual_qris';
     if (!isFreeCoupon && paymentSystemMode === 'manual_qris' && !paymentProofPreview) {
       alert('Bukti transfer / pembayaran wajib diunggah sebelum melanjutkan.');
       return;
+    }
+
+    const effectivePlan = planOverride || (isFreeCoupon && registerPlan === 'free' ? 'free' : registerPlan);
+    if (planOverride === 'free') {
+      setRegisterPlan('free');
     }
 
     setPendingCheckoutIsFree(isFreeCoupon);
@@ -12758,10 +12758,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const payload = {
         ...registerForm,
         verification_token: overrideToken || verificationToken || undefined,
-        plan: registerPlan,
+        plan: effectivePlan,
         billing_cycle: registerBillingCycle,
         coupon_code: appliedCoupon?.code || '',
-        payment_method: paymentMethod,
+        payment_method: isFreeCoupon ? 'free' : paymentMethod,
         payment_status: isFreeCoupon ? 'approved' : 'pending_approval',
         payment_proof_url: isFreeCoupon ? null : paymentProofPreview,
         payment_note: paymentProofNote || undefined,
@@ -17221,39 +17221,199 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     const isMaintenance = paymentSystemMode === 'maintenance';
                     const isAulaa = paymentSystemMode === 'gateway_aulaa';
 
-                    // 1. Maintenance Mode
+                    // 1. Maintenance Mode with Best-Practice Guidance & Action CTAs
                     if (isMaintenance) {
                       return (
-                        <div style={{ padding: '1.5rem 1rem', borderRadius: '0.75rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <ShieldAlert size={26} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+                          {/* Alert Box: Maintenance Status */}
+                          <div style={{
+                            padding: '1rem 0.95rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: '#fffbeb',
+                            border: '1.5px solid #fde68a',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.75rem'
+                          }}>
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '50%',
+                              backgroundColor: '#fef3c7',
+                              color: '#d97706',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <ShieldAlert size={20} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#92400e', margin: '0 0 0.25rem 0' }}>
+                                {platformSettings.payment_maintenance_title || 'Sistem Pembayaran Sedang Dalam Pemeliharaan'}
+                              </h4>
+                              <p style={{ fontSize: '0.74rem', color: '#b45309', margin: 0, lineHeight: 1.45 }}>
+                                {platformSettings.payment_maintenance_message || 'Layanan transaksi pembayaran pendaftaran dan langganan paket saat ini sedang dinonaktifkan sementara untuk peningkatan kualitas layanan berkala.'}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#991b1b', margin: '0 0 0.35rem 0' }}>
-                              {platformSettings.payment_maintenance_title || 'Sistem Pembayaran Sedang Dalam Pemeliharaan'}
-                            </h4>
-                            <p style={{ fontSize: '0.75rem', color: '#b91c1c', margin: 0, lineHeight: 1.5 }}>
-                              {platformSettings.payment_maintenance_message || 'Mohon maaf, saat ini sistem pembayaran pendaftaran dan langganan sedang dinonaktifkan sementara untuk peningkatan kualitas layanan. Silakan hubungi admin atau coba beberapa saat lagi.'}
-                            </p>
-                          </div>
-                          <div style={{ display: 'flex', gap: '0.5rem', width: '100%', marginTop: '0.5rem' }}>
-                            <button 
-                              type="button" 
-                              className="btn-portal-secondary" 
-                              style={{ flex: 1, padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
-                              onClick={handleBackToPlanSelect}
+
+                          {/* Recommendation & Solution Card: Start with Free Tier */}
+                          <div style={{
+                            padding: '0.95rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.8rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                              <div style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '0.45rem',
+                                backgroundColor: '#dcfce7',
+                                color: '#15803d',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}>
+                                <Sparkles size={15} />
+                              </div>
+                              <div>
+                                <h5 style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                                  Tetap Dapat Membuka Toko Hari Ini
+                                </h5>
+                                <span style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                                  Mulai kelola katalog dengan Paket Gratis (Rp 0)
+                                </span>
+                              </div>
+                            </div>
+
+                            <div style={{
+                              padding: '0.75rem 0.85rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: '#ffffff',
+                              border: '1px solid #f1f5f9',
+                              fontSize: '0.74rem',
+                              color: '#334155',
+                              lineHeight: 1.5,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.4rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
+                                <Check size={14} style={{ color: '#16a34a', flexShrink: 0, marginTop: '2px' }} />
+                                <span>
+                                  Anda dapat melanjutkan pendaftaran menggunakan <strong>Paket Gratis (Rp 0)</strong> sekarang juga untuk mulai mengamankan link toko dan mengunggah produk.
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
+                                <Check size={14} style={{ color: '#16a34a', flexShrink: 0, marginTop: '2px' }} />
+                                <span>
+                                  Setelah sistem pembayaran normal, Anda dapat melakukan <strong>upgrade ke paket berbayar kapan saja</strong> langsung dari Dashboard Toko Anda.
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Primary Button: Lanjut dengan Paket Gratis (Touch target >= 44px) */}
+                            <button
+                              type="button"
+                              disabled={registerLoading}
+                              onClick={() => processCheckoutSubmission(true, undefined, 'free')}
+                              style={{
+                                width: '100%',
+                                minHeight: '46px',
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.6rem',
+                                backgroundColor: '#16a34a',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontWeight: 800,
+                                fontSize: '0.84rem',
+                                cursor: registerLoading ? 'wait' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.45rem',
+                                boxShadow: '0 4px 14px rgba(22, 163, 74, 0.25)'
+                              }}
                             >
-                              <ArrowLeft size={14} />
-                              <span>Ubah Paket / Data</span>
+                              {registerLoading ? (
+                                <>
+                                  <Loader2 size={16} className="animate-spin" />
+                                  <span>Mengaktifkan Toko Gratis...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 size={16} />
+                                  <span>Daftar / Beralih ke Paket Gratis (Rp 0)</span>
+                                </>
+                              )}
                             </button>
-                            <button 
-                              type="button" 
-                              className="btn-portal-secondary" 
-                              style={{ padding: '0.65rem 0.85rem', justifyContent: 'center', fontSize: '0.75rem', color: '#64748b' }}
-                              onClick={handleCancelRegistration}
-                              title="Hapus draf pendaftaran dan kembali ke Beranda"
+                          </div>
+
+                          {/* Dedicated Mobile Card: Sudah Memiliki Akun Toko */}
+                          <div style={{
+                            padding: '1rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: '#ffffff',
+                            border: '1.5px solid #e2e8f0',
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.85rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                              <div style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '0.55rem',
+                                backgroundColor: '#eff6ff',
+                                border: '1px solid #dbeafe',
+                                color: '#2563eb',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}>
+                                <LogIn size={18} />
+                              </div>
+                              <div>
+                                <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>
+                                  Sudah Memiliki Akun Toko?
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.1rem', lineHeight: 1.35 }}>
+                                  Masuk langsung ke dashboard untuk mengelola katalog tanpa daftar ulang
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setPortalTab('login')}
+                              style={{
+                                width: '100%',
+                                minHeight: '44px',
+                                padding: '0.65rem 1rem',
+                                borderRadius: '0.55rem',
+                                backgroundColor: '#eff6ff',
+                                border: '1.5px solid #2563eb',
+                                color: '#1d4ed8',
+                                fontSize: '0.82rem',
+                                fontWeight: 800,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.45rem',
+                                cursor: 'pointer',
+                                boxShadow: '0 1px 3px rgba(37, 99, 235, 0.08)'
+                              }}
                             >
-                              <span>Batal</span>
+                              <span>Masuk ke Akun Toko</span>
+                              <ArrowRight size={15} />
                             </button>
                           </div>
                         </div>

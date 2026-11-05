@@ -413,7 +413,7 @@ export const StoreChooserModal: React.FC<StoreChooserModalProps> = ({
             if (!complianceAlert) return null;
             const bSlug = complianceAlert.bannedSlug;
             const RESERVED = [
-              'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin',
+              'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin',
               'catavor', 'catafor', 'katavor', 'katafor', 'platform', 'system', 'ops', 'dashboard',
               'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi',
               'explore', 'directory', 'settings', 'notifications', 'articles', 'subscription', 'langganan',

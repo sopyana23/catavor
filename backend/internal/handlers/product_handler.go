@@ -936,6 +936,20 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			}
 		}
 
+		// 3b. Anti Bait-and-Switch Guard (Sistem Periklanan):
+		// Jika produk ini sedang aktif dalam kampanye iklan berbayar (status = 'active') dan merchant
+		// mengubah judul, harga, atau foto produk, maka penayangan iklan otomatis dibekukan (status = 'in_review')
+		// dan ditarik dari beranda utama hingga ditinjau ulang oleh admin platform.
+		if oldName != product.Name || oldPrice != product.Price || (req.ImageURL != "" && req.ImageURL != product.ImageURL) {
+			_ = tx.Model(&models.AdCampaign{}).
+				Where("target_type = 'product' AND target_product_id = ? AND status = 'active'", product.ID).
+				Updates(map[string]interface{}{
+					"status":           "in_review",
+					"rejection_reason": "Iklan dibekukan otomatis oleh sistem karena terdapat modifikasi data produk pasca-approval (Anti Bait-and-Switch).",
+					"updated_at":       now,
+				}).Error
+		}
+
 		// 4. Record Activity Log atomically
 		services.RecordActivity(services.RecordActivityParams{
 			DB:          tx,
