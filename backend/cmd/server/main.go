@@ -387,6 +387,7 @@ func main() {
 	// Public Telemetry & Analytics Tracking (Isolated High-Capacity Rate Limiter, Zero PII)
 	api.Post("/analytics/track", middleware.TelemetryRateLimiter(), analyticsHandler.TrackEvent)
 	api.Post("/telemetry/search", middleware.TelemetryRateLimiter(), analyticsHandler.TrackSearchEvent)
+	api.Post("/api/telemetry/search", middleware.TelemetryRateLimiter(), analyticsHandler.TrackSearchEvent) // Defensive alias for double /api client prefix
 	api.Post("/client-logs", middleware.PublicSubmissionRateLimiter(), handlers.LogClientError)
 
 	// Public Market Intelligence & Macro Trends (Aggregated & Zero PII)

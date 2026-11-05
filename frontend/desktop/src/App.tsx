@@ -6359,7 +6359,7 @@ Terima kasih.`;
           const totalFound = json.pagination?.total_items ?? json.data.length;
           if (debouncedSearch.trim().length >= 3 && !append) {
             try {
-              fetch(`${API_BASE}/api/telemetry/search`, {
+              fetch('/api/telemetry/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

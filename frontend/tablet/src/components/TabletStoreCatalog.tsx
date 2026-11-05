@@ -349,10 +349,36 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
 
   // Filters & Search
   const [search, setSearch] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [classFilter, setClassFilter] = useState<string>('all');
   const [habitatFilter, setHabitatFilter] = useState<string>('all');
   const [productTypeFilter, setProductTypeFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'name_asc'>('newest');
+
+  // Server-side Catalog & Pagination State (Parity with Desktop & Mobile)
+  const [serverCatalogItems, setServerCatalogItems] = useState<any[]>([]);
+  const [isCatalogLoading, setIsCatalogLoading] = useState<boolean>(false);
+  const [serverPagination, setServerPagination] = useState<{
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  }>({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    hasNext: false,
+    hasPrev: false
+  });
+
+  // Debounce search input by 300ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Overlays
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
@@ -515,29 +541,86 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     loadStoreData();
   }, [loadStoreData]);
 
-  // Telemetry Search Beacon
+  // Fetch Server-Side Catalog (Parity with Desktop & Mobile)
+  const fetchServerCatalog = useCallback(async (page: number = 1) => {
+    if (!slug) return;
+    setIsCatalogLoading(true);
+
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', '15');
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+      if (productTypeFilter !== 'all') params.set('type', productTypeFilter);
+      if (classFilter !== 'all') params.set('class', classFilter);
+      if (habitatFilter !== 'all') params.set('habitat', habitatFilter);
+      if (sortBy) params.set('sort', sortBy);
+
+      const { data: json } = await apiClient.swr<any>(`/u/${slug}/products?${params.toString()}`, {
+        ttlMs: 15 * 1000,
+        slug,
+        onFresh: (freshData) => {
+          if (freshData?.success && Array.isArray(freshData.data)) {
+            setServerCatalogItems(freshData.data);
+            if (freshData.pagination) {
+              setServerPagination({
+                currentPage: freshData.pagination.current_page || page,
+                totalPages: freshData.pagination.total_pages || 1,
+                totalItems: freshData.pagination.total_items ?? freshData.data.length,
+                hasNext: Boolean(freshData.pagination.has_next),
+                hasPrev: Boolean(freshData.pagination.has_prev)
+              });
+            }
+          }
+        }
+      });
+
+      if (json && json.success && Array.isArray(json.data)) {
+        setServerCatalogItems(json.data);
+        if (json.pagination) {
+          setServerPagination({
+            currentPage: json.pagination.current_page || page,
+            totalPages: json.pagination.total_pages || 1,
+            totalItems: json.pagination.total_items ?? json.data.length,
+            hasNext: Boolean(json.pagination.has_next),
+            hasPrev: Boolean(json.pagination.has_prev)
+          });
+        }
+
+        // Anonymous Search Telemetry Beacon (Clean Public Route, Zero PII)
+        const totalFound = json.pagination?.total_items ?? json.data.length;
+        if (debouncedSearch.trim().length >= 3) {
+          try {
+            fetch('/api/telemetry/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                keyword: debouncedSearch.trim(),
+                store_slug: slug,
+                product_type: productTypeFilter !== 'all' ? productTypeFilter : '',
+                category_slug: classFilter !== 'all' ? classFilter : '',
+                result_count: totalFound,
+                is_zero_result: totalFound === 0,
+                _hp_check: ''
+              }),
+              keepalive: true
+            }).catch(() => {});
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('Gagal memuat katalog server tablet:', err);
+    } finally {
+      setIsCatalogLoading(false);
+    }
+  }, [slug, debouncedSearch, productTypeFilter, classFilter, habitatFilter, sortBy]);
+
+  // Trigger server-side fetch on filter or search change
   useEffect(() => {
-    const trimmed = search.trim();
-    if (trimmed.length < 3) return;
-    const timer = setTimeout(() => {
-      try {
-        fetch('/api/telemetry/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            keyword: trimmed,
-            store_slug: slug,
-            category_slug: classFilter !== 'all' ? classFilter : '',
-            result_count: faunas.length,
-            is_zero_result: faunas.length === 0,
-            _hp_check: ''
-          }),
-          keepalive: true
-        }).catch(() => {});
-      } catch {}
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [search, slug, classFilter, faunas.length]);
+    if (activePublicTab === 'catalog') {
+      fetchServerCatalog(1);
+    }
+  }, [fetchServerCatalog, activePublicTab]);
 
   // WhatsApp Contacts Calculation
   const storeWAContacts = useMemo(() => {
@@ -573,49 +656,20 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     return counts;
   }, [faunas, productTypeFilter]);
 
-  // Filtered & Sorted Products
+  // Filtered & Sorted Products (Server Catalog First, fallback to initial faunas)
   const filteredFaunas = useMemo(() => {
-    let list = [...faunas];
-
-    if (productTypeFilter !== 'all') {
-      list = list.filter(item => (item.product_type || 'physical') === productTypeFilter);
+    if (serverCatalogItems.length > 0 || debouncedSearch.trim() || productTypeFilter !== 'all' || classFilter !== 'all' || habitatFilter !== 'all' || sortBy !== 'newest') {
+      return serverCatalogItems;
     }
-
-    if (classFilter !== 'all') {
-      list = list.filter(item => item.class === classFilter);
-    }
-
-    if (habitatFilter !== 'all') {
-      list = list.filter(item => item.habitat === habitatFilter);
-    }
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(item =>
-        item.name?.toLowerCase().includes(q) ||
-        item.description?.toLowerCase().includes(q) ||
-        item.class?.toLowerCase().includes(q) ||
-        item.habitat?.toLowerCase().includes(q)
-      );
-    }
-
-    list.sort((a, b) => {
-      if (sortBy === 'price_asc') return Number(a.price || 0) - Number(b.price || 0);
-      if (sortBy === 'price_desc') return Number(b.price || 0) - Number(a.price || 0);
-      if (sortBy === 'name_asc') return (a.name || '').localeCompare(b.name || '');
-      if (sortBy === 'oldest') return Number(a.id || 0) - Number(b.id || 0);
-      return Number(b.id || 0) - Number(a.id || 0);
-    });
-
-    return list;
-  }, [faunas, productTypeFilter, classFilter, habitatFilter, search, sortBy]);
+    return faunas;
+  }, [serverCatalogItems, faunas, debouncedSearch, productTypeFilter, classFilter, habitatFilter, sortBy]);
 
   // -------------------------------------------------------------
   // DETAIL PRODUCT FETCHING & FLOW (Identical to Desktop)
   // -------------------------------------------------------------
   const fetchDetails = useCallback(async (id: number) => {
     try {
-      const localItem = faunas.find(f => f.id === id);
+      const localItem = faunas.find(f => f.id === id) || serverCatalogItems.find(f => f.id === id);
       if (localItem) {
         setSelectedFauna(localItem);
         setActiveImageIndex(0);
@@ -2997,9 +3051,9 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
               </div>
 
               {/* Counter & Reset Filter */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', padding: '0 0.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', padding: '0 0.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                  Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{filteredFaunas.length}</strong> dari {faunas.length} item
+                  Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{serverPagination.totalItems > 0 ? `${((serverPagination.currentPage - 1) * 15) + 1} - ${Math.min(serverPagination.currentPage * 15, serverPagination.totalItems)} dari ${serverPagination.totalItems}` : `${filteredFaunas.length} dari ${faunas.length}`}</strong> item
                 </span>
                 {(search || classFilter !== 'all' || productTypeFilter !== 'all' || sortBy !== 'newest') && (
                   <button
@@ -3013,7 +3067,19 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
               </div>
 
               {/* Product Grid (Tablet 3-Column Native) */}
-              {filteredFaunas.length === 0 ? (
+              {isCatalogLoading && serverCatalogItems.length === 0 ? (
+                <div className="tablet-catalog-grid">
+                  {Array.from({ length: 6 }).map((_, idx) => (
+                    <div key={idx} className="tablet-catalog-card" style={{ opacity: 0.6, pointerEvents: 'none' }}>
+                      <div style={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: 'var(--bg-deep)' }} />
+                      <div style={{ padding: '0.85rem' }}>
+                        <div style={{ height: '16px', width: '80%', backgroundColor: 'var(--bg-deep)', borderRadius: '4px', marginBottom: '8px' }} />
+                        <div style={{ height: '14px', width: '50%', backgroundColor: 'var(--bg-deep)', borderRadius: '4px' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : filteredFaunas.length === 0 ? (
                 <div style={{
                   padding: '3.5rem 2rem',
                   textAlign: 'center',
@@ -3287,6 +3353,121 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Tablet Native Server-Side Pagination Bar (Rule 7.C: Touch-Segmented Page Bar) */}
+              {serverPagination.totalPages > 1 && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '1.25rem 0.5rem',
+                  marginTop: '1.5rem',
+                  borderTop: '1px solid var(--border-light)',
+                  flexWrap: 'wrap',
+                  gap: '1rem'
+                }}>
+                  {/* Summary */}
+                  <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
+                    Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{((serverPagination.currentPage - 1) * 15) + 1} - {Math.min(serverPagination.currentPage * 15, serverPagination.totalItems)}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{serverPagination.totalItems}</strong> item
+                  </div>
+
+                  {/* Touch Segmented Pager Controls (Touch Targets >= 44px) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      disabled={!serverPagination.hasPrev || isCatalogLoading}
+                      onClick={() => {
+                        fetchServerCatalog(serverPagination.currentPage - 1);
+                        window.scrollTo({ top: 380, behavior: 'smooth' });
+                      }}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0 0.95rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        color: !serverPagination.hasPrev ? 'var(--text-muted)' : 'var(--text-primary)',
+                        opacity: !serverPagination.hasPrev ? 0.5 : 1,
+                        cursor: !serverPagination.hasPrev ? 'not-allowed' : 'pointer',
+                        fontWeight: 700,
+                        fontSize: '0.84rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <ChevronLeft size={16} />
+                      <span>Sebelumnya</span>
+                    </button>
+
+                    {/* Numeric Page Buttons */}
+                    {Array.from({ length: Math.min(serverPagination.totalPages, 5) }, (_, i) => {
+                      let pageNum = i + 1;
+                      if (serverPagination.totalPages > 5) {
+                        if (serverPagination.currentPage > 3) {
+                          pageNum = Math.min(serverPagination.currentPage - 2 + i, serverPagination.totalPages - 4 + i);
+                        }
+                      }
+                      const isActive = pageNum === serverPagination.currentPage;
+                      return (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          disabled={isCatalogLoading}
+                          onClick={() => {
+                            fetchServerCatalog(pageNum);
+                            window.scrollTo({ top: 380, behavior: 'smooth' });
+                          }}
+                          style={{
+                            minHeight: '44px',
+                            minWidth: '44px',
+                            padding: '0 0.65rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-card)',
+                            border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-light)',
+                            color: isActive ? '#ffffff' : 'var(--text-primary)',
+                            fontWeight: 700,
+                            fontSize: '0.84rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      disabled={!serverPagination.hasNext || isCatalogLoading}
+                      onClick={() => {
+                        fetchServerCatalog(serverPagination.currentPage + 1);
+                        window.scrollTo({ top: 380, behavior: 'smooth' });
+                      }}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0 0.95rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        color: !serverPagination.hasNext ? 'var(--text-muted)' : 'var(--text-primary)',
+                        opacity: !serverPagination.hasNext ? 0.5 : 1,
+                        cursor: !serverPagination.hasNext ? 'not-allowed' : 'pointer',
+                        fontWeight: 700,
+                        fontSize: '0.84rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span>Selanjutnya</span>
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
                 </div>
               )}
             </>
