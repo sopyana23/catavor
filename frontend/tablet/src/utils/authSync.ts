@@ -64,7 +64,7 @@ export const isReservedStoreSlug = (slug?: string | null): boolean => {
   if (!slug) return true;
   const clean = slug.toLowerCase().trim();
   const reserved = [
-    'api', 'sanctum', 'desktop', 'mobile', 'tablet', 'assets', 'login', 'register',
+    'api', 'sanctum', 'desktop', 'mobile', 'tablet', 'assets', 'login', 'register', 'checkout',
     'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
     'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi',
     'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings',

@@ -26,7 +26,9 @@ import {
   MessageCircle,
   Trash2,
   X,
-  Calendar
+  Calendar,
+  LogIn,
+  ArrowRight
 } from 'lucide-react';
 
 export interface DesktopCheckoutViewProps {
@@ -35,6 +37,8 @@ export interface DesktopCheckoutViewProps {
   onBack?: () => void;
   onCancel?: () => void;
   onSuccess?: (registeredUser: any) => void;
+  onNavigateToLogin?: () => void;
+  onPlanChange?: (plan: 'pro_starter' | 'pro_business' | 'free') => void;
   platformSettings?: Record<string, string>;
 }
 
@@ -44,23 +48,35 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
   onBack,
   onCancel,
   onSuccess,
+  onNavigateToLogin,
+  onPlanChange,
   platformSettings: propSettings
 }) => {
-  // 1. Plan State (Locked to Monthly Subscription Cycle)
-  const [registerPlan, setRegisterPlan] = useState<'pro_starter' | 'pro_business'>(() => {
+  // 1. Plan State (Preserve URL plan query param)
+  const [registerPlan, setRegisterPlan] = useState<'pro_starter' | 'pro_business' | 'free'>(() => {
     if (typeof window !== 'undefined') {
       const qPlan = new URLSearchParams(window.location.search).get('plan');
       if (qPlan === 'pro_business') return 'pro_business';
       if (qPlan === 'pro_starter') return 'pro_starter';
+      if (qPlan === 'free') return 'free';
       const savedPlan = sessionStorage.getItem('catavor_register_plan');
       if (savedPlan === 'pro_business') return 'pro_business';
       if (savedPlan === 'pro_starter') return 'pro_starter';
+      if (savedPlan === 'free') return 'free';
     }
-    return (initialPlan === 'pro_business' ? 'pro_business' : 'pro_starter');
+    return (initialPlan === 'pro_business' ? 'pro_business' : (initialPlan === 'free' ? 'free' : 'pro_starter'));
   });
 
-  // Strict Policy: Payments & Leases are ONLY Monthly (1 Month)
-  const registerBillingCycle = 'monthly';
+  // Billing Cycle State (Preserve URL billing query param)
+  const [registerBillingCycle, setRegisterBillingCycle] = useState<'monthly' | 'annual'>(() => {
+    if (typeof window !== 'undefined') {
+      const qBilling = new URLSearchParams(window.location.search).get('billing');
+      if (qBilling === 'annual' || qBilling === 'monthly') return qBilling;
+      const savedBilling = sessionStorage.getItem('catavor_register_billing');
+      if (savedBilling === 'annual' || savedBilling === 'monthly') return savedBilling as 'monthly' | 'annual';
+    }
+    return initialBilling === 'annual' ? 'annual' : 'monthly';
+  });
 
   // 2. Registration Form State (Account & Store Info)
   const [registerForm, setRegisterForm] = useState<{
@@ -150,7 +166,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
 
   const isCancelledRef = useRef<boolean>(false);
 
-  // Update sessionStorage on state changes
+  // Sync state changes to Session Storage & URL params (always preserve plan and billing in URL)
   useEffect(() => {
     if (isCancelledRef.current) return;
     if (typeof window !== 'undefined') {
@@ -158,6 +174,14 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
       sessionStorage.setItem('catavor_register_billing', registerBillingCycle);
       sessionStorage.setItem('catavor_register_form', JSON.stringify(registerForm));
       sessionStorage.setItem('catavor_payment_method', paymentMethod);
+
+      const newUrl = `/checkout?plan=${registerPlan}&billing=${registerBillingCycle}`;
+      if (window.location.pathname + window.location.search !== newUrl) {
+        window.history.replaceState({}, '', newUrl);
+      }
+      if (onPlanChange) {
+        onPlanChange(registerPlan);
+      }
     }
   }, [registerPlan, registerBillingCycle, registerForm, paymentMethod]);
 
@@ -190,8 +214,8 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
   const [createdUserData, setCreatedUserData] = useState<any>(null);
 
   // Strict Monthly Price Calculations (1 Month)
-  const originalPrice = registerPlan === 'pro_business' ? 129000 : 30000;
-  const normalPrice = registerPlan === 'pro_business' ? 150000 : 65000;
+  const originalPrice = registerPlan === 'free' ? 0 : (registerPlan === 'pro_business' ? 129000 : 30000);
+  const normalPrice = registerPlan === 'free' ? 0 : (registerPlan === 'pro_business' ? 150000 : 65000);
 
   const discountAmount = appliedCoupon
     ? (appliedCoupon.type === 'free' ? originalPrice : appliedCoupon.discount)
@@ -295,7 +319,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
   };
 
   // Submission Handler
-  const handleSubmitCheckout = async (isFreeBypass: boolean = false) => {
+  const handleSubmitCheckout = async (isFreeBypass: boolean = false, planOverride?: 'free' | 'pro_starter' | 'pro_business') => {
     setRegisterError(null);
 
     // Validation
@@ -325,6 +349,11 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
       return;
     }
 
+    const effectivePlan = planOverride || (isFreeBypass && registerPlan === 'free' ? 'free' : registerPlan);
+    if (planOverride === 'free') {
+      setRegisterPlan('free');
+    }
+
     const paymentSystemMode = platformSettings.payment_system_mode || 'manual_qris';
     if (!isFreeBypass && paymentSystemMode === 'manual_qris' && !paymentProofPreview) {
       setRegisterError('Bukti transfer / scan QRIS wajib diunggah sebelum mengirim konfirmasi.');
@@ -351,10 +380,10 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
         google_id: effectiveGoogleId || undefined,
         store_name: registerForm.store_name.trim(),
         store_slug: registerForm.store_slug.trim().toLowerCase(),
-        plan: registerPlan,
+        plan: effectivePlan,
         billing_cycle: registerBillingCycle,
         coupon_code: appliedCoupon?.code || '',
-        payment_method: paymentMethod,
+        payment_method: isFreeBypass ? 'free' : paymentMethod,
         payment_status: isFreeBypass ? 'approved' : 'pending_approval',
         payment_proof_url: isFreeBypass ? null : paymentProofPreview,
         payment_note: paymentProofNote ? paymentProofNote.trim() : undefined,
@@ -484,21 +513,50 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
             <span>Kembali ke Pilihan Paket</span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleCancelRegistration}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#64748b',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              textDecoration: 'underline'
-            }}
-          >
-            Batalkan Pendaftaran
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+            <div style={{ fontSize: '0.82rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span>Sudah punya akun?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onNavigateToLogin) onNavigateToLogin();
+                  else window.location.href = '/login';
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#2563eb',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontSize: '0.82rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.2rem',
+                  textDecoration: 'underline'
+                }}
+              >
+                <span>Masuk</span>
+                <LogIn size={13} />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCancelRegistration}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#94a3b8',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+            >
+              Batalkan Pendaftaran
+            </button>
+          </div>
         </div>
 
         {/* Page Hero Header */}
@@ -1209,37 +1267,219 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
                   </button>
                 </div>
               ) : isMaintenance ? (
-                /* Scenario 2: Maintenance Mode */
-                <div style={{
-                  padding: '1.75rem 1.25rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: '#fef2f2',
-                  border: '1px solid #fecaca',
-                  textAlign: 'center',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '0.95rem'
-                }}>
+                /* Scenario 2: Payment Maintenance Mode with Best-Practice User Guidance & Action CTAs */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* Alert Box: Maintenance Status */}
                   <div style={{
-                    width: '60px',
-                    height: '60px',
-                    borderRadius: '50%',
-                    backgroundColor: '#fee2e2',
-                    color: '#dc2626',
+                    padding: '1.25rem 1.35rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: '#fffbeb',
+                    border: '1.5px solid #fde68a',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '1rem'
+                  }}>
+                    <div style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '50%',
+                      backgroundColor: '#fef3c7',
+                      color: '#d97706',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <ShieldAlert size={22} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h4 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#92400e', margin: '0 0 0.35rem 0' }}>
+                        {platformSettings.payment_maintenance_title || 'Sistem Pembayaran Sedang Dalam Pemeliharaan'}
+                      </h4>
+                      <p style={{ fontSize: '0.82rem', color: '#b45309', margin: 0, lineHeight: 1.5 }}>
+                        {platformSettings.payment_maintenance_message || 'Layanan transaksi pembayaran pendaftaran dan langganan paket saat ini sedang dinonaktifkan sementara untuk peningkatan kualitas layanan berkala.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Recommendation & Solution Card: Start with Free Tier */}
+                  <div style={{
+                    padding: '1.35rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '0.5rem',
+                        backgroundColor: '#dcfce7',
+                        color: '#15803d',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Sparkles size={17} />
+                      </div>
+                      <div>
+                        <h5 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                          Tetap Dapat Membuka Toko Hari Ini (Paket Gratis)
+                        </h5>
+                        <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                          Akses langsung ke dashboard katalog toko tanpa kendala pembayaran
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #f1f5f9',
+                      fontSize: '0.81rem',
+                      color: '#334155',
+                      lineHeight: 1.55,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.45rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                        <Check size={16} style={{ color: '#16a34a', flexShrink: 0, marginTop: '2px' }} />
+                        <span>
+                          Anda dapat melanjutkan pendaftaran menggunakan <strong>Paket Gratis (Free Tier - Rp 0)</strong> sekarang juga untuk mulai mengamankan link domain, mengatur profil toko, dan mengunggah produk.
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                        <Check size={16} style={{ color: '#16a34a', flexShrink: 0, marginTop: '2px' }} />
+                        <span>
+                          Setelah pemeliharaan sistem pembayaran selesai, Anda dapat melakukan <strong>upgrade ke paket berbayar ({registerPlan === 'pro_business' ? 'Pro Bisnis' : 'Pro Starter'}) kapan saja</strong> langsung dari menu Langganan di dalam Dashboard Toko Anda.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Primary Action Button: Lanjut dengan Paket Gratis */}
+                    <button
+                      type="button"
+                      disabled={registerLoading}
+                      onClick={() => handleSubmitCheckout(true, 'free')}
+                      style={{
+                        width: '100%',
+                        minHeight: '48px',
+                        padding: '0.85rem 1.25rem',
+                        borderRadius: '0.65rem',
+                        backgroundColor: '#16a34a',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontWeight: 800,
+                        fontSize: '0.92rem',
+                        cursor: registerLoading ? 'wait' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        boxShadow: '0 4px 14px rgba(22, 163, 74, 0.25)',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {registerLoading ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          <span>Mengaktifkan Toko Gratis...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={18} />
+                          <span>Daftar / Beralih ke Paket Gratis (Rp 0)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Dedicated Account Login Card for Existing Users */}
+                  <div style={{
+                    padding: '1.15rem 1.35rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: '#ffffff',
+                    border: '1.5px solid #e2e8f0',
+                    boxShadow: '0 2px 10px rgba(15, 23, 42, 0.04)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'space-between',
+                    gap: '1.25rem',
+                    transition: 'border-color 0.15s ease, box-shadow 0.15s ease'
                   }}>
-                    <ShieldAlert size={30} />
-                  </div>
-                  <div>
-                    <h4 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#991b1b', margin: '0 0 0.45rem 0' }}>
-                      {platformSettings.payment_maintenance_title || 'Sistem Pembayaran Sedang Dalam Pemeliharaan'}
-                    </h4>
-                    <p style={{ fontSize: '0.84rem', color: '#b91c1c', margin: 0, lineHeight: 1.5, maxWidth: '440px' }}>
-                      {platformSettings.payment_maintenance_message || 'Mohon maaf, saat ini sistem pembayaran pendaftaran dan langganan sedang dinonaktifkan sementara untuk peningkatan kualitas layanan. Silakan hubungi admin atau coba beberapa saat lagi.'}
-                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                      <div style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '0.65rem',
+                        backgroundColor: '#eff6ff',
+                        border: '1.5px solid #dbeafe',
+                        color: '#2563eb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <LogIn size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.25 }}>
+                          Sudah Memiliki Akun Toko?
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '0.2rem', lineHeight: 1.4 }}>
+                          Masuk langsung ke dashboard untuk mengelola katalog tanpa daftar ulang
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onNavigateToLogin) {
+                          onNavigateToLogin();
+                        } else {
+                          window.location.href = '/login';
+                        }
+                      }}
+                      style={{
+                        minHeight: '40px',
+                        padding: '0.55rem 1.25rem',
+                        borderRadius: '0.6rem',
+                        backgroundColor: '#eff6ff',
+                        border: '1.5px solid #2563eb',
+                        color: '#1d4ed8',
+                        fontSize: '0.84rem',
+                        fontWeight: 800,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        boxShadow: '0 2px 6px rgba(37, 99, 235, 0.1)',
+                        transition: 'all 0.15s ease',
+                        flexShrink: 0
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#2563eb';
+                        e.currentTarget.style.color = '#ffffff';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.25)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#eff6ff';
+                        e.currentTarget.style.color = '#1d4ed8';
+                        e.currentTarget.style.boxShadow = '0 2px 6px rgba(37, 99, 235, 0.1)';
+                      }}
+                      title="Masuk ke portal dashboard menggunakan akun terdaftar"
+                    >
+                      <span>Masuk ke Akun</span>
+                      <ArrowRight size={15} />
+                    </button>
                   </div>
                 </div>
               ) : isAulaa ? (

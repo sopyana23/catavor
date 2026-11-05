@@ -231,7 +231,7 @@ export const isReservedStoreSlug = (slug?: string | null): boolean => {
   if (!slug) return false;
   const s = slug.toLowerCase();
   const reserved = [
-    'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 
+    'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 
     'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 
     'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 
     'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 
@@ -246,7 +246,7 @@ export function getStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
   const path = window.location.pathname.toLowerCase();
   const parts = path.split('/').filter(Boolean);
-  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
   
   if (parts.length === 0) return null;
   if (parts[0] === 'login' && parts.length > 1 && !reservedPortal.includes(parts[1])) {
@@ -268,7 +268,7 @@ export function resolveActiveStoreSlug(): string | null {
   const isInvalid = (s?: string | null) => {
     if (!s) return true;
     const clean = s.toLowerCase().trim();
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
     return reserved.includes(clean);
   };
   const fromUrl = getStoreSlug();
@@ -4072,7 +4072,7 @@ function App() {
     if (!slug) return true;
     const clean = slug.toLowerCase().trim();
     const reserved = [
-      'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin',
+      'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin',
       'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
       'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan',
       'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan',
@@ -4107,8 +4107,22 @@ function App() {
     return null;
   };
   const [storeSlug, setStoreSlug] = useState<string | null>(() => {
-    if (typeof window !== 'undefined' && isCatalogChooserRoute(window.location.pathname)) {
-      return null;
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase().trim().replace(/\/+$/, '') || '/';
+      if (
+        isCatalogChooserRoute(p) ||
+        p === '/admin' || p.startsWith('/admin/') ||
+        p === '/platform' || p.startsWith('/platform/') ||
+        p === '/ops' || p.startsWith('/ops/') ||
+        p === '/login' ||
+        p === '/register' || p.startsWith('/register/') ||
+        p === '/checkout' || p.startsWith('/checkout') ||
+        p === '/terms' || p === '/privacy' || p === '/acceptable-use' || p === '/acceptable_use' ||
+        p === '/syarat-ketentuan' || p === '/kebijakan-privasi' || p === '/ketentuan-penggunaan' ||
+        p === '/' || p === ''
+      ) {
+        return null;
+      }
     }
     const isValid = (s?: string | null) => Boolean(s && !isReservedStoreSlug(s));
     const urlSlug = getStoreSlug();
@@ -4132,6 +4146,7 @@ function App() {
       }
       const urlParams = new URLSearchParams(window.location.search);
       const urlPlan = urlParams.get('plan');
+      const urlBilling = urlParams.get('billing');
 
       let pathTab: 'home' | 'login' | 'register' | 'checkout' | 'terms' | 'privacy' | 'acceptable_use' = 'home';
       let pathStep: 1 | 2 | 3 = 1;
@@ -4179,10 +4194,14 @@ function App() {
       }
 
       const savedPlan = sessionStorage.getItem('catavor_register_plan');
+      const savedBilling = sessionStorage.getItem('catavor_register_billing');
       const savedForm = sessionStorage.getItem('catavor_register_form');
 
       const rawPlan = urlPlan || savedPlan || 'free';
       const finalPlan = (rawPlan === 'pro' ? 'pro_starter' : rawPlan) as 'free' | 'pro_starter' | 'pro_business';
+      const finalBilling: 'monthly' | 'annual' = (urlBilling === 'annual' || urlBilling === 'monthly')
+        ? (urlBilling as 'monthly' | 'annual')
+        : ((savedBilling === 'annual' || savedBilling === 'monthly' ? savedBilling : 'monthly') as 'monthly' | 'annual');
       let finalForm = savedForm ? JSON.parse(savedForm) : { name: '', email: '', password: '', store_name: '', store_slug: '' };
       try {
         const u = localStorage.getItem('catavor_user');
@@ -4194,16 +4213,11 @@ function App() {
         }
       } catch {}
 
-      // If user landed on /checkout directly but hasn't filled registration details yet, redirect to step 1 cleanly
-      if (pathTab === 'checkout' && (!finalForm.email || !finalForm.name)) {
-        pathTab = 'register';
-        pathStep = 1;
-      }
-
       return {
         tab: pathTab,
         step: pathStep,
         plan: finalPlan,
+        billing: finalBilling,
         form: finalForm
       };
     } catch {
@@ -4211,6 +4225,7 @@ function App() {
         tab: 'home' as const,
         step: 1 as const,
         plan: 'free' as const,
+        billing: 'monthly' as const,
         form: { name: '', email: '', password: '', store_name: '', store_slug: '' }
       };
     }
@@ -4222,7 +4237,7 @@ function App() {
   const [registerPlan, setRegisterPlan] = useState<'free' | 'pro_starter' | 'pro_business'>(
     (initialRegState.plan as any) === 'pro' ? 'pro_starter' : (initialRegState.plan as any) || 'free'
   );
-  const [registerBillingCycle, setRegisterBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [registerBillingCycle, setRegisterBillingCycle] = useState<'monthly' | 'annual'>(initialRegState.billing || 'monthly');
   const [registerStep, setRegisterStep] = useState<1 | 2 | 3>(initialRegState.step);
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'qris'>('bank');
   const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null);
@@ -9411,6 +9426,22 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return;
     }
 
+    if (path === '/checkout' || path.startsWith('/checkout/') || path.startsWith('/checkout?')) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlPlan = urlParams.get('plan');
+      const urlBilling = urlParams.get('billing');
+      setStoreSlug(null);
+      setPortalTab('checkout');
+      setRegisterStep(3);
+      if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
+        setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
+      }
+      if (urlBilling === 'annual' || urlBilling === 'monthly') {
+        setRegisterBillingCycle(urlBilling as any);
+      }
+      return;
+    }
+
     if (isCatalogChooserRoute(path)) {
       const savedToken = token || localStorage.getItem('catavor_token');
       if (!savedToken) {
@@ -10314,6 +10345,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
         if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
           setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
         }
+      } else if (path === '/checkout') {
+        setPortalTab('checkout');
+        setRegisterStep(3);
+        if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
+          setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
+        }
+        const urlBilling = urlParams.get('billing');
+        if (urlBilling === 'annual' || urlBilling === 'monthly') {
+          setRegisterBillingCycle(urlBilling);
+        }
       } else if (path === '/terms' || path === '/syarat-ketentuan') {
         setPortalTab('terms');
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
@@ -10955,11 +10996,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return false;
     }
     const parts = path.split('/').filter(Boolean);
-    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
     
     if (parts.length === 0) return false;
     if (parts.length === 1) return false;
-    if (parts[0] === 'register') return false;
+    if (parts[0] === 'register' || parts[0] === 'checkout') return false;
     
     if (!reservedPortal.includes(parts[0])) {
       const storeSub = parts[1];
@@ -10975,7 +11016,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   // Load Initial Data
   const loadData = async (overrideSlug?: string) => {
     const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
-    if (isCatalogChooserRoute(path)) {
+    if (isCatalogChooserRoute(path) || path === '/checkout' || path.startsWith('/checkout/') || path.startsWith('/checkout?')) {
       setLoading(false);
       setIsAppInitializing(false);
       return;
@@ -11535,7 +11576,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       isInitialLoadRef.current = false;
     }
     isUserNavRef.current = false;
-  }, [portalTab, registerStep, registerPlan, registerForm, storeSlug, error]);
+  }, [portalTab, registerStep, registerPlan, registerBillingCycle, registerForm, storeSlug, error]);
 
   // Reset displayLimit on search or filter change
   useEffect(() => {
@@ -16601,8 +16642,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
           <DesktopCheckoutView
             initialPlan={registerPlan}
             initialBilling={registerBillingCycle}
+            onPlanChange={setRegisterPlan}
             onBack={handleBackToPlanSelect}
             onCancel={handleCancelCheckout}
+            onNavigateToLogin={() => {
+              setPortalTab('login');
+              window.history.pushState({ tab: 'login' }, '', '/login');
+            }}
             onSuccess={(registeredUser) => {
               if (registeredUser?.store_slug) {
                 setStoreSlug(registeredUser.store_slug);
