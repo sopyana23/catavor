@@ -54,7 +54,8 @@ import {
 } from 'lucide-react';
 import apiClient, { API_BASE } from '../utils/apiClient';
 import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
-import { TabletShareCatalogView } from './TabletShareCatalogView';
+import { TabletQRCodeModal } from './TabletQRCodeModal';
+import { TabletReportModal, getCatalogReportReasons } from './TabletReportModal';
 import { TabletImageLightbox } from './TabletImageLightbox';
 import { VideoPlayerEmbed } from './VideoEmbed';
 import { useModalBackHandler, smartBack } from '../utils/navigation';
@@ -110,7 +111,7 @@ export function parseWAContacts(raw: string | null | undefined): WAContactItem[]
           }))
           .filter(item => item.number !== '');
       }
-    } catch {}
+    } catch { }
   }
 
   // Fallback single number
@@ -282,23 +283,7 @@ export const renderAboutIcon = (key: string, size = 20, color = 'var(--primary)'
   }
 };
 
-export const getCatalogReportReasons = (targetType: 'store' | 'item'): { id: string; title: string; desc: string }[] => {
-  if (targetType === 'store') {
-    return [
-      { id: 'fraud', title: 'Indikasi Penipuan / Toko Fiktif', desc: 'Profil toko mencurigakan atau meminta pembayaran mencurigakan di luar ketentuan.' },
-      { id: 'prohibited_items', title: 'Produk Terlarang / Ilegal', desc: 'Menawarkan komoditas yang melanggar hukum atau kebijakan komunitas.' },
-      { id: 'impersonation', title: 'Penyalahgunaan Identitas / Merek', desc: 'Mengatasnamakan pihak lain, brand resmi, atau toko lain tanpa izin sah.' },
-      { id: 'contact_invalid', title: 'Informasi Kontak Tidak Valid', desc: 'Nomor WhatsApp atau alamat tidak dapat dihubungi secara sah.' },
-      { id: 'other', title: 'Pelanggaran Lainnya', desc: 'Kendala kepatuhan lainnya yang memerlukan investigasi tim platform.' }
-    ];
-  }
-  return [
-    { id: 'fraud', title: 'Penipuan / Barang Palsu', desc: 'Produk tidak sesuai deskripsi asli atau diduga barang tiruan/fiktif.' },
-    { id: 'illegal_content', title: 'Materi / Konten Terlarang', desc: 'Foto, video, atau teks memuat unsur yang melanggar ketentuan hukum.' },
-    { id: 'pricing_misleading', title: 'Harga Tidak Wajar / Menyesatkan', desc: 'Pencantuman harga manipulatif atau biaya terselubung.' },
-    { id: 'other', title: 'Laporan Lainnya', desc: 'Kendala lainnya pada item ini.' }
-  ];
-};
+export { getCatalogReportReasons };
 
 export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   slug,
@@ -381,16 +366,18 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   }, [search]);
 
   // Overlays
-  const [showShareModal, setShowShareModal] = useState<boolean>(false);
+  const [showShareModal, setShowShareModal] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('sub') === 'share' || params.get('sub') === 'qrcode' || window.location.pathname.endsWith('/share');
+    }
+    return false;
+  });
   const [openCardActionMenuId, setOpenCardActionMenuId] = useState<number | null>(null);
   const [reportModalData, setReportModalData] = useState<{ type: 'store' | 'item'; item?: any } | null>(null);
-  const [reportReason, setReportReason] = useState<string>('fraud');
-  const [reportNotes, setReportNotes] = useState<string>('');
-  const [reportEmail, setReportEmail] = useState<string>('');
-  const [isSubmittingReport, setIsSubmittingReport] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, _type?: 'success' | 'error' | 'info') => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
@@ -438,7 +425,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     return () => window.removeEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
   }, []);
 
-  // Sync tab state on browser back/forward navigation
+  // Sync tab state and modal state on browser back/forward navigation
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
@@ -446,6 +433,11 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
         setActivePublicTab('about');
       } else {
         setActivePublicTab('catalog');
+      }
+      if (params.get('sub') === 'share' || params.get('sub') === 'qrcode') {
+        setShowShareModal(true);
+      } else {
+        setShowShareModal(false);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -604,8 +596,8 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                 _hp_check: ''
               }),
               keepalive: true
-            }).catch(() => {});
-          } catch {}
+            }).catch(() => { });
+          } catch { }
         }
       }
     } catch (err) {
@@ -682,7 +674,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
         const url = new URL(window.location.href);
         url.searchParams.set('item', String(id));
         window.history.pushState({}, '', url.toString());
-      } catch {}
+      } catch { }
 
       // Fetch deep product details via apiClient
       const res = await apiClient.get<any>(`/products/${id}`, { slug });
@@ -714,7 +706,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
       const url = new URL(window.location.href);
       url.searchParams.delete('item');
       window.history.replaceState({}, '', url.toString());
-    } catch {}
+    } catch { }
   }, []);
 
   // Auto-open product detail from query params on load
@@ -757,7 +749,23 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   };
 
   // Actions
-  const handleShareStore = () => setShowShareModal(true);
+  const handleShareStore = () => {
+    setShowShareModal(true);
+    const s = slug || settings?.store_slug;
+    if (s && typeof window !== 'undefined') {
+      const currentTab = activePublicTab === 'about' ? '?tab=about&sub=share' : '?sub=share';
+      window.history.pushState(null, '', `/${s}${currentTab}`);
+    }
+  };
+
+  const handleCloseShareModal = () => {
+    setShowShareModal(false);
+    const s = slug || settings?.store_slug;
+    if (s && typeof window !== 'undefined') {
+      const currentTab = activePublicTab === 'about' ? '?tab=about' : '';
+      window.history.replaceState(null, '', `/${s}${currentTab}`);
+    }
+  };
 
   const handleShareItem = (item: any) => {
     const itemUrl = `${window.location.origin}/${slug}?item=${item.id}`;
@@ -766,7 +774,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
         title: item.name,
         text: `Lihat ${item.name} di katalog resmi ${settings?.store_title || 'kami'}:`,
         url: itemUrl
-      }).catch(() => {});
+      }).catch(() => { });
     } else {
       navigator.clipboard.writeText(itemUrl).then(() => {
         showToast('Tautan produk berhasil disalin!');
@@ -777,49 +785,11 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   };
 
   const handleReportStore = () => {
-    const initialReasons = getCatalogReportReasons('store');
-    setReportReason(initialReasons[0]?.id || 'other');
-    setReportNotes('');
-    setReportEmail('');
     setReportModalData({ type: 'store' });
   };
 
   const handleReportItem = (item: any) => {
-    const initialReasons = getCatalogReportReasons('item');
-    setReportReason(initialReasons[0]?.id || 'other');
-    setReportNotes('');
-    setReportEmail('');
     setReportModalData({ type: 'item', item });
-  };
-
-  const handleSubmitReport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reportModalData) return;
-    setIsSubmittingReport(true);
-    try {
-      const res = await fetch('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          target_type: reportModalData.type,
-          store_slug: slug,
-          item_id: reportModalData.item?.id,
-          reason: reportReason,
-          notes: reportNotes,
-          reporter_email: reportEmail
-        })
-      });
-      if (res.ok) {
-        showToast('Laporan berhasil dikirim. Tim Kepatuhan Catavor akan meninjau.');
-        setReportModalData(null);
-      } else {
-        showToast('Gagal mengirim laporan. Silakan coba kembali.');
-      }
-    } catch {
-      showToast('Terjadi kendala jaringan saat mengirim laporan.');
-    } finally {
-      setIsSubmittingReport(false);
-    }
   };
 
   // Direct WhatsApp Order
@@ -857,7 +827,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   // Back handler for modals
   useModalBackHandler({
     isOpen: showShareModal,
-    onClose: () => setShowShareModal(false),
+    onClose: handleCloseShareModal,
     modalId: 'tablet-share-catalog-modal'
   });
 
@@ -1384,13 +1354,13 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                       backgroundColor: selectedFauna.conservation_status === 'Habis Terjual'
                         ? 'rgba(239, 68, 68, 0.15)'
                         : selectedFauna.conservation_status === 'Pre-Order'
-                        ? 'rgba(245, 158, 11, 0.15)'
-                        : 'rgba(34, 197, 94, 0.15)',
+                          ? 'rgba(245, 158, 11, 0.15)'
+                          : 'rgba(34, 197, 94, 0.15)',
                       color: selectedFauna.conservation_status === 'Habis Terjual'
                         ? '#ef4444'
                         : selectedFauna.conservation_status === 'Pre-Order'
-                        ? '#f59e0b'
-                        : '#22c55e',
+                          ? '#f59e0b'
+                          : '#22c55e',
                       border: `1px solid ${selectedFauna.conservation_status === 'Habis Terjual' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.35)'}`,
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -1635,10 +1605,10 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                               backgroundColor: rec.conservation_status === 'Habis Terjual'
                                 ? 'rgba(239, 68, 68, 0.92)'
                                 : rec.conservation_status === 'Pre-Order'
-                                ? 'rgba(217, 119, 6, 0.92)'
-                                : rec.conservation_status === 'Buka Jadwal'
-                                ? 'rgba(124, 58, 237, 0.92)'
-                                : 'rgba(59, 130, 246, 0.92)',
+                                  ? 'rgba(217, 119, 6, 0.92)'
+                                  : rec.conservation_status === 'Buka Jadwal'
+                                    ? 'rgba(124, 58, 237, 0.92)'
+                                    : 'rgba(59, 130, 246, 0.92)',
                               backdropFilter: 'blur(8px)',
                               color: '#ffffff',
                               fontSize: '0.64rem',
@@ -1700,8 +1670,8 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                             color: rec.conservation_status === 'Habis Terjual'
                               ? '#ef4444'
                               : rec.conservation_status === 'Pre-Order'
-                              ? '#f59e0b'
-                              : 'var(--text-secondary)'
+                                ? '#f59e0b'
+                                : 'var(--text-secondary)'
                           }}>
                             {rec.conservation_status || (rec.stock > 0 ? `Stok: ${rec.stock}` : 'Tersedia')}
                           </span>
@@ -2679,17 +2649,17 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
 
                       {/* Official Website */}
                       {hasWebsite && (
-                        <OfficialWebsiteCard 
-                          url={settings.official_website} 
-                          onSafeRedirect={handleSafeExternalRedirect} 
+                        <OfficialWebsiteCard
+                          url={settings.official_website}
+                          onSafeRedirect={handleSafeExternalRedirect}
                         />
                       )}
 
                       {/* Social Media Section */}
                       {hasSocial && (
-                        <SocialMediaSection 
-                          rawSocialLinks={settings.social_links} 
-                          onSafeRedirect={handleSafeExternalRedirect} 
+                        <SocialMediaSection
+                          rawSocialLinks={settings.social_links}
+                          onSafeRedirect={handleSafeExternalRedirect}
                         />
                       )}
                     </div>
@@ -3171,10 +3141,10 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                               backgroundColor: fauna.conservation_status === 'Habis Terjual'
                                 ? 'rgba(239, 68, 68, 0.92)'
                                 : fauna.conservation_status === 'Pre-Order'
-                                ? 'rgba(217, 119, 6, 0.92)'
-                                : fauna.conservation_status === 'Buka Jadwal'
-                                ? 'rgba(124, 58, 237, 0.92)'
-                                : 'rgba(59, 130, 246, 0.92)',
+                                  ? 'rgba(217, 119, 6, 0.92)'
+                                  : fauna.conservation_status === 'Buka Jadwal'
+                                    ? 'rgba(124, 58, 237, 0.92)'
+                                    : 'rgba(59, 130, 246, 0.92)',
                               backdropFilter: 'blur(8px)',
                               color: '#ffffff',
                               fontSize: '0.64rem',
@@ -3341,8 +3311,8 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                             color: fauna.conservation_status === 'Habis Terjual'
                               ? '#ef4444'
                               : fauna.conservation_status === 'Pre-Order'
-                              ? '#f59e0b'
-                              : 'var(--text-secondary)'
+                                ? '#f59e0b'
+                                : 'var(--text-secondary)'
                           }}>
                             {fauna.conservation_status || (fauna.stock > 0 ? `Stok: ${fauna.stock}` : 'Tersedia')}
                           </span>
@@ -3475,231 +3445,26 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
         </section>
       )}
 
-      {/* 6. Share Catalog Modal */}
-      {showShareModal && (
-        <div
-          onClick={() => setShowShareModal(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1.5rem'
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: '680px',
-              backgroundColor: 'var(--bg-card)',
-              borderRadius: '1.25rem',
-              border: '1px solid var(--border-light)',
-              overflow: 'hidden',
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)'
-            }}
-          >
-            <div style={{
-              padding: '1.15rem 1.5rem',
-              borderBottom: '1px solid var(--border-light)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <Share2 size={20} color="var(--primary)" />
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  Bagikan Profil Katalog
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowShareModal(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.25rem' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
+      {/* 6. Share Catalog Modal (Desktop Parity with Tablet Ergonomics) */}
+      <TabletQRCodeModal
+        isOpen={showShareModal}
+        onClose={handleCloseShareModal}
+        storeSlug={slug || settings?.store_slug || ''}
+        storeTitle={settings?.store_title}
+        storeLogoUrl={settings?.store_logo_url}
+        storeSlogan={settings?.store_slogan}
+        onToast={showToast}
+      />
 
-            <div style={{ padding: '1.5rem', maxHeight: '80vh', overflowY: 'auto' }}>
-              <TabletShareCatalogView
-                storeSlug={slug}
-                storeTitle={settings.store_title}
-                storeLogoUrl={settings.store_logo_url}
-                storeSlogan={settings.store_slogan}
-                whatsappNumber={settings.whatsapp_number}
-                onToast={showToast}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 7. Report Modal */}
-      {reportModalData && (
-        <div
-          onClick={() => setReportModalData(null)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1.5rem'
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: '520px',
-              backgroundColor: 'var(--bg-card)',
-              borderRadius: '1.25rem',
-              border: '1px solid var(--border-light)',
-              overflow: 'hidden',
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)'
-            }}
-          >
-            <div style={{
-              padding: '1.15rem 1.5rem',
-              borderBottom: '1px solid var(--border-light)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <Flag size={20} color="#ef4444" />
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  {reportModalData.type === 'store' ? 'Laporkan Profil Toko' : 'Laporkan Item Katalog'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setReportModalData(null)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.25rem' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitReport} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-              <div>
-                <label style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem' }}>
-                  Alasan Laporan
-                </label>
-                <select
-                  value={reportReason}
-                  onChange={(e) => setReportReason(e.target.value)}
-                  style={{
-                    width: '100%',
-                    minHeight: '44px',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.88rem',
-                    outline: 'none'
-                  }}
-                >
-                  {getCatalogReportReasons(reportModalData.type).map(r => (
-                    <option key={r.id} value={r.id}>{r.title}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem' }}>
-                  Keterangan Tambahan / Bukti
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Jelaskan secara singkat kendala atau bukti pelanggaran..."
-                  value={reportNotes}
-                  onChange={(e) => setReportNotes(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.88rem',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.45rem' }}>
-                  Email Pelapor (Opsional)
-                </label>
-                <input
-                  type="email"
-                  placeholder="nama@email.com untuk status tindak lanjut"
-                  value={reportEmail}
-                  onChange={(e) => setReportEmail(e.target.value)}
-                  style={{
-                    width: '100%',
-                    minHeight: '44px',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.88rem',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setReportModalData(null)}
-                  style={{
-                    flex: 1,
-                    minHeight: '44px',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-secondary)',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingReport}
-                  style={{
-                    flex: 1,
-                    minHeight: '44px',
-                    borderRadius: '0.65rem',
-                    backgroundColor: '#ef4444',
-                    border: 'none',
-                    color: '#ffffff',
-                    fontWeight: 700,
-                    cursor: isSubmittingReport ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {isSubmittingReport ? 'Mengirim...' : 'Kirim Laporan'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* 7. Report Modal (Desktop Parity with Tablet Ergonomics) */}
+      <TabletReportModal
+        isOpen={Boolean(reportModalData)}
+        onClose={() => setReportModalData(null)}
+        reportData={reportModalData}
+        storeSettings={settings}
+        storeSlug={slug || settings?.store_slug || ''}
+        onToast={showToast}
+      />
       {/* External Link Safety Prompt Modal (Tablet) */}
       {externalUrlWarning && (
         <ExternalLinkWarningModal
