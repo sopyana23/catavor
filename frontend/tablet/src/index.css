@@ -990,4 +990,52 @@ button, a, input, select, textarea {
   transform: scale(1.05);
 }
 
+/* ==========================================================
+   TABLET ABOUT BENTO GRID & PARITY STYLES
+   ========================================================== */
+.tablet-about-bento {
+  display: grid;
+  grid-template-columns: 1.22fr 0.98fr;
+  gap: 1.35rem;
+  margin-top: 1rem;
+  margin-bottom: 3rem;
+  align-items: start;
+}
+
+@media (max-width: 879px) {
+  .tablet-about-bento {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+}
+
+.tablet-bento-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 1.15rem;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.tablet-about-value-card {
+  padding: 1.15rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 0.95rem;
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+}
+
+.tablet-about-value-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.07);
+}
+
+
 

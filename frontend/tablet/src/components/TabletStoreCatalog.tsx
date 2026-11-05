@@ -45,15 +45,30 @@ import {
   ShoppingBag,
   ShoppingCart,
   Minus,
-  Plus
+  Plus,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  FileCheck
 } from 'lucide-react';
 import apiClient, { API_BASE } from '../utils/apiClient';
 import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
 import { TabletShareCatalogView } from './TabletShareCatalogView';
 import { TabletImageLightbox } from './TabletImageLightbox';
 import { VideoPlayerEmbed } from './VideoEmbed';
-import { useModalBackHandler } from '../utils/navigation';
+import { useModalBackHandler, smartBack } from '../utils/navigation';
 import { FormattedText } from './RichTextarea';
+import { ExternalLinkWarningModal } from './ExternalLinkWarningModal';
+import { checkUrlSecurity, safeOpenUrl } from '../utils/urlSecurity';
+import {
+  OperationalHoursCard,
+  WhatsAppContactsCard,
+  OfficialWebsiteCard,
+  SocialMediaSection,
+  ProductImportantInfoSection,
+  cleanEmoji
+} from './TabletAboutComponents';
 
 export interface TabletStoreCatalogProps {
   slug: string;
@@ -294,8 +309,32 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Tab State: 'catalog' or 'about'
-  const [activePublicTab, setActivePublicTab] = useState<'catalog' | 'about'>('catalog');
+  // Tab State: 'catalog' or 'about' (Synchronized with URL params)
+  const [activePublicTab, setActivePublicTab] = useState<'catalog' | 'about'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab') === 'about') {
+        return 'about';
+      }
+    }
+    return 'catalog';
+  });
+
+  // External URL Safety Warning Modal State
+  const [externalUrlWarning, setExternalUrlWarning] = useState<string | null>(null);
+
+  // Screen Width state for Tablet Mini (< 880px) vs Tablet Lebar (>= 880px)
+  const [screenWidth, setScreenWidth] = useState<number>(() => {
+    return typeof window !== 'undefined' ? window.innerWidth : 1024;
+  });
+
+  useEffect(() => {
+    const handleResize = () => setScreenWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isTabletMini = screenWidth < 880;
 
   // Detail View State (Full-Page Parity with Desktop)
   const [isDetailActive, setIsDetailActive] = useState<boolean>(false);
@@ -337,6 +376,55 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
       minimumFractionDigits: 0
     }).format(num);
   };
+
+  const handleSafeExternalRedirect = useCallback((rawUrl?: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!rawUrl) return;
+    const fullUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://')
+      ? rawUrl
+      : `https://${rawUrl}`;
+
+    const sec = checkUrlSecurity(fullUrl);
+    if (!sec.isSafe || sec.sanitizedUrl === '#') {
+      showToast('Tautan tidak valid atau diblokir demi keamanan.');
+      return;
+    }
+
+    if (sec.requiresWarning) {
+      setExternalUrlWarning(sec.sanitizedUrl);
+    } else {
+      const newWin = window.open(sec.sanitizedUrl, '_blank', 'noopener,noreferrer');
+      if (newWin) newWin.opener = null;
+    }
+  }, []);
+
+  // Global external link warning prompt listener
+  useEffect(() => {
+    const handleGlobalExternalPrompt = (e: any) => {
+      if (e.detail?.url) {
+        setExternalUrlWarning(e.detail.url);
+      }
+    };
+    window.addEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
+    return () => window.removeEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
+  }, []);
+
+  // Sync tab state on browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab') === 'about') {
+        setActivePublicTab('about');
+      } else {
+        setActivePublicTab('catalog');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // 1. Fetch Store Profile & Catalog via SWR (Parity with Desktop apiClient)
   const loadStoreData = useCallback(async () => {
@@ -841,6 +929,39 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
 
     const renderSpecRow = (label: string, value: React.ReactNode, isHighlight = false) => {
       if (!isNonEmptyValue(value)) return null;
+
+      let renderedValue = value;
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (/^(https?:\/\/|www\.)[^\s]+$/i.test(trimmed)) {
+          const fullUrl = trimmed.startsWith('http://') || trimmed.startsWith('https://')
+            ? trimmed
+            : `https://${trimmed}`;
+          renderedValue = (
+            <a
+              href={fullUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => handleSafeExternalRedirect(fullUrl, e)}
+              style={{
+                color: 'var(--primary)',
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                cursor: 'pointer',
+                fontWeight: 700
+              }}
+              title={`Buka tautan ${trimmed}`}
+            >
+              <span>{trimmed}</span>
+              <ExternalLink size={12} style={{ flexShrink: 0 }} />
+            </a>
+          );
+        }
+      }
+
       return (
         <div
           key={label}
@@ -865,7 +986,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
             wordBreak: 'break-word',
             letterSpacing: '0.01em'
           }}>
-            {value}
+            {renderedValue}
           </span>
         </div>
       );
@@ -1358,6 +1479,9 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                   <FormattedText text={selectedFauna.description || 'Tidak ada deskripsi rinci untuk produk ini.'} />
                 </div>
               </div>
+
+              {/* Important Information with Dynamic Contextual Action Buttons & Policy Guidance */}
+              <ProductImportantInfoSection item={selectedFauna} isMobile={false} />
 
               {/* Video Embed Player if available */}
               {selectedFauna.video_url && (
@@ -1859,7 +1983,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
         <div style={{
           maxWidth: '1024px',
           margin: '0 auto',
-          padding: '0.85rem 1.5rem',
+          padding: isTabletMini ? '0.75rem 1rem' : '0.85rem 1.5rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -1961,35 +2085,30 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
         </div>
       </header>
 
-      {/* 2. Tablet Brand Showcase Hero */}
-      <section style={{
-        maxWidth: '1024px',
-        margin: '1.5rem auto 1.25rem auto',
-        padding: '0 1.5rem'
-      }}>
-        <div style={{
-          backgroundColor: 'var(--bg-card)',
-          borderRadius: '1.15rem',
-          border: '1px solid var(--border-light)',
-          padding: '1.65rem',
-          boxShadow: 'var(--shadow-premium, 0 4px 20px rgba(0, 0, 0, 0.05))',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1.35rem'
+      {/* 2. Tablet Brand Showcase Hero (Parity with Desktop: Shown on Catalog view, actions on the right) */}
+      {!isStoreSuspended && activePublicTab === 'catalog' && (
+        <section style={{
+          maxWidth: '1024px',
+          margin: '1.5rem auto 1.25rem auto',
+          padding: isTabletMini ? '0 1rem' : '0 1.5rem'
         }}>
-          {/* Top Row: Avatar + Meta + Action CTA */}
           <div style={{
+            backgroundColor: 'var(--bg-card)',
+            borderRadius: '1.15rem',
+            border: '1px solid var(--border-light)',
+            padding: isTabletMini ? '1.25rem' : '1.65rem',
+            boxShadow: 'var(--shadow-premium, 0 4px 20px rgba(0, 0, 0, 0.05))',
             display: 'flex',
-            alignItems: 'flex-start',
+            alignItems: 'center',
             justifyContent: 'space-between',
             gap: '1.25rem',
             flexWrap: 'wrap'
           }}>
-            {/* Brand Left */}
-            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flex: 1, minWidth: '280px' }}>
+            {/* Brand Left: Avatar + Title + Slogan + Badges */}
+            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flex: 1, minWidth: isTabletMini ? '240px' : '280px' }}>
               <div style={{
-                width: '76px',
-                height: '76px',
+                width: isTabletMini ? '64px' : '76px',
+                height: isTabletMini ? '64px' : '76px',
                 borderRadius: '1.15rem',
                 backgroundColor: 'var(--primary-glow)',
                 border: '2px solid var(--primary)',
@@ -2000,7 +2119,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                 flexShrink: 0,
                 color: 'var(--primary)',
                 fontWeight: 900,
-                fontSize: '1.85rem'
+                fontSize: isTabletMini ? '1.5rem' : '1.85rem'
               }}>
                 {settings.store_logo_url ? (
                   <img src={settings.store_logo_url} alt={settings.store_title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -2012,7 +2131,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                   <h1 style={{
-                    fontSize: '1.45rem',
+                    fontSize: isTabletMini ? '1.25rem' : '1.45rem',
                     fontWeight: 800,
                     margin: 0,
                     color: 'var(--text-primary)',
@@ -2071,8 +2190,8 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
               </div>
             </div>
 
-            {/* CTAs on the Right */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            {/* CTAs on the Right (Parity with Desktop: Hubungi Penjual & Tentang Kami on the right) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
               {storefrontWA.cleanNumber && (
                 <a
                   href={buildWALink(storefrontWA.cleanNumber, `Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai produk di katalog Anda.`)}
@@ -2080,13 +2199,13 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                   rel="noopener noreferrer"
                   style={{
                     minHeight: '44px',
-                    padding: '0.65rem 1.35rem',
+                    padding: '0.65rem 1.25rem',
                     borderRadius: '0.65rem',
                     backgroundColor: 'var(--primary)',
                     color: '#ffffff',
                     textDecoration: 'none',
                     fontWeight: 700,
-                    fontSize: '0.88rem',
+                    fontSize: '0.86rem',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.5rem',
@@ -2094,73 +2213,51 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <MessageCircle size={18} />
+                  <MessageCircle size={17} />
                   <span>Hubungi Penjual</span>
                 </a>
               )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedFauna(null);
+                  setIsDetailActive(false);
+                  setActivePublicTab('about');
+                  if (slug) {
+                    window.history.pushState({}, '', `/${slug}?tab=about`);
+                  }
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="btn-secondary"
+                style={{
+                  minHeight: '44px',
+                  padding: '0.65rem 1.25rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
+                  fontWeight: 700,
+                  fontSize: '0.86rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Lihat Profil & Informasi Lengkap"
+              >
+                <Info size={16} style={{ color: 'var(--primary)' }} />
+                <span>Tentang Kami</span>
+              </button>
             </div>
           </div>
-
-          {/* Bottom Segmented Tab Switcher */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            borderTop: '1px solid var(--border-light)',
-            paddingTop: '1rem'
-          }}>
-            <button
-              type="button"
-              onClick={() => setActivePublicTab('catalog')}
-              style={{
-                minHeight: '42px',
-                padding: '0 1.25rem',
-                borderRadius: '0.55rem',
-                backgroundColor: activePublicTab === 'catalog' ? 'var(--primary)' : 'var(--bg-card-hover)',
-                color: activePublicTab === 'catalog' ? '#ffffff' : 'var(--text-secondary)',
-                border: activePublicTab === 'catalog' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                fontWeight: 700,
-                fontSize: '0.86rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <Package size={16} />
-              <span>Katalog Produk ({faunas.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActivePublicTab('about')}
-              style={{
-                minHeight: '42px',
-                padding: '0 1.25rem',
-                borderRadius: '0.55rem',
-                backgroundColor: activePublicTab === 'about' ? 'var(--primary)' : 'var(--bg-card-hover)',
-                color: activePublicTab === 'about' ? '#ffffff' : 'var(--text-secondary)',
-                border: activePublicTab === 'about' ? '1px solid var(--primary)' : '1px solid var(--border-light)',
-                fontWeight: 700,
-                fontSize: '0.86rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <Info size={16} />
-              <span>Tentang Kami</span>
-            </button>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* 3. Suspended Catalog State */}
       {isStoreSuspended && (
-        <section style={{ maxWidth: '1024px', margin: '2rem auto', padding: '0 1.5rem' }}>
+        <section style={{ maxWidth: '1024px', margin: '2rem auto', padding: isTabletMini ? '0 1rem' : '0 1.5rem' }}>
           <div style={{
             padding: '3rem 2rem',
             textAlign: 'center',
@@ -2216,7 +2313,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
         </section>
       )}
 
-      {/* 4. TAB CONTENT: TENTANG KAMI */}
+      {/* 4. TAB CONTENT: TENTANG KAMI (PARITY WITH DESKTOP + TABLET RESPONSIVE ADAPTATION) */}
       {!isStoreSuspended && activePublicTab === 'about' && (() => {
         const parsedCards = (() => {
           try {
@@ -2226,6 +2323,28 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
           }
         })();
 
+        const getPremiumIcon = (card: any) => {
+          if (card.icon) {
+            return renderAboutIcon(card.icon, 22);
+          }
+          const t = (card.title || '').toLowerCase();
+          if (t.includes('sehat') || t.includes('garansi') || t.includes('kesehatan') || t.includes('kualitas')) {
+            return renderAboutIcon('shield', 22);
+          }
+          if (t.includes('aman') || t.includes('transaksi') || t.includes('bayar') || t.includes('percaya')) {
+            return renderAboutIcon('lock', 22);
+          }
+          if (t.includes('tanya') || t.includes('konsultasi') || t.includes('care') || t.includes('layanan') || t.includes('pelanggan')) {
+            return renderAboutIcon('message', 22);
+          }
+          return renderAboutIcon('compass', 22);
+        };
+
+        const hasTitle = Boolean(settings.about_title && settings.about_title.trim());
+        const hasSlogan = Boolean(settings.about_slogan && settings.about_slogan.trim());
+        const hasDescription = Boolean(settings.about_description && settings.about_description.trim());
+        const hasCards = Array.isArray(parsedCards) && parsedCards.length > 0;
+
         const parsedSocial = (() => {
           try {
             return settings.social_links ? (typeof settings.social_links === 'string' ? JSON.parse(settings.social_links) : settings.social_links) : [];
@@ -2234,104 +2353,212 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
           }
         })();
 
-        const hasTitle = Boolean(settings.about_title && settings.about_title.trim());
-        const hasDescription = Boolean(settings.about_description && settings.about_description.trim());
-        const hasCards = Array.isArray(parsedCards) && parsedCards.length > 0;
         const hasLocation = Boolean(settings.about_location && settings.about_location.trim());
         const hasHours = Boolean(settings.show_hours === true);
         const hasWhatsapp = Boolean(storefrontWA.cleanNumber);
         const hasWebsite = Boolean(settings.official_website && settings.official_website.trim());
         const hasSocial = Array.isArray(parsedSocial) && parsedSocial.length > 0;
+        const hasAnyContactChannel = hasLocation || hasHours || hasWhatsapp || hasWebsite || hasSocial;
 
         return (
-          <div className="animate-fade-in" style={{ maxWidth: '1024px', margin: '1rem auto 3rem auto', padding: '0 1.5rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1.25rem', alignItems: 'start' }}>
-              {/* Left Column: Narrative & Values */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div style={{
-                  backgroundColor: 'var(--bg-card)',
-                  borderRadius: '1rem',
-                  border: '1px solid var(--border-light)',
-                  padding: '1.5rem',
-                  boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
-                    <div style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--primary-glow)',
-                      color: 'var(--primary)',
-                      display: 'flex',
+          <div className="animate-fade-in" style={{ maxWidth: '1024px', margin: '1.5rem auto 3rem auto', padding: isTabletMini ? '0 1rem' : '0 1.5rem' }}>
+            {/* Top Navigation & Action Bar */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.85rem 1.25rem',
+              borderRadius: '12px',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              marginBottom: '1.5rem',
+              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.04)',
+              gap: '1rem',
+              flexWrap: 'wrap'
+            }}>
+              {/* Left: Back Button & Breadcrumbs */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentSlug = slug || settings?.slug || '';
+                    smartBack(() => {
+                      setActivePublicTab('catalog');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      if (currentSlug) {
+                        window.history.replaceState({}, '', `/${currentSlug}`);
+                      }
+                    });
+                  }}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1.15rem',
+                    fontSize: '0.84rem',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: 'pointer',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Kembali ke Daftar Katalog Produk"
+                >
+                  <ArrowLeft size={16} />
+                  <span>Kembali ke Katalog ({faunas.length} Item)</span>
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Katalog</span>
+                  <span>/</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{settings.store_title || 'Katalog'}</span>
+                  <span>/</span>
+                  <span style={{ fontWeight: 700, color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <Info size={14} /> Tentang Kami
+                  </span>
+                </div>
+              </div>
+
+              {/* Right: Quick Action CTAs */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                {storefrontWA.cleanNumber && (
+                  <a
+                    href={buildWALink(storefrontWA.cleanNumber, `Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai profil dan layanan di katalog Anda.`)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      minHeight: '44px',
+                      textDecoration: 'none',
+                      padding: '0.55rem 1.15rem',
+                      fontSize: '0.84rem',
+                      borderRadius: '8px',
+                      fontWeight: 700,
+                      display: 'inline-flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}>
-                      <Info size={20} />
+                      gap: '0.45rem',
+                      backgroundColor: 'var(--primary)',
+                      borderColor: 'var(--primary)',
+                      color: '#ffffff',
+                      boxShadow: '0 2px 8px var(--primary-glow)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <MessageCircle size={16} />
+                    <span>Hubungi Penjual</span>
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={handleShareStore}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1.15rem',
+                    fontSize: '0.84rem',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: 'pointer',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-primary)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Bagikan Tautan Profil & QR Katalog"
+                >
+                  <Share2 size={16} style={{ color: 'var(--primary)' }} />
+                  <span>Bagikan Profil</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2-Column Bento Grid Layout with Tablet Mini Fallback */}
+            <div className="tablet-about-bento" style={isTabletMini ? { gridTemplateColumns: '1fr', gap: '1.25rem' } : undefined}>
+              {/* LEFT COLUMN: Narrative & Value Cards */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.35rem' }}>
+                {/* Card 1: Profil & Cerita Toko */}
+                <div className="tablet-bento-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)' }}>
+                      {settings.store_logo_url ? (
+                        <img src={settings.store_logo_url} alt={settings.store_title} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '11px' }} />
+                      ) : (
+                        <Info size={24} />
+                      )}
                     </div>
                     <div>
-                      <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                        {hasTitle ? settings.about_title : `Profil ${settings.store_title || 'Toko'}`}
-                      </h2>
-                      <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                        Informasi resmi pemilik &amp; layanan katalog
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, fontFamily: "'Outfit', sans-serif" }}>
+                          {hasTitle ? settings.about_title : `Tentang ${settings.store_title || 'Catavor'}`}
+                        </h2>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '999px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
+                          <CheckCircle2 size={12} /> Resmi
+                        </span>
+                      </div>
+                      {hasSlogan && (
+                        <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
+                          {settings.about_slogan}
+                        </p>
+                      )}
                     </div>
                   </div>
 
+                  {/* Description with FormattedText for Link Interactivity */}
                   {hasDescription ? (
-                    <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                      <FormattedText text={settings.about_description} />
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: '1.75', marginTop: '1.25rem' }}>
+                      <FormattedText text={settings.about_description || ''} />
                     </div>
                   ) : (
-                    <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
-                      Katalog resmi digital terdaftar pada ekosistem platform Catavor, menyajikan informasi item secara transparan dan terstruktur.
-                    </p>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: '1.6', marginTop: '1.25rem', fontStyle: 'italic' }}>
+                      Selamat datang di katalog resmi {settings.store_title || 'kami'}. Jelajahi beragam produk berkualitas terbaik dengan pemesanan langsung melalui WhatsApp.
+                    </div>
                   )}
                 </div>
 
+                {/* Card 2: Value Cards (Why Choose Us) */}
                 {hasCards && (
-                  <div style={{
-                    backgroundColor: 'var(--bg-card)',
-                    borderRadius: '1rem',
-                    border: '1px solid var(--border-light)',
-                    padding: '1.5rem',
-                    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)'
-                  }}>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
-                      Keunggulan &amp; Standar Layanan
-                    </h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                  <div className="tablet-bento-card">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <ShieldCheck size={18} />
+                        </div>
+                        <div>
+                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                            Keunggulan &amp; Standar Layanan
+                          </h3>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-secondary)', padding: '0.2rem 0.6rem', borderRadius: '6px', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                        {parsedCards.length} Komitmen
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: isTabletMini ? '1fr' : 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.9rem' }}>
                       {parsedCards.map((card: any, idx: number) => (
-                        <div
-                          key={idx}
-                          style={{
-                            padding: '1rem',
-                            borderRadius: '0.75rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.5rem'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            {renderAboutIcon(card.icon || 'shield', 18)}
-                            <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary)' }}>
-                              {card.title}
-                            </strong>
+                        <div key={idx} className="tablet-about-value-card">
+                          <div style={{ backgroundColor: 'var(--primary-glow)', borderRadius: '0.65rem', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid var(--border-light)', color: 'var(--primary)' }}>
+                            {getPremiumIcon(card)}
                           </div>
-                          {card.description && (
-                            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                              {card.description}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.25rem', marginTop: '0.1rem' }}>
+                              {cleanEmoji(card.title || '')}
+                            </h4>
+                            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                              {card.content || card.description || ''}
                             </p>
-                          )}
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
+                {/* Optional Disclaimer Card */}
                 {settings.about_disclaimer && (
                   <div style={{
                     backgroundColor: 'rgba(2, 132, 199, 0.04)',
@@ -2353,149 +2580,63 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                 )}
               </div>
 
-              {/* Right Column: Contact, Hours, Location */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div style={{
-                  backgroundColor: 'var(--bg-card)',
-                  borderRadius: '1rem',
-                  border: '1px solid var(--border-light)',
-                  padding: '1.5rem',
-                  boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)'
-                }}>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
-                    Kontak &amp; Komunikasi Resmi
-                  </h3>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {hasWhatsapp && (
-                      <a
-                        href={buildWALink(storefrontWA.cleanNumber, `Halo ${settings.store_title || 'Admin'}, saya ingin bertanya mengenai katalog Anda.`)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          padding: '0.75rem 1rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                          border: '1px solid rgba(16, 185, 129, 0.3)',
-                          color: '#10b981',
-                          textDecoration: 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          fontWeight: 700,
-                          fontSize: '0.86rem'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                          <MessageCircle size={18} />
-                          <span>WhatsApp CS</span>
-                        </div>
-                        <ExternalLink size={14} />
-                      </a>
-                    )}
-
-                    {hasWebsite && (
-                      <a
-                        href={settings.official_website.startsWith('http') ? settings.official_website : `https://${settings.official_website}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          padding: '0.75rem 1rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          textDecoration: 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          fontWeight: 600,
-                          fontSize: '0.86rem'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                          <Globe size={18} color="var(--primary)" />
-                          <span>Website Resmi</span>
-                        </div>
-                        <ExternalLink size={14} />
-                      </a>
-                    )}
-
-                    {hasSocial && (
-                      <div style={{ marginTop: '0.5rem' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>
-                          Media Sosial Resmi
-                        </span>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                          {parsedSocial.map((item: any, sIdx: number) => (
-                            <a
-                              key={sIdx}
-                              href={item.url?.startsWith('http') ? item.url : `https://${item.url}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                padding: '0.4rem 0.75rem',
-                                borderRadius: '0.5rem',
-                                backgroundColor: 'var(--bg-deep)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-secondary)',
-                                textDecoration: 'none',
-                                fontSize: '0.78rem',
-                                fontWeight: 600,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.35rem'
-                              }}
-                            >
-                              <span>{item.platform || 'Media Sosial'}</span>
-                              <ExternalLink size={11} />
-                            </a>
-                          ))}
-                        </div>
+              {/* RIGHT COLUMN: Official Channels & Quick Actions */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.35rem' }}>
+                {/* Card: Saluran Resmi & Kontak */}
+                {hasAnyContactChannel && (
+                  <div className="tablet-bento-card">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <MapPin size={18} />
                       </div>
-                    )}
-                  </div>
-                </div>
+                      <div>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                          Saluran Resmi &amp; Kontak
+                        </h3>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                          Informasi alamat, jam buka, dan komunikasi
+                        </span>
+                      </div>
+                    </div>
 
-                {(hasLocation || hasHours) && (
-                  <div style={{
-                    backgroundColor: 'var(--bg-card)',
-                    borderRadius: '1rem',
-                    border: '1px solid var(--border-light)',
-                    padding: '1.5rem',
-                    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)'
-                  }}>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
-                      Operasional &amp; Lokasi
-                    </h3>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                      {/* Lokasi / Alamat */}
                       {hasLocation && (
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
-                          <MapPin size={18} color="var(--primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
-                          <div>
-                            <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)', display: 'block' }}>
-                              Alamat / Wilayah
-                            </strong>
-                            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                              {settings.about_location}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', padding: '0.95rem 1.1rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', flexShrink: 0, marginTop: '0.1rem' }}>
+                            <MapPin size={17} />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                              Lokasi / Alamat Resmi
                             </span>
+                            <div style={{ fontSize: '0.86rem', color: 'var(--text-primary)', fontWeight: 600, lineHeight: '1.5' }}>
+                              <FormattedText text={settings.about_location || ''} />
+                            </div>
                           </div>
                         </div>
                       )}
 
-                      {hasHours && (
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
-                          <Clock size={18} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-                          <div>
-                            <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)', display: 'block' }}>
-                              Waktu Layanan
-                            </strong>
-                            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                              {settings.about_hours || 'Buka setiap hari (08:00 - 21:00 WIB)'}
-                            </span>
-                          </div>
-                        </div>
+                      {/* Jam Operasional */}
+                      {hasHours && <OperationalHoursCard rawHours={settings.about_hours} />}
+
+                      {/* WhatsApp Contacts */}
+                      {hasWhatsapp && <WhatsAppContactsCard rawWhatsappNumber={settings.whatsapp_number} />}
+
+                      {/* Official Website */}
+                      {hasWebsite && (
+                        <OfficialWebsiteCard 
+                          url={settings.official_website} 
+                          onSafeRedirect={handleSafeExternalRedirect} 
+                        />
+                      )}
+
+                      {/* Social Media Section */}
+                      {hasSocial && (
+                        <SocialMediaSection 
+                          rawSocialLinks={settings.social_links} 
+                          onSafeRedirect={handleSafeExternalRedirect} 
+                        />
                       )}
                     </div>
                   </div>
@@ -2508,7 +2649,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
 
       {/* 5. TAB CONTENT: KATALOG PRODUK */}
       {!isStoreSuspended && activePublicTab === 'catalog' && (
-        <section style={{ maxWidth: '1024px', margin: '0 auto', padding: '0 1.5rem' }}>
+        <section style={{ maxWidth: '1024px', margin: '0 auto', padding: isTabletMini ? '0 1rem' : '0 1.5rem' }}>
           {faunas.length === 0 ? (
             <div style={{
               padding: '4rem 2rem',
@@ -3377,6 +3518,13 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
             </form>
           </div>
         </div>
+      )}
+      {/* External Link Safety Prompt Modal (Tablet) */}
+      {externalUrlWarning && (
+        <ExternalLinkWarningModal
+          url={externalUrlWarning}
+          onClose={() => setExternalUrlWarning(null)}
+        />
       )}
     </div>
   );

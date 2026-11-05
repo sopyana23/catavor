@@ -197,10 +197,11 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
     // Regex matches:
     // 1. [button:Label|url|variant] or [cta:Label|url|variant]
     // 2. [Link Text](url)
-    // 3. **bold** or __bold__
-    // 4. *italic* or _italic_
-    // 5. `code`
-    const regex = /(\[button:([^|\]]+)\|([^|\]]+)(?:\|([^|\]]+))?(?:\|([^\]]+))?\]|\[cta:([^|\]]+)\|([^|\]]+)(?:\|([^|\]]+))?(?:\|([^\]]+))?\]|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+?)\*\*|\*([^*]+?)\*|__([^_]+?)__|_(.*?)_|`([^`]+?)`)/g;
+    // 3. Bare URL (https://... or www....)
+    // 4. **bold** or __bold__
+    // 5. *italic* or _italic_
+    // 6. `code`
+    const regex = /(\[button:([^|\]]+)\|([^|\]]+)(?:\|([^|\]]+))?(?:\|([^\]]+))?\]|\[cta:([^|\]]+)\|([^|\]]+)(?:\|([^|\]]+))?(?:\|([^\]]+))?\]|\[([^\]]+)\]\(([^)]+)\)|((?:https?:\/\/|www\.)[^\s<]+)|\*\*([^*]+?)\*\*|\*([^*]+?)\*|__([^_]+?)__|_(.*?)_|`([^`]+?)`)/g;
     let lastIndex = 0;
     let match;
 
@@ -256,23 +257,55 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
           parts.push(<span key={`unsafe-${idx++}`} style={{ color: 'inherit' }}>{linkText}</span>);
         }
       }
-      // 3. Bold
+      // 3. Bare URL Auto-Link
       else if (match[12] !== undefined) {
-        parts.push(<strong key={`b-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[12]}</strong>);
-      } else if (match[14] !== undefined) {
-        parts.push(<strong key={`b2-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[14]}</strong>);
+        const rawUrl = match[12];
+        const sec = checkUrlSecurity(rawUrl);
+
+        if (sec.isSafe && sec.sanitizedUrl !== '#') {
+          parts.push(
+            <a
+              key={`bare-lnk-${idx++}`}
+              href={sec.sanitizedUrl}
+              target={sec.isExternal ? '_blank' : undefined}
+              rel={sec.isExternal ? 'noopener noreferrer' : undefined}
+              onClick={(e) => handleLinkClick(sec.sanitizedUrl, e)}
+              style={{
+                color: 'var(--primary, #1e3a8a)',
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.18rem',
+                cursor: 'pointer'
+              }}
+            >
+              <span>{rawUrl}</span>
+              {sec.isExternal && <ExternalLink size={11} style={{ flexShrink: 0 }} />}
+            </a>
+          );
+        } else {
+          parts.push(<span key={`unsafe-bare-${idx++}`} style={{ color: 'inherit' }}>{rawUrl}</span>);
+        }
       }
-      // 4. Italic
+      // 4. Bold
       else if (match[13] !== undefined) {
-        parts.push(<em key={`i-${idx++}`}>{match[13]}</em>);
+        parts.push(<strong key={`b-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[13]}</strong>);
       } else if (match[15] !== undefined) {
-        parts.push(<em key={`i2-${idx++}`}>{match[15]}</em>);
+        parts.push(<strong key={`b2-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[15]}</strong>);
       }
-      // 5. Code
-      else if (match[16] !== undefined) {
+      // 5. Italic
+      else if (match[14] !== undefined) {
+        parts.push(<em key={`i-${idx++}`}>{match[14]}</em>);
+      } else if (match[16] !== undefined) {
+        parts.push(<em key={`i2-${idx++}`}>{match[16]}</em>);
+      }
+      // 6. Code
+      else if (match[17] !== undefined) {
         parts.push(
           <code key={`c-${idx++}`} style={{ backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.12))', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.9em', color: 'var(--primary, #1e3a8a)' }}>
-            {match[16]}
+            {match[17]}
           </code>
         );
       }

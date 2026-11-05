@@ -19478,7 +19478,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
               const hasAnyContactChannel = hasLocation || hasHours || hasWhatsapp || hasWebsite || hasSocial;
 
               return (
-                <div className="animate-fade-in" style={{ maxWidth: '1240px', margin: '1.25rem auto 3rem auto', padding: '0 0.5rem' }}>
+                <div className="animate-fade-in" style={{ width: '100%', margin: '1.75rem 0 3rem 0', padding: 0 }}>
                   {/* Top Navigation & Action Bar */}
                   <div style={{
                     display: 'flex',
