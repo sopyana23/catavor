@@ -101,6 +101,7 @@ func main() {
 	safeDomainHandler := handlers.NewSafeDomainHandler(database.DB)
 	catalogExportHandler := handlers.NewCatalogExportHandler(cfg, database.DB)
 	spaHandler := handlers.NewSPAHandler(cfg, database.DB)
+	adHandler := handlers.NewAdHandler(cfg, database.DB, storageService)
 	// Initialize Automation Tracker
 	services.InitAutomationTracker(database.DB, storageService)
 
@@ -203,6 +204,23 @@ func main() {
 			runMarketRollup()
 		}
 	}()
+
+	// Start Background Ad Telemetry Flusher (Batch upserts in-memory impressions/clicks to PostgreSQL every 60s)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error().Interface("panic", r).Msg("Recovered from panic in Ad Telemetry flusher")
+			}
+		}()
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			_ = services.GetAdTelemetryService().FlushToDatabase(database.DB)
+		}
+	}()
+
+	// Start Background Rolling 7-Day Velocity Worker (Recalculates product/store trending scores every 2 hours)
+	services.StartTrendingCalculatorWorker(database.DB, 2*time.Hour)
 
 	// 7. Static Asset Directories with Hardened Security Headers
 	// SECURITY (ST-01): route statis /storage hanya boleh menyajikan aset
@@ -401,6 +419,16 @@ func main() {
 	api.Get("/safe-domains", safeDomainHandler.GetPublicSafeDomains)
 	api.Get("/public/safe-domains", safeDomainHandler.GetPublicSafeDomains)
 
+	// Public Showcase & Sponsored Ads Endpoints (Weighted Time-Sliced & 7-Day Trending Velocity)
+	api.Get("/showcase/featured", adHandler.GetFeaturedShowcase)
+	api.Get("/public/showcase/featured", adHandler.GetFeaturedShowcase)
+	api.Get("/showcase/by-sector/:product_type", adHandler.GetSectorShowcase)
+	api.Get("/public/showcase/by-sector/:product_type", adHandler.GetSectorShowcase)
+	api.Get("/ads/click", adHandler.HandleAdClick)
+	api.Get("/public/ads/click", adHandler.HandleAdClick)
+	api.Post("/ads/impressions/batch", middleware.TelemetryRateLimiter(), adHandler.RecordImpressionBatch)
+	api.Post("/public/ads/impressions/batch", middleware.TelemetryRateLimiter(), adHandler.RecordImpressionBatch)
+
 	// Authentication Endpoints with Rate Limiter
 	api.Post("/login", middleware.AuthRateLimiter(), authHandler.Login)
 	api.Post("/auth/login", middleware.AuthRateLimiter(), authHandler.Login)
@@ -542,6 +570,13 @@ func main() {
 		guardedMutations.Post("/subscription/verify-coupon", subscriptionHandler.VerifyCoupon)
 		guardedMutations.Post("/subscription/orders/:id/sync", paymentHandler.SyncOrderStatus)
 		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
+
+		// Merchant Sponsored Ad Campaign Management (Zero-Trust Anti-IDOR)
+		guarded.Get("/ads/slots", adHandler.GetAvailableSlots)
+		guarded.Get("/ads/campaigns", adHandler.GetMyCampaigns)
+		guardedMutations.Post("/ads/campaigns", adHandler.CreateCampaign)
+		guardedMutations.Post("/ads/orders/:order_id/proof", adHandler.UploadPaymentProof)
+		guarded.Get("/ads/campaigns/:id/analytics", adHandler.GetCampaignAnalytics)
 
 		// Merchant Analytics & Store Telemetry
 		guarded.Get("/admin/analytics/products", analyticsHandler.GetStoreAnalyticsProducts)

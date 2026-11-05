@@ -57,6 +57,7 @@ type Product struct {
 	DeletedAt           gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 	ViewCount              int64          `gorm:"default:0;index" json:"view_count"`
 	PopularityScore        int64          `gorm:"default:0;index" json:"popularity_score"`
+	TrendingScore7D        int64          `gorm:"column:trending_score_7d;default:0;index" json:"trending_score_7d"`
 	WaClicksCount          int64          `gorm:"default:0;index" json:"wa_clicks_count"`
 	MarketplaceClicksCount int64          `gorm:"default:0" json:"marketplace_clicks_count"`
 	RekberClicksCount      int64          `gorm:"default:0" json:"rekber_clicks_count"`

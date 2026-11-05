@@ -34,6 +34,7 @@ type Store struct {
 	StorageUsedBytes         int64          `gorm:"default:0" json:"storage_used_bytes"`
 	ViewCount                int64          `gorm:"default:0;index" json:"view_count"`
 	TotalActionsCount        int64          `gorm:"default:0" json:"total_actions_count"`
+	TrendingScore7D          int64          `gorm:"column:trending_score_7d;default:0;index" json:"trending_score_7d"`
 	PrimaryProductType       string         `gorm:"size:50;default:'general';index" json:"primary_product_type"`
 	IsFeatured               bool           `gorm:"default:false;index" json:"is_featured"`
 	CustomDomain             *string        `gorm:"size:255;index" json:"custom_domain,omitempty"`
