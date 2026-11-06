@@ -132,6 +132,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   
   // Checkout Form State
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'qris'>('qris');
+  const [aulaaChannel, setAulaaChannel] = useState<'qris' | 'va' | 'ewallet' | 'cc'>('qris');
   const [senderAccountName, setSenderAccountName] = useState('');
   const [senderPhone, setSenderPhone] = useState('');
   const [couponInput, setCouponInput] = useState('');
@@ -164,8 +165,26 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       setProofPreview(null);
       setSenderAccountName('');
       setSenderPhone('');
+      setAulaaChannel('qris');
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    // Detect ?plan= query param to auto-open checkout
+    if (typeof window !== 'undefined' && plans && plans.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const planParam = params.get('plan');
+      if (planParam) {
+        const matched = plans.find(p => p.code?.toLowerCase() === planParam.toLowerCase());
+        if (matched && matched.code !== 'free') {
+          openCheckout(matched, 'upgrade');
+          const url = new URL(window.location.href);
+          url.searchParams.delete('plan');
+          window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+        }
+      }
+    }
+  }, [plans]);
 
   if (!isOpen && !isPage) return null;
 
@@ -215,14 +234,19 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           'Accept': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ code: couponInput.trim() })
+        body: JSON.stringify({
+          code: couponInput.trim(),
+          plan: selectedTargetPlan?.code,
+          billing_cycle: billingCycle
+        })
       });
       const data = await res.json();
       const couponObj = data.coupon || data.data;
       if (res.ok && (data.success || data.valid) && couponObj) {
         setAppliedCoupon(couponObj);
-        const discountLabel = couponObj.type === 'free' ? 'Gratis 100%' : `Potongan Rp ${(couponObj.discount || 0).toLocaleString('id-ID')}`;
-        setCouponMsg({ type: 'success', text: `Kupon "${couponObj.code}" aktif! (${discountLabel})` });
+        const discountVal = Number(couponObj.discount || couponObj.discount_amount || couponObj.discount_value || 0);
+        const discountLabel = couponObj.type === 'free' ? 'Gratis 100%' : `Potongan Rp ${discountVal.toLocaleString('id-ID')}`;
+        setCouponMsg({ type: 'success', text: `Kupon "${couponObj.code}" aktif! (${couponObj.label || discountLabel})` });
       } else {
         setAppliedCoupon(null);
         setCouponMsg({ type: 'error', text: data.message || 'Kode promo/kupon tidak valid atau telah kedaluwarsa.' });
@@ -231,6 +255,12 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       setAppliedCoupon(null);
       setCouponMsg({ type: 'error', text: 'Gagal memverifikasi kupon. Periksa koneksi internet.' });
     }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput('');
+    setCouponMsg(null);
   };
 
   const handleProofUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,14 +305,27 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
   const calculateFinalPrice = (plan: SubscriptionPlanData, cycle: 'monthly' | 'annual') => {
     const originalPrice = cycle === 'monthly' ? plan.price_monthly : (plan.price_annual > 0 ? plan.price_annual : plan.price_monthly * 12);
-    let discountPercent = 0;
+    let discountAmount = 0;
 
-    if (appliedCoupon && appliedCoupon.discount_percent) {
-      discountPercent = appliedCoupon.discount_percent;
+    if (appliedCoupon) {
+      if (appliedCoupon.type === 'free') {
+        discountAmount = originalPrice;
+      } else if (appliedCoupon.discount !== undefined && appliedCoupon.discount !== null) {
+        discountAmount = Number(appliedCoupon.discount) || 0;
+      } else if (appliedCoupon.discount_amount !== undefined && appliedCoupon.discount_amount !== null) {
+        discountAmount = Number(appliedCoupon.discount_amount) || 0;
+      } else if (appliedCoupon.discount_value !== undefined && appliedCoupon.discount_value !== null) {
+        discountAmount = Number(appliedCoupon.discount_value) || 0;
+      } else if (appliedCoupon.discount_percent !== undefined && appliedCoupon.discount_percent !== null) {
+        discountAmount = Math.round((originalPrice * Number(appliedCoupon.discount_percent)) / 100);
+      }
     }
 
-    const discountAmount = Math.round((originalPrice * discountPercent) / 100);
+    if (discountAmount > originalPrice) {
+      discountAmount = originalPrice;
+    }
     const finalAmount = Math.max(0, originalPrice - discountAmount);
+    const discountPercent = originalPrice > 0 ? Math.round((discountAmount / originalPrice) * 100) : 0;
 
     return { originalPrice, discountPercent, discountAmount, finalAmount };
   };
@@ -329,6 +372,12 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             ? 'manual_qris' 
             : 'manual_bank';
 
+      const orderPaymentMethod = finalPrice === 0
+        ? 'coupon_free'
+        : isGateway
+          ? aulaaChannel
+          : paymentMethod;
+
       const res = await fetch(`${apiBase}/subscription/order`, {
         method: 'POST',
         headers: {
@@ -342,7 +391,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           type: checkoutType,
           duration_months: durationMonths,
           billing_cycle: billingCycle,
-          payment_method: finalPrice === 0 ? 'coupon_free' : paymentMethod,
+          payment_method: orderPaymentMethod,
           payment_mode: orderPaymentMode,
           sender_account_name: senderAccountName.trim(),
           sender_phone: senderPhone.trim(),
@@ -362,6 +411,11 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       if (data.order?.gateway_payment_link) {
         window.location.href = data.order.gateway_payment_link;
         return;
+      }
+
+      // If gateway order with non-zero price, but no gateway payment link was generated
+      if (isGateway && finalPrice > 0) {
+        throw new Error('Gagal mendapatkan tautan pembayaran Aulaa. Saluran pembayaran sedang tidak tersedia atau hubungi admin.');
       }
 
       const ordNumber = data.order?.order_number || data.order?.invoice_number || '';
@@ -384,6 +438,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     setActionError(null);
     try {
       const res = await fetch(`${apiBase}/subscription/orders/${orderId}/sync`, {
+        method: 'POST',
         headers: {
           'Accept': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -418,7 +473,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setOrders(data.orders || []);
+        setOrders(data.data || data.orders || []);
       }
     } catch (err) {
       console.error('Failed fetching subscription orders:', err);
@@ -433,7 +488,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     setInternalLoading(true);
 
     try {
-      const res = await fetch(`${apiBase}/subscription/downgrade`, {
+      const res = await fetch(`${apiBase}/subscription/schedule-downgrade`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1117,43 +1172,76 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                   <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem', display: 'block' }}>
                     Punya Kode Kupon / Diskon?
                   </label>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <input
-                      type="text"
-                      placeholder="Contoh: CATAVOR100, DISKON10K"
-                      value={couponInput}
-                      onChange={(e) => {
-                        setCouponInput(e.target.value.toUpperCase());
-                        if (couponMsg) setCouponMsg(null);
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '0.5rem 0.75rem',
-                        fontSize: '0.8rem',
-                        borderRadius: '0.5rem',
-                        background: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        color: 'var(--text-primary)',
-                        textTransform: 'uppercase'
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleApplyCoupon}
-                      style={{
-                        padding: '0.5rem 0.85rem',
-                        borderRadius: '0.5rem',
-                        background: 'var(--primary-glow)',
-                        border: '1px solid var(--primary)',
-                        color: 'var(--primary)',
-                        fontSize: '0.8rem',
-                        fontWeight: 800,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Terapkan
-                    </button>
-                  </div>
+                  {(() => {
+                    const { discountAmount } = calculateFinalCheckoutPrice();
+                    if (appliedCoupon) {
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                            <Check size={16} color="#10b981" />
+                            <div>
+                              <strong style={{ fontSize: '0.84rem', color: '#10b981' }}>{appliedCoupon.code}</strong>
+                              <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginLeft: '0.4rem' }}>
+                                (Hemat Rp {discountAmount.toLocaleString('id-ID')})
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemoveCoupon}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.76rem', fontWeight: 700, cursor: 'pointer', padding: '0.2rem 0.45rem' }}
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <input
+                          type="text"
+                          placeholder="Contoh: CATAVOR100, DISKON10K"
+                          value={couponInput}
+                          onChange={(e) => {
+                            setCouponInput(e.target.value.toUpperCase());
+                            if (couponMsg) setCouponMsg(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleApplyCoupon();
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: '0.5rem 0.75rem',
+                            fontSize: '0.8rem',
+                            borderRadius: '0.5rem',
+                            background: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-primary)',
+                            textTransform: 'uppercase'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleApplyCoupon}
+                          style={{
+                            padding: '0.5rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            background: 'var(--primary-glow)',
+                            border: '1px solid var(--primary)',
+                            color: 'var(--primary)',
+                            fontSize: '0.8rem',
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Terapkan
+                        </button>
+                      </div>
+                    );
+                  })()}
                   {couponMsg && (
                     <div style={{
                       fontSize: '0.74rem',
@@ -1288,6 +1376,202 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                   const isGateway = systemPaymentMode === 'gateway_aulaa';
                   const isManualQris = systemPaymentMode === 'manual_qris';
 
+                  if (isGateway) {
+                    const showQRIS = settings?.payment_aulaa_channel_qris !== '0';
+                    const showVA = settings?.payment_aulaa_channel_va !== '0';
+                    const showEWallet = settings?.payment_aulaa_channel_ewallet !== '0';
+                    const showCC = settings?.payment_aulaa_channel_cc === '1';
+
+                    return (
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1.25rem'
+                      }}>
+                        <div style={{
+                          padding: '1.25rem',
+                          borderRadius: '0.85rem',
+                          background: 'var(--bg-deep, #0f172a)',
+                          border: '1px solid var(--border-light, #334155)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '1rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                              <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                                <Zap size={20} />
+                              </div>
+                              <div>
+                                <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary, #f8fafc)', display: 'block' }}>
+                                  Gerbang Pembayaran Instan (Aulaa)
+                                </strong>
+                                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)' }}>
+                                  Aktivasi otomatis &amp; terenkripsi 256-bit
+                                </span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '9999px', backgroundColor: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <CheckCircle2 size={12} /> Otomatis &amp; Real-time
+                            </span>
+                          </div>
+
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #cbd5e1)', margin: 0, lineHeight: 1.5 }}>
+                            Pilih salah satu saluran pembayaran di bawah. Anda akan diarahkan ke halaman gerbang pembayaran resmi Aulaa. Paket toko Anda akan langsung aktif otomatis seketika setelah pembayaran berhasil tanpa perlu konfirmasi atau unggah bukti manual.
+                          </p>
+
+                          {/* Interactive Sub-channel Selector */}
+                          <div>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary, #f8fafc)', marginBottom: '0.5rem', display: 'block' }}>
+                              Pilih Saluran Pembayaran:
+                            </label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+                              {showQRIS && (
+                                <button
+                                  type="button"
+                                  onClick={() => setAulaaChannel('qris')}
+                                  style={{
+                                    padding: '0.75rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    backgroundColor: aulaaChannel === 'qris' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                                    border: aulaaChannel === 'qris' ? '2px solid #10b981' : '1px solid var(--border-light, #334155)',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.5rem',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                    <QrCode size={18} color="#10b981" />
+                                    <div>
+                                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>QRIS Instan</div>
+                                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)' }}>GoPay, OVO, Dana, Shopee, BCA</div>
+                                    </div>
+                                  </div>
+                                  {aulaaChannel === 'qris' && <Check size={16} color="#10b981" style={{ flexShrink: 0 }} />}
+                                </button>
+                              )}
+
+                              {showVA && (
+                                <button
+                                  type="button"
+                                  onClick={() => setAulaaChannel('va')}
+                                  style={{
+                                    padding: '0.75rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    backgroundColor: aulaaChannel === 'va' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                                    border: aulaaChannel === 'va' ? '2px solid #38bdf8' : '1px solid var(--border-light, #334155)',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.5rem',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                    <CreditCard size={18} color="#38bdf8" />
+                                    <div>
+                                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>Virtual Account</div>
+                                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)' }}>BCA, Mandiri, BRI, BNI, Permata</div>
+                                    </div>
+                                  </div>
+                                  {aulaaChannel === 'va' && <Check size={16} color="#38bdf8" style={{ flexShrink: 0 }} />}
+                                </button>
+                              )}
+
+                              {showEWallet && (
+                                <button
+                                  type="button"
+                                  onClick={() => setAulaaChannel('ewallet')}
+                                  style={{
+                                    padding: '0.75rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    backgroundColor: aulaaChannel === 'ewallet' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                                    border: aulaaChannel === 'ewallet' ? '2px solid #f59e0b' : '1px solid var(--border-light, #334155)',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.5rem',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                    <Zap size={18} color="#f59e0b" />
+                                    <div>
+                                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>Dompet Digital</div>
+                                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)' }}>DANA, LinkAja, AstraPay</div>
+                                    </div>
+                                  </div>
+                                  {aulaaChannel === 'ewallet' && <Check size={16} color="#f59e0b" style={{ flexShrink: 0 }} />}
+                                </button>
+                              )}
+
+                              {showCC && (
+                                <button
+                                  type="button"
+                                  onClick={() => setAulaaChannel('cc')}
+                                  style={{
+                                    padding: '0.75rem 0.85rem',
+                                    borderRadius: '0.65rem',
+                                    backgroundColor: aulaaChannel === 'cc' ? 'rgba(192, 132, 252, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                                    border: aulaaChannel === 'cc' ? '2px solid #c084fc' : '1px solid var(--border-light, #334155)',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.5rem',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                    <CreditCard size={18} color="#c084fc" />
+                                    <div>
+                                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>Kartu Kredit / Debit</div>
+                                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)' }}>Visa, Mastercard, JCB</div>
+                                    </div>
+                                  </div>
+                                  {aulaaChannel === 'cc' && <Check size={16} color="#c084fc" style={{ flexShrink: 0 }} />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Submit Button for Aulaa Gateway */}
+                        <button
+                          type="button"
+                          disabled={internalLoading}
+                          onClick={handleProcessCheckout}
+                          className="btn-primary"
+                          style={{
+                            width: '100%',
+                            padding: '0.85rem',
+                            fontWeight: 800,
+                            fontSize: '0.9rem',
+                            borderRadius: '0.65rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.5rem'
+                          }}
+                        >
+                          <span>{internalLoading ? 'Menyiapkan Pembayaran...' : `Lanjut ke Pembayaran Aulaa (Rp ${finalPrice.toLocaleString('id-ID')})`}</span>
+                          <ArrowRight size={16} />
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  // Non-gateway manual mode (manual_qris or manual_bank)
                   return (
                     <>
                       {/* Payment Method Selector */}
@@ -1315,7 +1599,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                             }}
                           >
                             <QrCode size={16} style={{ color: paymentMethod === 'qris' ? 'var(--primary)' : 'currentColor' }} />
-                            <span>{isGateway ? 'Aulaa Gateway (QRIS/VA)' : 'QRIS Merchant'}</span>
+                            <span>QRIS Merchant</span>
                           </button>
 
                           <button
@@ -1342,96 +1626,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                         </div>
                       </div>
 
-                      {/* MODE 1: AULAA GATEWAY (AUTOMATED) */}
-                      {isGateway && paymentMethod === 'qris' && (() => {
-                        const showQRIS = settings?.payment_aulaa_channel_qris !== '0';
-                        const showVA = settings?.payment_aulaa_channel_va !== '0';
-                        const showEWallet = settings?.payment_aulaa_channel_ewallet !== '0';
-                        const showCC = settings?.payment_aulaa_channel_cc === '1';
-
-                        return (
-                          <div style={{
-                            padding: '1.25rem',
-                            borderRadius: '0.85rem',
-                            background: 'var(--bg-deep, #0f172a)',
-                            border: '1px solid var(--border-light, #334155)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '1rem'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
-                                  <Zap size={20} />
-                                </div>
-                                <div>
-                                  <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary, #f8fafc)', display: 'block' }}>
-                                    Gerbang Pembayaran Instan (Aulaa)
-                                  </strong>
-                                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)' }}>
-                                    Didukung payment gateway resmi aulaa.co
-                                  </span>
-                                </div>
-                              </div>
-                              <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.25rem 0.6rem', borderRadius: '9999px', backgroundColor: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                                <Zap size={11} /> Otomatis &amp; Terenkripsi
-                              </span>
-                            </div>
-
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #cbd5e1)', margin: 0, lineHeight: 1.5 }}>
-                              Pembayaran diproses instan melalui halaman pembayaran aman Aulaa. Transaksi Anda otomatis diverifikasi dan masa aktif langganan bertambah seketika tanpa perlu upload bukti transfer.
-                            </p>
-
-                            {/* Sub-channel Badges */}
-                            <div>
-                              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary, #f8fafc)', marginBottom: '0.45rem', display: 'block' }}>
-                                Kanal Pembayaran Aktif:
-                              </label>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                {showQRIS && (
-                                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light, #334155)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <QrCode size={16} color="#10b981" />
-                                    <div>
-                                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>QRIS Instan</div>
-                                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted, #94a3b8)' }}>GoPay, OVO, ShopeePay, BCA</div>
-                                    </div>
-                                  </div>
-                                )}
-                                {showVA && (
-                                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light, #334155)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <CreditCard size={16} color="#38bdf8" />
-                                    <div>
-                                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>Virtual Account</div>
-                                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted, #94a3b8)' }}>BCA, Mandiri, BRI, BNI</div>
-                                    </div>
-                                  </div>
-                                )}
-                                {showEWallet && (
-                                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light, #334155)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <Zap size={16} color="#f59e0b" />
-                                    <div>
-                                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>Dompet Digital</div>
-                                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted, #94a3b8)' }}>DANA, LinkAja, AstraPay</div>
-                                    </div>
-                                  </div>
-                                )}
-                                {showCC && (
-                                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light, #334155)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <CreditCard size={16} color="#c084fc" />
-                                    <div>
-                                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>Kartu Kredit / Debit</div>
-                                      <div style={{ fontSize: '0.66rem', color: 'var(--text-muted, #94a3b8)' }}>Visa &amp; Mastercard</div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* MODE 2: MANUAL QRIS (SHOPEEPAY / MERCHANT) */}
-                      {isManualQris && paymentMethod === 'qris' && (
+                      {/* QRIS MANUAL DETAILS */}
+                      {paymentMethod === 'qris' && (
                         <div style={{
                           padding: '1rem',
                           borderRadius: '0.75rem',
@@ -1466,12 +1662,39 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                               wrapperStyle={{ width: '100%', height: '100%' }}
                             />
                           </div>
+
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                            <a
+                              href={manualQrisImage}
+                              download="qris_catavor.png"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: '0.5rem',
+                                background: 'var(--btn-secondary-bg)',
+                                border: '1px solid var(--btn-secondary-border)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Download size={14} />
+                              <span>Unduh Gambar QRIS</span>
+                            </a>
+                          </div>
+
                           <div>
                             <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary)', display: 'block' }}>
                               {manualQrisMerchant}
                             </strong>
                             <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0' }}>
-                              Buka Shopee, BCA, Mandiri, GoPay, OVO, atau DANA dan scan QRIS di atas.
+                              Buka aplikasi m-banking atau e-wallet Anda dan scan QRIS resmi di atas.
                             </p>
                           </div>
                           <div style={{
@@ -1488,7 +1711,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                         </div>
                       )}
 
-                      {/* MODE 3: TRANSFER BANK MANUAL */}
+                      {/* TRANSFER BANK MANUAL DETAILS */}
                       {paymentMethod === 'bank' && (
                         <div style={{
                           padding: '1rem',
@@ -1550,96 +1773,94 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                         </div>
                       )}
 
-                      {/* Manual Verification Form: Sender Name & Phone (Only needed for Manual QRIS or Bank) */}
-                      {(!isGateway || paymentMethod === 'bank') && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                          <div>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem', display: 'block' }}>
-                              Nama Akun / Rekening Pengirim: <span style={{ color: '#ef4444' }}>*</span>
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="Contoh: Budi Santoso / Akun ShopeePay"
-                              value={senderAccountName}
-                              onChange={(e) => setSenderAccountName(e.target.value)}
-                              style={{
-                                width: '100%',
-                                padding: '0.55rem 0.75rem',
-                                fontSize: '0.82rem',
-                                borderRadius: '0.5rem',
-                                background: 'var(--bg-deep)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                boxSizing: 'border-box'
-                              }}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem', display: 'block' }}>
-                              Nomor WhatsApp Pengirim:
-                            </label>
-                            <input
-                              type="tel"
-                              placeholder="Contoh: 081234567890"
-                              value={senderPhone}
-                              onChange={(e) => setSenderPhone(e.target.value)}
-                              style={{
-                                width: '100%',
-                                padding: '0.55rem 0.75rem',
-                                fontSize: '0.82rem',
-                                borderRadius: '0.5rem',
-                                background: 'var(--bg-deep)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-primary)',
-                                boxSizing: 'border-box'
-                              }}
-                            />
-                          </div>
-
-                          {/* Upload Proof */}
-                          <div>
-                            <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem', display: 'block' }}>
-                              Unggah Bukti Transfer: <span style={{ color: '#ef4444' }}>*</span>
-                            </label>
-                            <label style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: '1rem',
-                              borderRadius: '0.65rem',
-                              border: '2px dashed var(--border-light)',
+                      {/* Manual Verification Form: Sender Name, Phone & Proof Upload */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem', display: 'block' }}>
+                            Nama Akun / Rekening Pengirim: <span style={{ color: '#ef4444' }}>*</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: Budi Santoso / Akun ShopeePay"
+                            value={senderAccountName}
+                            onChange={(e) => setSenderAccountName(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '0.55rem 0.75rem',
+                              fontSize: '0.82rem',
+                              borderRadius: '0.5rem',
                               background: 'var(--bg-deep)',
-                              cursor: 'pointer',
-                              gap: '0.4rem'
-                            }}>
-                              <input type="file" accept="image/*" onChange={handleProofUpload} style={{ display: 'none' }} />
-                              {proofPreview ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                  <img src={proofPreview} alt="Bukti" style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px' }} />
-                                  <div style={{ textAlign: 'left' }}>
-                                    <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 700, display: 'block' }}>
-                                      Bukti Berhasil Dipilih
-                                    </span>
-                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Klik untuk mengganti gambar</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  <Upload size={20} style={{ color: 'var(--primary)' }} />
-                                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                    {isUploadingProof ? 'Mengunggah...' : 'Klik untuk Pilih File Foto / Struk'}
-                                  </span>
-                                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Format JPG, PNG, atau WebP (Maks. 5MB)</span>
-                                </>
-                              )}
-                            </label>
-                          </div>
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              boxSizing: 'border-box'
+                            }}
+                          />
                         </div>
-                      )}
 
-                      {/* Submit Button */}
+                        <div>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem', display: 'block' }}>
+                            Nomor WhatsApp Pengirim:
+                          </label>
+                          <input
+                            type="tel"
+                            placeholder="Contoh: 081234567890"
+                            value={senderPhone}
+                            onChange={(e) => setSenderPhone(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '0.55rem 0.75rem',
+                              fontSize: '0.82rem',
+                              borderRadius: '0.5rem',
+                              background: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        {/* Upload Proof */}
+                        <div>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem', display: 'block' }}>
+                            Unggah Bukti Transfer: <span style={{ color: '#ef4444' }}>*</span>
+                          </label>
+                          <label style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '1rem',
+                            borderRadius: '0.65rem',
+                            border: '2px dashed var(--border-light)',
+                            background: 'var(--bg-deep)',
+                            cursor: 'pointer',
+                            gap: '0.4rem'
+                          }}>
+                            <input type="file" accept="image/*" onChange={handleProofUpload} style={{ display: 'none' }} />
+                            {proofPreview ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <img src={proofPreview} alt="Bukti" style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px' }} />
+                                <div style={{ textAlign: 'left' }}>
+                                  <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 700, display: 'block' }}>
+                                    Bukti Berhasil Dipilih
+                                  </span>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Klik untuk mengganti gambar</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <Upload size={20} style={{ color: 'var(--primary)' }} />
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                  {isUploadingProof ? 'Mengunggah...' : 'Klik untuk Pilih File Foto / Struk'}
+                                </span>
+                                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Format JPG, PNG, atau WebP (Maks. 5MB)</span>
+                              </>
+                            )}
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Submit Button for Manual Payment */}
                       <button
                         type="button"
                         disabled={internalLoading || isUploadingProof}
@@ -1658,17 +1879,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                           gap: '0.45rem'
                         }}
                       >
-                        {isGateway && paymentMethod === 'qris' ? (
-                          <>
-                            <Zap size={16} />
-                            <span>{internalLoading ? 'Menyiapkan Sesi...' : `Lanjut ke Pembayaran Otomatis (Rp ${finalPrice.toLocaleString('id-ID')})`}</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles size={16} />
-                            <span>{internalLoading ? 'Memproses Aktivasi...' : `Kirim Konfirmasi Pembayaran (Rp ${finalPrice.toLocaleString('id-ID')})`}</span>
-                          </>
-                        )}
+                        <Sparkles size={16} />
+                        <span>{internalLoading ? 'Memproses Aktivasi...' : `Kirim Bukti Pembayaran (Rp ${finalPrice.toLocaleString('id-ID')})`}</span>
                       </button>
                     </>
                   );

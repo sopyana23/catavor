@@ -60,6 +60,31 @@ export function hasValidSessionToken(): boolean {
   return Boolean(token && !isTokenExpired(token));
 }
 
+/**
+ * Clears all temporary registration and checkout session drafts from sessionStorage.
+ * Prevents stale draft pollution, mismatched email leakage, and ghost wizard state across sessions.
+ */
+export function clearRegistrationDrafts(): void {
+  if (typeof sessionStorage === 'undefined') return;
+  const registrationKeys = [
+    'catavor_register_form',
+    'catavor_register_plan',
+    'catavor_register_billing',
+    'catavor_register_step',
+    'catavor_applied_coupon',
+    'catavor_payment_method',
+    'catavor_aulaa_channel',
+    'catavor_portal_tab',
+    'catavor_policy_return_tab',
+    'catavor_register_step_completed',
+  ];
+  registrationKeys.forEach((key) => {
+    try {
+      sessionStorage.removeItem(key);
+    } catch {}
+  });
+}
+
 export const isReservedStoreSlug = (slug?: string | null): boolean => {
   if (!slug) return true;
   const clean = slug.toLowerCase().trim();
@@ -257,6 +282,9 @@ export function resolveAuthenticatedRedirect(user?: any, preferredSlug?: string 
  */
 export function broadcastAuthEvent(event: AuthSyncEvent): void {
   try {
+    if (event.type === 'LOGIN_SUCCESS' || event.type === 'LOGOUT') {
+      clearRegistrationDrafts();
+    }
     const ch = initChannel();
     const payload: AuthSyncEvent = {
       ...event,

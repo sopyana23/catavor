@@ -9059,9 +9059,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                   {subscriptionOrders.map(order => {
-                    const statusBg = order.status === 'paid' ? 'rgba(16, 185, 129, 0.12)' : order.status === 'pending' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(100, 116, 139, 0.12)';
-                    const statusColor = order.status === 'paid' ? '#10b981' : order.status === 'pending' ? '#f59e0b' : '#64748b';
-                    const statusLabel = order.status === 'paid' ? 'Lunas' : order.status === 'pending' ? 'Menunggu Pembayaran' : order.status || 'Selesai';
+                    const st = order.payment_status || order.status;
+                    const statusBg = st === 'paid' ? 'rgba(16, 185, 129, 0.12)' : st === 'pending' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(100, 116, 139, 0.12)';
+                    const statusColor = st === 'paid' ? '#10b981' : st === 'pending' ? '#f59e0b' : '#64748b';
+                    const statusLabel = st === 'paid' ? 'Lunas' : st === 'pending' ? 'Menunggu Pembayaran' : (st === 'cancelled' ? 'Dibatalkan' : (st === 'expired' ? 'Kedaluwarsa' : st || 'Selesai'));
                     return (
                       <div
                         key={order.id}
@@ -9089,7 +9090,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            Rp {Number(order.total_amount || order.amount || 0).toLocaleString('id-ID')}
+                            Rp {Number(order.final_amount ?? order.total_amount ?? order.amount ?? 0).toLocaleString('id-ID')}
                           </div>
                           <span style={{
                             display: 'inline-block',

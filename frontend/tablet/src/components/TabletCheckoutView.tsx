@@ -30,6 +30,7 @@ import {
   LogIn
 } from 'lucide-react';
 import { smartBack } from '../utils/navigation';
+import { hasValidSessionToken, clearRegistrationDrafts, resolveAuthenticatedRedirect } from '../utils/authSync';
 
 export interface TabletCheckoutViewProps {
   initialPlan?: 'pro_starter' | 'pro_business' | 'free';
@@ -54,6 +55,27 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
   const [isMiniTablet, setIsMiniTablet] = useState<boolean>(() => {
     return typeof window !== 'undefined' ? window.innerWidth < 880 : false;
   });
+
+  useEffect(() => {
+    if (hasValidSessionToken()) {
+      clearRegistrationDrafts();
+      const dest = resolveAuthenticatedRedirect();
+      window.location.replace(dest);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasValidSessionToken()) {
+      const saved = sessionStorage.getItem('catavor_register_form');
+      let parsed: any = {};
+      if (saved) {
+        try { parsed = JSON.parse(saved); } catch {}
+      }
+      if (!parsed.email || !parsed.store_slug) {
+        if (onBack) onBack();
+      }
+    }
+  }, [onBack]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -108,20 +130,15 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
         if (saved) {
           parsed = JSON.parse(saved);
         }
-        let localUser: any = null;
-        try {
-          const u = localStorage.getItem('catavor_user');
-          if (u) localUser = JSON.parse(u);
-        } catch {}
 
         return {
-          name: parsed.name || localUser?.name || '',
-          email: parsed.email || localUser?.email || '',
+          name: parsed.name || '',
+          email: parsed.email || '',
           password: parsed.password || '',
-          store_name: parsed.store_name || localUser?.store_title || '',
-          store_slug: parsed.store_slug || localUser?.store_slug || '',
-          google_id: parsed.google_id || localUser?.google_id || '',
-          avatar: parsed.avatar || localUser?.avatar || ''
+          store_name: parsed.store_name || '',
+          store_slug: parsed.store_slug || '',
+          google_id: parsed.google_id || '',
+          avatar: parsed.avatar || ''
         };
       } catch {}
     }
@@ -248,7 +265,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
   const normalPrice = registerPlan === 'free' ? 0 : (registerPlan === 'pro_business' ? 150000 : 65000);
 
   const discountAmount = appliedCoupon
-    ? (appliedCoupon.type === 'free' ? originalPrice : appliedCoupon.discount)
+    ? (appliedCoupon.type === 'free' ? originalPrice : Number(appliedCoupon.discount || (appliedCoupon as any).discount_amount || (appliedCoupon as any).discount_value || 0))
     : 0;
 
   const finalPrice = Math.max(0, originalPrice - discountAmount);

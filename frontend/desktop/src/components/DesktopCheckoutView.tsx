@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  hasValidSessionToken,
+  clearRegistrationDrafts,
+  resolveAuthenticatedRedirect
+} from '../utils/authSync';
+import {
   Sparkles,
   ShieldAlert,
   CreditCard,
@@ -129,6 +134,28 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
     })()
   );
 
+  // Defensive Guard: Authenticated users must never access public registration checkout
+  useEffect(() => {
+    if (hasValidSessionToken()) {
+      clearRegistrationDrafts();
+      const rawUser = localStorage.getItem('catavor_user');
+      let u: any = null;
+      try { u = rawUser ? JSON.parse(rawUser) : null; } catch {}
+      const dest = resolveAuthenticatedRedirect(u);
+      window.location.replace(dest);
+      return;
+    }
+
+    // Guest Direct Access Guard: Redirect to registration if steps 1 & 2 are not completed
+    if (!registerForm.email || !registerForm.store_slug) {
+      if (onBack) {
+        onBack();
+      } else {
+        window.location.replace('/register');
+      }
+    }
+  }, [registerForm.email, registerForm.store_slug, onBack]);
+
   const [showAccountFormEdit, setShowAccountFormEdit] = useState<boolean>(() => {
     return !registerForm.name || !registerForm.email || !registerForm.store_name;
   });
@@ -238,7 +265,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
   const normalPrice = registerPlan === 'free' ? 0 : (registerPlan === 'pro_business' ? 150000 : 65000);
 
   const discountAmount = appliedCoupon
-    ? (appliedCoupon.type === 'free' ? originalPrice : appliedCoupon.discount)
+    ? (appliedCoupon.type === 'free' ? originalPrice : Number(appliedCoupon.discount || (appliedCoupon as any).discount_amount || (appliedCoupon as any).discount_value || 0))
     : 0;
 
   const finalPrice = Math.max(0, originalPrice - discountAmount);
