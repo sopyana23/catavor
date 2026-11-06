@@ -8056,10 +8056,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       color: '#ffffff',
                       fontWeight: 700,
                       fontSize: '0.82rem',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem'
                     }}
                   >
-                    Upgrade Paket
+                    <Sparkles size={14} style={{ flexShrink: 0 }} />
+                    <span>Upgrade Paket</span>
                   </button>
                 ) : (
                   <button

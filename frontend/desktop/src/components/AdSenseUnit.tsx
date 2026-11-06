@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles, Megaphone, ArrowUpRight } from 'lucide-react';
 
 declare global {
@@ -28,6 +28,7 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
 }) => {
   const adRef = useRef<HTMLDivElement>(null);
   const isPushed = useRef(false);
+  const [isUnfilled, setIsUnfilled] = useState(false);
 
   // 1. ISOLASI MUTLAK: Jika toko adalah Pro / Berbayar, jangan pernah render apapun (0% Iklan)
   const isPaidPlan =
@@ -64,9 +65,12 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
     // Load Google AdSense library if not yet in DOM
     const scriptId = 'google-adsense-script';
     if (!document.getElementById(scriptId)) {
+      const isAutoAdsOn = settings.ads_auto_enabled === '1' || settings.ads_auto_enabled === 'true';
       const script = document.createElement('script');
       script.id = scriptId;
-      script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${clientId}`;
+      script.src = isAutoAdsOn
+        ? `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(clientId)}`
+        : `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js`;
       script.async = true;
       script.crossOrigin = 'anonymous';
       document.head.appendChild(script);
@@ -82,19 +86,42 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
     }
   }, [isPaidPlan, isAdsGloballyEnabled, isTestMode, clientId, activeSlot]);
 
-  if (isPaidPlan || !isAdsGloballyEnabled) {
+  // 4. Pengamat Auto-Collapse jika status iklan unfilled dari Google
+  useEffect(() => {
+    if (isPaidPlan || !isAdsGloballyEnabled || isTestMode) return;
+    if (!adRef.current) return;
+
+    const ins = adRef.current.querySelector('ins.adsbygoogle');
+    if (!ins) return;
+
+    if (ins.getAttribute('data-ad-status') === 'unfilled') {
+      setIsUnfilled(true);
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      if (ins.getAttribute('data-ad-status') === 'unfilled') {
+        setIsUnfilled(true);
+      }
+    });
+
+    observer.observe(ins, { attributes: true, attributeFilter: ['data-ad-status'] });
+    return () => observer.disconnect();
+  }, [isPaidPlan, isAdsGloballyEnabled, isTestMode]);
+
+  if (isPaidPlan || !isAdsGloballyEnabled || isUnfilled) {
     return null;
   }
 
-  // 4. TEST MODE / PREVIEW PLACEHOLDER
+  // 5. TEST MODE / PREVIEW PLACEHOLDER
   if (isTestMode) {
     return (
       <div
         className={`adsense-preview-card ${className}`}
         style={{
-          margin: '1rem 0',
-          padding: '1rem 1.25rem',
-          borderRadius: '1rem',
+          margin: '0.85rem 0',
+          padding: '0.85rem 1.15rem',
+          borderRadius: '0.85rem',
           border: '1px dashed rgba(245, 158, 11, 0.35)',
           backgroundColor: 'rgba(245, 158, 11, 0.05)',
           display: 'flex',
@@ -157,24 +184,42 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
     );
   }
 
-  // 5. PRODUCTION MODE
+  // 6. PRODUCTION MODE
+  const isHeader = slotType === 'header';
+  const isInFeed = slotType === 'infeed';
+  const adFormat = isHeader ? 'horizontal' : 'auto';
+  const minHeight = isHeader ? '90px' : (isInFeed ? '110px' : '90px');
+
   return (
     <div
       ref={adRef}
       className={`adsense-wrapper ${className}`}
       style={{
         width: '100%',
-        margin: '1rem 0',
+        margin: '0.85rem 0',
         textAlign: 'center',
         overflow: 'hidden',
-        minHeight: '90px',
+        minHeight,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        boxSizing: 'border-box',
         ...style,
       }}
     >
+      <div
+        style={{
+          fontSize: '0.62rem',
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          color: 'var(--text-muted)',
+          marginBottom: '0.25rem',
+          fontWeight: 600,
+        }}
+      >
+        Iklan Sponsor
+      </div>
       <ins
         className="adsbygoogle"
         style={{
@@ -184,7 +229,7 @@ export const AdSenseUnit: React.FC<AdSenseUnitProps> = ({
         }}
         data-ad-client={clientId}
         data-ad-slot={activeSlot || undefined}
-        data-ad-format="auto"
+        data-ad-format={adFormat}
         data-full-width-responsive="true"
       />
     </div>

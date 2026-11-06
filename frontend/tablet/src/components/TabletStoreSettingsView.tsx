@@ -1516,10 +1516,14 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
                   border: 'none',
                   fontWeight: 800,
                   fontSize: '0.82rem',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
                 }}
               >
-                Upgrade Paket
+                <Sparkles size={14} style={{ flexShrink: 0 }} />
+                <span>Upgrade Paket</span>
               </button>
             </div>
           )}

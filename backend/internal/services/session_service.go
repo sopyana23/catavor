@@ -43,8 +43,38 @@ func recordUserSession(userID uint, tokenID string, expiresAt time.Time, ip stri
 		return
 	}
 
-	devInfo := utils.ParseUserAgent(userAgent)
 	now := time.Now()
+
+	// LRU Auto-Eviction: Enforce max 10 active concurrent sessions per user (Industry Standard)
+	var activeCount int64
+	database.DB.Model(&models.UserSession{}).
+		Where("user_id = ? AND is_revoked = false AND expires_at > ?", userID, now).
+		Count(&activeCount)
+
+	if activeCount >= 10 {
+		excess := int(activeCount - 9)
+		var oldestSessions []models.UserSession
+		if err := database.DB.Where("user_id = ? AND is_revoked = false AND expires_at > ?", userID, now).
+			Order("last_active_at ASC").
+			Limit(excess).
+			Find(&oldestSessions).Error; err == nil {
+			for _, s := range oldestSessions {
+				s.IsRevoked = true
+				s.RevokedAt = &now
+				_ = database.DB.Save(&s).Error
+
+				ttl := 72 * time.Hour
+				if s.ExpiresAt.After(now) {
+					ttl = time.Until(s.ExpiresAt)
+				}
+				if s.TokenID != "" {
+					database.BlacklistToken(s.TokenID, ttl)
+				}
+			}
+		}
+	}
+
+	devInfo := utils.ParseUserAgent(userAgent)
 
 	sess := models.UserSession{
 		UserID:       userID,
@@ -97,9 +127,17 @@ func RevokeSessionByTokenID(db *gorm.DB, tokenID string) error {
 	if tokenID == "" {
 		return nil
 	}
+	if db == nil {
+		db = database.DB
+	}
+	if db == nil {
+		return nil
+	}
 
 	var sess models.UserSession
 	if err := db.Where("token_id = ? AND is_revoked = false", tokenID).First(&sess).Error; err != nil {
+		// Even if not found or already marked revoked in DB, ensure token is blacklisted in cache
+		database.BlacklistToken(tokenID, 72*time.Hour)
 		return err
 	}
 
@@ -115,6 +153,67 @@ func RevokeSessionByTokenID(db *gorm.DB, tokenID string) error {
 	database.BlacklistToken(tokenID, ttl)
 
 	return nil
+}
+
+// RevokeOtherSessionsForUser revokes all active sessions for a user except the current session token ID.
+// Returns the number of sessions revoked and any error encountered.
+func RevokeOtherSessionsForUser(db *gorm.DB, userID uint, currentTokenID string) (int, error) {
+	if userID == 0 {
+		return 0, nil
+	}
+	if db == nil {
+		db = database.DB
+	}
+	if db == nil {
+		return 0, nil
+	}
+
+	now := time.Now()
+	var otherSessions []models.UserSession
+	query := db.Where("user_id = ? AND is_revoked = false AND expires_at > ?", userID, now)
+	if currentTokenID != "" {
+		query = query.Where("token_id != ?", currentTokenID)
+	}
+
+	if err := query.Find(&otherSessions).Error; err != nil {
+		return 0, err
+	}
+
+	revokedCount := 0
+	for _, s := range otherSessions {
+		nowRevoked := time.Now()
+		s.IsRevoked = true
+		s.RevokedAt = &nowRevoked
+		_ = db.Save(&s).Error
+
+		ttl := 72 * time.Hour
+		if s.ExpiresAt.After(nowRevoked) {
+			ttl = time.Until(s.ExpiresAt)
+		}
+		if s.TokenID != "" {
+			database.BlacklistToken(s.TokenID, ttl)
+		}
+		revokedCount++
+	}
+
+	log.Info().Uint("user_id", userID).Int("revoked_count", revokedCount).Msg("Successfully revoked other sessions for user")
+	return revokedCount, nil
+}
+
+// CleanupExpiredUserSessions deletes user session records that have been expired for more than 30 days.
+func CleanupExpiredUserSessions(db *gorm.DB) (int64, error) {
+	if db == nil {
+		db = database.DB
+	}
+	if db == nil {
+		return 0, nil
+	}
+	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
+	res := db.Where("expires_at < ?", thirtyDaysAgo).Delete(&models.UserSession{})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
 }
 
 // RevokeAllSessionsForUser revokes and blacklists all active sessions for a user,

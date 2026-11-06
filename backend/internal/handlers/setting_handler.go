@@ -157,7 +157,7 @@ func (h *SettingHandler) applyFallbacks(res map[string]string) {
 		res["ads_client_id"] = ""
 	}
 	if _, ok := res["ads_auto_enabled"]; !ok {
-		res["ads_auto_enabled"] = "1"
+		res["ads_auto_enabled"] = "0"
 	}
 	if _, ok := res["ads_slot_header"]; !ok {
 		res["ads_slot_header"] = ""

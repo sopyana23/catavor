@@ -174,3 +174,170 @@ func TestTouchUserSession_Throttle(t *testing.T) {
 		t.Errorf("ip = %q, want tetap 2.2.2.2 (throttled)", got.IPAddress)
 	}
 }
+
+func TestRevokeSessionByTokenID(t *testing.T) {
+	db := sessionTestDB(t)
+	useGlobalDB(t, db)
+
+	sess := models.UserSession{
+		UserID:       15,
+		TokenID:      "token-revoke-test",
+		IPAddress:    "1.2.3.4",
+		LastActiveAt: time.Now(),
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
+		IsRevoked:    false,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+	if err := db.Create(&sess).Error; err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+
+	err := RevokeSessionByTokenID(db, "token-revoke-test")
+	if err != nil {
+		t.Fatalf("RevokeSessionByTokenID failed: %v", err)
+	}
+
+	var updated models.UserSession
+	if err := db.Where("token_id = ?", "token-revoke-test").First(&updated).Error; err != nil {
+		t.Fatalf("failed to find session: %v", err)
+	}
+	if !updated.IsRevoked {
+		t.Error("expected session to be marked as revoked")
+	}
+	if updated.RevokedAt == nil {
+		t.Error("expected RevokedAt to be populated")
+	}
+	if !database.IsTokenBlacklisted("token-revoke-test") {
+		t.Error("expected token to be present in blacklist cache")
+	}
+}
+
+func TestRevokeOtherSessionsForUser(t *testing.T) {
+	db := sessionTestDB(t)
+	useGlobalDB(t, db)
+
+	now := time.Now()
+	sessions := []models.UserSession{
+		{UserID: 20, TokenID: "tok-1", ExpiresAt: now.Add(time.Hour), IsRevoked: false, LastActiveAt: now},
+		{UserID: 20, TokenID: "tok-2", ExpiresAt: now.Add(time.Hour), IsRevoked: false, LastActiveAt: now},
+		{UserID: 20, TokenID: "tok-keep", ExpiresAt: now.Add(time.Hour), IsRevoked: false, LastActiveAt: now},
+		{UserID: 21, TokenID: "tok-other-user", ExpiresAt: now.Add(time.Hour), IsRevoked: false, LastActiveAt: now},
+	}
+	for _, s := range sessions {
+		if err := db.Create(&s).Error; err != nil {
+			t.Fatalf("seed session: %v", err)
+		}
+	}
+
+	count, err := RevokeOtherSessionsForUser(db, 20, "tok-keep")
+	if err != nil {
+		t.Fatalf("RevokeOtherSessionsForUser error: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 revoked sessions, got %d", count)
+	}
+
+	var activeCount int64
+	db.Model(&models.UserSession{}).Where("user_id = ? AND is_revoked = false", 20).Count(&activeCount)
+	if activeCount != 1 {
+		t.Errorf("expected 1 remaining active session for user 20, got %d", activeCount)
+	}
+
+	var keep models.UserSession
+	db.Where("token_id = ?", "tok-keep").First(&keep)
+	if keep.IsRevoked {
+		t.Error("tok-keep should NOT be revoked")
+	}
+
+	var otherUserSess models.UserSession
+	db.Where("token_id = ?", "tok-other-user").First(&otherUserSess)
+	if otherUserSess.IsRevoked {
+		t.Error("sessions belonging to user 21 should NOT be revoked")
+	}
+}
+
+func TestRecordUserSession_LRU_Eviction(t *testing.T) {
+	db := sessionTestDB(t)
+	useGlobalDB(t, db)
+
+	baseTime := time.Now().Add(-10 * time.Hour)
+	// Seed 10 active sessions for user 30
+	for i := 1; i <= 10; i++ {
+		s := models.UserSession{
+			UserID:       30,
+			TokenID:      "tok-lru-" + string(rune('A'+i-1)),
+			ExpiresAt:    time.Now().Add(24 * time.Hour),
+			LastActiveAt: baseTime.Add(time.Duration(i) * time.Hour),
+			IsRevoked:    false,
+		}
+		if err := db.Create(&s).Error; err != nil {
+			t.Fatalf("seed session %d: %v", i, err)
+		}
+	}
+
+	// Now record the 11th session (should evict the oldest: tok-lru-A)
+	RecordUserSession(30, "tok-lru-new", time.Now().Add(24*time.Hour), "127.0.0.1", "Mozilla/5.0")
+
+	// Verify total active sessions for user 30 is exactly 10
+	var activeCount int64
+	db.Model(&models.UserSession{}).Where("user_id = ? AND is_revoked = false", 30).Count(&activeCount)
+	if activeCount != 10 {
+		t.Errorf("expected 10 active sessions after LRU eviction, got %d", activeCount)
+	}
+
+	// Verify the oldest session (tok-lru-A) is now revoked
+	var oldest models.UserSession
+	if err := db.Where("token_id = ?", "tok-lru-A").First(&oldest).Error; err != nil {
+		t.Fatalf("find oldest session: %v", err)
+	}
+	if !oldest.IsRevoked {
+		t.Error("expected oldest session tok-lru-A to be revoked via LRU")
+	}
+}
+
+func TestCleanupExpiredUserSessions(t *testing.T) {
+	db := sessionTestDB(t)
+	useGlobalDB(t, db)
+
+	now := time.Now()
+	// Session expired 40 days ago
+	oldExpired := models.UserSession{
+		UserID:    40,
+		TokenID:   "tok-expired-40d",
+		ExpiresAt: now.AddDate(0, 0, -40),
+		IsRevoked: true,
+	}
+	// Session expired 5 days ago (should not be purged yet, < 30 days retention)
+	recentExpired := models.UserSession{
+		UserID:    40,
+		TokenID:   "tok-expired-5d",
+		ExpiresAt: now.AddDate(0, 0, -5),
+		IsRevoked: true,
+	}
+	// Session active expiring tomorrow
+	active := models.UserSession{
+		UserID:    40,
+		TokenID:   "tok-active",
+		ExpiresAt: now.Add(24 * time.Hour),
+		IsRevoked: false,
+	}
+
+	db.Create(&oldExpired)
+	db.Create(&recentExpired)
+	db.Create(&active)
+
+	deleted, err := CleanupExpiredUserSessions(db)
+	if err != nil {
+		t.Fatalf("CleanupExpiredUserSessions error: %v", err)
+	}
+	if deleted != 1 {
+		t.Errorf("expected 1 session deleted, got %d", deleted)
+	}
+
+	var count int64
+	db.Model(&models.UserSession{}).Where("user_id = ?", 40).Count(&count)
+	if count != 2 {
+		t.Errorf("expected 2 sessions remaining, got %d", count)
+	}
+}

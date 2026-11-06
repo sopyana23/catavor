@@ -31,7 +31,8 @@ import {
   Archive,
   ShieldAlert,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  Settings2
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 
@@ -2039,11 +2040,20 @@ export const QuotaDashboardWidget: React.FC<{
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.35rem'
+            gap: '0.4rem'
           }}
         >
-          {isFree ? <Sparkles size={14} /> : null}
-          <span>{isFree ? '⚡ Upgrade ke Pro' : 'Kelola Langganan'}</span>
+          {isFree ? (
+            <>
+              <Sparkles size={14} style={{ flexShrink: 0 }} />
+              <span>Upgrade ke Pro</span>
+            </>
+          ) : (
+            <>
+              <Settings2 size={14} style={{ flexShrink: 0 }} />
+              <span>Kelola Langganan</span>
+            </>
+          )}
         </button>
       </div>
 

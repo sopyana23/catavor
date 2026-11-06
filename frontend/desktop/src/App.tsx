@@ -19835,7 +19835,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   }}
                 >
                   <span>Buat Katalog Gratis</span>
-                  <span>⚡</span>
+                  <ArrowRight size={14} style={{ flexShrink: 0 }} />
                 </button>
               </div>
             )}
@@ -20294,13 +20294,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       </div>
                     ) : (
                       <>
-                        {/* Google AdSense Header Banner (Free Tier only) */}
-                        <AdSenseUnit
-                          storePlan={settings.plan || 'free'}
-                          slotType="header"
-                          settings={settings}
-                          onUpgradeClick={() => setShowSubscriptionModal(true)}
-                        />
+                        {/* Google AdSense Slim Header Leaderboard (Free Tier only) */}
+                        <div style={{ maxWidth: '970px', margin: '0 auto 0.75rem auto', width: '100%' }}>
+                          <AdSenseUnit
+                            storePlan={settings.plan || 'free'}
+                            slotType="header"
+                            settings={settings}
+                            onUpgradeClick={() => setShowSubscriptionModal(true)}
+                          />
+                        </div>
 
                         <div className="fauna-grid">
                           {filteredFaunas.map((fauna, faunaIdx) => (
@@ -20634,7 +20636,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                 </div>
                               </div>
 
-                        {faunaIdx === 3 && (
+                        {faunaIdx === 3 && filteredFaunas.length >= 4 && (
                           <div style={{ gridColumn: '1 / -1' }}>
                             <AdSenseUnit
                               storePlan={settings.plan || 'free'}
@@ -29181,9 +29183,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       const slug = getStoreSlug();
                       if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
                     }}
-                    style={{ padding: '0.45rem 1.15rem', fontSize: '0.82rem' }}
+                    style={{ padding: '0.45rem 1.15rem', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                   >
-                    Lihat Paket Langganan
+                    <Sparkles size={14} style={{ flexShrink: 0 }} />
+                    <span>Lihat Paket Langganan</span>
                   </button>
                 ) : (
                   <button 

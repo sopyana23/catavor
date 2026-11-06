@@ -23673,7 +23673,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               }}
             >
               <span>Buat Katalog Gratis</span>
-              <span>⚡</span>
+              <ArrowRight size={13} style={{ flexShrink: 0 }} />
             </button>
           </div>
         )}
@@ -24199,19 +24199,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       </div>
                     ) : (
                       <>
-                        {/* Google AdSense Header Banner (Free Tier only) */}
-                        <AdSenseUnit
-                          storePlan={settings.plan || 'free'}
-                          slotType="header"
-                          settings={settings}
-                          onUpgradeClick={() => {
-                            if (isStoreOwner) {
-                              setActiveTab('admin');
-                              setAdminSubTab('subscription');
-                            }
-                          }}
-                        />
-
                         <div className="mobile-list-grid">
                           {filteredFaunas.map((item, itemIdx) => (
                             <React.Fragment key={item.id}>
@@ -25647,8 +25634,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, flex: 1 }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #f59e0b, #ef4444)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '0.9rem', flexShrink: 0 }}>
-                          ⚡
+                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b', flexShrink: 0 }}>
+                          <Sparkles size={16} />
                         </div>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--text-primary)' }}>
@@ -35236,9 +35223,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       const slug = storeSlug || getStoreSlug() || '';
                       if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
                     }}
-                    style={{ padding: '0.7rem 1rem', fontSize: '0.84rem', fontWeight: 700 }}
+                    style={{ padding: '0.7rem 1rem', fontSize: '0.84rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
                   >
-                    Lihat Paket Langganan
+                    <Sparkles size={14} style={{ flexShrink: 0 }} />
+                    <span>Lihat Paket Langganan</span>
                   </button>
                 ) : (
                   <button

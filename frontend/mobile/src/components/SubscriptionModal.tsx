@@ -28,7 +28,8 @@ import {
   Zap,
   ExternalLink,
   RefreshCw,
-  Calendar
+  Calendar,
+  Settings2
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 
@@ -938,8 +939,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                             boxShadow: isProBusiness ? '0 4px 14px rgba(245, 158, 11, 0.35)' : undefined
                           }}
                         >
-                          <Sparkles size={14} />
-                          <span>⚡ Upgrade ke {plan.name}</span>
+                          <Sparkles size={14} style={{ flexShrink: 0 }} />
+                          <span>Upgrade ke {plan.name}</span>
                         </button>
                       ) : (
                         <button
@@ -1937,19 +1938,29 @@ export const MobileQuotaWidget: React.FC<{
           onClick={onOpenUpgrade}
           className={isFree ? "btn-primary" : "btn-secondary"}
           style={{
-            padding: '0.3rem 0.75rem',
+            padding: '0.35rem 0.75rem',
             borderRadius: '0.45rem',
             fontSize: '0.74rem',
             fontWeight: 800,
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.25rem',
+            gap: '0.3rem',
             flexShrink: 0,
             whiteSpace: 'nowrap'
           }}
         >
-          {isFree ? '⚡ Upgrade' : 'Kelola Paket'}
+          {isFree ? (
+            <>
+              <Sparkles size={13} style={{ flexShrink: 0 }} />
+              <span>Upgrade ke Pro</span>
+            </>
+          ) : (
+            <>
+              <Settings2 size={13} style={{ flexShrink: 0 }} />
+              <span>Kelola Paket</span>
+            </>
+          )}
         </button>
       </div>
 

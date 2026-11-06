@@ -70,6 +70,7 @@ import {
   ProductImportantInfoSection,
   cleanEmoji
 } from './TabletAboutComponents';
+import { AdSenseUnit } from './AdSenseUnit';
 
 export interface TabletStoreCatalogProps {
   slug: string;
@@ -290,6 +291,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   onBackToExplore
 }) => {
   const [settings, setSettings] = useState<any>(null);
+  const [platformSettings, setPlatformSettings] = useState<any>({});
   const [faunas, setFaunas] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -318,6 +320,17 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(d => {
+        if (d && (d.data || d)) setPlatformSettings(d.data || d);
+      })
+      .catch(() => {});
+  }, []);
+
+  const adSettings = useMemo(() => ({ ...platformSettings, ...settings }), [platformSettings, settings]);
 
   const isTabletMini = screenWidth < 880;
 
@@ -3084,12 +3097,12 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                 </div>
               ) : (
                 <div className="tablet-catalog-grid">
-                  {filteredFaunas.map((fauna) => (
-                    <div
-                      key={fauna.id}
-                      onClick={() => fetchDetails(fauna.id)}
-                      className="tablet-catalog-card"
-                    >
+                  {filteredFaunas.map((fauna, faunaIdx) => (
+                    <React.Fragment key={fauna.id}>
+                      <div
+                        onClick={() => fetchDetails(fauna.id)}
+                        className="tablet-catalog-card"
+                      >
                       {/* Product Thumbnail */}
                       <div style={{
                         width: '100%',
@@ -3322,9 +3335,30 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    {/* Google AdSense In-Feed Banner (Tablet Free Tier only) */}
+                    {faunaIdx === 2 && filteredFaunas.length >= 3 && (
+                      <div style={{ gridColumn: '1 / -1', margin: '0.5rem 0' }}>
+                        <AdSenseUnit
+                          storePlan={settings?.plan || 'free'}
+                          slotType="infeed"
+                          settings={adSettings}
+                        />
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+
+            {/* Google AdSense Bottom Banner (Tablet Free Tier only) */}
+            <div style={{ marginTop: '1.25rem', marginBottom: '1.25rem' }}>
+              <AdSenseUnit
+                storePlan={settings?.plan || 'free'}
+                slotType="bottom"
+                settings={adSettings}
+              />
+            </div>
 
               {/* Tablet Native Server-Side Pagination Bar (Rule 7.C: Touch-Segmented Page Bar) */}
               {serverPagination.totalPages > 1 && (
