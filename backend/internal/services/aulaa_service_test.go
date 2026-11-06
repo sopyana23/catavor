@@ -41,3 +41,27 @@ func TestVerifyAulaaSignature(t *testing.T) {
 	})
 }
 
+func TestGetAulaaPaymentMethods(t *testing.T) {
+	t.Run("empty API key returns error", func(t *testing.T) {
+		cfg := AulaaConfig{APIKey: ""}
+		_, err := GetAulaaPaymentMethods(cfg)
+		if err == nil {
+			t.Errorf("Expected error for empty API key, got nil")
+		}
+	})
+}
+
+func TestCancelAulaaPayment(t *testing.T) {
+	t.Run("empty API key or paymentID returns error", func(t *testing.T) {
+		cfg := AulaaConfig{APIKey: ""}
+		if err := CancelAulaaPayment(cfg, "pay_123"); err == nil {
+			t.Errorf("Expected error for empty API key")
+		}
+
+		cfg.APIKey = "pgw_id_test"
+		if err := CancelAulaaPayment(cfg, ""); err == nil {
+			t.Errorf("Expected error for empty paymentID")
+		}
+	})
+}
+

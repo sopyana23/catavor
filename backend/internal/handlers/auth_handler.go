@@ -925,18 +925,28 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		if paymentSystemMode == "gateway_aulaa" && finalAmount > 0 {
 			subOrder.GatewayProvider = "aulaa"
 			aulaaCfg := services.GetAulaaConfig(h.db)
-			redirectURL := fmt.Sprintf("/%s/admin?payment=success&order_number=%s", newStore.Slug, orderNumber)
-			aulaaResp, aErr := services.CreateAulaaPayment(aulaaCfg, services.AulaaCreatePaymentRequest{
-				OrderID:     orderNumber,
-				Amount:      finalAmount,
-				RedirectURL: redirectURL,
-			})
-			if aErr == nil && aulaaResp != nil {
-				subOrder.GatewayReference = aulaaResp.ID
-				subOrder.GatewayPaymentLink = aulaaResp.PaymentLink
-				rawB, _ := json.Marshal(aulaaResp)
-				subOrder.GatewayRawResponse = datatypes.JSON(rawB)
-				paymentURL = aulaaResp.PaymentLink
+			if aulaaCfg.APIKey != "" && !strings.Contains(aulaaCfg.APIKey, "xxxxxxxx") {
+				redirectURL := fmt.Sprintf("/%s/admin?payment=success&order_number=%s", newStore.Slug, orderNumber)
+				if h.cfg != nil && h.cfg.AppURL != "" {
+					redirectURL = fmt.Sprintf("%s/%s/admin?payment=success&order_number=%s", strings.TrimRight(h.cfg.AppURL, "/"), newStore.Slug, orderNumber)
+				}
+				aulaaResp, aErr := services.CreateAulaaPayment(aulaaCfg, services.AulaaCreatePaymentRequest{
+					OrderID:       orderNumber,
+					Amount:        finalAmount,
+					RedirectURL:   redirectURL,
+					PaymentMethod: payMethod,
+				})
+				if aErr == nil && aulaaResp != nil && aulaaResp.PaymentLink != "" {
+					subOrder.GatewayReference = aulaaResp.ID
+					subOrder.GatewayPaymentLink = aulaaResp.PaymentLink
+					rawB, _ := json.Marshal(aulaaResp)
+					subOrder.GatewayRawResponse = datatypes.JSON(rawB)
+					paymentURL = aulaaResp.PaymentLink
+				} else if aErr != nil {
+					log.Warn().Err(aErr).Str("order_number", orderNumber).Msg("Aulaa payment initiation failed; proceeding with pending order")
+				}
+			} else {
+				log.Warn().Str("order_number", orderNumber).Msg("Aulaa API key not configured in platform settings; proceeding with pending gateway order")
 			}
 		}
 

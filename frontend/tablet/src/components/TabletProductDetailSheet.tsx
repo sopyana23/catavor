@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { X, MessageCircle, Share2, ShieldCheck, Check, Package, Tag, ExternalLink, Truck, ZoomIn } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { X, MessageCircle, Share2, ShieldCheck, Check, Package, Tag, ExternalLink, Truck, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import { FormattedText } from './RichTextarea';
 import { useModalBackHandler } from '../utils/navigation';
 import { TabletImageLightbox } from './TabletImageLightbox';
@@ -42,6 +42,12 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
 }) => {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [showLightbox, setShowLightbox] = useState<boolean>(false);
+
+  // Gesture swipe states for tablet product detail sheet
+  const sheetTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const sheetSwipedRef = useRef<boolean>(false);
+  const [sheetDragOffset, setSheetDragOffset] = useState<number>(0);
+  const [isSheetDragging, setIsSheetDragging] = useState<boolean>(false);
 
   useModalBackHandler({
     isOpen: Boolean(product),
@@ -405,7 +411,6 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
           {/* Main Photo Container */}
           <div>
             <div
-              onClick={() => setShowLightbox(true)}
               style={{
                 width: '100%',
                 aspectRatio: '16/10',
@@ -416,18 +421,218 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
                 alignItems: 'center',
                 justifyContent: 'center',
                 position: 'relative',
-                cursor: 'zoom-in'
+                cursor: 'zoom-in',
+                touchAction: images.length > 1 ? 'pan-y' : 'auto',
+                userSelect: 'none',
+                WebkitUserSelect: 'none'
+              }}
+              onTouchStart={(e) => {
+                if (images.length > 1 && e.touches.length === 1) {
+                  const touch = e.touches[0];
+                  sheetTouchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+                  sheetSwipedRef.current = false;
+                  setIsSheetDragging(true);
+                  setSheetDragOffset(0);
+                }
+              }}
+              onTouchMove={(e) => {
+                if (!sheetTouchStartRef.current || e.touches.length !== 1) return;
+                const touch = e.touches[0];
+                const dx = touch.clientX - sheetTouchStartRef.current.x;
+                const dy = touch.clientY - sheetTouchStartRef.current.y;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                  setSheetDragOffset(dx * 0.42);
+                  if (Math.abs(dx) > 10) {
+                    sheetSwipedRef.current = true;
+                  }
+                }
+              }}
+              onTouchEnd={(e) => {
+                setIsSheetDragging(false);
+                setSheetDragOffset(0);
+                if (sheetTouchStartRef.current && images.length > 1) {
+                  const touch = e.changedTouches[0];
+                  const dx = touch.clientX - sheetTouchStartRef.current.x;
+                  const dy = touch.clientY - sheetTouchStartRef.current.y;
+                  const dt = Date.now() - sheetTouchStartRef.current.time;
+                  if (Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy) * 1.1 && dt < 600) {
+                    sheetSwipedRef.current = true;
+                    if (dx < 0) {
+                      setActiveImageIndex((activeImageIndex + 1) % images.length);
+                    } else {
+                      setActiveImageIndex((activeImageIndex - 1 + images.length) % images.length);
+                    }
+                  }
+                }
+                setTimeout(() => {
+                  sheetSwipedRef.current = false;
+                }, 180);
+                sheetTouchStartRef.current = null;
+              }}
+              onTouchCancel={() => {
+                setIsSheetDragging(false);
+                setSheetDragOffset(0);
+                sheetTouchStartRef.current = null;
+                sheetSwipedRef.current = false;
+              }}
+              onMouseDown={(e) => {
+                if (images.length > 1) {
+                  sheetTouchStartRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+                  sheetSwipedRef.current = false;
+                  setIsSheetDragging(true);
+                  setSheetDragOffset(0);
+                }
+              }}
+              onMouseMove={(e) => {
+                if (!sheetTouchStartRef.current || !isSheetDragging) return;
+                const dx = e.clientX - sheetTouchStartRef.current.x;
+                const dy = e.clientY - sheetTouchStartRef.current.y;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                  setSheetDragOffset(dx * 0.42);
+                  if (Math.abs(dx) > 10) {
+                    sheetSwipedRef.current = true;
+                  }
+                }
+              }}
+              onMouseUp={(e) => {
+                if (!isSheetDragging) return;
+                setIsSheetDragging(false);
+                setSheetDragOffset(0);
+                if (sheetTouchStartRef.current && images.length > 1) {
+                  const dx = e.clientX - sheetTouchStartRef.current.x;
+                  const dy = e.clientY - sheetTouchStartRef.current.y;
+                  const dt = Date.now() - sheetTouchStartRef.current.time;
+                  if (Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy) * 1.1 && dt < 600) {
+                    sheetSwipedRef.current = true;
+                    if (dx < 0) {
+                      setActiveImageIndex((activeImageIndex + 1) % images.length);
+                    } else {
+                      setActiveImageIndex((activeImageIndex - 1 + images.length) % images.length);
+                    }
+                  }
+                }
+                setTimeout(() => {
+                  sheetSwipedRef.current = false;
+                }, 180);
+                sheetTouchStartRef.current = null;
+              }}
+              onMouseLeave={() => {
+                if (isSheetDragging) {
+                  setIsSheetDragging(false);
+                  setSheetDragOffset(0);
+                  sheetTouchStartRef.current = null;
+                }
               }}
               title="Klik untuk perbesar & lihat detail foto produk"
             >
               <img
                 src={images[activeImageIndex] || images[0]}
                 alt={product.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  transform: sheetDragOffset !== 0 ? `translateX(${sheetDragOffset}px)` : 'none',
+                  transition: isSheetDragging ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none'
+                }}
+                onClick={() => {
+                  if (sheetSwipedRef.current) {
+                    sheetSwipedRef.current = false;
+                    return;
+                  }
+                  setShowLightbox(true);
+                }}
                 onError={(e) => {
                   e.currentTarget.src = DEFAULT_PRODUCT_PLACEHOLDER;
                 }}
               />
+
+              {/* Floating Prev Button */}
+              {images.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveImageIndex((activeImageIndex - 1 + images.length) % images.length);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: '0.75rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 5
+                  }}
+                  title="Foto Sebelumnya"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+              )}
+
+              {/* Floating Next Button */}
+              {images.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveImageIndex((activeImageIndex + 1) % images.length);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '0.75rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 5
+                  }}
+                  title="Foto Selanjutnya"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              )}
+
+              {/* Floating Photo Counter Badge */}
+              {images.length > 1 && (
+                <div style={{
+                  position: 'absolute',
+                  ...(product.conservation_status
+                    ? { bottom: '12px', left: '12px' }
+                    : { top: '12px', left: '12px' }),
+                  backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                  color: '#ffffff',
+                  padding: '0.25rem 0.65rem',
+                  borderRadius: '999px',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  backdropFilter: 'blur(8px)',
+                  zIndex: 5
+                }}>
+                  {activeImageIndex + 1} / {images.length}
+                </div>
+              )}
 
               {/* Bottom-Right Zoom Hint Badge */}
               <div style={{
@@ -448,7 +653,7 @@ export const TabletProductDetailSheet: React.FC<TabletProductDetailSheetProps> =
                 zIndex: 2
               }}>
                 <ZoomIn size={12} />
-                <span>Perbesar</span>
+                <span>{images.length > 1 ? 'Geser foto atau perbesar' : 'Perbesar'}</span>
               </div>
 
               {/* Top-Left Category Badge */}

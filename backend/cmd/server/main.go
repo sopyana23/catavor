@@ -401,6 +401,8 @@ func main() {
 	api.Post("/subscription/verify-coupon", subscriptionHandler.VerifyCoupon)
 	api.Post("/auth/verify-coupon", subscriptionHandler.VerifyCoupon)
 	api.Post("/webhooks/payment/aulaa", paymentHandler.HandleAulaaWebhook)
+	api.Post("/payments/webhook/aulaa", paymentHandler.HandleAulaaWebhook)
+	api.Post("/webhook/payment/aulaa", paymentHandler.HandleAulaaWebhook)
 
 	// Public Telemetry & Analytics Tracking (Isolated High-Capacity Rate Limiter, Zero PII)
 	api.Post("/analytics/track", middleware.TelemetryRateLimiter(), analyticsHandler.TrackEvent)
@@ -694,6 +696,7 @@ func main() {
 		adminApi.Get("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Index)
 		adminApi.Post("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
 		adminApi.Post("/settings/rekber/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetRekberDefaults)
+		adminApi.Post("/payments/aulaa/test-connection", middleware.RequirePermission(cfg, "system:settings:manage"), paymentHandler.TestAulaaConnection)
 
 		// Master Safe Domains (Ecosystem URL Whitelist)
 		// SECURITY (N-29): daftar ini adalah whitelist domain tepercaya yang dipakai

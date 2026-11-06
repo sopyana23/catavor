@@ -142,6 +142,26 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
     return 'bank';
   });
 
+  const [aulaaChannel, setAulaaChannel] = useState<'qris' | 'va' | 'ewallet' | 'cc'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('catavor_aulaa_channel') as any;
+      if (['qris', 'va', 'ewallet', 'cc'].includes(saved)) return saved;
+    }
+    return 'qris';
+  });
+
+  const handleSelectAulaaChannel = (channel: 'qris' | 'va' | 'ewallet' | 'cc') => {
+    setAulaaChannel(channel);
+    try {
+      sessionStorage.setItem('catavor_aulaa_channel', channel);
+    } catch {}
+    if (channel === 'qris' || channel === 'ewallet') {
+      setPaymentMethod('qris');
+    } else {
+      setPaymentMethod('bank');
+    }
+  };
+
   const [platformSettings, setPlatformSettings] = useState<Record<string, string>>(() => {
     return propSettings || {};
   });
@@ -373,6 +393,13 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
         } catch {}
       }
 
+      const isAulaa = paymentSystemMode === 'gateway_aulaa';
+      const effectivePaymentMethod = isFreeBypass
+        ? 'free'
+        : isAulaa
+          ? aulaaChannel
+          : paymentMethod;
+
       const payload = {
         name: registerForm.name.trim(),
         email: registerForm.email.trim().toLowerCase(),
@@ -383,7 +410,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
         plan: effectivePlan,
         billing_cycle: registerBillingCycle,
         coupon_code: appliedCoupon?.code || '',
-        payment_method: isFreeBypass ? 'free' : paymentMethod,
+        payment_method: effectivePaymentMethod,
         payment_status: isFreeBypass ? 'approved' : 'pending_approval',
         payment_proof_url: isFreeBypass ? null : paymentProofPreview,
         payment_note: paymentProofNote ? paymentProofNote.trim() : undefined,
@@ -408,6 +435,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
           sessionStorage.removeItem('catavor_register_billing');
           sessionStorage.removeItem('catavor_applied_coupon');
           sessionStorage.removeItem('catavor_payment_method');
+          sessionStorage.removeItem('catavor_aulaa_channel');
         } catch {}
 
         if (data.token) {
@@ -416,6 +444,16 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
         if (data.user) {
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
           setCreatedUserData(data.user);
+        }
+
+        if (data.payment_url) {
+          window.location.href = data.payment_url;
+          return;
+        }
+
+        if (isAulaa && !isFreeBypass && finalPrice > 0) {
+          setRegisterError('Gagal mendapatkan tautan pembayaran Aulaa. Silakan periksa koneksi atau hubungi admin.');
+          return;
         }
 
         setShowSuccessModal(true);
@@ -1517,28 +1555,172 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
                     </p>
                   </div>
 
-                  <div>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '0.6rem', display: 'block' }}>
-                      Kanal Pembayaran yang Didukung:
-                    </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                      <div style={{ padding: '0.75rem 1rem', borderRadius: '0.65rem', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <QrCode size={20} color="#059669" />
-                        <div>
-                          <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>QRIS Instan</div>
-                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>GoPay, OVO, ShopeePay, DANA</div>
-                        </div>
-                      </div>
+                  {(() => {
+                    const showQRIS = platformSettings.payment_aulaa_channel_qris !== '0';
+                    const showVA = platformSettings.payment_aulaa_channel_va !== '0';
+                    const showEWallet = platformSettings.payment_aulaa_channel_ewallet !== '0';
+                    const showCC = platformSettings.payment_aulaa_channel_cc === '1';
 
-                      <div style={{ padding: '0.75rem 1rem', borderRadius: '0.65rem', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <CreditCard size={20} color="#0284c7" />
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                         <div>
-                          <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>Virtual Account</div>
-                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>BCA, Mandiri, BRI, BNI</div>
+                          <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '0.55rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span>Pilih Kanal Pembayaran Aulaa:</span>
+                            <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>Klik untuk memilih</span>
+                          </label>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                            {showQRIS && (
+                              <button
+                                type="button"
+                                onClick={() => handleSelectAulaaChannel('qris')}
+                                style={{
+                                  padding: '0.75rem 1rem',
+                                  borderRadius: '0.65rem',
+                                  border: aulaaChannel === 'qris' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                  backgroundColor: aulaaChannel === 'qris' ? '#eff6ff' : '#ffffff',
+                                  boxShadow: aulaaChannel === 'qris' ? '0 4px 12px rgba(37, 99, 235, 0.12)' : 'none',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                  <QrCode size={22} color={aulaaChannel === 'qris' ? '#2563eb' : '#059669'} />
+                                  <div>
+                                    <div style={{ fontSize: '0.84rem', fontWeight: 800, color: aulaaChannel === 'qris' ? '#1d4ed8' : '#0f172a' }}>QRIS Instan</div>
+                                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>GoPay, OVO, ShopeePay</div>
+                                  </div>
+                                </div>
+                                {aulaaChannel === 'qris' && <CheckCircle2 size={18} color="#2563eb" style={{ flexShrink: 0 }} />}
+                              </button>
+                            )}
+
+                            {showVA && (
+                              <button
+                                type="button"
+                                onClick={() => handleSelectAulaaChannel('va')}
+                                style={{
+                                  padding: '0.75rem 1rem',
+                                  borderRadius: '0.65rem',
+                                  border: aulaaChannel === 'va' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                  backgroundColor: aulaaChannel === 'va' ? '#eff6ff' : '#ffffff',
+                                  boxShadow: aulaaChannel === 'va' ? '0 4px 12px rgba(37, 99, 235, 0.12)' : 'none',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                  <CreditCard size={22} color={aulaaChannel === 'va' ? '#2563eb' : '#0284c7'} />
+                                  <div>
+                                    <div style={{ fontSize: '0.84rem', fontWeight: 800, color: aulaaChannel === 'va' ? '#1d4ed8' : '#0f172a' }}>Virtual Account</div>
+                                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>BCA, Mandiri, BRI, BNI</div>
+                                  </div>
+                                </div>
+                                {aulaaChannel === 'va' && <CheckCircle2 size={18} color="#2563eb" style={{ flexShrink: 0 }} />}
+                              </button>
+                            )}
+
+                            {showEWallet && (
+                              <button
+                                type="button"
+                                onClick={() => handleSelectAulaaChannel('ewallet')}
+                                style={{
+                                  padding: '0.75rem 1rem',
+                                  borderRadius: '0.65rem',
+                                  border: aulaaChannel === 'ewallet' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                  backgroundColor: aulaaChannel === 'ewallet' ? '#eff6ff' : '#ffffff',
+                                  boxShadow: aulaaChannel === 'ewallet' ? '0 4px 12px rgba(37, 99, 235, 0.12)' : 'none',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                  <Zap size={22} color={aulaaChannel === 'ewallet' ? '#2563eb' : '#d97706'} />
+                                  <div>
+                                    <div style={{ fontSize: '0.84rem', fontWeight: 800, color: aulaaChannel === 'ewallet' ? '#1d4ed8' : '#0f172a' }}>Dompet Digital</div>
+                                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>DANA, LinkAja, AstraPay</div>
+                                  </div>
+                                </div>
+                                {aulaaChannel === 'ewallet' && <CheckCircle2 size={18} color="#2563eb" style={{ flexShrink: 0 }} />}
+                              </button>
+                            )}
+
+                            {showCC && (
+                              <button
+                                type="button"
+                                onClick={() => handleSelectAulaaChannel('cc')}
+                                style={{
+                                  padding: '0.75rem 1rem',
+                                  borderRadius: '0.65rem',
+                                  border: aulaaChannel === 'cc' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                  backgroundColor: aulaaChannel === 'cc' ? '#eff6ff' : '#ffffff',
+                                  boxShadow: aulaaChannel === 'cc' ? '0 4px 12px rgba(37, 99, 235, 0.12)' : 'none',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                                  <CreditCard size={22} color={aulaaChannel === 'cc' ? '#2563eb' : '#7c3aed'} />
+                                  <div>
+                                    <div style={{ fontSize: '0.84rem', fontWeight: 800, color: aulaaChannel === 'cc' ? '#1d4ed8' : '#0f172a' }}>Kartu Kredit / Debit</div>
+                                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Visa &amp; Mastercard</div>
+                                  </div>
+                                </div>
+                                {aulaaChannel === 'cc' && <CheckCircle2 size={18} color="#2563eb" style={{ flexShrink: 0 }} />}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Dynamic Guidance Feedback */}
+                        <div style={{
+                          padding: '0.85rem 1rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: '#f8fafc',
+                          border: '1px solid #e2e8f0',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.65rem'
+                        }}>
+                          <Zap size={16} color="#2563eb" style={{ flexShrink: 0, marginTop: '2px' }} />
+                          <div style={{ fontSize: '0.78rem', color: '#334155', lineHeight: 1.5 }}>
+                            {aulaaChannel === 'qris' ? (
+                              <span>
+                                Kanal <strong>QRIS Instan</strong> aktif. Klik tombol bayar di bawah untuk langsung membuka kode QRIS resmi dan scan melalui GoPay, OVO, ShopeePay, BCA, atau aplikasi perbankan lainnya tanpa upload bukti transfer.
+                              </span>
+                            ) : aulaaChannel === 'va' ? (
+                              <span>
+                                Kanal <strong>Virtual Account</strong> aktif. Invoice akan langsung diarahkan ke nomor VA bank pilihan (BCA, Mandiri, BRI, BNI) dengan verifikasi otomatis 24/7.
+                              </span>
+                            ) : aulaaChannel === 'ewallet' ? (
+                              <span>
+                                Kanal <strong>Dompet Digital</strong> aktif. Anda akan diarahkan ke aplikasi e-wallet pilihan untuk otorisasi pembayaran langsung.
+                              </span>
+                            ) : (
+                              <span>
+                                Kanal <strong>Kartu Kredit / Debit</strong> aktif. Pembayaran diamankan dengan protokol 3D-Secure Visa &amp; Mastercard.
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   <button
                     type="button"
@@ -1562,8 +1744,27 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
                       boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
                     }}
                   >
-                    {registerLoading ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
-                    <span>{registerLoading ? 'Memproses Pendaftaran...' : 'Lanjutkan ke Pembayaran Aman'}</span>
+                    {registerLoading ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        <span>Menghubungkan ke Gerbang Aulaa...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap size={18} />
+                        <span>
+                          {aulaaChannel === 'qris'
+                            ? `Bayar Rp ${finalPrice.toLocaleString('id-ID')} via QRIS Instan`
+                            : aulaaChannel === 'va'
+                            ? `Bayar Rp ${finalPrice.toLocaleString('id-ID')} via Virtual Account`
+                            : aulaaChannel === 'ewallet'
+                            ? `Bayar Rp ${finalPrice.toLocaleString('id-ID')} via E-Wallet`
+                            : aulaaChannel === 'cc'
+                            ? `Bayar Rp ${finalPrice.toLocaleString('id-ID')} via Kartu Kredit`
+                            : `Lanjutkan ke Pembayaran Aman (Rp ${finalPrice.toLocaleString('id-ID')})`}
+                        </span>
+                      </>
+                    )}
                   </button>
                 </div>
               ) : (

@@ -63,9 +63,26 @@ func GetAulaaConfig(db *gorm.DB) AulaaConfig {
 
 // AulaaCreatePaymentRequest represents the payload for POST /v1/payments
 type AulaaCreatePaymentRequest struct {
-	OrderID     string  `json:"order_id"`
-	Amount      float64 `json:"amount"`
-	RedirectURL string  `json:"redirect_url"`
+	OrderID       string  `json:"order_id"`
+	Amount        float64 `json:"amount"`
+	RedirectURL   string  `json:"redirect_url,omitempty"`
+	PaymentMethod string  `json:"payment_method,omitempty"`
+}
+
+// AulaaPaymentMethodFee represents transaction fee details for a payment method
+type AulaaPaymentMethodFee struct {
+	Flat    float64 `json:"flat"`
+	Percent float64 `json:"percent"`
+}
+
+// AulaaPaymentMethodItem represents a payment method returned by GET /v1/payments/methods
+type AulaaPaymentMethodItem struct {
+	Code      string                 `json:"code"`
+	Name      string                 `json:"name"`
+	Type      string                 `json:"type"`
+	MinAmount float64                `json:"min_amount,omitempty"`
+	MaxAmount float64                `json:"max_amount,omitempty"`
+	Fee       *AulaaPaymentMethodFee `json:"fee,omitempty"`
 }
 
 // AulaaCreatePaymentResponse represents the response from POST /v1/payments
@@ -204,4 +221,92 @@ func CheckAulaaPaymentStatus(cfg AulaaConfig, paymentID string) (*AulaaPaymentSt
 
 	return &statusResp, nil
 }
+
+// GetAulaaPaymentMethods retrieves the list of active payment methods from GET /v1/payments/methods
+func GetAulaaPaymentMethods(cfg AulaaConfig) ([]AulaaPaymentMethodItem, error) {
+	if cfg.APIKey == "" {
+		return nil, fmt.Errorf("AULAA_API_KEY belum dikonfigurasi")
+	}
+
+	endpoint := fmt.Sprintf("%s/payments/methods", cfg.BaseURL)
+	httpReq, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("gagal membuat request metode pembayaran: %w", err)
+	}
+
+	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.APIKey))
+	httpReq.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: DefaultHTTPTimeout}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("gagal menghubungi api aulaa.co: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("gagal membaca respon metode pembayaran aulaa: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("aulaa methods api error (HTTP %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	// Format response may be { "success": true, "data": [...] } or direct array [...]
+	var envelope struct {
+		Success bool                     `json:"success"`
+		Message string                   `json:"message"`
+		Data    []AulaaPaymentMethodItem `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &envelope); err == nil && len(envelope.Data) > 0 {
+		return envelope.Data, nil
+	}
+
+	var directList []AulaaPaymentMethodItem
+	if err := json.Unmarshal(respBody, &directList); err == nil {
+		return directList, nil
+	}
+
+	return nil, fmt.Errorf("gagal membedah data metode pembayaran: raw response=%s", string(respBody))
+}
+
+// CancelAulaaPayment cancels an active pending payment via POST /v1/payments/{id}/cancel
+func CancelAulaaPayment(cfg AulaaConfig, paymentID string) error {
+	if cfg.APIKey == "" {
+		return fmt.Errorf("AULAA_API_KEY belum dikonfigurasi")
+	}
+	cleanPaymentID := strings.TrimSpace(paymentID)
+	if cleanPaymentID == "" {
+		return fmt.Errorf("paymentID kosong")
+	}
+
+	endpoint := fmt.Sprintf("%s/payments/%s/cancel", cfg.BaseURL, cleanPaymentID)
+	httpReq, err := http.NewRequest(http.MethodPost, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("gagal membuat request cancel payment: %w", err)
+	}
+
+	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.APIKey))
+	httpReq.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: DefaultHTTPTimeout}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("gagal menghubungi aulaa: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("gagal membaca respon cancel aulaa: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("aulaa cancel api error (HTTP %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
 

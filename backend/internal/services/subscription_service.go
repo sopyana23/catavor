@@ -696,9 +696,10 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 				redirectURL = fmt.Sprintf("/admin/subscription?order_number=%s", orderNumber)
 			}
 			aulaaResp, err := CreateAulaaPayment(aulaaCfg, AulaaCreatePaymentRequest{
-				OrderID:     orderNumber,
-				Amount:      finalAmount,
-				RedirectURL: redirectURL,
+				OrderID:       orderNumber,
+				Amount:        finalAmount,
+				RedirectURL:   redirectURL,
+				PaymentMethod: paymentMethod,
 			})
 			if err != nil {
 				log.Warn().Err(err).Msg("Aulaa CreatePayment error; proceeding with pending gateway order")

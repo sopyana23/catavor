@@ -9187,6 +9187,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [isDragging, setIsDragging] = useState<boolean>(false)
   const [dragStart, setDragStart] = useState<{ x: number, y: number }>({ x: 0, y: 0 })
 
+  // Gesture swipe states for hero gallery, product lightbox & attachment lightbox
+  const heroTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const heroSwipedRef = useRef<boolean>(false);
+  const [heroDragOffset, setHeroDragOffset] = useState<number>(0);
+  const [isHeroDragging, setIsHeroDragging] = useState<boolean>(false);
+
+  const lightboxTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const [lightboxDragOffset, setLightboxDragOffset] = useState<number>(0);
+  const [isLightboxSwiping, setIsLightboxSwiping] = useState<boolean>(false);
+
+  const attachmentTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const [attachmentDragOffset, setAttachmentDragOffset] = useState<number>(0);
+  const [isAttachmentSwiping, setIsAttachmentSwiping] = useState<boolean>(false);
+
 
   // Multi-image management states (Deferred Upload with Instant Blob Previews)
   const MAX_PRODUCT_PHOTOS = 10
@@ -19223,7 +19237,107 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       width: '100%', 
                       height: '330px', 
                       background: 'var(--bg-deep, #0f172a)',
-                      overflow: 'hidden'
+                      overflow: 'hidden',
+                      touchAction: totalGalleryImages > 1 ? 'pan-y' : 'auto',
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none'
+                    }}
+                    onTouchStart={(e) => {
+                      if (totalGalleryImages > 1 && e.touches.length === 1) {
+                        const touch = e.touches[0];
+                        heroTouchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+                        heroSwipedRef.current = false;
+                        setIsHeroDragging(true);
+                        setHeroDragOffset(0);
+                      }
+                    }}
+                    onTouchMove={(e) => {
+                      if (!heroTouchStartRef.current || e.touches.length !== 1) return;
+                      const touch = e.touches[0];
+                      const dx = touch.clientX - heroTouchStartRef.current.x;
+                      const dy = touch.clientY - heroTouchStartRef.current.y;
+                      if (Math.abs(dx) > Math.abs(dy)) {
+                        setHeroDragOffset(dx * 0.42);
+                        if (Math.abs(dx) > 10) {
+                          heroSwipedRef.current = true;
+                        }
+                      }
+                    }}
+                    onTouchEnd={(e) => {
+                      setIsHeroDragging(false);
+                      setHeroDragOffset(0);
+                      if (heroTouchStartRef.current && totalGalleryImages > 1) {
+                        const touch = e.changedTouches[0];
+                        const dx = touch.clientX - heroTouchStartRef.current.x;
+                        const dy = touch.clientY - heroTouchStartRef.current.y;
+                        const dt = Date.now() - heroTouchStartRef.current.time;
+                        if (Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy) * 1.1 && dt < 600) {
+                          heroSwipedRef.current = true;
+                          if (dx < 0) {
+                            setActiveImageIndex((currentImgIdx + 1) % totalGalleryImages);
+                          } else {
+                            setActiveImageIndex((currentImgIdx - 1 + totalGalleryImages) % totalGalleryImages);
+                          }
+                        }
+                      }
+                      setTimeout(() => {
+                        heroSwipedRef.current = false;
+                      }, 180);
+                      heroTouchStartRef.current = null;
+                    }}
+                    onTouchCancel={() => {
+                      setIsHeroDragging(false);
+                      setHeroDragOffset(0);
+                      heroTouchStartRef.current = null;
+                      heroSwipedRef.current = false;
+                    }}
+                    onMouseDown={(e) => {
+                      if (totalGalleryImages > 1) {
+                        heroTouchStartRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+                        heroSwipedRef.current = false;
+                        setIsHeroDragging(true);
+                        setHeroDragOffset(0);
+                      }
+                    }}
+                    onMouseMove={(e) => {
+                      if (!heroTouchStartRef.current || !isHeroDragging) return;
+                      const dx = e.clientX - heroTouchStartRef.current.x;
+                      const dy = e.clientY - heroTouchStartRef.current.y;
+                      if (Math.abs(dx) > Math.abs(dy)) {
+                        setHeroDragOffset(dx * 0.42);
+                        if (Math.abs(dx) > 10) {
+                          heroSwipedRef.current = true;
+                        }
+                      }
+                    }}
+                    onMouseUp={(e) => {
+                      if (!isHeroDragging) return;
+                      setIsHeroDragging(false);
+                      setHeroDragOffset(0);
+                      if (heroTouchStartRef.current && totalGalleryImages > 1) {
+                        const dx = e.clientX - heroTouchStartRef.current.x;
+                        const dy = e.clientY - heroTouchStartRef.current.y;
+                        const dt = Date.now() - heroTouchStartRef.current.time;
+                        if (Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy) * 1.1 && dt < 600) {
+                          heroSwipedRef.current = true;
+                          if (dx < 0) {
+                            setActiveImageIndex((currentImgIdx + 1) % totalGalleryImages);
+                          } else {
+                            setActiveImageIndex((currentImgIdx - 1 + totalGalleryImages) % totalGalleryImages);
+                          }
+                        }
+                      }
+                      setTimeout(() => {
+                        heroSwipedRef.current = false;
+                      }, 180);
+                      heroTouchStartRef.current = null;
+                    }}
+                    onMouseLeave={() => {
+                      if (isHeroDragging) {
+                        setIsHeroDragging(false);
+                        setHeroDragOffset(0);
+                        heroTouchStartRef.current = null;
+                      }
                     }}
                   >
                     <img 
@@ -19234,9 +19348,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         height: '100%', 
                         objectFit: 'cover', 
                         display: 'block',
-                        cursor: 'zoom-in' 
+                        cursor: 'zoom-in',
+                        transform: heroDragOffset !== 0 ? `translateX(${heroDragOffset}px)` : 'none',
+                        transition: isHeroDragging ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none',
+                        WebkitTouchCallout: 'none'
                       }} 
                       onClick={() => {
+                        if (heroSwipedRef.current) {
+                          heroSwipedRef.current = false;
+                          return;
+                        }
                         setLightboxIndex(currentImgIdx);
                         setZoomScale(1);
                         setPanPosition({ x: 0, y: 0 });
@@ -19364,7 +19487,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       }}
                     >
                       <ZoomIn size={12} />
-                      <span>Ketuk untuk perbesar</span>
+                      <span>{totalGalleryImages > 1 ? 'Geser foto atau ketuk perbesar' : 'Ketuk untuk perbesar'}</span>
                     </div>
                   </div>
 
@@ -32575,7 +32698,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               </button>
             )}
 
-            {/* Touch Zoomable/Pannable Image Container */}
+            {/* Touch Zoomable/Pannable Image Container with Horizontal Swipe */}
             <div 
               style={{
                 width: '100%',
@@ -32583,32 +32706,124 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`,
-                transition: isDragging ? 'none' : 'transform 0.15s ease-out'
+                transform: zoomScale > 1
+                  ? `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`
+                  : (lightboxDragOffset !== 0 ? `translateX(${lightboxDragOffset}px)` : 'none'),
+                transition: isDragging || isLightboxSwiping ? 'none' : 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+                touchAction: zoomScale > 1 ? 'none' : 'pan-y'
               }}
               onTouchStart={(e) => {
-                if (zoomScale > 1 && e.touches.length === 1) {
-                  setIsDragging(true)
-                  const touch = e.touches[0]
-                  setDragStart({ x: touch.clientX - panPosition.x, y: touch.clientY - panPosition.y })
+                if (e.touches.length === 1) {
+                  const touch = e.touches[0];
+                  lightboxTouchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+                  if (zoomScale > 1) {
+                    setIsDragging(true);
+                    setDragStart({ x: touch.clientX - panPosition.x, y: touch.clientY - panPosition.y });
+                  } else {
+                    setIsLightboxSwiping(true);
+                    setLightboxDragOffset(0);
+                  }
                 }
               }}
               onTouchMove={(e) => {
                 if (isDragging && zoomScale > 1 && e.touches.length === 1) {
-                  const touch = e.touches[0]
+                  const touch = e.touches[0];
                   setPanPosition({
                     x: touch.clientX - dragStart.x,
                     y: touch.clientY - dragStart.y
-                  })
+                  });
+                } else if (zoomScale <= 1 && lightboxTouchStartRef.current && e.touches.length === 1) {
+                  const touch = e.touches[0];
+                  const dx = touch.clientX - lightboxTouchStartRef.current.x;
+                  const dy = touch.clientY - lightboxTouchStartRef.current.y;
+                  if (Math.abs(dx) > Math.abs(dy)) {
+                    setLightboxDragOffset(dx * 0.45);
+                  }
                 }
               }}
-              onTouchEnd={() => setIsDragging(false)}
+              onTouchEnd={(e) => {
+                if (zoomScale > 1) {
+                  setIsDragging(false);
+                } else {
+                  setIsLightboxSwiping(false);
+                  setLightboxDragOffset(0);
+                  if (lightboxTouchStartRef.current && e.changedTouches.length === 1) {
+                    const touch = e.changedTouches[0];
+                    const dx = touch.clientX - lightboxTouchStartRef.current.x;
+                    const dy = touch.clientY - lightboxTouchStartRef.current.y;
+                    const dt = Date.now() - lightboxTouchStartRef.current.time;
+                    const len = selectedFauna.detailed_info?.images?.length || (selectedFauna.image_url ? 1 : 0);
+                    if (len > 1 && Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy) * 1.1 && dt < 600) {
+                      if (dx < 0) {
+                        setLightboxIndex(prev => (prev + 1) % len);
+                        setZoomScale(1);
+                        setPanPosition({ x: 0, y: 0 });
+                      } else {
+                        setLightboxIndex(prev => (prev - 1 + len) % len);
+                        setZoomScale(1);
+                        setPanPosition({ x: 0, y: 0 });
+                      }
+                    }
+                  }
+                  lightboxTouchStartRef.current = null;
+                }
+              }}
+              onTouchCancel={() => {
+                setIsDragging(false);
+                setIsLightboxSwiping(false);
+                setLightboxDragOffset(0);
+                lightboxTouchStartRef.current = null;
+              }}
+              onMouseDown={(e) => {
+                if (zoomScale > 1) {
+                  e.preventDefault();
+                  setIsDragging(true);
+                  setDragStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
+                } else {
+                  lightboxTouchStartRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+                  setIsLightboxSwiping(true);
+                  setLightboxDragOffset(0);
+                }
+              }}
+              onMouseMove={(e) => {
+                if (isDragging && zoomScale > 1) {
+                  e.preventDefault();
+                  setPanPosition({
+                    x: e.clientX - dragStart.x,
+                    y: e.clientY - dragStart.y
+                  });
+                } else if (zoomScale <= 1 && lightboxTouchStartRef.current && isLightboxSwiping) {
+                  const dx = e.clientX - lightboxTouchStartRef.current.x;
+                  setLightboxDragOffset(dx * 0.45);
+                }
+              }}
+              onMouseUp={(e) => {
+                if (zoomScale > 1) {
+                  setIsDragging(false);
+                } else if (isLightboxSwiping && lightboxTouchStartRef.current) {
+                  setIsLightboxSwiping(false);
+                  setLightboxDragOffset(0);
+                  const dx = e.clientX - lightboxTouchStartRef.current.x;
+                  const dt = Date.now() - lightboxTouchStartRef.current.time;
+                  const len = selectedFauna.detailed_info?.images?.length || (selectedFauna.image_url ? 1 : 0);
+                  if (len > 1 && Math.abs(dx) >= 35 && dt < 600) {
+                    if (dx < 0) {
+                      setLightboxIndex(prev => (prev + 1) % len);
+                    } else {
+                      setLightboxIndex(prev => (prev - 1 + len) % len);
+                    }
+                    setZoomScale(1);
+                    setPanPosition({ x: 0, y: 0 });
+                  }
+                  lightboxTouchStartRef.current = null;
+                }
+              }}
               onDoubleClick={() => {
                 if (zoomScale > 1) {
-                  setZoomScale(1)
-                  setPanPosition({ x: 0, y: 0 })
+                  setZoomScale(1);
+                  setPanPosition({ x: 0, y: 0 });
                 } else {
-                  setZoomScale(2.5)
+                  setZoomScale(2.5);
                 }
               }}
             >
@@ -33077,7 +33292,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 </button>
               )}
 
-              {/* Center Canvas */}
+              {/* Center Canvas with Horizontal Touch Swipe */}
               <div
                 style={{
                   maxWidth: '94vw',
@@ -33085,18 +33300,24 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`,
-                  transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+                  transform: zoomScale > 1 
+                    ? `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})` 
+                    : (attachmentDragOffset !== 0 ? `translateX(${attachmentDragOffset}px)` : 'none'),
+                  transition: isDragging || isAttachmentSwiping ? 'none' : 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
                   cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
                   userSelect: 'none',
                   WebkitUserSelect: 'none',
-                  touchAction: 'none'
+                  touchAction: zoomScale > 1 ? 'none' : 'pan-y'
                 }}
                 onMouseDown={(e) => {
                   if (zoomScale > 1) {
                     e.preventDefault();
                     setIsDragging(true);
                     setDragStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
+                  } else {
+                    attachmentTouchStartRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+                    setIsAttachmentSwiping(true);
+                    setAttachmentDragOffset(0);
                   }
                 }}
                 onMouseMove={(e) => {
@@ -33106,14 +33327,42 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       x: e.clientX - dragStart.x,
                       y: e.clientY - dragStart.y
                     });
+                  } else if (zoomScale <= 1 && attachmentTouchStartRef.current && isAttachmentSwiping) {
+                    const dx = e.clientX - attachmentTouchStartRef.current.x;
+                    setAttachmentDragOffset(dx * 0.45);
                   }
                 }}
-                onMouseUp={() => setIsDragging(false)}
+                onMouseUp={(e) => {
+                  if (zoomScale > 1) {
+                    setIsDragging(false);
+                  } else if (isAttachmentSwiping && attachmentTouchStartRef.current) {
+                    setIsAttachmentSwiping(false);
+                    setAttachmentDragOffset(0);
+                    const dx = e.clientX - attachmentTouchStartRef.current.x;
+                    const dt = Date.now() - attachmentTouchStartRef.current.time;
+                    if (total > 1 && Math.abs(dx) >= 35 && dt < 600) {
+                      if (dx < 0) {
+                        setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex + 1) % total } : null);
+                      } else {
+                        setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex - 1 + total) % total } : null);
+                      }
+                      setZoomScale(1);
+                      setPanPosition({ x: 0, y: 0 });
+                    }
+                    attachmentTouchStartRef.current = null;
+                  }
+                }}
                 onTouchStart={(e) => {
-                  if (zoomScale > 1 && e.touches.length === 1) {
-                    setIsDragging(true);
+                  if (e.touches.length === 1) {
                     const touch = e.touches[0];
-                    setDragStart({ x: touch.clientX - panPosition.x, y: touch.clientY - panPosition.y });
+                    attachmentTouchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+                    if (zoomScale > 1) {
+                      setIsDragging(true);
+                      setDragStart({ x: touch.clientX - panPosition.x, y: touch.clientY - panPosition.y });
+                    } else {
+                      setIsAttachmentSwiping(true);
+                      setAttachmentDragOffset(0);
+                    }
                   }
                 }}
                 onTouchMove={(e) => {
@@ -33123,10 +33372,45 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       x: touch.clientX - dragStart.x,
                       y: touch.clientY - dragStart.y
                     });
+                  } else if (zoomScale <= 1 && attachmentTouchStartRef.current && e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    const dx = touch.clientX - attachmentTouchStartRef.current.x;
+                    const dy = touch.clientY - attachmentTouchStartRef.current.y;
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                      setAttachmentDragOffset(dx * 0.45);
+                    }
                   }
                 }}
-                onTouchEnd={() => setIsDragging(false)}
-                onTouchCancel={() => setIsDragging(false)}
+                onTouchEnd={(e) => {
+                  if (zoomScale > 1) {
+                    setIsDragging(false);
+                  } else {
+                    setIsAttachmentSwiping(false);
+                    setAttachmentDragOffset(0);
+                    if (attachmentTouchStartRef.current && e.changedTouches.length === 1) {
+                      const touch = e.changedTouches[0];
+                      const dx = touch.clientX - attachmentTouchStartRef.current.x;
+                      const dy = touch.clientY - attachmentTouchStartRef.current.y;
+                      const dt = Date.now() - attachmentTouchStartRef.current.time;
+                      if (total > 1 && Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy) * 1.1 && dt < 600) {
+                        if (dx < 0) {
+                          setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex + 1) % total } : null);
+                        } else {
+                          setAttachmentLightbox(prev => prev ? { ...prev, currentIndex: (prev.currentIndex - 1 + total) % total } : null);
+                        }
+                        setZoomScale(1);
+                        setPanPosition({ x: 0, y: 0 });
+                      }
+                    }
+                    attachmentTouchStartRef.current = null;
+                  }
+                }}
+                onTouchCancel={() => {
+                  setIsDragging(false);
+                  setIsAttachmentSwiping(false);
+                  setAttachmentDragOffset(0);
+                  attachmentTouchStartRef.current = null;
+                }}
                 onDoubleClick={() => {
                   if (zoomScale > 1) {
                     setZoomScale(1);

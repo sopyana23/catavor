@@ -267,6 +267,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
   const [viewMode, setViewMode] = useState<'continuous' | 'single'>('continuous');
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string>('');
+  const [pdfDragOffset, setPdfDragOffset] = useState<number>(0);
+  const [isPdfSwiping, setIsPdfSwiping] = useState<boolean>(false);
+  const pdfTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -875,8 +878,56 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
           </div>
         ) : isPDF && pdfDoc ? (
           viewMode === 'single' ? (
-            // Single Page Mode: Only render the current page
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+            // Single Page Mode: Only render the current page with horizontal swipe
+            <div 
+              style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                width: '100%',
+                touchAction: numPages > 1 && scale <= 1.2 ? 'pan-y' : 'auto'
+              }}
+              onTouchStart={(e) => {
+                if (isPDF && numPages > 1 && scale <= 1.2 && e.touches.length === 1) {
+                  const touch = e.touches[0];
+                  pdfTouchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+                  setIsPdfSwiping(true);
+                  setPdfDragOffset(0);
+                }
+              }}
+              onTouchMove={(e) => {
+                if (!isPdfSwiping || !pdfTouchStartRef.current || e.touches.length !== 1) return;
+                const touch = e.touches[0];
+                const dx = touch.clientX - pdfTouchStartRef.current.x;
+                const dy = touch.clientY - pdfTouchStartRef.current.y;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                  setPdfDragOffset(dx * 0.42);
+                }
+              }}
+              onTouchEnd={(e) => {
+                setIsPdfSwiping(false);
+                setPdfDragOffset(0);
+                if (pdfTouchStartRef.current && isPDF && numPages > 1) {
+                  const touch = e.changedTouches[0];
+                  const dx = touch.clientX - pdfTouchStartRef.current.x;
+                  const dy = touch.clientY - pdfTouchStartRef.current.y;
+                  const dt = Date.now() - pdfTouchStartRef.current.time;
+                  if (Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy) * 1.1 && dt < 600) {
+                    if (dx < 0 && currentPage < numPages) {
+                      handleNextPage();
+                    } else if (dx > 0 && currentPage > 1) {
+                      handlePrevPage();
+                    }
+                  }
+                }
+                pdfTouchStartRef.current = null;
+              }}
+              onTouchCancel={() => {
+                setIsPdfSwiping(false);
+                setPdfDragOffset(0);
+                pdfTouchStartRef.current = null;
+              }}
+            >
               <div
                 key={currentPage}
                 style={{
@@ -890,7 +941,9 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
                   flexDirection: 'column',
                   alignItems: 'center',
                   maxWidth: '100%',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  transform: pdfDragOffset !== 0 ? `translateX(${pdfDragOffset}px)` : 'none',
+                  transition: isPdfSwiping ? 'none' : 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)'
                 }}
               >
                 <PdfPageCanvas

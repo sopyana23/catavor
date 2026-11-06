@@ -1449,6 +1449,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [showAulaaSecrets, setShowAulaaSecrets] = useState(false);
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
   const [isUploadingQRISImage, setIsUploadingQRISImage] = useState(false);
+  const [isTestingAulaa, setIsTestingAulaa] = useState(false);
+  const [aulaaTestResult, setAulaaTestResult] = useState<{
+    success: boolean;
+    message: string;
+    base_url?: string;
+    methods?: any[];
+  } | null>(null);
 
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
 
@@ -3520,6 +3527,39 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       showToast('Kesalahan jaringan saat menyimpan konfigurasi pembayaran', 'error');
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleTestAulaaConnection = async () => {
+    setIsTestingAulaa(true);
+    setAulaaTestResult(null);
+    try {
+      const res = await fetch('/api/admin/payments/aulaa/test-connection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          api_key: googleSettings.aulaa_api_key || '',
+          base_url: googleSettings.aulaa_base_url || 'https://api.aulaa.co/v1'
+        })
+      });
+      const data = await res.json();
+      setAulaaTestResult(data);
+      if (data.success) {
+        showToast('Koneksi ke Gateway Aulaa.co berhasil diverifikasi!', 'success');
+      } else {
+        showToast(data.message || 'Uji koneksi Aulaa gagal.', 'error');
+      }
+    } catch {
+      setAulaaTestResult({
+        success: false,
+        message: 'Gagal menghubungi server platform Catavor.'
+      });
+      showToast('Gagal menghubungi backend.', 'error');
+    } finally {
+      setIsTestingAulaa(false);
     }
   };
 
@@ -9919,7 +9959,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               type={showAulaaSecrets ? 'text' : 'password'}
                               value={googleSettings.aulaa_api_key || ''}
                               onChange={(e) => setGoogleSettings(prev => ({ ...prev, aulaa_api_key: e.target.value }))}
-                              placeholder="Contoh: aulk_live_xxxxxxxxxxxxxxxx"
+                              placeholder="Contoh: pgw_id_xxxxxxxxxxxxxxxx"
                               style={{
                                 width: '100%',
                                 padding: '0.65rem 0.85rem',
@@ -9975,6 +10015,77 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                 fontFamily: 'monospace'
                               }}
                             />
+                          </div>
+
+                          {/* Test Connection Button & Live Indicator */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                              <button
+                                type="button"
+                                disabled={isTestingAulaa || !googleSettings.aulaa_api_key}
+                                onClick={handleTestAulaaConnection}
+                                style={{
+                                  padding: '0.55rem 0.95rem',
+                                  borderRadius: '0.5rem',
+                                  backgroundColor: isTestingAulaa ? theme.cardAlt : 'rgba(16, 185, 129, 0.15)',
+                                  color: '#10b981',
+                                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  cursor: (isTestingAulaa || !googleSettings.aulaa_api_key) ? 'not-allowed' : 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.45rem',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                {isTestingAulaa ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                                <span>{isTestingAulaa ? 'Menguji Koneksi...' : 'Uji Koneksi & Cek Metode Aktif'}</span>
+                              </button>
+                            </div>
+
+                            {/* Live Result Feedback */}
+                            {aulaaTestResult && (
+                              <div style={{
+                                padding: '0.75rem 0.85rem',
+                                borderRadius: '0.55rem',
+                                backgroundColor: aulaaTestResult.success ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                                border: `1px solid ${aulaaTestResult.success ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.4rem'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.76rem', fontWeight: 700, color: aulaaTestResult.success ? '#10b981' : '#ef4444' }}>
+                                  {aulaaTestResult.success ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                                  <span>{aulaaTestResult.message}</span>
+                                </div>
+                                {aulaaTestResult.methods && aulaaTestResult.methods.length > 0 && (
+                                  <div>
+                                    <span style={{ fontSize: '0.7rem', color: theme.textSecondary, display: 'block', marginBottom: '0.35rem' }}>
+                                      Metode Pembayaran Terdeteksi pada Project Aulaa:
+                                    </span>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                                      {aulaaTestResult.methods.map((m: any, idx: number) => (
+                                        <span
+                                          key={idx}
+                                          style={{
+                                            fontSize: '0.68rem',
+                                            fontWeight: 600,
+                                            padding: '0.2rem 0.5rem',
+                                            borderRadius: '9999px',
+                                            backgroundColor: theme.surface,
+                                            border: `1px solid ${theme.border}`,
+                                            color: theme.textPrimary
+                                          }}
+                                        >
+                                          {m.name || m.code} ({m.type})
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           {/* Webhook Endpoint Banner */}

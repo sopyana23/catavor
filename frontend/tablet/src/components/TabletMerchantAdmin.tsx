@@ -609,6 +609,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     setTimeout(() => setToast(null), 3000);
   };
 
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('payment') === 'success') {
+        const ord = params.get('order_number');
+        showToast(ord ? `Pembayaran Anda (${ord}) berhasil diverifikasi! Paket toko telah aktif.` : 'Pembayaran Anda berhasil diverifikasi! Paket toko telah aktif.', 'success');
+        params.delete('payment');
+        params.delete('order_number');
+        const newQuery = params.toString() ? `?${params.toString()}` : '';
+        window.history.replaceState({}, '', `${window.location.pathname}${newQuery}`);
+      }
+    } catch {}
+  }, []);
+
   const getHeaders = useCallback(() => ({
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json'
@@ -1027,6 +1041,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [previewProduct, setPreviewProduct] = useState<any | null>(null);
   const [previewImageIndex, setPreviewImageIndex] = useState<number>(0);
   const [showPreviewLightbox, setShowPreviewLightbox] = useState<boolean>(false);
+  const [adminDetailDragOffset, setAdminDetailDragOffset] = useState<number>(0);
+  const [isAdminDetailDragging, setIsAdminDetailDragging] = useState<boolean>(false);
+  const adminDetailTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const adminDetailSwipedRef = useRef<boolean>(false);
   const [catalogMetrics, setCatalogMetrics] = useState<{
     total_items?: number;
     active_items?: number;
@@ -7498,7 +7516,116 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   {/* Photo Gallery Column */}
                   <div>
                     <div
-                      onClick={() => setShowPreviewLightbox(true)}
+                      onClick={() => {
+                        if (adminDetailSwipedRef.current) {
+                          adminDetailSwipedRef.current = false;
+                          return;
+                        }
+                        setShowPreviewLightbox(true);
+                      }}
+                      onTouchStart={(e) => {
+                        if (displayImages.length <= 1) return;
+                        const touch = e.touches[0];
+                        adminDetailTouchStartRef.current = {
+                          x: touch.clientX,
+                          y: touch.clientY,
+                          time: Date.now()
+                        };
+                        adminDetailSwipedRef.current = false;
+                        setIsAdminDetailDragging(true);
+                      }}
+                      onTouchMove={(e) => {
+                        if (!adminDetailTouchStartRef.current || displayImages.length <= 1) return;
+                        const touch = e.touches[0];
+                        const deltaX = touch.clientX - adminDetailTouchStartRef.current.x;
+                        const deltaY = touch.clientY - adminDetailTouchStartRef.current.y;
+                        if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY)) {
+                          adminDetailSwipedRef.current = true;
+                          setAdminDetailDragOffset(deltaX * 0.45);
+                        }
+                      }}
+                      onTouchEnd={(e) => {
+                        if (!adminDetailTouchStartRef.current || displayImages.length <= 1) {
+                          setAdminDetailDragOffset(0);
+                          setIsAdminDetailDragging(false);
+                          adminDetailTouchStartRef.current = null;
+                          return;
+                        }
+                        const touch = e.changedTouches[0];
+                        const deltaX = touch.clientX - adminDetailTouchStartRef.current.x;
+                        const deltaY = touch.clientY - adminDetailTouchStartRef.current.y;
+                        const deltaTime = Date.now() - adminDetailTouchStartRef.current.time;
+                        const isSwipe = (Math.abs(deltaX) > 35 && deltaTime < 600) || Math.abs(deltaX) > 80;
+
+                        if (isSwipe && Math.abs(deltaX) > Math.abs(deltaY)) {
+                          if (deltaX < 0 && previewImageIndex < displayImages.length - 1) {
+                            setPreviewImageIndex(prev => prev + 1);
+                          } else if (deltaX > 0 && previewImageIndex > 0) {
+                            setPreviewImageIndex(prev => prev - 1);
+                          }
+                        }
+                        setAdminDetailDragOffset(0);
+                        setIsAdminDetailDragging(false);
+                        adminDetailTouchStartRef.current = null;
+                        setTimeout(() => {
+                          adminDetailSwipedRef.current = false;
+                        }, 50);
+                      }}
+                      onTouchCancel={() => {
+                        setAdminDetailDragOffset(0);
+                        setIsAdminDetailDragging(false);
+                        adminDetailTouchStartRef.current = null;
+                      }}
+                      onMouseDown={(e) => {
+                        if (displayImages.length <= 1) return;
+                        adminDetailTouchStartRef.current = {
+                          x: e.clientX,
+                          y: e.clientY,
+                          time: Date.now()
+                        };
+                        adminDetailSwipedRef.current = false;
+                        setIsAdminDetailDragging(true);
+                      }}
+                      onMouseMove={(e) => {
+                        if (!adminDetailTouchStartRef.current || !isAdminDetailDragging || displayImages.length <= 1) return;
+                        const deltaX = e.clientX - adminDetailTouchStartRef.current.x;
+                        const deltaY = e.clientY - adminDetailTouchStartRef.current.y;
+                        if (Math.abs(deltaX) > 8 && Math.abs(deltaX) > Math.abs(deltaY)) {
+                          adminDetailSwipedRef.current = true;
+                          setAdminDetailDragOffset(deltaX * 0.45);
+                        }
+                      }}
+                      onMouseUp={(e) => {
+                        if (!adminDetailTouchStartRef.current || displayImages.length <= 1) {
+                          setAdminDetailDragOffset(0);
+                          setIsAdminDetailDragging(false);
+                          adminDetailTouchStartRef.current = null;
+                          return;
+                        }
+                        const deltaX = e.clientX - adminDetailTouchStartRef.current.x;
+                        const deltaY = e.clientY - adminDetailTouchStartRef.current.y;
+                        const deltaTime = Date.now() - adminDetailTouchStartRef.current.time;
+                        const isSwipe = (Math.abs(deltaX) > 35 && deltaTime < 600) || Math.abs(deltaX) > 80;
+
+                        if (isSwipe && Math.abs(deltaX) > Math.abs(deltaY)) {
+                          if (deltaX < 0 && previewImageIndex < displayImages.length - 1) {
+                            setPreviewImageIndex(prev => prev + 1);
+                          } else if (deltaX > 0 && previewImageIndex > 0) {
+                            setPreviewImageIndex(prev => prev - 1);
+                          }
+                        }
+                        setAdminDetailDragOffset(0);
+                        setIsAdminDetailDragging(false);
+                        adminDetailTouchStartRef.current = null;
+                        setTimeout(() => {
+                          adminDetailSwipedRef.current = false;
+                        }, 50);
+                      }}
+                      onMouseLeave={() => {
+                        setAdminDetailDragOffset(0);
+                        setIsAdminDetailDragging(false);
+                        adminDetailTouchStartRef.current = null;
+                      }}
                       style={{
                         width: '100%',
                         aspectRatio: '1/1',
@@ -7507,17 +7634,108 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         border: '1px solid var(--border-light)',
                         backgroundColor: 'var(--bg-deep)',
                         position: 'relative',
-                        cursor: 'zoom-in'
+                        cursor: 'zoom-in',
+                        touchAction: 'pan-y',
+                        userSelect: 'none'
                       }}
-                      title="Klik untuk perbesar & lihat detail foto item"
+                      title="Geser ke samping untuk ganti foto atau klik untuk perbesar"
                     >
                       <img
                         src={currentActiveImg}
                         alt={prod.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          transform: adminDetailDragOffset !== 0 ? `translateX(${adminDetailDragOffset}px)` : 'none',
+                          transition: isAdminDetailDragging ? 'none' : 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+                          pointerEvents: 'none'
+                        }}
                       />
 
-                      {/* Bottom-Right Zoom Hint Badge */}
+                      {/* Chevrons for Fast Navigation */}
+                      {displayImages.length > 1 && previewImageIndex > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewImageIndex(prev => Math.max(0, prev - 1));
+                          }}
+                          style={{
+                            position: 'absolute',
+                            left: '0.5rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            backgroundColor: 'rgba(0,0,0,0.55)',
+                            backdropFilter: 'blur(4px)',
+                            color: '#ffffff',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            zIndex: 3
+                          }}
+                          title="Foto Sebelumnya"
+                        >
+                          <ChevronLeft size={18} />
+                        </button>
+                      )}
+
+                      {displayImages.length > 1 && previewImageIndex < displayImages.length - 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewImageIndex(prev => Math.min(displayImages.length - 1, prev + 1));
+                          }}
+                          style={{
+                            position: 'absolute',
+                            right: '0.5rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            backgroundColor: 'rgba(0,0,0,0.55)',
+                            backdropFilter: 'blur(4px)',
+                            color: '#ffffff',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            zIndex: 3
+                          }}
+                          title="Foto Berikutnya"
+                        >
+                          <ChevronRight size={18} />
+                        </button>
+                      )}
+
+                      {/* Image Counter Badge if > 1 images */}
+                      {displayImages.length > 1 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '0.65rem',
+                          left: '0.65rem',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '0.4rem',
+                          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                          backdropFilter: 'blur(4px)',
+                          color: '#ffffff',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          zIndex: 2
+                        }}>
+                          {previewImageIndex + 1} / {displayImages.length}
+                        </div>
+                      )}
+
+                      {/* Bottom-Right Zoom & Swipe Hint Badge */}
                       <div style={{
                         position: 'absolute',
                         bottom: '0.65rem',
@@ -7536,7 +7754,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         zIndex: 2
                       }}>
                         <ZoomIn size={12} />
-                        <span>Perbesar</span>
+                        <span>{displayImages.length > 1 ? 'Geser foto atau perbesar' : 'Perbesar'}</span>
                       </div>
 
                       {prod.is_active === false && (
