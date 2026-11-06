@@ -2,7 +2,7 @@ Write-Host "==============================================" -ForegroundColor Cya
 Write-Host "Starting Catavor Server (Without DB Updates)" -ForegroundColor Cyan
 Write-Host "==============================================" -ForegroundColor Cyan
 
-if (-not $env:PORT) { $env:PORT = "8000" }
+if (-not $env:PORT) { $env:PORT = "8001" }
 $env:DB_AUTO_MIGRATE = "false"
 $env:SKIP_DB_MIGRATE = "true"
 $rootDir = Split-Path -Parent $PSScriptRoot

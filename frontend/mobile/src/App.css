@@ -509,6 +509,8 @@
   justify-content: flex-end;
   animation: backdropFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: opacity;
+  touch-action: none;
+  overscroll-behavior: contain;
 }
 
 .bottom-sheet-backdrop.is-closing,
@@ -533,6 +535,7 @@
   width: 100%;
   overflow: hidden;
   will-change: transform;
+  overscroll-behavior: contain;
 }
 
 .bottom-sheet-content.is-closing,
