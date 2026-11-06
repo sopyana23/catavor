@@ -30,6 +30,8 @@ export const TabletImageLightbox: React.FC<TabletImageLightboxProps> = ({
   const [panPosition, setPanPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [lightboxDragOffset, setLightboxDragOffset] = useState<number>(0);
+  const [isLightboxSwiping, setIsLightboxSwiping] = useState<boolean>(false);
 
   // Touch gesture state for tablet (pinch-to-zoom & swipe)
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
@@ -55,6 +57,8 @@ export const TabletImageLightbox: React.FC<TabletImageLightboxProps> = ({
     setZoomScale(1);
     setPanPosition({ x: 0, y: 0 });
     setIsDragging(false);
+    setIsLightboxSwiping(false);
+    setLightboxDragOffset(0);
   }, [images.length]);
 
   // LIFO smart back navigation: closes ONLY the lightbox, keeping parent modal/sheet open!
@@ -147,8 +151,16 @@ export const TabletImageLightbox: React.FC<TabletImageLightboxProps> = ({
         x: e.clientX - panPosition.x,
         y: e.clientY - panPosition.y
       });
+    } else if (images.length > 1) {
+      touchStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        time: Date.now()
+      };
+      setIsLightboxSwiping(true);
+      setLightboxDragOffset(0);
     }
-  }, [zoomScale, panPosition]);
+  }, [zoomScale, panPosition, images.length]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isDragging && zoomScale > 1) {
@@ -157,12 +169,30 @@ export const TabletImageLightbox: React.FC<TabletImageLightboxProps> = ({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y
       });
+    } else if (isLightboxSwiping && zoomScale <= 1 && touchStartRef.current) {
+      const dx = e.clientX - touchStartRef.current.x;
+      setLightboxDragOffset(dx * 0.45);
     }
-  }, [isDragging, zoomScale, dragStart]);
+  }, [isDragging, zoomScale, dragStart, isLightboxSwiping]);
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (zoomScale > 1) {
+      setIsDragging(false);
+    } else if (isLightboxSwiping && touchStartRef.current) {
+      setIsLightboxSwiping(false);
+      setLightboxDragOffset(0);
+      const dx = e.clientX - touchStartRef.current.x;
+      const dt = Date.now() - touchStartRef.current.time;
+      if (images.length > 1 && Math.abs(dx) >= 35 && dt < 600) {
+        if (dx < 0) {
+          switchImage(currentIndex + 1);
+        } else {
+          switchImage(currentIndex - 1);
+        }
+      }
+      touchStartRef.current = null;
+    }
+  }, [zoomScale, isLightboxSwiping, images.length, currentIndex, switchImage]);
 
   // Touch gesture handlers for Tablet touch screens
   const getTouchDistance = (t1: React.Touch, t2: React.Touch) => {
@@ -200,6 +230,9 @@ export const TabletImageLightbox: React.FC<TabletImageLightboxProps> = ({
           x: touch.clientX - panPosition.x,
           y: touch.clientY - panPosition.y
         });
+      } else if (images.length > 1) {
+        setIsLightboxSwiping(true);
+        setLightboxDragOffset(0);
       }
     }
   };
@@ -220,6 +253,13 @@ export const TabletImageLightbox: React.FC<TabletImageLightboxProps> = ({
         x: touch.clientX - dragStart.x,
         y: touch.clientY - dragStart.y
       });
+    } else if (e.touches.length === 1 && isLightboxSwiping && zoomScale <= 1 && touchStartRef.current) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchStartRef.current.x;
+      const dy = touch.clientY - touchStartRef.current.y;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        setLightboxDragOffset(dx * 0.45);
+      }
     }
   };
 
@@ -231,16 +271,20 @@ export const TabletImageLightbox: React.FC<TabletImageLightboxProps> = ({
     if (isDragging) {
       setIsDragging(false);
     }
+    if (isLightboxSwiping) {
+      setIsLightboxSwiping(false);
+      setLightboxDragOffset(0);
+    }
 
     // Horizontal swipe navigation when not zoomed
-    if (zoomScale <= 1 && touchStartRef.current && e.changedTouches.length === 1) {
+    if (zoomScale <= 1 && touchStartRef.current && e.changedTouches.length === 1 && images.length > 1) {
       const touch = e.changedTouches[0];
       const deltaX = touch.clientX - touchStartRef.current.x;
       const deltaY = touch.clientY - touchStartRef.current.y;
       const deltaTime = Date.now() - touchStartRef.current.time;
 
-      // Check if quick horizontal swipe (> 60px distance within 350ms, mostly horizontal)
-      if (deltaTime < 350 && Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      // Natural horizontal swipe (>= 35px, mostly horizontal, within 600ms)
+      if (deltaTime < 600 && Math.abs(deltaX) >= 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
         if (deltaX < 0) {
           switchImage(currentIndex + 1);
         } else {
@@ -492,9 +536,11 @@ export const TabletImageLightbox: React.FC<TabletImageLightboxProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
-            transform: `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`,
-            transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-            touchAction: 'none'
+            transform: zoomScale > 1
+              ? `translate(${panPosition.x}px, ${panPosition.y}px) scale(${zoomScale})`
+              : (lightboxDragOffset !== 0 ? `translateX(${lightboxDragOffset}px)` : 'none'),
+            transition: isDragging || isLightboxSwiping ? 'none' : 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+            touchAction: zoomScale > 1 ? 'none' : 'pan-y'
           }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}

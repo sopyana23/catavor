@@ -308,6 +308,12 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   const [showDetailActionDropdown, setShowDetailActionDropdown] = useState<boolean>(false);
   const detailActionDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Gesture swipe states for tablet storefront detail media gallery
+  const detailTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const detailSwipedRef = useRef<boolean>(false);
+  const [detailDragOffset, setDetailDragOffset] = useState<number>(0);
+  const [isDetailDragging, setIsDetailDragging] = useState<boolean>(false);
+
   // Filters & Search
   const [search, setSearch] = useState<string>('');
   const [classFilter, setClassFilter] = useState<string>('all');
@@ -1034,14 +1040,116 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.15fr)', gap: '2rem', alignItems: 'start' }}>
             {/* Left Column: Media Gallery */}
             <div style={{ position: 'sticky', top: '80px' }}>
-              <div style={{
-                position: 'relative',
-                borderRadius: '1.15rem',
-                overflow: 'hidden',
-                border: '1px solid var(--border-light)',
-                backgroundColor: 'var(--bg-deep)',
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
-              }}>
+              <div 
+                style={{
+                  position: 'relative',
+                  borderRadius: '1.15rem',
+                  overflow: 'hidden',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                  touchAction: totalGalleryImages > 1 ? 'pan-y' : 'auto',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none'
+                }}
+                onTouchStart={(e) => {
+                  if (totalGalleryImages > 1 && e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    detailTouchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+                    detailSwipedRef.current = false;
+                    setIsDetailDragging(true);
+                    setDetailDragOffset(0);
+                  }
+                }}
+                onTouchMove={(e) => {
+                  if (!detailTouchStartRef.current || e.touches.length !== 1) return;
+                  const touch = e.touches[0];
+                  const dx = touch.clientX - detailTouchStartRef.current.x;
+                  const dy = touch.clientY - detailTouchStartRef.current.y;
+                  if (Math.abs(dx) > Math.abs(dy)) {
+                    setDetailDragOffset(dx * 0.42);
+                    if (Math.abs(dx) > 10) {
+                      detailSwipedRef.current = true;
+                    }
+                  }
+                }}
+                onTouchEnd={(e) => {
+                  setIsDetailDragging(false);
+                  setDetailDragOffset(0);
+                  if (detailTouchStartRef.current && totalGalleryImages > 1) {
+                    const touch = e.changedTouches[0];
+                    const dx = touch.clientX - detailTouchStartRef.current.x;
+                    const dy = touch.clientY - detailTouchStartRef.current.y;
+                    const dt = Date.now() - detailTouchStartRef.current.time;
+                    if (Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy) * 1.1 && dt < 600) {
+                      detailSwipedRef.current = true;
+                      if (dx < 0) {
+                        setActiveImageIndex((currentImgIdx + 1) % totalGalleryImages);
+                      } else {
+                        setActiveImageIndex((currentImgIdx - 1 + totalGalleryImages) % totalGalleryImages);
+                      }
+                    }
+                  }
+                  setTimeout(() => {
+                    detailSwipedRef.current = false;
+                  }, 180);
+                  detailTouchStartRef.current = null;
+                }}
+                onTouchCancel={() => {
+                  setIsDetailDragging(false);
+                  setDetailDragOffset(0);
+                  detailTouchStartRef.current = null;
+                  detailSwipedRef.current = false;
+                }}
+                onMouseDown={(e) => {
+                  if (totalGalleryImages > 1) {
+                    detailTouchStartRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+                    detailSwipedRef.current = false;
+                    setIsDetailDragging(true);
+                    setDetailDragOffset(0);
+                  }
+                }}
+                onMouseMove={(e) => {
+                  if (!detailTouchStartRef.current || !isDetailDragging) return;
+                  const dx = e.clientX - detailTouchStartRef.current.x;
+                  const dy = e.clientY - detailTouchStartRef.current.y;
+                  if (Math.abs(dx) > Math.abs(dy)) {
+                    setDetailDragOffset(dx * 0.42);
+                    if (Math.abs(dx) > 10) {
+                      detailSwipedRef.current = true;
+                    }
+                  }
+                }}
+                onMouseUp={(e) => {
+                  if (!isDetailDragging) return;
+                  setIsDetailDragging(false);
+                  setDetailDragOffset(0);
+                  if (detailTouchStartRef.current && totalGalleryImages > 1) {
+                    const dx = e.clientX - detailTouchStartRef.current.x;
+                    const dy = e.clientY - detailTouchStartRef.current.y;
+                    const dt = Date.now() - detailTouchStartRef.current.time;
+                    if (Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy) * 1.1 && dt < 600) {
+                      detailSwipedRef.current = true;
+                      if (dx < 0) {
+                        setActiveImageIndex((currentImgIdx + 1) % totalGalleryImages);
+                      } else {
+                        setActiveImageIndex((currentImgIdx - 1 + totalGalleryImages) % totalGalleryImages);
+                      }
+                    }
+                  }
+                  setTimeout(() => {
+                    detailSwipedRef.current = false;
+                  }, 180);
+                  detailTouchStartRef.current = null;
+                }}
+                onMouseLeave={() => {
+                  if (isDetailDragging) {
+                    setIsDetailDragging(false);
+                    setDetailDragOffset(0);
+                    detailTouchStartRef.current = null;
+                  }
+                }}
+              >
                 <img
                   src={currentImageSrc}
                   alt={selectedFauna.name}
@@ -1050,9 +1158,17 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                     aspectRatio: '1 / 1',
                     objectFit: 'cover',
                     display: 'block',
-                    cursor: 'zoom-in'
+                    cursor: 'zoom-in',
+                    transform: detailDragOffset !== 0 ? `translateX(${detailDragOffset}px)` : 'none',
+                    transition: isDetailDragging ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none'
                   }}
                   onClick={() => {
+                    if (detailSwipedRef.current) {
+                      detailSwipedRef.current = false;
+                      return;
+                    }
                     setLightboxIndex(currentImgIdx);
                     setShowLightbox(true);
                   }}
@@ -1160,7 +1276,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                   zIndex: 5
                 }}>
                   <ZoomIn size={12} />
-                  <span>Perbesar Foto</span>
+                  <span>{totalGalleryImages > 1 ? 'Geser foto atau perbesar' : 'Perbesar Foto'}</span>
                 </div>
               </div>
 
