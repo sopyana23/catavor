@@ -609,6 +609,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     setTimeout(() => setToast(null), 3000);
   };
 
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('payment') === 'success') {
+        const ord = params.get('order_number');
+        showToast(ord ? `Pembayaran Anda (${ord}) berhasil diverifikasi! Paket toko telah aktif.` : 'Pembayaran Anda berhasil diverifikasi! Paket toko telah aktif.', 'success');
+        params.delete('payment');
+        params.delete('order_number');
+        const newQuery = params.toString() ? `?${params.toString()}` : '';
+        window.history.replaceState({}, '', `${window.location.pathname}${newQuery}`);
+      }
+    } catch {}
+  }, []);
+
   const getHeaders = useCallback(() => ({
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json'

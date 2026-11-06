@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -384,6 +386,7 @@ func (h *AdHandler) CreateCampaign(c *fiber.Ctx) error {
 	// Format kode kampanye dan nomor invoice unik
 	campaignCode := fmt.Sprintf("CMP-%s-%04d", now.Format("20060102"), time.Now().Unix()%10000)
 	orderNumber := fmt.Sprintf("INV-AD-%s-%04d", now.Format("20060102"), time.Now().Unix()%10000)
+	var paymentURL string
 
 	// 4. Eksekusi Penyimpanan Atomik Transaksi Database
 	err := h.db.Transaction(func(tx *gorm.DB) error {
@@ -429,6 +432,39 @@ func (h *AdHandler) CreateCampaign(c *fiber.Ctx) error {
 			PaymentStatus:        "pending",
 			ExpiresAt:            &expiresAt,
 		}
+
+		// Periksa Mode Pembayaran Platform (gateway_aulaa / manual_qris)
+		var modeSetting models.Setting
+		paymentSystemMode := "manual_qris"
+		if err := tx.Where("key = ?", "payment_system_mode").First(&modeSetting).Error; err == nil && modeSetting.Value != "" {
+			paymentSystemMode = modeSetting.Value
+		}
+
+		if paymentSystemMode == "gateway_aulaa" && finalAmount > 0 {
+			order.GatewayProvider = "aulaa"
+			aulaaCfg := services.GetAulaaConfig(h.db)
+			if aulaaCfg.APIKey != "" && !strings.Contains(aulaaCfg.APIKey, "xxxxxxxx") {
+				redirectURL := fmt.Sprintf("/admin/ads?payment=success&order_number=%s", orderNumber)
+				if h.cfg != nil && h.cfg.AppURL != "" {
+					redirectURL = fmt.Sprintf("%s/admin/ads?payment=success&order_number=%s", strings.TrimRight(h.cfg.AppURL, "/"), orderNumber)
+				}
+				aulaaResp, aErr := services.CreateAulaaPayment(aulaaCfg, services.AulaaCreatePaymentRequest{
+					OrderID:     orderNumber,
+					Amount:      finalAmount,
+					RedirectURL: redirectURL,
+				})
+				if aErr == nil && aulaaResp != nil {
+					order.GatewayReference = aulaaResp.ID
+					order.GatewayPaymentLink = aulaaResp.PaymentLink
+					rawB, _ := json.Marshal(aulaaResp)
+					order.GatewayRawResponse = datatypes.JSON(rawB)
+					paymentURL = aulaaResp.PaymentLink
+				} else if aErr != nil {
+					log.Warn().Err(aErr).Msg("Aulaa CreatePayment untuk ad_order gagal; menggunakan order pending")
+				}
+			}
+		}
+
 		return tx.Create(&order).Error
 	})
 
@@ -447,6 +483,7 @@ func (h *AdHandler) CreateCampaign(c *fiber.Ctx) error {
 		"order_number":  orderNumber,
 		"final_amount":  finalAmount,
 		"unique_code":   uniqueCode,
+		"payment_url":   paymentURL,
 	})
 }
 

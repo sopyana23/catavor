@@ -418,6 +418,11 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
           setCreatedUserData(data.user);
         }
 
+        if (data.payment_url) {
+          window.location.href = data.payment_url;
+          return;
+        }
+
         setShowSuccessModal(true);
         if (onSuccess) {
           onSuccess(data.user);
@@ -1517,28 +1522,61 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
                     </p>
                   </div>
 
-                  <div>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '0.6rem', display: 'block' }}>
-                      Kanal Pembayaran yang Didukung:
-                    </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                      <div style={{ padding: '0.75rem 1rem', borderRadius: '0.65rem', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <QrCode size={20} color="#059669" />
-                        <div>
-                          <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>QRIS Instan</div>
-                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>GoPay, OVO, ShopeePay, DANA</div>
-                        </div>
-                      </div>
+                  {(() => {
+                    const showQRIS = platformSettings.payment_aulaa_channel_qris !== '0';
+                    const showVA = platformSettings.payment_aulaa_channel_va !== '0';
+                    const showEWallet = platformSettings.payment_aulaa_channel_ewallet !== '0';
+                    const showCC = platformSettings.payment_aulaa_channel_cc === '1';
 
-                      <div style={{ padding: '0.75rem 1rem', borderRadius: '0.65rem', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <CreditCard size={20} color="#0284c7" />
-                        <div>
-                          <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>Virtual Account</div>
-                          <div style={{ fontSize: '0.7rem', color: '#64748b' }}>BCA, Mandiri, BRI, BNI</div>
+                    return (
+                      <div>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '0.6rem', display: 'block' }}>
+                          Kanal Pembayaran yang Didukung:
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                          {showQRIS && (
+                            <div style={{ padding: '0.75rem 1rem', borderRadius: '0.65rem', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                              <QrCode size={20} color="#059669" />
+                              <div>
+                                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>QRIS Instan</div>
+                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>GoPay, OVO, ShopeePay</div>
+                              </div>
+                            </div>
+                          )}
+
+                          {showVA && (
+                            <div style={{ padding: '0.75rem 1rem', borderRadius: '0.65rem', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                              <CreditCard size={20} color="#0284c7" />
+                              <div>
+                                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>Virtual Account</div>
+                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>BCA, Mandiri, BRI, BNI</div>
+                              </div>
+                            </div>
+                          )}
+
+                          {showEWallet && (
+                            <div style={{ padding: '0.75rem 1rem', borderRadius: '0.65rem', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                              <Zap size={20} color="#d97706" />
+                              <div>
+                                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>Dompet Digital</div>
+                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>DANA, LinkAja, AstraPay</div>
+                              </div>
+                            </div>
+                          )}
+
+                          {showCC && (
+                            <div style={{ padding: '0.75rem 1rem', borderRadius: '0.65rem', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                              <CreditCard size={20} color="#7c3aed" />
+                              <div>
+                                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f172a' }}>Kartu Kredit / Debit</div>
+                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Visa &amp; Mastercard</div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   <button
                     type="button"

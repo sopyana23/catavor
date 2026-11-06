@@ -926,6 +926,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			subOrder.GatewayProvider = "aulaa"
 			aulaaCfg := services.GetAulaaConfig(h.db)
 			redirectURL := fmt.Sprintf("/%s/admin?payment=success&order_number=%s", newStore.Slug, orderNumber)
+			if h.cfg != nil && h.cfg.AppURL != "" {
+				redirectURL = fmt.Sprintf("%s/%s/admin?payment=success&order_number=%s", strings.TrimRight(h.cfg.AppURL, "/"), newStore.Slug, orderNumber)
+			}
 			aulaaResp, aErr := services.CreateAulaaPayment(aulaaCfg, services.AulaaCreatePaymentRequest{
 				OrderID:     orderNumber,
 				Amount:      finalAmount,

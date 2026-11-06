@@ -210,3 +210,23 @@ func TestSubscriptionHandler_RejectAndApprove(t *testing.T) {
 		}
 	})
 }
+
+func TestPaymentHandler_TestAulaaConnection(t *testing.T) {
+	db := setupTestDBForPayment(t)
+	handler := NewPaymentHandler(db)
+
+	app := fiber.New()
+	app.Post("/api/admin/payments/aulaa/test-connection", handler.TestAulaaConnection)
+
+	t.Run("empty API key returns 400 Bad Request", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/admin/payments/aulaa/test-connection", bytes.NewBufferString(`{"api_key": ""}`))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode != fiber.StatusBadRequest {
+			t.Errorf("status = %d, want 400", resp.StatusCode)
+		}
+	})
+}

@@ -4657,7 +4657,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     }
   }, [storeSlug]);
 
-  // Check 1-Click Reactivation URL Parameter (?reactivated=true)
+  // Check 1-Click Reactivation URL Parameter (?reactivated=true) & Gateway Return (?payment=success)
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -4671,6 +4671,15 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           dormancy_status: 'active',
           last_activity_at: new Date().toISOString()
         }));
+      }
+
+      if (params.get('payment') === 'success') {
+        const ord = params.get('order_number');
+        showToast(ord ? `Pembayaran Anda (${ord}) berhasil diverifikasi! Paket toko telah aktif.` : 'Pembayaran Anda berhasil diverifikasi! Paket toko telah aktif.', 'success');
+        params.delete('payment');
+        params.delete('order_number');
+        const newQuery = params.toString() ? `?${params.toString()}` : '';
+        window.history.replaceState({}, '', `${window.location.pathname}${newQuery}`);
       }
     } catch {}
   }, []);

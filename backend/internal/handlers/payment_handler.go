@@ -77,88 +77,172 @@ func (h *PaymentHandler) HandleAulaaWebhook(c *fiber.Ctx) error {
 	var order models.SubscriptionOrder
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("order_number = ?", orderNumber).
-		First(&order).Error; err != nil {
+		First(&order).Error; err == nil {
+		// Idempotency: Jika order sudah dibayar sebelumnya, acknowledge dengan 200 OK
+		if order.PaymentStatus == "paid" {
+			tx.Rollback()
+			return c.Status(fiber.StatusOK).JSON(fiber.Map{
+				"success": true,
+				"message": "Pesanan sudah berstatus lunas sebelumnya.",
+			})
+		}
+
+		cleanStatus := strings.ToLower(strings.TrimSpace(payload.Status))
+		if cleanStatus == "paid" {
+			now := time.Now().UTC()
+			order.PaymentStatus = "paid"
+			order.PaidAt = &now
+			if payload.PaymentMethod != "" {
+				order.PaymentMethod = strings.ToLower(payload.PaymentMethod)
+			}
+			order.GatewayRawResponse = datatypes.JSON(rawBody)
+
+			if err := tx.Save(&order).Error; err != nil {
+				tx.Rollback()
+				log.Error().Err(err).Msg("payment_webhook: gagal memperbarui status order ke paid")
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"success": false,
+					"message": "Gagal menyimpan status transaksi.",
+				})
+			}
+
+			quota, err := services.UpgradeStorePlan(tx, order.StoreID, order.PlanCode, order.DurationMonths)
+			if err != nil {
+				tx.Rollback()
+				log.Error().Err(err).Msg("payment_webhook: gagal aktivasi kuota toko")
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"success": false,
+					"message": "Gagal mengaktifkan paket toko.",
+				})
+			}
+
+			if err := tx.Commit().Error; err != nil {
+				log.Error().Err(err).Msg("payment_webhook: commit transaksi gagal")
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"success": false,
+					"message": "Gagal commit status pesanan.",
+				})
+			}
+
+			log.Info().
+				Uint("order_id", order.ID).
+				Str("order_number", order.OrderNumber).
+				Uint("store_id", order.StoreID).
+				Str("plan", order.PlanCode).
+				Msg("payment_webhook: transaksi Aulaa sukses diverifikasi & paket toko aktif")
+
+			_ = quota
+			return c.Status(fiber.StatusOK).JSON(fiber.Map{
+				"success": true,
+				"message": "Webhook pembayaran berhasil diproses dan paket telah aktif.",
+			})
+		} else if cleanStatus == "expired" || cleanStatus == "cancelled" {
+			order.PaymentStatus = cleanStatus
+			order.GatewayRawResponse = datatypes.JSON(rawBody)
+			_ = tx.Save(&order).Error
+			tx.Commit()
+			return c.Status(fiber.StatusOK).JSON(fiber.Map{
+				"success": true,
+				"message": fmt.Sprintf("Status pesanan diperbarui menjadi %s.", cleanStatus),
+			})
+		}
+
 		tx.Rollback()
-		log.Warn().Str("order_number", orderNumber).Msg("payment_webhook: pesanan tidak ditemukan di database")
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"success": true,
+			"message": "Status diterima tanpa perubahan.",
+		})
+	}
+
+	// 2. Jika tidak ditemukan di SubscriptionOrder, cari di AdOrder
+	var adOrder models.AdOrder
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("order_number = ?", orderNumber).
+		First(&adOrder).Error; err != nil {
+		tx.Rollback()
+		log.Warn().Str("order_number", orderNumber).Msg("payment_webhook: pesanan langganan/iklan tidak ditemukan di database")
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": fmt.Sprintf("Pesanan '%s' tidak ditemukan.", orderNumber),
 		})
 	}
 
-	// Idempotency: Jika order sudah dibayar sebelumnya, acknowledge dengan 200 OK
-	if order.PaymentStatus == "paid" {
+	if adOrder.PaymentStatus == "paid" {
 		tx.Rollback()
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"success": true,
-			"message": "Pesanan sudah berstatus lunas sebelumnya.",
+			"message": "Pesanan sewa iklan sudah berstatus lunas sebelumnya.",
 		})
 	}
 
 	cleanStatus := strings.ToLower(strings.TrimSpace(payload.Status))
 	if cleanStatus == "paid" {
 		now := time.Now().UTC()
-		order.PaymentStatus = "paid"
-		order.PaidAt = &now
+		adOrder.PaymentStatus = "paid"
+		adOrder.PaidAt = &now
 		if payload.PaymentMethod != "" {
-			order.PaymentMethod = strings.ToLower(payload.PaymentMethod)
+			adOrder.PaymentMethod = strings.ToLower(payload.PaymentMethod)
 		}
-		order.GatewayRawResponse = datatypes.JSON(rawBody)
+		adOrder.GatewayRawResponse = datatypes.JSON(rawBody)
 
-		if err := tx.Save(&order).Error; err != nil {
+		if err := tx.Save(&adOrder).Error; err != nil {
 			tx.Rollback()
-			log.Error().Err(err).Msg("payment_webhook: gagal memperbarui status order ke paid")
+			log.Error().Err(err).Msg("payment_webhook: gagal memperbarui status ad_order ke paid")
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"success": false,
-				"message": "Gagal menyimpan status transaksi.",
+				"message": "Gagal menyimpan status transaksi iklan.",
 			})
 		}
 
-		quota, err := services.UpgradeStorePlan(tx, order.StoreID, order.PlanCode, order.DurationMonths)
-		if err != nil {
+		// Aktifkan status kampanye iklan
+		if err := tx.Model(&models.AdCampaign{}).
+			Where("id = ?", adOrder.CampaignID).
+			Updates(map[string]interface{}{
+				"status":     "active",
+				"updated_at": now,
+			}).Error; err != nil {
 			tx.Rollback()
-			log.Error().Err(err).Msg("payment_webhook: gagal aktivasi kuota toko")
+			log.Error().Err(err).Msg("payment_webhook: gagal aktivasi kampanye iklan")
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"success": false,
-				"message": "Gagal mengaktifkan paket toko.",
+				"message": "Gagal mengaktifkan status kampanye iklan.",
 			})
 		}
 
 		if err := tx.Commit().Error; err != nil {
-			log.Error().Err(err).Msg("payment_webhook: commit transaksi gagal")
+			log.Error().Err(err).Msg("payment_webhook: commit transaksi sewa iklan gagal")
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"success": false,
-				"message": "Gagal commit status pesanan.",
+				"message": "Gagal commit status pesanan iklan.",
 			})
 		}
 
 		log.Info().
-			Uint("order_id", order.ID).
-			Str("order_number", order.OrderNumber).
-			Uint("store_id", order.StoreID).
-			Str("plan", order.PlanCode).
-			Msg("payment_webhook: transaksi Aulaa sukses diverifikasi & paket toko aktif")
+			Uint64("ad_order_id", adOrder.ID).
+			Str("order_number", adOrder.OrderNumber).
+			Uint64("campaign_id", adOrder.CampaignID).
+			Msg("payment_webhook: transaksi sewa iklan Aulaa sukses diverifikasi & kampanye aktif")
 
-		_ = quota
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"success": true,
-			"message": "Webhook pembayaran berhasil diproses dan paket telah aktif.",
+			"message": "Webhook pembayaran sewa iklan berhasil diproses dan kampanye telah aktif.",
 		})
 	} else if cleanStatus == "expired" || cleanStatus == "cancelled" {
-		order.PaymentStatus = cleanStatus
-		order.GatewayRawResponse = datatypes.JSON(rawBody)
-		_ = tx.Save(&order).Error
+		adOrder.PaymentStatus = cleanStatus
+		adOrder.GatewayRawResponse = datatypes.JSON(rawBody)
+		_ = tx.Save(&adOrder).Error
+		_ = tx.Model(&models.AdCampaign{}).Where("id = ?", adOrder.CampaignID).Update("status", "cancelled").Error
 		tx.Commit()
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"success": true,
-			"message": fmt.Sprintf("Status pesanan diperbarui menjadi %s.", cleanStatus),
+			"message": fmt.Sprintf("Status pesanan iklan diperbarui menjadi %s.", cleanStatus),
 		})
 	}
 
 	tx.Rollback()
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"success": true,
-		"message": "Status diterima tanpa perubahan.",
+		"message": "Status iklan diterima tanpa perubahan.",
 	})
 }
 
@@ -245,4 +329,45 @@ func (h *PaymentHandler) SyncOrderStatus(c *fiber.Ctx) error {
 		"order":   order,
 	})
 }
+
+// TestAulaaConnection allows platform administrators to test their Aulaa API credentials and fetch active payment channels
+func (h *PaymentHandler) TestAulaaConnection(c *fiber.Ctx) error {
+	var req struct {
+		APIKey  string `json:"api_key"`
+		BaseURL string `json:"base_url"`
+	}
+	_ = c.BodyParser(&req)
+
+	cfg := services.GetAulaaConfig(h.db)
+	if strings.TrimSpace(req.APIKey) != "" {
+		cfg.APIKey = strings.TrimSpace(req.APIKey)
+	}
+	if strings.TrimSpace(req.BaseURL) != "" {
+		cfg.BaseURL = strings.TrimRight(strings.TrimSpace(req.BaseURL), "/")
+	}
+
+	if cfg.APIKey == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "API Key Aulaa belum diisi. Masukkan API Key sebelum melakukan uji koneksi.",
+		})
+	}
+
+	methods, err := services.GetAulaaPaymentMethods(cfg)
+	if err != nil {
+		log.Warn().Err(err).Str("base_url", cfg.BaseURL).Msg("Uji koneksi Aulaa gagal")
+		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Gagal terhubung ke Aulaa API: %v", err),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success":  true,
+		"message":  "Koneksi ke Gateway Aulaa.co berhasil diverifikasi!",
+		"base_url": cfg.BaseURL,
+		"methods":  methods,
+	})
+}
+
 
