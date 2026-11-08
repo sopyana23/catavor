@@ -108,6 +108,9 @@ func main() {
 	// Initialize Search Telemetry & Demand Gap Buffer Ingestion
 	services.InitSearchTelemetryService(database.DB)
 
+	// Initialize Store Telemetry & Audience Dimensions Buffer Ingestion
+	services.InitStoreTelemetryService(database.DB)
+
 	// Start Background Transactional Email Queue Worker (Outbox Pattern with Exponential Retry)
 	services.InitEmailQueue(database.DB)
 
@@ -728,6 +731,7 @@ func main() {
 
 		// Audit & Market Intelligence
 		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)
+		adminApi.Get("/analytics/overview", middleware.RequireAnyPermission(cfg, "market_intel:manage", "audit:logs:read", "system:settings:manage"), analyticsHandler.GetGlobalAnalyticsOverview)
 		adminApi.Get("/market-intelligence", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetMarketIntelligenceSummary)
 		adminApi.Get("/market-intelligence/export", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.ExportMarketIntelligenceData)
 		adminApi.Get("/market-intelligence/trending-keywords", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetTrendingKeywords)
@@ -771,6 +775,9 @@ func main() {
 	<-quit
 
 	log.Info().Msg("Gracefully shutting down server...")
+	if svc := services.GetStoreTelemetryService(); svc != nil {
+		svc.Stop()
+	}
 	_ = app.ShutdownWithTimeout(5 * time.Second)
 	log.Info().Msg("Server stopped.")
 }

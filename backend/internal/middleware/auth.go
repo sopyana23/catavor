@@ -10,6 +10,7 @@ import (
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
+	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -280,12 +281,38 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		}
 
 		// Security Check: Verify if token has been revoked via Logout or Blacklist
-		if claims.ID != "" && database.IsTokenBlacklisted(claims.ID) {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"success": false,
-				"code":    "SESSION_REVOKED",
-				"message": "Sesi login telah dicabut atau Anda telah logout. Silakan masuk kembali.",
-			})
+		if claims.ID != "" {
+			if database.IsTokenBlacklisted(claims.ID) {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"code":    "SESSION_REVOKED",
+					"message": "Sesi login telah dicabut atau Anda telah logout. Silakan masuk kembali.",
+				})
+			}
+
+			// Anti-Zombie Session Check: Persistent revocation check in database
+			if database.DB != nil {
+				var isRevoked bool
+				err := database.DB.Model(&models.UserSession{}).
+					Select("is_revoked").
+					Where("token_id = ?", claims.ID).
+					Scan(&isRevoked).Error
+				if err == nil && isRevoked {
+					ttl := 72 * time.Hour
+					if claims.ExpiresAt != nil {
+						remaining := time.Until(claims.ExpiresAt.Time)
+						if remaining > 0 {
+							ttl = remaining
+						}
+					}
+					database.BlacklistToken(claims.ID, ttl)
+					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+						"success": false,
+						"code":    "SESSION_REVOKED",
+						"message": "Sesi login telah dicabut atau Anda telah logout. Silakan masuk kembali.",
+					})
+				}
+			}
 		}
 
 		// Retrieve user and their stores from DB to guarantee freshest state
@@ -369,6 +396,12 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			c.Locals("store", activeStore)
 			c.Locals("store_id", activeStore.ID)
 			c.Locals("store_slug", activeStore.Slug)
+		}
+
+		// Heartbeat / Last Seen Tracking (Throttled 5 menit di dalam TouchUserSession)
+		if claims.ID != "" {
+			clientIP := c.IP()
+			go services.TouchUserSession(claims.ID, clientIP)
 		}
 
 		return c.Next()

@@ -160,21 +160,12 @@ func (h *SessionHandler) RevokeOtherSessions(c *fiber.Ctx) error {
 		})
 	}
 
-	var otherSessions []models.UserSession
-	now := time.Now()
-	err := h.db.Where("user_id = ? AND token_id != ? AND is_revoked = false AND expires_at > ?", user.ID, claims.ID, now).
-		Find(&otherSessions).Error
+	revokedCount, err := services.RevokeOtherSessionsForUser(h.db, user.ID, claims.ID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memproses pencabutan sesi.",
 		})
-	}
-
-	revokedCount := 0
-	for _, s := range otherSessions {
-		_ = services.RevokeSessionByTokenID(h.db, s.TokenID)
-		revokedCount++
 	}
 
 	return c.JSON(fiber.Map{

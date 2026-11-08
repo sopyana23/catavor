@@ -55,21 +55,29 @@ export const initGoogleAdSense = (
     }
 
     // 2. Injeksi Tag Script Resmi Google AdSense di <head>
+    const scriptSrc = autoAdsEnabled
+      ? `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(formattedClient)}`
+      : 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
+
     let scriptTag = document.getElementById('google-adsense-head-script') as HTMLScriptElement | null;
     if (!scriptTag) {
       scriptTag = document.createElement('script');
       scriptTag.id = 'google-adsense-head-script';
       scriptTag.async = true;
       scriptTag.crossOrigin = 'anonymous';
-      scriptTag.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(formattedClient)}`;
+      scriptTag.src = scriptSrc;
       if (autoAdsEnabled) {
         scriptTag.setAttribute('data-ad-client', formattedClient);
+      } else {
+        scriptTag.removeAttribute('data-ad-client');
       }
       document.head.appendChild(scriptTag);
     } else {
-      scriptTag.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(formattedClient)}`;
+      scriptTag.src = scriptSrc;
       if (autoAdsEnabled) {
         scriptTag.setAttribute('data-ad-client', formattedClient);
+      } else {
+        scriptTag.removeAttribute('data-ad-client');
       }
     }
 

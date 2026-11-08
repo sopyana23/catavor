@@ -21,7 +21,8 @@ import {
   ShieldAlert,
   Upload,
   ExternalLink,
-  Tag
+  Tag,
+  Settings2
 } from 'lucide-react';
 import { createAuthFetch } from '../utils/auth';
 import { useModalBackHandler } from '../utils/navigation';
@@ -1514,8 +1515,8 @@ export const TabletQuotaWidget: React.FC<{
           onClick={onOpenUpgrade}
           title={isFree ? 'Upgrade ke Paket Pro' : 'Kelola Paket Langganan'}
           style={{
-            minHeight: '32px',
-            padding: '0.3rem 0.65rem',
+            minHeight: '34px',
+            padding: '0.35rem 0.75rem',
             borderRadius: '0.5rem',
             border: isFree ? 'none' : '1px solid var(--border-light)',
             backgroundColor: isFree ? 'var(--primary)' : 'var(--bg-deep)',
@@ -1525,14 +1526,23 @@ export const TabletQuotaWidget: React.FC<{
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.3rem',
+            gap: '0.35rem',
             flexShrink: 0,
             boxShadow: isFree ? '0 2px 6px var(--primary-glow)' : 'none',
             transition: 'all 0.15s ease'
           }}
         >
-          {isFree ? <Sparkles size={12} /> : null}
-          <span>{isFree ? 'Upgrade' : 'Kelola'}</span>
+          {isFree ? (
+            <>
+              <Sparkles size={13} style={{ flexShrink: 0 }} />
+              <span>Upgrade ke Pro</span>
+            </>
+          ) : (
+            <>
+              <Settings2 size={13} style={{ flexShrink: 0 }} />
+              <span>Kelola Paket</span>
+            </>
+          )}
         </button>
       </div>
 

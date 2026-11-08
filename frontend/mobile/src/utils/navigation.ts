@@ -19,11 +19,50 @@ let isPopstateListenerActive = false;
 let isInternalBackTriggered = false;
 let pendingProgrammaticPops = 0;
 
+let originalBodyOverflow = '';
+let originalHtmlOverflow = '';
+let originalBodyOverscroll = '';
+let originalHtmlOverscroll = '';
+let isScrollLocked = false;
+
+export function lockBodyScroll(): void {
+  if (typeof document === 'undefined') return;
+  if (!isScrollLocked) {
+    originalBodyOverflow = document.body.style.overflow || '';
+    originalHtmlOverflow = document.documentElement.style.overflow || '';
+    originalBodyOverscroll = document.body.style.overscrollBehavior || '';
+    originalHtmlOverscroll = document.documentElement.style.overscrollBehavior || '';
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+    document.documentElement.style.overscrollBehavior = 'none';
+    isScrollLocked = true;
+  }
+}
+
+export function unlockBodyScroll(): void {
+  if (typeof document === 'undefined') return;
+  if (isScrollLocked) {
+    document.body.style.overflow = originalBodyOverflow;
+    document.documentElement.style.overflow = originalHtmlOverflow;
+    document.body.style.overscrollBehavior = originalBodyOverscroll;
+    document.documentElement.style.overscrollBehavior = originalHtmlOverscroll;
+    isScrollLocked = false;
+  }
+}
+
 function notifyModalStackChange() {
   if (typeof window === 'undefined') return;
+  const isOpen = modalStack.length > 0;
+  if (isOpen) {
+    lockBodyScroll();
+  } else {
+    unlockBodyScroll();
+  }
   window.dispatchEvent(
     new CustomEvent('catavor:modal-stack-change', {
-      detail: { count: modalStack.length, isOpen: modalStack.length > 0 }
+      detail: { count: modalStack.length, isOpen }
     })
   );
 }

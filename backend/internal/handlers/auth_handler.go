@@ -1595,7 +1595,7 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
-	// Revoke current JWT token via Blacklist (Redis & Memory)
+	// Revoke current JWT token via Blacklist (Redis & Memory) and Database
 	if claims, ok := c.Locals("claims").(*middleware.JWTClaims); ok && claims != nil {
 		if claims.ID != "" {
 			ttl := 72 * time.Hour
@@ -1607,6 +1607,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 			}
 			database.BlacklistToken(claims.ID, ttl)
 			middleware.RevokeSessionFingerprint(claims.ID)
+			_ = services.RevokeSessionByTokenID(h.db, claims.ID)
 		}
 	} else {
 		// Fallback: extract optional claims if Locals not populated
@@ -1621,6 +1622,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 			}
 			database.BlacklistToken(claims.ID, ttl)
 			middleware.RevokeSessionFingerprint(claims.ID)
+			_ = services.RevokeSessionByTokenID(h.db, claims.ID)
 		}
 	}
 
@@ -1796,7 +1798,43 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		if activeStore == nil {
 			activeStore = user.Store
 		}
-		newToken, _ = middleware.GenerateToken(user, activeStore, h.cfg)
+		var newTokenID string
+		var expiresAt time.Time
+		var err error
+		newToken, newTokenID, expiresAt, err = middleware.GenerateTokenWithID(user, activeStore, h.cfg)
+		if err == nil {
+			// Update HttpOnly session cookie
+			setSessionCookie(c, h.cfg, newToken)
+
+			// Get current token ID prior to password change
+			var currentTokenID string
+			if claims, ok := c.Locals("claims").(*middleware.JWTClaims); ok && claims != nil {
+				currentTokenID = claims.ID
+			}
+
+			// Revoke all OTHER sessions in DB and Blacklist (OWASP ASVS 4.0 V3.3.1)
+			_, _ = services.RevokeOtherSessionsForUser(h.db, user.ID, currentTokenID)
+
+			// Migrate the current session record to the new token ID (or insert if not exists)
+			now := time.Now()
+			if currentTokenID != "" {
+				res := h.db.Model(&models.UserSession{}).
+					Where("token_id = ? AND user_id = ?", currentTokenID, user.ID).
+					Updates(map[string]interface{}{
+						"token_id":       newTokenID,
+						"expires_at":     expiresAt,
+						"last_active_at": now,
+						"updated_at":     now,
+					})
+				if res.RowsAffected == 0 {
+					services.RecordUserSession(user.ID, newTokenID, expiresAt, c.IP(), c.Get("User-Agent"))
+				}
+				// Blacklist the old token ID so it cannot be re-used
+				database.BlacklistToken(currentTokenID, time.Hour)
+			} else {
+				services.RecordUserSession(user.ID, newTokenID, expiresAt, c.IP(), c.Get("User-Agent"))
+			}
+		}
 	}
 
 	resMap := fiber.Map{

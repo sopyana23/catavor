@@ -7166,7 +7166,7 @@ Terima kasih.`;
     }
   };
 
-  const trackAnalytics = async (
+  const trackAnalytics = (
     eventType: 'store_view' | 'product_view' | 'direct_wa_click' | 'marketplace_click' | 'rekber_click' | 'video_view' | 'wa_click' | 'product_wa_click',
     productId?: number,
     productType?: string,
@@ -7174,32 +7174,47 @@ Terima kasih.`;
   ) => {
     const currentSlug = storeSlug || getStoreSlug();
     if (!currentSlug) return;
+    if (isStoreOwner) return;
     const sid = getAnonymousSessionId();
     const attr = getTrafficAttribution();
     try {
-      await fetch(`${API_BASE}/analytics/track`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          store_slug: currentSlug,
-          event: eventType,
-          product_id: productId || 0,
-          product_type: productType,
-          session_id: sid,
-          source: attr.source,
-          medium: attr.medium,
-          campaign: attr.campaign,
-          metadata: {
-            ...metadata,
-            referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
-            utm_source: attr.source,
-            utm_medium: attr.medium,
-            utm_campaign: attr.campaign
-          }
-        })
-      });
+      const resolvedProductName = metadata?.product_name || (productId && selectedFauna?.id === productId ? selectedFauna?.name : '') || '';
+      const payload = {
+        store_slug: currentSlug,
+        event: eventType,
+        product_id: productId || 0,
+        product_name: resolvedProductName,
+        product_type: productType,
+        session_id: sid,
+        source: attr.source,
+        medium: attr.medium,
+        campaign: attr.campaign,
+        metadata: {
+          ...metadata,
+          product_name: resolvedProductName,
+          referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
+          timezone: typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '',
+          screen_width: typeof window !== 'undefined' ? window.screen?.width : 0,
+          utm_source: attr.source,
+          utm_medium: attr.medium,
+          utm_campaign: attr.campaign
+        }
+      };
+
+      const jsonStr = JSON.stringify(payload);
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        navigator.sendBeacon(`${API_BASE}/analytics/track`, blob);
+      } else {
+        fetch(`${API_BASE}/analytics/track`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: jsonStr,
+          keepalive: true
+        }).catch(() => { });
+      }
     } catch (err) {
       // Telemetry should be non-blocking
     }
@@ -18819,6 +18834,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         if (itemWA.cleanNumber) {
                           if (isStoreOwner) {
                             showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
+                          } else {
+                            trackAnalytics('direct_wa_click', selectedFauna.id, selectedFauna.product_type, { product_name: selectedFauna.name });
                           }
                           const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n*${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon informasi detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
                           window.open(buildWALink(itemWA.cleanNumber, message), '_blank', 'noopener,noreferrer');
@@ -19844,7 +19861,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   }}
                 >
                   <span>Buat Katalog Gratis</span>
-                  <span>⚡</span>
+                  <ArrowRight size={14} style={{ flexShrink: 0 }} />
                 </button>
               </div>
             )}
@@ -20303,13 +20320,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       </div>
                     ) : (
                       <>
-                        {/* Google AdSense Header Banner (Free Tier only) */}
-                        <AdSenseUnit
-                          storePlan={settings.plan || 'free'}
-                          slotType="header"
-                          settings={settings}
-                          onUpgradeClick={() => setShowSubscriptionModal(true)}
-                        />
+                        {/* Google AdSense Slim Header Leaderboard (Free Tier only) */}
+                        <div style={{ maxWidth: '970px', margin: '0 auto 0.75rem auto', width: '100%' }}>
+                          <AdSenseUnit
+                            storePlan={settings.plan || 'free'}
+                            slotType="header"
+                            settings={settings}
+                            onUpgradeClick={() => setShowSubscriptionModal(true)}
+                          />
+                        </div>
 
                         <div className="fauna-grid">
                           {filteredFaunas.map((fauna, faunaIdx) => (
@@ -20643,7 +20662,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                 </div>
                               </div>
 
-                        {faunaIdx === 3 && (
+                        {faunaIdx === 3 && filteredFaunas.length >= 4 && (
                           <div style={{ gridColumn: '1 / -1' }}>
                             <AdSenseUnit
                               storePlan={settings.plan || 'free'}
@@ -29190,9 +29209,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       const slug = getStoreSlug();
                       if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
                     }}
-                    style={{ padding: '0.45rem 1.15rem', fontSize: '0.82rem' }}
+                    style={{ padding: '0.45rem 1.15rem', fontSize: '0.82rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                   >
-                    Lihat Paket Langganan
+                    <Sparkles size={14} style={{ flexShrink: 0 }} />
+                    <span>Lihat Paket Langganan</span>
                   </button>
                 ) : (
                   <button 
@@ -32557,6 +32577,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                 href={link.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={() => {
+                                  if (!isStoreOwner) {
+                                    trackAnalytics('marketplace_click', selectedFauna.id, selectedFauna.product_type, { product_name: selectedFauna.name, platform: link.platform });
+                                  }
+                                }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
                               >
                                 <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -32587,6 +32612,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                 href={normalizedLinks[0].url}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={() => {
+                                  if (!isStoreOwner) {
+                                    trackAnalytics('marketplace_click', selectedFauna.id, selectedFauna.product_type, { product_name: selectedFauna.name, platform: normalizedLinks[0].platform });
+                                  }
+                                }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
                               >
                                 <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

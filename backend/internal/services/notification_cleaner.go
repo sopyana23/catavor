@@ -99,6 +99,15 @@ func runCleanup(db *gorm.DB) {
 		log.Info().Int64("purged_count", resOrphaned.RowsAffected).Msg("Purged orphaned notification reads")
 	}
 
+	// 6. Delete expired user sessions older than 30 days (Industry Standard Housekeeping)
+	var purgedSessions int64
+	if count, err := CleanupExpiredUserSessions(db); err != nil {
+		log.Warn().Err(err).Msg("Failed to clean expired user sessions")
+	} else if count > 0 {
+		purgedSessions = count
+		log.Info().Int64("purged_count", count).Msg("Purged expired user sessions older than 30 days from database")
+	}
+
 	var totalCleaned int64
 	if resExpired.RowsAffected > 0 {
 		totalCleaned += resExpired.RowsAffected
@@ -114,6 +123,9 @@ func runCleanup(db *gorm.DB) {
 	}
 	if resOrphaned.RowsAffected > 0 {
 		totalCleaned += resOrphaned.RowsAffected
+	}
+	if purgedSessions > 0 {
+		totalCleaned += purgedSessions
 	}
 
 	summary := fmt.Sprintf("Pembersihan selesai. Total %d record kedaluwarsa dibersihkan.", totalCleaned)

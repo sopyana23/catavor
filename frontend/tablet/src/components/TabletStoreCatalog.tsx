@@ -70,6 +70,7 @@ import {
   ProductImportantInfoSection,
   cleanEmoji
 } from './TabletAboutComponents';
+import { AdSenseUnit } from './AdSenseUnit';
 
 export interface TabletStoreCatalogProps {
   slug: string;
@@ -290,6 +291,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   onBackToExplore
 }) => {
   const [settings, setSettings] = useState<any>(null);
+  const [platformSettings, setPlatformSettings] = useState<any>({});
   const [faunas, setFaunas] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -318,6 +320,17 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(d => {
+        if (d && (d.data || d)) setPlatformSettings(d.data || d);
+      })
+      .catch(() => {});
+  }, []);
+
+  const adSettings = useMemo(() => ({ ...platformSettings, ...settings }), [platformSettings, settings]);
 
   const isTabletMini = screenWidth < 880;
 
@@ -419,6 +432,84 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
       if (newWin) newWin.opener = null;
     }
   }, []);
+
+  // Telemetry & Visitor Tracking
+  const trackAnalytics = useCallback((
+    event: 'store_view' | 'product_view' | 'direct_wa_click' | 'marketplace_click' | 'rekber_click' | 'video_view',
+    productId?: number,
+    productType?: string,
+    productName?: string
+  ) => {
+    if (!slug) return;
+    try {
+      // Do not track store owner's own preview activity
+      const token = localStorage.getItem('catavor_token');
+      if (token) {
+        const activeSlug = localStorage.getItem('catavor_active_slug');
+        if (activeSlug && activeSlug.toLowerCase() === slug.toLowerCase()) return;
+        const rawStores = localStorage.getItem('catavor_stores');
+        if (rawStores) {
+          const parsedStores = JSON.parse(rawStores);
+          if (Array.isArray(parsedStores) && parsedStores.some((s: any) => s?.slug?.toLowerCase() === slug.toLowerCase())) {
+            return;
+          }
+        }
+      }
+
+      let sid = sessionStorage.getItem('ctv_sid');
+      if (!sid) {
+        sid = 'tab_' + Math.random().toString(36).substring(2, 12);
+        sessionStorage.setItem('ctv_sid', sid);
+      }
+      const params = new URLSearchParams(window.location.search);
+      const src = params.get('utm_source') || (document.referrer.includes('instagram') ? 'instagram' : document.referrer.includes('tiktok') ? 'tiktok' : document.referrer.includes('wa.me') ? 'whatsapp' : 'direct');
+      const med = params.get('utm_medium') || 'referral';
+      const cmp = params.get('utm_campaign') || '';
+
+      const payload = {
+        store_slug: slug,
+        event,
+        product_id: productId || 0,
+        product_name: productName || '',
+        product_type: productType || 'physical',
+        session_id: sid,
+        source: src,
+        medium: med,
+        campaign: cmp,
+        metadata: {
+          product_name: productName || '',
+          referrer: document.referrer || '',
+          screen_width: window.innerWidth,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        }
+      };
+
+      const jsonStr = JSON.stringify(payload);
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        navigator.sendBeacon('/api/analytics/track', blob);
+      } else {
+        fetch('/api/analytics/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: jsonStr,
+          keepalive: true
+        }).catch(() => {});
+      }
+    } catch {}
+  }, [slug]);
+
+  useEffect(() => {
+    if (slug) {
+      trackAnalytics('store_view');
+    }
+  }, [slug, trackAnalytics]);
+
+  useEffect(() => {
+    if (selectedFauna?.id) {
+      trackAnalytics('product_view', selectedFauna.id, selectedFauna.product_type, selectedFauna.name);
+    }
+  }, [selectedFauna, trackAnalytics]);
 
   // Global external link warning prompt listener
   useEffect(() => {
@@ -817,6 +908,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
       `Tautan: ${window.location.origin}/${slug}?item=${item.id}\n\n` +
       `Apakah pesanan ini dapat diproses? Terima kasih!`;
 
+    trackAnalytics('direct_wa_click', item.id, item.product_type, item.name);
     window.open(buildWALink(itemWA.cleanNumber, message), '_blank', 'noopener,noreferrer');
   };
 
@@ -3200,12 +3292,12 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                 </div>
               ) : (
                 <div className="tablet-catalog-grid">
-                  {filteredFaunas.map((fauna) => (
-                    <div
-                      key={fauna.id}
-                      onClick={() => fetchDetails(fauna.id)}
-                      className="tablet-catalog-card"
-                    >
+                  {filteredFaunas.map((fauna, faunaIdx) => (
+                    <React.Fragment key={fauna.id}>
+                      <div
+                        onClick={() => fetchDetails(fauna.id)}
+                        className="tablet-catalog-card"
+                      >
                       {/* Product Thumbnail */}
                       <div style={{
                         width: '100%',
@@ -3438,9 +3530,30 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    {/* Google AdSense In-Feed Banner (Tablet Free Tier only) */}
+                    {faunaIdx === 2 && filteredFaunas.length >= 3 && (
+                      <div style={{ gridColumn: '1 / -1', margin: '0.5rem 0' }}>
+                        <AdSenseUnit
+                          storePlan={settings?.plan || 'free'}
+                          slotType="infeed"
+                          settings={adSettings}
+                        />
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+
+            {/* Google AdSense Bottom Banner (Tablet Free Tier only) */}
+            <div style={{ marginTop: '1.25rem', marginBottom: '1.25rem' }}>
+              <AdSenseUnit
+                storePlan={settings?.plan || 'free'}
+                slotType="bottom"
+                settings={adSettings}
+              />
+            </div>
 
               {/* Tablet Native Server-Side Pagination Bar (Rule 7.C: Touch-Segmented Page Bar) */}
               {serverPagination.totalPages > 1 && (
