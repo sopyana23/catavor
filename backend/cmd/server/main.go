@@ -620,7 +620,10 @@ func main() {
 			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
 		guardedMutations.Post("/settings/policies",
 			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.UpdatePolicy)
-		guarded.Get("/settings/policy-audit-logs", settingHandler.GetPolicyAuditLogs)
+		// SECURITY (N-43): policy-audit-logs memuat AdminEmail dan AdminIP internal
+		// sehingga hanya boleh diakses oleh staf dengan izin system:settings:manage.
+		guarded.Get("/settings/policy-audit-logs",
+			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.GetPolicyAuditLogs)
 
 
 		// SECURITY (N-07): rute /reports di grup "guarded" tidak memfilter tenant

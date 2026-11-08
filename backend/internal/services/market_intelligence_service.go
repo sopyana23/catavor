@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -286,6 +287,18 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 	return summary, nil
 }
 
+func sanitizeMarketCSVCell(s string) string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return ""
+	}
+	switch trimmed[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + trimmed
+	}
+	return trimmed
+}
+
 // GenerateMarketIntelligenceCSV builds a downloadable CSV dataset for B2B intelligence.
 func GenerateMarketIntelligenceCSV(db *gorm.DB) ([]byte, error) {
 	summary, err := GetMacroMarketSummary(db)
@@ -318,7 +331,7 @@ func GenerateMarketIntelligenceCSV(db *gorm.DB) ([]byte, error) {
 	_ = w.Write([]string{"CATEGORY", "PRODUCT_COUNT", "AVG_PRICE_IDR", "VIEWS_30D", "ACTIONS_30D", "CONVERSION_RATE_PCT"})
 	for _, c := range summary.TopCategories {
 		_ = w.Write([]string{
-			c.CategoryName,
+			sanitizeMarketCSVCell(c.CategoryName),
 			strconv.FormatInt(c.ProductCount, 10),
 			fmt.Sprintf("%.0f", c.AveragePrice),
 			strconv.FormatInt(c.TotalViews, 10),
@@ -332,7 +345,7 @@ func GenerateMarketIntelligenceCSV(db *gorm.DB) ([]byte, error) {
 	_ = w.Write([]string{"CATEGORY", "MIN_PRICE_IDR", "AVG_PRICE_IDR", "MEDIAN_PRICE_IDR", "MAX_PRICE_IDR", "SAMPLE_SIZE"})
 	for _, p := range summary.PriceBenchmarks {
 		_ = w.Write([]string{
-			p.CategoryName,
+			sanitizeMarketCSVCell(p.CategoryName),
 			fmt.Sprintf("%.0f", p.MinPrice),
 			fmt.Sprintf("%.0f", p.AvgPrice),
 			fmt.Sprintf("%.0f", p.MedianPrice),

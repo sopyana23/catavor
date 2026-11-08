@@ -134,6 +134,9 @@ func (s *LocalStorageService) resolveSafeKey(key string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
+	if rp, err := filepath.EvalSymlinks(absRoot); err == nil {
+		absRoot = rp
+	}
 	candidate := filepath.Join(absRoot, filepath.FromSlash(cleanKey))
 
 	// EvalSymlinks bila ada, agar symlink keluar root ikut tertangkap.
@@ -146,7 +149,7 @@ func (s *LocalStorageService) resolveSafeKey(key string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
 		return "", false
 	}
 	return resolved, true
@@ -174,7 +177,10 @@ func (s *LocalStorageService) DeletePrefix(ctx context.Context, prefix string) e
 	if err != nil {
 		return fmt.Errorf("invalid storage root: %w", err)
 	}
-	if filepath.Clean(targetDir) == filepath.Clean(absRoot) {
+	if rp, err := filepath.EvalSymlinks(absRoot); err == nil {
+		absRoot = rp
+	}
+	if filepath.Clean(targetDir) == filepath.Clean(absRoot) || strings.EqualFold(filepath.Clean(targetDir), filepath.Clean(absRoot)) {
 		return fmt.Errorf("refusing to delete storage root itself")
 	}
 	if err := os.RemoveAll(targetDir); err != nil && !os.IsNotExist(err) {

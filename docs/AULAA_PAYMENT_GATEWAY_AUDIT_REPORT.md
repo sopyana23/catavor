@@ -155,19 +155,19 @@ Ketika merchant yang sudah memiliki toko melakukan **Upgrade** atau **Perpanjang
 
 ---
 
-## 6. Rekomendasi Perbaikan & Langkah Tindak Lanjut (Action Plan)
+## 6. Status Remediasi & Verifikasi Akhir (Diperbarui pada Audit Putaran 7 — 8 Nov 2026)
 
-Agar sistem **100% siap produksi** untuk integrasi Aulaa di halaman Publik maupun Admin Merchant pada ketiga perangkat (Desktop, Tablet, Mobile), berikut adalah daftar perbaikan terukur yang direkomendasikan:
+Seluruh rekomendasi teknis dan mitigasi keamanan integrasi Aulaa di halaman Publik maupun Admin Merchant pada ketiga perangkat (Desktop, Tablet, Mobile) telah **selesai diimplementasikan dan diverifikasi (100% Remediated)**:
 
-1. **Hardening Keamanan Webhook Aulaa ([`payment_handler.go`](file:///c:/MyProject/DFauna/backend/internal/handlers/payment_handler.go))**:
-   - Ubah validasi `WebhookSecret` menjadi **Fail-Closed**: wajib menolak request webhook apabila `aulaaCfg.WebhookSecret == ""` atau header `X-Webhook-Signature` kosong/tidak cocok.
-   - Tambahkan validasi nominal `payload.Amount >= order.FinalAmount` sebelum mengaktifkan paket.
-2. **Standarisasi `redirect_url` Absolut & `PaymentMode` Registrasi ([`auth_handler.go`](file:///c:/MyProject/DFauna/backend/internal/handlers/auth_handler.go) & [`subscription_service.go`](file:///c:/MyProject/DFauna/backend/internal/services/subscription_service.go))**:
-   - Pastikan `PaymentMode: "gateway_aulaa"` tercatat pada `SubscriptionOrder` saat registrasi publik (`auth_handler.go:952`).
-   - Bangun `redirect_url` absolut menggunakan origin/base URL request (`http(s)://host/{slug}/admin?payment=success&order_number={orderNumber}`) baik untuk Checkout Publik maupun Upgrade Admin Merchant.
-3. **Auto-Sync Real-Time Saat Redirect Kembali (`?payment=success&order_number=...`)**:
-   - Tambahkan endpoint atau dukung parameter `order_number` pada sinkronisasi status pesanan (`POST /api/subscription/orders/sync-by-number`), dan panggil otomatis di Desktop, Tablet, serta Mobile saat halaman `/admin?payment=success&order_number=...` terbuka, diikuti dengan pembaruan `fetchQuota()` seketika.
-4. **Penyelarasan Paritas Tablet & Checkout Publik**:
-   - Simpan `catavor_stores` dan `catavor_active_slug` di [`DesktopCheckoutView.tsx`](file:///c:/MyProject/DFauna/frontend/desktop/src/components/DesktopCheckoutView.tsx) dan [`TabletCheckoutView.tsx`](file:///c:/MyProject/DFauna/frontend/tablet/src/components/TabletCheckoutView.tsx) sebelum redirect ke `data.payment_url` agar identik dengan alur auto-login utama.
-   - Tambahkan tombol **"Bayar Online"** dan **"Cek Status"** pada Riwayat Tagihan di [`TabletMerchantAdmin.tsx`](file:///c:/MyProject/DFauna/frontend/tablet/src/components/TabletMerchantAdmin.tsx#L9061-L9110) serta segarkan `fetchQuota()` secara real-time.
+1. **[CLOSED] Hardening Keamanan Webhook Aulaa ([`payment_handler.go`](file:///c:/MyProject/agentA/catavor/backend/internal/handlers/payment_handler.go))**:
+   - Validasi `WebhookSecret` telah menerapkan **Fail-Closed**: menolak request webhook dengan HTTP `503` apabila `aulaaCfg.WebhookSecret == ""` dan HTTP `401` apabila header `X-Webhook-Signature` kosong/tidak cocok (`subtle.ConstantTimeCompare` HMAC-SHA256).
+   - Validasi kecocokan nominal (`payload.Amount >= order.FinalAmount`) dan penguncian baris (`clause.Locking{Strength: "UPDATE"}`) telah diterapkan sebelum mengaktifkan paket atau kampanye iklan.
+2. **[CLOSED] Proteksi IDOR / BOLA pada Sinkronisasi Pesanan (`N-41` — [`payment_handler.go`](file:///c:/MyProject/agentA/catavor/backend/internal/handlers/payment_handler.go))**:
+   - `SyncOrderStatus` memverifikasi kepemilikan tenant (`order.StoreID == callerStoreID`) untuk pemanggil non-staf, memvalidasi `statusResp.Amount >= order.FinalAmount`, serta membungkus pembaruan status dalam transaksi database atomik dengan `SELECT ... FOR UPDATE`.
+3. **[CLOSED] Proteksi SSRF, Masking Secret, & Anti-Exfiltration API Key (`N-42` — [`aulaa_service.go`](file:///c:/MyProject/agentA/catavor/backend/internal/services/aulaa_service.go) & [`setting_handler.go`](file:///c:/MyProject/agentA/catavor/backend/internal/handlers/setting_handler.go))**:
+   - `ValidateAulaaBaseURL` mewajibkan protokol `https://` serta memblokir alamat IP privat (RFC1918), loopback (`127.0.0.1`), dan link-local cloud metadata (`169.254.169.254`).
+   - `TestAulaaConnection` menolak mengirimkan `APIKey` yang tersimpan di database ke `BaseURL` baru kecuali administrator memasukkan `APIKey` secara eksplisit.
+   - `aulaa_api_key` dan `aulaa_webhook_secret` disensor (`****xxxx`) pada `GET /api/settings` dan dilindungi dari penimpaan nilai masking saat `POST /api/settings`.
+4. **[CLOSED] Standarisasi Auto-Login, `redirect_url` Absolut, & Auto-Sync Real-Time Lintas Tri-Frontend**:
+   - `DesktopCheckoutView.tsx`, `TabletCheckoutView.tsx`, dan `frontend/mobile/src/App.tsx` telah menyimpan `catavor_stores` dan `catavor_active_slug` sebelum redirect ke `data.payment_url`, serta otomatis melakukan sinkronisasi status pesanan (`order_number`) dan penyegaran kuota saat kembali ke `/{slug}/admin?payment=success&order_number=...`.
 

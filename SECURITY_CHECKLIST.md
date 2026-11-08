@@ -263,8 +263,10 @@ graph LR
 | **Database** | Parameterized Queries (Anti-SQLi) | **Sekarang (Lokal)** | 🟢 Aktif via GORM |
 | **Media & File** | Magic-byte MIME & EXIF Stripping | **Sekarang (Lokal)** | 🟢 Aktif di `UploadImage` |
 | **Autentikasi** | Bcrypt Cost 12 & Bounds Validation | **Sekarang (Lokal)** | 🟢 Diterapkan di Auth Handler |
-| **Middleware** | HTTP Headers (CSP, Frame, Sniff) | **Sekarang (Lokal)** | 🟢 Diterapkan di Fiber |
-| **Anti-Abuse** | Rate Limiting Login, Register, Comments | **Sekarang (Lokal)** | 🟢 Diterapkan di Fiber Limiter |
+| **Middleware** | HTTP Headers (CSP SHA-256 Hash, Frame, Sniff) | **Sekarang (Lokal)** | 🟢 Diterapkan di Fiber (`security.go`) |
+| **Anti-Abuse** | Rate Limiting Login, Register, Comments, Ads | **Sekarang (Lokal)** | 🟢 Diterapkan di Fiber Limiter + Token Bucket |
+| **Tenant Isolation & RBAC** | Multi-Tenant Guard (`store_id`) & Staff Permission | **Sekarang (Lokal)** | 🟢 Diterapkan (`N-01` s/d `N-45` Closed) |
+| **Payment & Webhook** | Fail-Closed HMAC-SHA256, SSRF Guard, Row Lock | **Sekarang (Lokal)** | 🟢 Diterapkan (`payment_handler.go` & `aulaa_service.go`) |
 | **Jaringan & WAF** | Cloudflare DDoS Shield & Proxy | **Masa Depan (Server)** | 🟡 Wajib saat rilis domain publik |
 | **Enkripsi Data** | SSL/TLS 1.3 & Auto Let's Encrypt | **Masa Depan (Server)** | 🟡 Wajib saat setup VPS / Nginx |
 | **Akses Server** | SSH Key-Only & Fail2ban | **Masa Depan (Server)** | 🟡 Konfigurasi OS Linux |
@@ -272,4 +274,4 @@ graph LR
 | **DevSecOps** | Dependabot & Gosec CI/CD Scanner | **Masa Depan (Server)** | 🟡 Integrasi GitHub Actions |
 
 ---
-*Dokumen ini dibuat sebagai standar operasional prosedur (SOP) keamanan pengembangan dan operasional sistem Catavor (DFauna).*
+*Dokumen ini dibuat sebagai standar operasional prosedur (SOP) keamanan pengembangan dan operasional sistem Catavor (DFauna). Riwayat audit mendalam Putaran 7 (Hybrid Agent + Cloudflare Security Audit Methodology) tercatat pada [`security-audit/audit-putaran-7-2026-11-08.md`](security-audit/audit-putaran-7-2026-11-08.md).*

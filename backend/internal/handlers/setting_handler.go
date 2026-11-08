@@ -8,6 +8,7 @@ import (
 	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
+	"catavor-backend/internal/services"
 	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
@@ -119,6 +120,25 @@ func (h *SettingHandler) PublicIndex(c *fiber.Ctx) error {
 	})
 }
 
+// secretPlatformKeys lists sensitive credential keys that must be masked on GET /api/admin/settings
+// and protected against accidental overwrite by masked placeholder values ("****...").
+var secretPlatformKeys = map[string]bool{
+	"aulaa_api_key":        true,
+	"aulaa_webhook_secret": true,
+	"smtp_password":        true,
+}
+
+func maskSecretValue(val string) string {
+	trimmed := strings.TrimSpace(val)
+	if trimmed == "" {
+		return ""
+	}
+	if len(trimmed) <= 4 {
+		return "****"
+	}
+	return "****" + trimmed[len(trimmed)-4:]
+}
+
 func (h *SettingHandler) Index(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -131,7 +151,11 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 
 	res := make(map[string]string)
 	for _, s := range settings {
-		res[s.Key] = s.Value
+		if secretPlatformKeys[s.Key] {
+			res[s.Key] = maskSecretValue(s.Value)
+		} else {
+			res[s.Key] = s.Value
+		}
 	}
 
 	h.applyFallbacks(res)
@@ -382,6 +406,17 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 		})
 	}
 
+	if rawBaseURL, exists := payload["aulaa_base_url"]; exists && strings.TrimSpace(rawBaseURL) != "" {
+		validURL, err := services.ValidateAulaaBaseURL(rawBaseURL)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": err.Error(),
+			})
+		}
+		payload["aulaa_base_url"] = validURL
+	}
+
 	var filesToDelete []string
 
 	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
@@ -389,6 +424,10 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 		for k, v := range payload {
 			sanitizedKey := security.SanitizePlainText(k, 100)
 			if sanitizedKey == "" {
+				continue
+			}
+			// Jangan menimpa secret gateway/SMTP yang sudah tersimpan dengan nilai masking "****..."
+			if secretPlatformKeys[sanitizedKey] && strings.HasPrefix(strings.TrimSpace(v), "****") {
 				continue
 			}
 			sanitizedVal := security.SanitizeRichText(v, 10000)
@@ -627,6 +666,14 @@ func (h *SettingHandler) GetPolicyAuditLogs(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"success": false,
 			"message": "Database belum diinisialisasi.",
+		})
+	}
+	// SECURITY (N-43): Pertahanan berlapis di level handler agar merchant biasa tidak dapat membaca AdminEmail/AdminIP.
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || !middleware.IsPlatformStaffRole(user.PlatformRole) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses Ditolak: Hanya Pengelola Platform yang berwenang melihat log audit kebijakan.",
 		})
 	}
 	var logs []models.PolicyAuditLog

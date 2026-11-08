@@ -1488,6 +1488,21 @@ func (h *AnalyticsHandler) GetGlobalAnalyticsOverview(c *fiber.Ctx) error {
 	})
 }
 
+// isMarketIntelAllowed checks whether the Market Intelligence feature toggle is active.
+// Platform staff members (Admin/Superadmin) are always permitted to inspect the data.
+func (h *AnalyticsHandler) isMarketIntelAllowed(c *fiber.Ctx) bool {
+	if u, ok := c.Locals("user").(*models.User); ok && u != nil && u.IsPlatformStaff() {
+		return true
+	}
+	var setting models.Setting
+	if err := h.db.Where("key = ?", "market_intel_enabled").First(&setting).Error; err == nil {
+		if setting.Value == "0" || strings.EqualFold(setting.Value, "false") {
+			return false
+		}
+	}
+	return true
+}
+
 // GetMarketIntelligenceSummary returns macro industry trends, channel metrics, and price benchmarks with zero PII.
 func (h *AnalyticsHandler) GetMarketIntelligenceSummary(c *fiber.Ctx) error {
 	if h.db == nil {
@@ -1496,15 +1511,11 @@ func (h *AnalyticsHandler) GetMarketIntelligenceSummary(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	// Check if market intelligence is enabled
-	var setting models.Setting
-	if err := h.db.Where("key = ?", "market_intel_enabled").First(&setting).Error; err == nil {
-		if setting.Value == "0" || setting.Value == "false" {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"success": false,
-				"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
-			})
-		}
+	if !h.isMarketIntelAllowed(c) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
+		})
 	}
 
 	summary, err := services.GetMacroMarketSummary(h.db)
@@ -1528,6 +1539,12 @@ func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"success": false,
 			"message": "Database belum diinisialisasi.",
+		})
+	}
+	if !h.isMarketIntelAllowed(c) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
 		})
 	}
 	format := strings.ToLower(c.Query("format", "csv"))
@@ -1674,6 +1691,12 @@ func (h *AnalyticsHandler) GetTrendingKeywords(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false})
 	}
+	if !h.isMarketIntelAllowed(c) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
+		})
+	}
 	c.Set("Cache-Control", "private, no-cache")
 
 	now := time.Now().Unix()
@@ -1738,6 +1761,12 @@ func (h *AnalyticsHandler) GetDemandGaps(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false})
 	}
+	if !h.isMarketIntelAllowed(c) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
+		})
+	}
 	c.Set("Cache-Control", "private, no-cache")
 
 	now := time.Now().Unix()
@@ -1784,6 +1813,12 @@ func (h *AnalyticsHandler) GetDemandGaps(c *fiber.Ctx) error {
 func (h *AnalyticsHandler) GetCategoryPriceBenchmarks(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false})
+	}
+	if !h.isMarketIntelAllowed(c) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
+		})
 	}
 
 	summary, err := services.GetMacroMarketSummary(h.db)

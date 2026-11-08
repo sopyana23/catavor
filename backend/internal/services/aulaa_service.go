@@ -9,7 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -30,6 +33,67 @@ type AulaaConfig struct {
 	WebhookSecret string
 }
 
+// ValidateAulaaBaseURL validates an outbound Aulaa API base URL against SSRF vectors.
+// It enforces HTTPS, rejects embedded credentials, and blocks loopback, private (RFC1918),
+// link-local / cloud metadata (169.254.0.0/16), and internal hostnames unless
+// AULAA_ALLOW_LOCAL_HTTP=true is explicitly set for local integration tests.
+func ValidateAulaaBaseURL(rawURL string) (string, error) {
+	trimmed := strings.TrimRight(strings.TrimSpace(rawURL), "/")
+	if trimmed == "" {
+		return DefaultAulaaBaseURL, nil
+	}
+
+	u, err := url.Parse(trimmed)
+	if err != nil || u.Host == "" {
+		return "", fmt.Errorf("format Base URL Aulaa tidak valid")
+	}
+	if u.User != nil {
+		return "", fmt.Errorf("Base URL Aulaa tidak boleh memuat kredensial userinfo")
+	}
+
+	allowLocal := strings.EqualFold(strings.TrimSpace(os.Getenv("AULAA_ALLOW_LOCAL_HTTP")), "true")
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "https" && !(allowLocal && scheme == "http") {
+		return "", fmt.Errorf("Base URL Aulaa wajib menggunakan protokol HTTPS")
+	}
+
+	host := strings.ToLower(u.Hostname())
+	if host == "" {
+		return "", fmt.Errorf("hostname Base URL Aulaa kosong")
+	}
+
+	if !allowLocal {
+		if host == "localhost" || strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal") {
+			return "", fmt.Errorf("hostname lokal atau internal tidak diizinkan untuk Base URL Aulaa")
+		}
+		if ip := net.ParseIP(host); ip != nil {
+			if isDisallowedAulaaIP(ip) {
+				return "", fmt.Errorf("alamat IP privat, loopback, atau metadata tidak diizinkan untuk Base URL Aulaa")
+			}
+		} else if ips, lookupErr := net.LookupIP(host); lookupErr == nil {
+			for _, resolvedIP := range ips {
+				if isDisallowedAulaaIP(resolvedIP) {
+					return "", fmt.Errorf("hostname Base URL Aulaa mengarah ke alamat IP internal/privat yang dilarang")
+				}
+			}
+		}
+	}
+
+	return trimmed, nil
+}
+
+func isDisallowedAulaaIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	return ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() ||
+		ip.IsUnspecified()
+}
+
 // GetAulaaConfig retrieves active Aulaa credentials from the database settings
 func GetAulaaConfig(db *gorm.DB) AulaaConfig {
 	cfg := AulaaConfig{
@@ -48,8 +112,8 @@ func GetAulaaConfig(db *gorm.DB) AulaaConfig {
 		for _, s := range settings {
 			switch s.Key {
 			case "aulaa_base_url":
-				if strings.TrimSpace(s.Value) != "" {
-					cfg.BaseURL = strings.TrimRight(strings.TrimSpace(s.Value), "/")
+				if validURL, valErr := ValidateAulaaBaseURL(s.Value); valErr == nil && validURL != "" {
+					cfg.BaseURL = validURL
 				}
 			case "aulaa_api_key":
 				cfg.APIKey = strings.TrimSpace(s.Value)

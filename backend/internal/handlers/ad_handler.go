@@ -184,21 +184,28 @@ func (h *AdHandler) HandleAdClick(c *fiber.Ctx) error {
 		destinationURL = fmt.Sprintf("/u/%s?item=%d", camp.Store.Slug, camp.TargetProduct.ID)
 	}
 
-	// 2. Verifikasi tanda tangan HMAC (jika parameter lengkap)
-	if tsStr != "" && sig != "" {
-		_ = services.VerifyClickSignature(campaignCode, destinationURL, tsStr, sig, h.cfg.JWTSecret)
+	// 2. SECURITY (N-44): Verifikasi tanda tangan HMAC wajib lulus sebelum mencatat metrik klik.
+	// Redirect 302 tetap dijalankan agar navigasi pengunjung tidak terputus bila tautan kedaluwarsa,
+	// namun metrik klik tidak boleh dimanipulasi oleh request tanpa signature yang sah.
+	sigValid := false
+	if tsStr != "" && sig != "" && h.cfg != nil {
+		sigValid = services.VerifyClickSignature(campaignCode, destinationURL, tsStr, sig, h.cfg.JWTSecret)
 	}
 
-	// 3. Catat telemetri klik dengan perlindungan Token Bucket per IP (30 menit)
-	clientIP := c.IP()
-	sessionID := c.Cookies("ctv_session", "")
-	services.GetAdTelemetryService().RecordClick(camp.ID, camp.AdSlotID, camp.StoreID, clientIP, sessionID, isWAClick)
+	if sigValid && camp.Status == "active" {
+		// 3. Catat telemetri klik dengan perlindungan Token Bucket per IP (30 menit)
+		clientIP := c.IP()
+		sessionID := c.Cookies("ctv_session", "")
+		services.GetAdTelemetryService().RecordClick(camp.ID, camp.AdSlotID, camp.StoreID, clientIP, sessionID, isWAClick)
+	}
 
 	// 4. Redirect 302 seketika ke halaman katalog / item target
 	return c.Redirect(destinationURL, fiber.StatusTemporaryRedirect)
 }
 
 // RecordImpressionBatch menerima array impresi dari frontend untuk dicatat ke in-memory buffer.
+// SECURITY (N-44): membatasi ukuran batch maksimum (50 item) dan melakukan deduplikasi per pasangan
+// (campaign_id, ad_slot_id) dalam satu request untuk mencegah serangan amplifikasi impresi.
 func (h *AdHandler) RecordImpressionBatch(c *fiber.Ctx) error {
 	type ImpressionPayload struct {
 		CampaignID uint64 `json:"campaign_id"`
@@ -214,14 +221,33 @@ func (h *AdHandler) RecordImpressionBatch(c *fiber.Ctx) error {
 		})
 	}
 
+	const maxImpressionBatchSize = 50
+	if len(payload) > maxImpressionBatchSize {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Ukuran batch impresi melebihi batas maksimum (50 item).",
+		})
+	}
+
 	telemetry := services.GetAdTelemetryService()
+	seen := make(map[string]struct{}, len(payload))
+	recorded := 0
 	for _, item := range payload {
+		if item.CampaignID == 0 || item.AdSlotID == 0 || item.StoreID == 0 {
+			continue
+		}
+		dedupKey := fmt.Sprintf("%d:%d", item.CampaignID, item.AdSlotID)
+		if _, exists := seen[dedupKey]; exists {
+			continue
+		}
+		seen[dedupKey] = struct{}{}
 		telemetry.RecordImpression(item.CampaignID, item.AdSlotID, item.StoreID)
+		recorded++
 	}
 
 	return c.JSON(fiber.Map{
 		"success":  true,
-		"recorded": len(payload),
+		"recorded": recorded,
 	})
 }
 
@@ -739,7 +765,7 @@ func (h *AdHandler) VerifyAdPayment(c *fiber.Ctx) error {
 		log.Warn().Err(err).Uint64("order_id", orderID).Msg("Gagal memverifikasi pembayaran iklan")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": err.Error(),
+			"message": safeErrMsg(err, "Gagal memverifikasi pembayaran iklan."),
 		})
 	}
 

@@ -280,7 +280,10 @@ func (h *PaymentHandler) HandleAulaaWebhook(c *fiber.Ctx) error {
 	})
 }
 
-// SyncOrderStatus syncs payment state directly with Aulaa.co when requested by the store owner or admin
+// SyncOrderStatus syncs payment state directly with Aulaa.co when requested by the store owner or admin.
+// SECURITY (N-41): enforces tenant ownership (order.StoreID == callerStoreID) for non-staff callers,
+// validates paid amount against order.FinalAmount, and uses row-level locking (SELECT ... FOR UPDATE)
+// inside a DB transaction to prevent double-plan-extension race conditions with concurrent webhooks.
 func (h *PaymentHandler) SyncOrderStatus(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -297,6 +300,15 @@ func (h *PaymentHandler) SyncOrderStatus(c *fiber.Ctx) error {
 		})
 	}
 
+	var isPlatformStaff bool
+	if u, ok := c.Locals("user").(*models.User); ok && u != nil && u.IsPlatformStaff() {
+		isPlatformStaff = true
+	}
+	var callerStoreID uint
+	if sid, ok := c.Locals("store_id").(uint); ok {
+		callerStoreID = sid
+	}
+
 	var order models.SubscriptionOrder
 	if numID, err := strconv.Atoi(idOrNumber); err == nil && numID > 0 {
 		if err := h.db.First(&order, uint(numID)).Error; err != nil {
@@ -309,7 +321,22 @@ func (h *PaymentHandler) SyncOrderStatus(c *fiber.Ctx) error {
 		if err := h.db.Where("order_number = ?", idOrNumber).First(&order).Error; err != nil {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"success": false,
-				"message": fmt.Sprintf("Pesanan '%s' tidak ditemukan.", idOrNumber),
+				"message": "Pesanan tidak ditemukan.",
+			})
+		}
+	}
+
+	// SECURITY (N-41): Prevent cross-tenant IDOR / BOLA when invoked by a merchant.
+	if !isPlatformStaff {
+		if callerStoreID == 0 || order.StoreID != callerStoreID {
+			log.Warn().
+				Uint("caller_store_id", callerStoreID).
+				Uint("target_store_id", order.StoreID).
+				Str("order_number", order.OrderNumber).
+				Msg("payment_sync: cross-tenant order sync attempt blocked")
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"message": "Pesanan tidak ditemukan.",
 			})
 		}
 	}
@@ -339,35 +366,96 @@ func (h *PaymentHandler) SyncOrderStatus(c *fiber.Ctx) error {
 	aulaaCfg := services.GetAulaaConfig(h.db)
 	statusResp, err := services.CheckAulaaPaymentStatus(aulaaCfg, order.GatewayReference)
 	if err != nil {
+		log.Warn().Err(err).Str("order_number", order.OrderNumber).Msg("payment_sync: gagal memeriksa status ke Aulaa")
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
 			"success": false,
-			"message": fmt.Sprintf("Gagal memeriksa status ke Aulaa: %v", err),
+			"message": "Gagal memeriksa status pembayaran ke gateway Aulaa. Silakan coba beberapa saat lagi.",
 		})
 	}
 
-	if strings.ToLower(statusResp.Status) == "paid" {
+	if strings.ToLower(strings.TrimSpace(statusResp.Status)) == "paid" {
+		if statusResp.Amount > 0 && statusResp.Amount < order.FinalAmount {
+			log.Error().
+				Str("order_number", order.OrderNumber).
+				Float64("expected_amount", order.FinalAmount).
+				Float64("gateway_amount", statusResp.Amount).
+				Msg("payment_sync: underpayment detected from Aulaa status check")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Nominal pembayaran yang tercatat pada gateway kurang dari tagihan pesanan.",
+			})
+		}
+
+		tx := h.db.Begin()
+		if tx.Error != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal memulai transaksi database.",
+			})
+		}
+		defer func() {
+			if r := recover(); r != nil {
+				tx.Rollback()
+			}
+		}()
+
+		var lockedOrder models.SubscriptionOrder
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&lockedOrder, order.ID).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"message": "Pesanan tidak ditemukan.",
+			})
+		}
+
+		if lockedOrder.PaymentStatus == "paid" {
+			tx.Rollback()
+			quota, _ := services.GetStoreQuotaInfo(h.db, lockedOrder.StoreID)
+			return c.JSON(fiber.Map{
+				"success": true,
+				"message": "Pesanan sudah berstatus lunas.",
+				"data":    lockedOrder,
+				"order":   lockedOrder,
+				"quota":   quota,
+			})
+		}
+
 		now := time.Now().UTC()
-		order.PaymentStatus = "paid"
-		order.PaidAt = &now
+		lockedOrder.PaymentStatus = "paid"
+		lockedOrder.PaidAt = &now
 		if statusResp.PaymentMethod != "" {
-			order.PaymentMethod = strings.ToLower(statusResp.PaymentMethod)
+			lockedOrder.PaymentMethod = strings.ToLower(statusResp.PaymentMethod)
 		}
 		rawB, _ := json.Marshal(statusResp)
-		order.GatewayRawResponse = datatypes.JSON(rawB)
-		_ = h.db.Save(&order).Error
+		lockedOrder.GatewayRawResponse = datatypes.JSON(rawB)
+		if err := tx.Save(&lockedOrder).Error; err != nil {
+			tx.Rollback()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal menyimpan status pembayaran pesanan.",
+			})
+		}
 
-		quota, err := services.UpgradeStorePlan(h.db, order.StoreID, order.PlanCode, order.DurationMonths)
+		quota, err := services.UpgradeStorePlan(tx, lockedOrder.StoreID, lockedOrder.PlanCode, lockedOrder.DurationMonths)
 		if err != nil {
+			tx.Rollback()
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"success": false,
 				"message": "Pembayaran lunas namun gagal mengaktifkan paket toko.",
 			})
 		}
 
+		if err := tx.Commit().Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal menyelesaikan transaksi aktivasi paket.",
+			})
+		}
+
 		return c.JSON(fiber.Map{
 			"success": true,
 			"message": "Pembayaran berhasil diverifikasi langsung dari Aulaa.co!",
-			"order":   order,
+			"order":   lockedOrder,
 			"quota":   quota,
 		})
 	}
@@ -379,7 +467,8 @@ func (h *PaymentHandler) SyncOrderStatus(c *fiber.Ctx) error {
 	})
 }
 
-// TestAulaaConnection allows platform administrators to test their Aulaa API credentials and fetch active payment channels
+// TestAulaaConnection allows platform administrators to test their Aulaa API credentials and fetch active payment channels.
+// SECURITY (N-42): validates BaseURL against SSRF and prevents stored API key exfiltration to untrusted custom hosts.
 func (h *PaymentHandler) TestAulaaConnection(c *fiber.Ctx) error {
 	var req struct {
 		APIKey  string `json:"api_key"`
@@ -388,11 +477,30 @@ func (h *PaymentHandler) TestAulaaConnection(c *fiber.Ctx) error {
 	_ = c.BodyParser(&req)
 
 	cfg := services.GetAulaaConfig(h.db)
-	if strings.TrimSpace(req.APIKey) != "" {
-		cfg.APIKey = strings.TrimSpace(req.APIKey)
+	savedBaseURL := cfg.BaseURL
+
+	reqAPIKey := strings.TrimSpace(req.APIKey)
+	if reqAPIKey != "" && !strings.Contains(reqAPIKey, "****") {
+		cfg.APIKey = reqAPIKey
 	}
+
 	if strings.TrimSpace(req.BaseURL) != "" {
-		cfg.BaseURL = strings.TrimRight(strings.TrimSpace(req.BaseURL), "/")
+		validURL, err := services.ValidateAulaaBaseURL(req.BaseURL)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": err.Error(),
+			})
+		}
+		// SECURITY (N-42): Do not transmit the saved database APIKey to a different custom BaseURL
+		// unless the administrator explicitly supplies the APIKey in the test request.
+		if !strings.EqualFold(validURL, savedBaseURL) && (reqAPIKey == "" || strings.Contains(reqAPIKey, "****")) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Untuk menguji Base URL baru, masukkan kembali API Key Aulaa secara eksplisit demi keamanan kredensial.",
+			})
+		}
+		cfg.BaseURL = validURL
 	}
 
 	if cfg.APIKey == "" {
@@ -407,7 +515,7 @@ func (h *PaymentHandler) TestAulaaConnection(c *fiber.Ctx) error {
 		log.Warn().Err(err).Str("base_url", cfg.BaseURL).Msg("Uji koneksi Aulaa gagal")
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
 			"success": false,
-			"message": fmt.Sprintf("Gagal terhubung ke Aulaa API: %v", err),
+			"message": "Gagal terhubung ke Aulaa API. Periksa kembali Base URL dan validitas API Key Anda.",
 		})
 	}
 
