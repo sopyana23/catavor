@@ -234,6 +234,7 @@ type S3StorageService struct {
 	client        *minio.Client
 	bucket        string
 	publicBaseURL string
+	localRoot     string
 }
 
 func NewS3StorageService(cfg *config.Config) (*S3StorageService, error) {
@@ -298,6 +299,7 @@ func NewS3StorageService(cfg *config.Config) (*S3StorageService, error) {
 		client:        client,
 		bucket:        cfg.S3Bucket,
 		publicBaseURL: publicBaseURL,
+		localRoot:     cfg.StorageLocalRoot,
 	}, nil
 }
 
@@ -325,6 +327,18 @@ func (s *S3StorageService) Upload(ctx context.Context, key string, r io.Reader, 
 			},
 		})
 		if err == nil {
+			// Mirror copy ke disk lokal untuk ketersediaan instan dan cadangan offline
+			if isSeeker && s.localRoot != "" {
+				targetPath := filepath.Join(s.localRoot, filepath.FromSlash(cleanKey))
+				if mkErr := os.MkdirAll(filepath.Dir(targetPath), 0755); mkErr == nil {
+					if out, crErr := os.Create(targetPath); crErr == nil {
+						if _, skErr := seeker.Seek(0, io.SeekStart); skErr == nil {
+							_, _ = io.Copy(out, seeker)
+						}
+						_ = out.Close()
+					}
+				}
+			}
 			return s.GetURL(cleanKey), nil
 		}
 
@@ -348,11 +362,33 @@ func (s *S3StorageService) Upload(ctx context.Context, key string, r io.Reader, 
 		}
 	}
 
+	// Resilient fallback: bila Cloud Storage tidak dapat dijangkau setelah retry,
+	// simpan salinan lokal ke StorageLocalRoot agar aksi pengguna tidak gagal fatal.
+	if isSeeker && s.localRoot != "" {
+		targetPath := filepath.Join(s.localRoot, filepath.FromSlash(cleanKey))
+		if mkErr := os.MkdirAll(filepath.Dir(targetPath), 0755); mkErr == nil {
+			if out, crErr := os.Create(targetPath); crErr == nil {
+				if _, skErr := seeker.Seek(0, io.SeekStart); skErr == nil {
+					_, _ = io.Copy(out, seeker)
+					_ = out.Close()
+					log.Warn().Err(lastErr).Str("key", cleanKey).Msg("Cloud storage unavailable; saved to local storage mirror successfully")
+					return s.GetURL(cleanKey), nil
+				}
+				_ = out.Close()
+			}
+		}
+	}
+
 	return "", fmt.Errorf("failed to upload object to S3 after retries: %w", lastErr)
 }
 
 func (s *S3StorageService) Delete(ctx context.Context, key string) error {
 	cleanKey := strings.TrimLeft(filepath.ToSlash(key), "/")
+	if s.localRoot != "" {
+		targetPath := filepath.Join(s.localRoot, filepath.FromSlash(cleanKey))
+		_ = os.Remove(targetPath)
+		_ = os.Remove(targetPath + ".fiber.gz")
+	}
 	err := s.client.RemoveObject(ctx, s.bucket, cleanKey, minio.RemoveObjectOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to delete S3 object: %w", err)

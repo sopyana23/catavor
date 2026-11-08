@@ -28,6 +28,7 @@ import {
   clearUserActiveSlug,
   resolveAuthenticatedRedirect,
   hasValidSessionToken,
+  clearRegistrationDrafts,
   appendViewParam
 } from './utils/authSync';
 import { initGoogleAdSense } from './utils/googleAdSense';
@@ -245,14 +246,14 @@ export const App: React.FC = () => {
             if (data.active_store?.slug) {
               localStorage.setItem('catavor_active_slug', data.active_store.slug);
             }
-            if (!isPlatformAdmin(data.user)) {
-              const curPath = window.location.pathname.toLowerCase();
-              if (curPath === '/admin' || isCatalogChooserRoute(curPath)) {
-                const destination = resolveAuthenticatedRedirect(data.user);
-                const destPath = destination.split('?')[0].toLowerCase();
-                if (destPath !== curPath) {
-                  navigateTo(destination);
-                }
+            const curPath = window.location.pathname.toLowerCase();
+            const isGuestOnlyRoute = curPath === '/login' || curPath.endsWith('/login') || curPath === '/checkout' || curPath.startsWith('/checkout') || curPath === '/register' || curPath.startsWith('/register');
+            if (isGuestOnlyRoute || ((curPath === '/admin' || isCatalogChooserRoute(curPath)) && !isPlatformAdmin(data.user))) {
+              clearRegistrationDrafts();
+              const destination = resolveAuthenticatedRedirect(data.user);
+              const destPath = destination.split('?')[0].toLowerCase();
+              if (destPath !== curPath) {
+                navigateTo(destination);
               }
             }
           } else {
@@ -311,10 +312,15 @@ export const App: React.FC = () => {
         const shouldRedirect =
           pathname === '/login' ||
           pathname.endsWith('/login') ||
+          pathname === '/checkout' ||
+          pathname.startsWith('/checkout') ||
+          pathname === '/register' ||
+          pathname.startsWith('/register') ||
           (pathname === '/admin' && !isStaff) ||
           isCatalogChooserRoute(pathname);
 
         if (shouldRedirect) {
+          clearRegistrationDrafts();
           const destination = resolveAuthenticatedRedirect(u);
           const destPath = destination.split('?')[0].toLowerCase();
           if (destPath !== pathname) {
@@ -332,7 +338,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [token, currentUser]);
 
-  // Initial mount route check: if at /login, /admin (non-staff), or /catalogs with active token, immediately redirect to admin dashboard
+  // Initial mount route check: if at /login, /admin (non-staff), /checkout, /register, or /catalogs with active token, immediately redirect to admin dashboard
   useEffect(() => {
     const pathname = window.location.pathname.toLowerCase();
     const curToken = localStorage.getItem('catavor_token') || token;
@@ -346,10 +352,15 @@ export const App: React.FC = () => {
       const shouldRedirect =
         pathname === '/login' ||
         pathname.endsWith('/login') ||
+        pathname === '/checkout' ||
+        pathname.startsWith('/checkout') ||
+        pathname === '/register' ||
+        pathname.startsWith('/register') ||
         ((pathname === '/admin' || pathname.startsWith('/admin/')) && !isStaff) ||
         isCatalogChooserRoute(pathname);
 
       if (shouldRedirect) {
+        clearRegistrationDrafts();
         const destination = resolveAuthenticatedRedirect(u);
         const destPath = destination.split('?')[0].toLowerCase();
         if (destPath !== pathname) {
@@ -1604,6 +1615,20 @@ export const App: React.FC = () => {
 
   // 3B. DEDICATED CHECKOUT ROUTE (/checkout)
   if (isCheckoutRoute) {
+    if (hasValidSessionToken()) {
+      clearRegistrationDrafts();
+      navigateTo(resolveAuthenticatedRedirect(currentUser));
+      return null;
+    }
+    let registerForm: any = {};
+    try {
+      registerForm = JSON.parse(sessionStorage.getItem('catavor_register_form') || '{}');
+    } catch {}
+    if (!registerForm.email || !registerForm.store_slug) {
+      navigateTo('/register');
+      return null;
+    }
+
     const qPlan = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('plan') : null;
     const qBilling = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('billing') : null;
     const resolvedPlan = (qPlan === 'pro_business' || qPlan === 'pro_starter' || qPlan === 'free')
@@ -1646,6 +1671,12 @@ export const App: React.FC = () => {
 
   // 3C. DEDICATED MULTI-STEP REGISTRATION ROUTE (/register, /register/step-2, /register/step-3)
   if (isRegisterRoute) {
+    if (hasValidSessionToken()) {
+      clearRegistrationDrafts();
+      navigateTo(resolveAuthenticatedRedirect(currentUser));
+      return null;
+    }
+
     let regStep: 1 | 2 | 3 = 1;
     if (currentPath === '/register/step-2') regStep = 2;
     else if (currentPath === '/register/step-3') regStep = 3;
@@ -2040,8 +2071,40 @@ export const App: React.FC = () => {
     <TabletPublicLanding
       onSelectStore={(slug) => navigateTo(`/${slug}`)}
       onOpenLogin={() => navigateTo('/login')}
-      onRegister={() => navigateTo('/register')}
+      onRegister={() => {
+        if (hasValidSessionToken()) {
+          clearRegistrationDrafts();
+          navigateTo(resolveAuthenticatedRedirect(currentUser));
+        } else {
+          navigateTo('/register');
+        }
+      }}
       onSelectPlan={(plan) => {
+        if (hasValidSessionToken()) {
+          clearRegistrationDrafts();
+          const destination = resolveAuthenticatedRedirect(currentUser);
+          if (plan === 'free') {
+            navigateTo(destination);
+          } else {
+            const rawStores = localStorage.getItem('catavor_stores');
+            let storesList: any[] = [];
+            if (rawStores) {
+              try { storesList = JSON.parse(rawStores); } catch {}
+            }
+            const selectedSessionSlug = typeof window !== 'undefined' ? sessionStorage.getItem('catavor_active_slug_selected') : null;
+            const targetSlug = (selectedSessionSlug && storesList.some(s => s.slug?.toLowerCase() === selectedSessionSlug?.toLowerCase()))
+              ? selectedSessionSlug
+              : (storesList[0]?.slug || '');
+
+            if (targetSlug) {
+              navigateTo(`/${targetSlug}/admin/subscription?plan=${plan}`);
+            } else {
+              navigateTo(destination);
+            }
+          }
+          return;
+        }
+
         try {
           sessionStorage.setItem('catavor_register_plan', plan);
           sessionStorage.setItem('catavor_register_billing', 'monthly');

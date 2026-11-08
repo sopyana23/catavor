@@ -51,8 +51,12 @@ type RegisterRequest struct {
 	Plan                 string  `json:"plan"`
 	BillingCycle         string  `json:"billing_cycle"`
 	PaymentMethod        string  `json:"payment_method"`
+	PaymentMode          string  `json:"payment_mode"`
 	PaymentStatus        string  `json:"payment_status"`
 	PaymentProofURL      string  `json:"payment_proof_url"`
+	PaymentNote          string  `json:"payment_note"`
+	SenderAccountName    string  `json:"sender_account_name"`
+	SenderPhone          string  `json:"sender_phone"`
 	CouponCode           string  `json:"coupon_code"`
 	AmountPaid           float64 `json:"amount_paid"`
 	WhatsappNumber       string  `json:"whatsapp_number"`
@@ -895,12 +899,24 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			orderTTL := time.Now().UTC().Add(2 * time.Hour)
 			orderExpiresAt = &orderTTL
 
-			if paymentSystemMode == "manual_qris" {
+			if paymentSystemMode == "manual_qris" && payMethod == "bank" {
 				uniqueCode, finalAmount = services.AllocateUniqueNominal(h.db, finalAmount)
 			}
 		}
 
 		orderNumber := fmt.Sprintf("INV-SUB-%s-%04d-%04d", time.Now().Format("20060102150405"), newStore.ID%10000, (time.Now().Nanosecond()/1000)%10000)
+		senderName := strings.TrimSpace(req.SenderAccountName)
+		if senderName == "" && paymentSystemMode == "manual_qris" {
+			senderName = strings.TrimSpace(req.Name)
+		}
+		senderPhone := strings.TrimSpace(req.SenderPhone)
+		if senderPhone == "" {
+			senderPhone = strings.TrimSpace(req.WhatsappNumber)
+		}
+		orderNotes := strings.TrimSpace(req.PaymentNote)
+		if orderNotes == "" {
+			orderNotes = fmt.Sprintf("Pendaftaran awal toko %s (%s)", storeTitle, requestedPlan)
+		}
 		subOrder := models.SubscriptionOrder{
 			StoreID:         newStore.ID,
 			UserID:          targetUser.ID,
@@ -916,20 +932,27 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			CouponCode:      cleanCoupon,
 			PaymentMethod:   payMethod,
 			PaymentMode:     paymentSystemMode,
+			SenderAccountName: senderName,
+			SenderPhone:       senderPhone,
 			PaymentProofURL: req.PaymentProofURL,
 			PaymentStatus:   orderPaymentStatus,
+			Notes:             orderNotes,
 			PaidAt:          orderPaidAt,
 			ExpiresAt:       orderExpiresAt,
 		}
 
 		if paymentSystemMode == "gateway_aulaa" && finalAmount > 0 {
+			subOrder.PaymentMode = "gateway_aulaa"
 			subOrder.GatewayProvider = "aulaa"
 			aulaaCfg := services.GetAulaaConfig(h.db)
 			if aulaaCfg.APIKey != "" && !strings.Contains(aulaaCfg.APIKey, "xxxxxxxx") {
-				redirectURL := fmt.Sprintf("/%s/admin?payment=success&order_number=%s", newStore.Slug, orderNumber)
-				if h.cfg != nil && h.cfg.AppURL != "" {
-					redirectURL = fmt.Sprintf("%s/%s/admin?payment=success&order_number=%s", strings.TrimRight(h.cfg.AppURL, "/"), newStore.Slug, orderNumber)
+				baseOrigin := ""
+				if h.cfg != nil && strings.TrimSpace(h.cfg.AppURL) != "" {
+					baseOrigin = strings.TrimRight(h.cfg.AppURL, "/")
+				} else {
+					baseOrigin = strings.TrimRight(c.BaseURL(), "/")
 				}
+				redirectURL := fmt.Sprintf("%s/%s/admin?payment=success&order_number=%s", baseOrigin, newStore.Slug, orderNumber)
 				aulaaResp, aErr := services.CreateAulaaPayment(aulaaCfg, services.AulaaCreatePaymentRequest{
 					OrderID:       orderNumber,
 					Amount:        finalAmount,

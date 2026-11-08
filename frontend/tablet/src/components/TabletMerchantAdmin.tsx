@@ -609,19 +609,40 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     setTimeout(() => setToast(null), 3000);
   };
 
+  const tabletFetchQuotaRef = useRef<(() => void) | null>(null);
+  const tabletFetchSubscriptionOrdersRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       if (params.get('payment') === 'success') {
         const ord = params.get('order_number');
         showToast(ord ? `Pembayaran Anda (${ord}) berhasil diverifikasi! Paket toko telah aktif.` : 'Pembayaran Anda berhasil diverifikasi! Paket toko telah aktif.', 'success');
+        if (ord) {
+          fetch(`/api/subscription/orders/${encodeURIComponent(ord)}/sync`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.quota) {
+                setQuota(data.quota);
+              }
+              if (tabletFetchQuotaRef.current) tabletFetchQuotaRef.current();
+              if (tabletFetchSubscriptionOrdersRef.current) tabletFetchSubscriptionOrdersRef.current();
+            })
+            .catch(() => {});
+        }
         params.delete('payment');
         params.delete('order_number');
         const newQuery = params.toString() ? `?${params.toString()}` : '';
         window.history.replaceState({}, '', `${window.location.pathname}${newQuery}`);
       }
     } catch {}
-  }, []);
+  }, [token]);
 
   const getHeaders = useCallback(() => ({
     'Authorization': `Bearer ${token}`,
@@ -2779,6 +2800,124 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       }
     } catch {}
   }, [token, storeSlug, currentUser]);
+
+  tabletFetchQuotaRef.current = fetchQuota;
+  tabletFetchSubscriptionOrdersRef.current = fetchSubscriptionOrders;
+
+  const [syncingOrderId, setSyncingOrderId] = useState<number | string | null>(null);
+
+  const handleSyncOrder = async (orderId: number | string) => {
+    setSyncingOrderId(orderId);
+    try {
+      const res = await fetch(`/api/subscription/orders/${encodeURIComponent(String(orderId))}/sync`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || 'Status pesanan berhasil disinkronkan', 'success');
+        if (data.quota) {
+          setQuota(data.quota);
+        }
+        fetchQuota();
+        fetchSubscriptionOrders();
+      } else {
+        showToast(data.message || 'Gagal menyinkronkan status pesanan', 'error');
+      }
+    } catch {
+      showToast('Gagal menghubungi server sinkronisasi', 'error');
+    } finally {
+      setSyncingOrderId(null);
+    }
+  };
+
+  // SSE Real-Time Quota Listener for Tablet
+  useEffect(() => {
+    if (!token) return;
+
+    let isMounted = true;
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: any = null;
+    let retryCount = 0;
+
+    const connectSSE = async () => {
+      if (!isMounted) return;
+      const currentToken = token || localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      if (!currentToken) return;
+
+      try {
+        let ticket = '';
+        try {
+          const tRes = await fetch('/api/notifications/ticket', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${currentToken}`
+            }
+          });
+          if (tRes.ok) {
+            const tJson = await tRes.json();
+            ticket = String(tJson?.ticket || '');
+          }
+        } catch {}
+
+        if (!isMounted) return;
+        if (!ticket) {
+          retryCount += 1;
+          const delay = Math.min(30000, 2000 * retryCount);
+          reconnectTimer = setTimeout(connectSSE, delay);
+          return;
+        }
+
+        const streamUrl = `/api/notifications/stream?ticket=${encodeURIComponent(ticket)}${storeSlug ? `&slug=${encodeURIComponent(storeSlug)}` : ''}`;
+        eventSource = new EventSource(streamUrl);
+
+        eventSource.onopen = () => {
+          retryCount = 0;
+        };
+
+        eventSource.onmessage = (e) => {
+          try {
+            const payload = JSON.parse(e.data);
+            if (payload && payload.event === 'quota_updated') {
+              if (payload.quota) {
+                setQuota(payload.quota);
+              }
+              if (tabletFetchQuotaRef.current) tabletFetchQuotaRef.current();
+              if (tabletFetchSubscriptionOrdersRef.current) tabletFetchSubscriptionOrdersRef.current();
+            }
+          } catch {}
+        };
+
+        eventSource.onerror = () => {
+          if (!isMounted) return;
+          if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+            try { eventSource.close(); } catch {}
+            eventSource = null;
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+            retryCount++;
+            reconnectTimer = setTimeout(() => {
+              if (isMounted) connectSSE();
+            }, delay);
+          }
+        };
+      } catch (err) {
+        console.warn('SSE notification stream error in tablet admin:', err);
+      }
+    };
+
+    connectSSE();
+
+    return () => {
+      isMounted = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (eventSource) eventSource.close();
+    };
+  }, [token, storeSlug]);
 
   // =========================================================================
   // 6. SUPPORT TICKETS & REAL-TIME REPLIES
@@ -9063,9 +9202,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                   {subscriptionOrders.map(order => {
-                    const statusBg = order.status === 'paid' ? 'rgba(16, 185, 129, 0.12)' : order.status === 'pending' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(100, 116, 139, 0.12)';
-                    const statusColor = order.status === 'paid' ? '#10b981' : order.status === 'pending' ? '#f59e0b' : '#64748b';
-                    const statusLabel = order.status === 'paid' ? 'Lunas' : order.status === 'pending' ? 'Menunggu Pembayaran' : order.status || 'Selesai';
+                    const st = order.payment_status || order.status;
+                    const isPaid = st === 'paid';
+                    const isPending = st === 'pending';
+                    const isPendingVerification = st === 'pending_verification';
+                    const isRejected = st === 'rejected';
+                    const isExpired = st === 'expired';
+                    const statusBg = isPaid ? 'rgba(16, 185, 129, 0.12)' : isPending ? 'rgba(245, 158, 11, 0.12)' : isPendingVerification ? 'rgba(59, 130, 246, 0.12)' : isRejected ? 'rgba(239, 68, 68, 0.12)' : 'rgba(100, 116, 139, 0.12)';
+                    const statusColor = isPaid ? '#10b981' : isPending ? '#f59e0b' : isPendingVerification ? '#3b82f6' : isRejected ? '#ef4444' : '#64748b';
+                    const statusLabel = isPaid ? 'Lunas / Aktif' : isPending ? 'Menunggu Pembayaran' : isPendingVerification ? 'Verifikasi Admin' : isRejected ? 'Ditolak' : isExpired ? 'Kedaluwarsa' : st || 'Selesai';
                     return (
                       <div
                         key={order.id}
@@ -9076,7 +9221,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           padding: '0.85rem 1rem',
                           borderRadius: '0.65rem',
                           backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)'
+                          border: '1px solid var(--border-light)',
+                          flexWrap: 'wrap',
+                          gap: '0.75rem'
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -9091,9 +9238,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           </div>
                         </div>
 
-                        <div style={{ textAlign: 'right' }}>
+                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}>
                           <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            Rp {Number(order.total_amount || order.amount || 0).toLocaleString('id-ID')}
+                            Rp {Number(order.final_amount ?? order.total_amount ?? order.amount ?? 0).toLocaleString('id-ID')}
                           </div>
                           <span style={{
                             display: 'inline-block',
@@ -9102,11 +9249,61 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             backgroundColor: statusBg,
                             color: statusColor,
                             fontSize: '0.72rem',
-                            fontWeight: 700,
-                            marginTop: '0.2rem'
+                            fontWeight: 700
                           }}>
                             {statusLabel}
                           </span>
+
+                          <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
+                            {isPending && order.gateway_payment_link && (
+                              <a
+                                href={order.gateway_payment_link}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  minHeight: '34px',
+                                  padding: '0.3rem 0.65rem',
+                                  borderRadius: '0.45rem',
+                                  background: 'var(--primary)',
+                                  color: '#ffffff',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 800,
+                                  textDecoration: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem'
+                                }}
+                              >
+                                <ExternalLink size={13} />
+                                <span>Bayar Online</span>
+                              </a>
+                            )}
+
+                            {(isPending || isPendingVerification) && (
+                              <button
+                                type="button"
+                                disabled={syncingOrderId === order.id}
+                                onClick={() => handleSyncOrder(order.id)}
+                                style={{
+                                  minHeight: '34px',
+                                  padding: '0.3rem 0.65rem',
+                                  borderRadius: '0.45rem',
+                                  background: 'var(--btn-secondary-bg, rgba(255,255,255,0.08))',
+                                  border: '1px solid var(--btn-secondary-border, var(--border-light))',
+                                  color: 'var(--btn-secondary-text, var(--text-primary))',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem'
+                                }}
+                              >
+                                <RefreshCw size={13} className={syncingOrderId === order.id ? 'animate-spin' : ''} />
+                                <span>{syncingOrderId === order.id ? 'Sinkron...' : 'Cek Status'}</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

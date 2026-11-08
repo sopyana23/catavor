@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  hasValidSessionToken,
+  clearRegistrationDrafts,
+  resolveAuthenticatedRedirect
+} from '../utils/authSync';
+import {
   Sparkles,
   ShieldAlert,
   CreditCard,
@@ -129,6 +134,28 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
     })()
   );
 
+  // Defensive Guard: Authenticated users must never access public registration checkout
+  useEffect(() => {
+    if (hasValidSessionToken()) {
+      clearRegistrationDrafts();
+      const rawUser = localStorage.getItem('catavor_user');
+      let u: any = null;
+      try { u = rawUser ? JSON.parse(rawUser) : null; } catch {}
+      const dest = resolveAuthenticatedRedirect(u);
+      window.location.replace(dest);
+      return;
+    }
+
+    // Guest Direct Access Guard: Redirect to registration if steps 1 & 2 are not completed
+    if (!registerForm.email || !registerForm.store_slug) {
+      if (onBack) {
+        onBack();
+      } else {
+        window.location.replace('/register');
+      }
+    }
+  }, [registerForm.email, registerForm.store_slug, onBack]);
+
   const [showAccountFormEdit, setShowAccountFormEdit] = useState<boolean>(() => {
     return !registerForm.name || !registerForm.email || !registerForm.store_name;
   });
@@ -169,7 +196,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch('/api/settings');
+        const res = await fetch('/api/settings', { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
           const s = json.data || json;
@@ -182,6 +209,27 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
       }
     };
     fetchSettings();
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'catavor_platform_settings_updated') {
+        fetchSettings();
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchSettings();
+      }
+    };
+    window.addEventListener('focus', fetchSettings);
+    window.addEventListener('catavor_platform_settings_updated', fetchSettings);
+    window.addEventListener('storage', handleStorage);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', fetchSettings);
+      window.removeEventListener('catavor_platform_settings_updated', fetchSettings);
+      window.removeEventListener('storage', handleStorage);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   const isCancelledRef = useRef<boolean>(false);
@@ -238,7 +286,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
   const normalPrice = registerPlan === 'free' ? 0 : (registerPlan === 'pro_business' ? 150000 : 65000);
 
   const discountAmount = appliedCoupon
-    ? (appliedCoupon.type === 'free' ? originalPrice : appliedCoupon.discount)
+    ? (appliedCoupon.type === 'free' ? originalPrice : Number(appliedCoupon.discount || (appliedCoupon as any).discount_amount || (appliedCoupon as any).discount_value || 0))
     : 0;
 
   const finalPrice = Math.max(0, originalPrice - discountAmount);
@@ -411,6 +459,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
         billing_cycle: registerBillingCycle,
         coupon_code: appliedCoupon?.code || '',
         payment_method: effectivePaymentMethod,
+        payment_mode: isFreeBypass ? 'free' : (isAulaa ? 'gateway_aulaa' : (paymentMethod === 'qris' ? 'manual_qris' : 'manual_bank')),
         payment_status: isFreeBypass ? 'approved' : 'pending_approval',
         payment_proof_url: isFreeBypass ? null : paymentProofPreview,
         payment_note: paymentProofNote ? paymentProofNote.trim() : undefined,
@@ -445,6 +494,13 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
           setCreatedUserData(data.user);
         }
+        if (data.stores && Array.isArray(data.stores)) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+        }
+        if (data.user?.store_slug) {
+          localStorage.setItem('catavor_active_slug', data.user.store_slug);
+        }
+        localStorage.setItem('catavor_password_changed', 'true');
 
         if (data.payment_url) {
           window.location.href = data.payment_url;
@@ -492,6 +548,28 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
       onCancel();
     } else {
       window.location.href = '/';
+    }
+  };
+
+  const handleDownloadQRIS = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    const qrisTarget = platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || '/img/qris_demo.svg';
+    if (!qrisTarget) return;
+    try {
+      const res = await fetch(qrisTarget);
+      if (!res.ok) throw new Error('File tidak dapat diakses');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const ext = qrisTarget.endsWith('.jpg') || qrisTarget.endsWith('.jpeg') ? '.jpg' : (qrisTarget.endsWith('.svg') ? '.svg' : '.png');
+      a.download = `QRIS_Catavor_Payment${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(qrisTarget, '_blank');
     }
   };
 
@@ -1929,9 +2007,9 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
                         Scan QRIS dengan GoPay, OVO, ShopeePay, DANA, BCA Mobile, Mandiri Livin, atau aplikasi m-banking lainnya.
                       </p>
 
-                      <a
-                        href={platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || '/img/qris_demo.svg'}
-                        download="QRIS_Catavor_Payment.svg"
+                      <button
+                        type="button"
+                        onClick={handleDownloadQRIS}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -1944,27 +2022,29 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
                           color: '#1d4ed8',
                           fontSize: '0.78rem',
                           fontWeight: 700,
-                          textDecoration: 'none'
+                          cursor: 'pointer'
                         }}
                       >
                         <Download size={15} />
                         <span>Download Gambar QRIS</span>
-                      </a>
+                      </button>
                     </div>
                   )}
 
-                  {/* Unique Code Info */}
-                  <div style={{
-                    padding: '0.75rem 0.95rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    fontSize: '0.78rem',
-                    color: '#1e40af',
-                    lineHeight: 1.45
-                  }}>
-                    <strong>Kode Unik Otomatis:</strong> Sistem akan mengalokasikan kode unik pada nomor tagihan untuk mempermudah verifikasi mutasi cepat oleh tim operasional.
-                  </div>
+                  {/* Unique Code Info (Hanya untuk Transfer Bank Manual) */}
+                  {paymentMethod === 'bank' && (
+                    <div style={{
+                      padding: '0.75rem 0.95rem',
+                      borderRadius: '0.65rem',
+                      backgroundColor: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      fontSize: '0.78rem',
+                      color: '#1e40af',
+                      lineHeight: 1.45
+                    }}>
+                      <strong>Kode Unik Otomatis:</strong> Sistem akan mengalokasikan kode unik pada nomor tagihan untuk mempermudah verifikasi mutasi cepat transfer bank oleh tim operasional.
+                    </div>
+                  )}
 
                   {/* Form Upload Bukti Transfer (MANDATORY GATE) */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>

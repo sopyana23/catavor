@@ -16,6 +16,7 @@ import {
   Clock,
   Search,
   RefreshCw,
+  RotateCcw,
   Eye,
   Send,
   Lock,
@@ -507,9 +508,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           if (ordRes.ok) {
             const oj = await ordRes.json();
             const olist = oj.data || [];
-            const pending = olist.filter((o: any) => o.status === 'pending_payment' || o.status === 'pending_verification').length;
-            const paidOrders = olist.filter((o: any) => o.status === 'paid' || o.status === 'active');
-            const rev = paidOrders.reduce((sum: number, o: any) => sum + (o.amount || o.price || 0), 0);
+            const pending = olist.filter((o: any) => {
+              const st = (o.payment_status || o.status || 'pending').toLowerCase();
+              return st === 'pending' || st === 'pending_payment' || st === 'pending_verification';
+            }).length;
+            const paidOrders = olist.filter((o: any) => {
+              const st = (o.payment_status || o.status || '').toLowerCase();
+              return st === 'paid' || st === 'active';
+            });
+            const rev = paidOrders.reduce((sum: number, o: any) => sum + Number(o.final_amount ?? o.amount ?? o.price ?? 0), 0);
             setPendingOrdersCount(pending);
             setMetrics(prev => ({
               ...prev,
@@ -1465,7 +1472,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
-  const [financeFilter, setFinanceFilter] = useState<'all' | 'pending_verification' | 'pending_payment' | 'paid' | 'rejected'>('all');
+  const [financeFilter, setFinanceFilter] = useState<'all' | 'pending' | 'pending_verification' | 'pending_payment' | 'paid' | 'rejected'>('all');
+  const [ordersConfigFilter, setOrdersConfigFilter] = useState<'all' | 'gateway_aulaa' | 'manual_qris' | 'manual_bank' | 'coupon_free'>('all');
+  const [ordersSearchQuery, setOrdersSearchQuery] = useState<string>('');
+  const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
+  const [actionLoadingOrder, setActionLoadingOrder] = useState<boolean>(false);
   const [financeSubTab, setFinanceSubTab] = useState<'orders' | 'settings' | 'coupons'>('orders');
   const [showAulaaSecrets, setShowAulaaSecrets] = useState(false);
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
@@ -1480,6 +1491,209 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<any | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  useModalBackHandler({
+    isOpen: showRejectModal,
+    onClose: () => {
+      setShowRejectModal(false);
+      setRejectionReason('');
+    },
+    modalId: 'tablet-finance-order-reject'
+  });
+  useModalBackHandler({
+    isOpen: Boolean(selectedReceiptOrder),
+    onClose: () => setSelectedReceiptOrder(null),
+    modalId: 'tablet-finance-order-receipt'
+  });
+
+  // Helper: Normalize & Describe Subscription Order Payment Configuration (100% Parity Across Devices)
+  const describeSubscriptionOrder = useCallback((o: any) => {
+    const rawStatus = (o?.payment_status || o?.status || 'pending').toLowerCase();
+    const isPending = rawStatus === 'pending' || rawStatus === 'pending_payment' || rawStatus === 'pending_verification';
+    const isActive = rawStatus === 'paid' || rawStatus === 'active';
+    const isRejected = rawStatus === 'rejected' || rawStatus === 'expired' || rawStatus === 'cancelled';
+
+    const finalAmount = Number(o?.final_amount ?? o?.amount ?? o?.price ?? 0);
+    const originalAmount = Number(o?.original_amount ?? (finalAmount > 0 ? finalAmount : 99000));
+    const discountAmount = Number(o?.discount_amount ?? 0);
+    const uniqueCode = Number(o?.unique_code ?? 0);
+    const couponCode = (o?.coupon_code || '').trim();
+    const methodRaw = (o?.payment_method || '').toLowerCase().trim();
+    const gatewayProvider = (o?.gateway_provider || '').toLowerCase().trim();
+    const gatewayRef = (o?.gateway_reference || '').trim();
+    const gatewayLink = (o?.gateway_payment_link || '').trim();
+    const gatewayRawResponse = (o?.gateway_raw_response || '').trim();
+
+    let configType: 'gateway_aulaa' | 'manual_qris' | 'manual_bank' | 'coupon_free' = 'manual_bank';
+    if (finalAmount === 0 && (couponCode || methodRaw === 'coupon_free' || discountAmount >= originalAmount)) {
+      configType = 'coupon_free';
+    } else if (
+      gatewayProvider === 'aulaa' ||
+      Boolean(gatewayRef) ||
+      Boolean(gatewayLink) ||
+      methodRaw.startsWith('aulaa') ||
+      ['va', 'ewallet', 'card'].includes(methodRaw)
+    ) {
+      configType = 'gateway_aulaa';
+    } else if (methodRaw.includes('qris')) {
+      configType = 'manual_qris';
+    } else {
+      configType = 'manual_bank';
+    }
+
+    const subChannelLabel =
+      configType === 'coupon_free'
+        ? 'Aktivasi Instan via Kupon Gratis 100%'
+        : configType === 'gateway_aulaa'
+          ? methodRaw.includes('va')
+            ? 'Virtual Account (Aulaa Gateway)'
+            : methodRaw.includes('ewallet')
+              ? 'E-Wallet / Dompet Digital (Aulaa Gateway)'
+              : methodRaw.includes('card')
+                ? 'Kartu Kredit / Debit (Aulaa Gateway)'
+                : 'QRIS Dinamis Instan (Aulaa Gateway)'
+          : configType === 'manual_qris'
+            ? `QRIS Statis Merchant (${googleSettings.payment_qris_manual_merchant || 'Catavor Official Merchant'})`
+            : `Transfer Rekening Bank (${googleSettings.payment_bank_name || 'Bank BCA'} - ${googleSettings.payment_bank_account || '8720192831'})`;
+
+    const configBadge =
+      configType === 'gateway_aulaa'
+        ? {
+            key: 'gateway_aulaa' as const,
+            label: 'AULAA PAYMENT GATEWAY',
+            shortLabel: 'Aulaa Gateway',
+            modeDesc: 'Otomatis via Webhook & API Aulaa.co',
+            color: '#38bdf8',
+            bg: 'rgba(56, 189, 248, 0.14)',
+            border: 'rgba(56, 189, 248, 0.35)'
+          }
+        : configType === 'manual_qris'
+          ? {
+              key: 'manual_qris' as const,
+              label: 'QRIS MERCHANT MANUAL',
+              shortLabel: 'QRIS Manual',
+              modeDesc: 'Verifikasi Bukti Scan QRIS Statis (Nominal Pas)',
+              color: '#a78bfa',
+              bg: 'rgba(139, 92, 246, 0.14)',
+              border: 'rgba(139, 92, 246, 0.35)'
+            }
+          : configType === 'coupon_free'
+            ? {
+                key: 'coupon_free' as const,
+                label: 'KUPON GRATIS 100%',
+                shortLabel: 'Kupon Gratis',
+                modeDesc: 'Bebas Biaya Tagihan (Rp 0)',
+                color: '#10b981',
+                bg: 'rgba(16, 185, 129, 0.14)',
+                border: 'rgba(16, 185, 129, 0.35)'
+              }
+            : {
+                key: 'manual_bank' as const,
+                label: 'TRANSFER BANK MANUAL',
+                shortLabel: 'Transfer Bank',
+                modeDesc: 'Verifikasi Mutasi Rekening & Kode Unik',
+                color: '#f59e0b',
+                bg: 'rgba(245, 158, 11, 0.14)',
+                border: 'rgba(245, 158, 11, 0.35)'
+              };
+
+    const statusMeta =
+      rawStatus === 'pending_verification'
+        ? {
+            label: 'MENUNGGU VERIFIKASI BUKTI',
+            shortLabel: 'Verifikasi Bukti',
+            color: '#38bdf8',
+            bg: 'rgba(56, 189, 248, 0.15)',
+            border: 'rgba(56, 189, 248, 0.35)'
+          }
+        : isPending
+          ? {
+              label: 'MENUNGGU PEMBAYARAN',
+              shortLabel: 'Pending Bayar',
+              color: '#f59e0b',
+              bg: 'rgba(245, 158, 11, 0.15)',
+              border: 'rgba(245, 158, 11, 0.35)'
+            }
+          : isActive
+            ? {
+                label: 'LUNAS & PAKET AKTIF',
+                shortLabel: 'Aktif / Lunas',
+                color: '#10b981',
+                bg: 'rgba(16, 185, 129, 0.15)',
+                border: 'rgba(16, 185, 129, 0.35)'
+              }
+            : rawStatus === 'expired'
+              ? {
+                  label: 'KEDALUWARSA',
+                  shortLabel: 'Kedaluwarsa',
+                  color: '#94a3b8',
+                  bg: 'rgba(148, 163, 184, 0.15)',
+                  border: 'rgba(148, 163, 184, 0.35)'
+                }
+              : {
+                  label: 'DITOLAK / DIBATALKAN',
+                  shortLabel: 'Ditolak',
+                  color: '#ef4444',
+                  bg: 'rgba(239, 68, 68, 0.15)',
+                  border: 'rgba(239, 68, 68, 0.35)'
+                };
+
+    const planCode = (o?.plan_code || o?.plan_name || o?.plan || 'pro').toLowerCase();
+    const planLabel =
+      planCode === 'pro_yearly' || planCode.includes('year')
+        ? 'PRO TAHUNAN (365 HARI)'
+        : planCode === 'free'
+          ? 'PAKET STARTER (FREE)'
+          : 'PRO BULANAN (30 HARI)';
+
+    const storeName = o?.store?.store_title || o?.store_name || (o?.store_id ? `Toko #${o.store_id}` : 'Merchant Catavor');
+    const storeSlug = o?.store?.slug || o?.store_slug || '';
+    const storeCategory = o?.store?.category || o?.store?.catalog_type || '';
+    const customerName = o?.user?.name || o?.sender_account_name || o?.store?.owner_name || 'Pemilik Toko';
+    const customerEmail = o?.user?.email || '';
+    const customerPhone = o?.sender_phone || o?.user?.whatsapp || o?.store?.whatsapp_number || '';
+    const senderAccountName = (o?.sender_account_name || '').trim();
+    const senderPhone = (o?.sender_phone || '').trim();
+    const notes = (o?.notes || '').trim();
+    const rejectionReasonText = (o?.rejection_reason || '').trim();
+    const orderNumber = o?.order_number || o?.invoice_number || `INV-SUB-${o?.id}`;
+    const proofUrl = (o?.payment_proof_url || o?.transfer_proof_url || '').trim();
+    const approvedByName = o?.approved_by_user?.name || (o?.approved_by ? `Admin #${o.approved_by}` : '');
+
+    return {
+      rawStatus,
+      isPending,
+      isActive,
+      isRejected,
+      finalAmount,
+      originalAmount,
+      discountAmount,
+      uniqueCode,
+      couponCode,
+      configType,
+      subChannelLabel,
+      configBadge,
+      statusMeta,
+      planCode,
+      planLabel,
+      storeName,
+      storeSlug,
+      storeCategory,
+      customerName,
+      customerEmail,
+      customerPhone,
+      senderAccountName,
+      senderPhone,
+      notes,
+      rejectionReason: rejectionReasonText,
+      orderNumber,
+      proofUrl,
+      gatewayProvider: gatewayProvider || (configType === 'gateway_aulaa' ? 'aulaa' : 'manual'),
+      gatewayRef,
+      gatewayLink,
+      gatewayRawResponse,
+      approvedByName
+    };
+  }, [googleSettings.payment_qris_manual_merchant, googleSettings.payment_bank_name, googleSettings.payment_bank_account]);
 
   // Tablet Platform Coupons State
   const [coupons, setCoupons] = useState<any[]>([]);
@@ -1516,7 +1730,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       });
       if (res.ok) {
         const j = await res.json();
-        setOrders(j.data || []);
+        const list = Array.isArray(j) ? j : (j.data || j.orders || []);
+        setOrders(list);
       }
     } catch {
       // Fail silently
@@ -1531,18 +1746,68 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   }, [activeView, fetchOrders, fetchSettings]);
 
   const filteredOrders = useMemo(() => {
+    const q = ordersSearchQuery.trim().toLowerCase();
     return orders.filter(o => {
-      if (financeFilter === 'all') return true;
-      if (financeFilter === 'paid') return o.status === 'paid' || o.status === 'active';
-      return o.status === financeFilter;
+      const desc = describeSubscriptionOrder(o);
+      if (financeFilter === 'pending' && !desc.isPending) return false;
+      if (financeFilter === 'pending_verification' && desc.rawStatus !== 'pending_verification') return false;
+      if (financeFilter === 'pending_payment' && desc.rawStatus !== 'pending' && desc.rawStatus !== 'pending_payment') return false;
+      if (financeFilter === 'paid' && !desc.isActive) return false;
+      if (financeFilter === 'rejected' && !desc.isRejected) return false;
+      if (ordersConfigFilter !== 'all' && desc.configType !== ordersConfigFilter) return false;
+      if (q) {
+        const hay = [
+          desc.orderNumber,
+          desc.storeName,
+          desc.storeSlug,
+          desc.customerName,
+          desc.customerEmail,
+          desc.customerPhone,
+          desc.senderAccountName,
+          desc.senderPhone,
+          desc.gatewayRef,
+          desc.couponCode,
+          desc.subChannelLabel,
+          String(o.id || '')
+        ].join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
     });
-  }, [orders, financeFilter]);
+  }, [orders, financeFilter, ordersConfigFilter, ordersSearchQuery, describeSubscriptionOrder]);
 
   const selectedOrder = useMemo(() => {
     return orders.find(o => o.id === selectedOrderId) || null;
   }, [orders, selectedOrderId]);
 
-  const handleUpdateOrderStatus = async (orderId: number, status: 'active' | 'rejected', notes?: string) => {
+  const handleSyncOrderWithAulaa = async (orderId: number) => {
+    if (!orderId) return;
+    setSyncingOrderId(orderId);
+    try {
+      const res = await authFetch(`/api/admin/subscription/orders/${orderId}/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showToast(data.message || 'Status pembayaran berhasil disinkronkan dengan Aulaa', 'success');
+        await fetchOrders();
+        loadPlatformStats();
+      } else {
+        showToast(data.message || 'Gagal sinkronisasi status dengan Aulaa', 'error');
+      }
+    } catch {
+      showToast('Kesalahan jaringan saat menghubungi gateway Aulaa', 'error');
+    } finally {
+      setSyncingOrderId(null);
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId: number, status: 'active' | 'rejected' | 'pending_verification', notes?: string) => {
+    setActionLoadingOrder(true);
     try {
       const res = await authFetch(`/api/admin/subscription/orders/${orderId}`, {
         method: 'PUT',
@@ -1550,19 +1815,32 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ status, rejection_reason: notes })
+        body: JSON.stringify({
+          status,
+          reason: notes || undefined,
+          rejection_reason: notes || undefined
+        })
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        showToast(status === 'active' ? 'Paket langganan berhasil diaktifkan!' : 'Pesanan ditandai ditolak.', 'success');
-        fetchOrders();
+        const msg =
+          status === 'active'
+            ? 'Pembayaran diverifikasi & paket Pro berhasil diaktifkan!'
+            : status === 'rejected'
+              ? 'Pesanan ditolak & status langganan disesuaikan'
+              : 'Pesanan dikembalikan ke antrean verifikasi pending';
+        showToast(data.message || msg, 'success');
+        await fetchOrders();
         loadPlatformStats();
         setShowRejectModal(false);
         setRejectionReason('');
       } else {
-        showToast('Gagal memproses pesanan', 'error');
+        showToast(data.message || 'Gagal memproses pembaruan status pesanan', 'error');
       }
     } catch {
       showToast('Kesalahan server', 'error');
+    } finally {
+      setActionLoadingOrder(false);
     }
   };
 
@@ -1597,6 +1875,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         savedQrisImageRef.current = (googleSettings.payment_qris_manual_image || '').trim();
         showToast('Konfigurasi sistem pembayaran berhasil disimpan!', 'success');
         fetchSettings();
+        window.dispatchEvent(new CustomEvent('catavor_platform_settings_updated', { detail: payload }));
       } else {
         showToast('Gagal menyimpan konfigurasi pembayaran', 'error');
       }
@@ -3370,218 +3649,271 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       )}
 
       {/* Finance Order Rejection Modal */}
-      {showRejectModal && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(0,0,0,0.65)',
-          zIndex: 99999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1rem'
-        }}>
+      {showRejectModal && (() => {
+        const targetOrd = selectedOrder || orders.find(o => o.id === selectedOrderId);
+        const rDesc = targetOrd ? describeSubscriptionOrder(targetOrd) : null;
+        return (
           <div style={{
-            width: '100%',
-            maxWidth: '480px',
-            backgroundColor: 'var(--bg-card)',
-            borderRadius: '1rem',
-            border: '1px solid var(--border-light)',
-            padding: '1.5rem',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
           }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-              Tolak Pembayaran Order #{selectedOrderId}
-            </h3>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 1rem 0' }}>
-              Tuliskan alasan penolakan bukti transfer agar merchant dapat mengunggah bukti valid.
-            </p>
-            <textarea
-              required
-              rows={3}
-              value={rejectionReason}
-              onChange={e => setRejectionReason(e.target.value)}
-              placeholder="Contoh: Bukti transfer tidak jelas / nominal tidak sesuai / nama pengirim berbeda"
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '0.5rem',
-                border: '1px solid var(--border-light)',
-                backgroundColor: 'var(--bg-deep)',
-                color: 'var(--text-primary)',
-                fontSize: '0.85rem',
-                boxSizing: 'border-box',
-                outline: 'none',
-                marginBottom: '1.25rem'
-              }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setRejectionReason('');
-                }}
+            <div style={{
+              width: '100%',
+              maxWidth: '500px',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1rem',
+              border: '1px solid var(--border-light)',
+              padding: '1.5rem',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
+            }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 0.45rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <AlertTriangle size={18} color="#ef4444" />
+                <span>Tolak / Batalkan Pesanan #{rDesc ? rDesc.orderNumber : selectedOrderId}</span>
+              </h3>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 0.85rem 0', lineHeight: 1.45 }}>
+                {rDesc
+                  ? `Anda akan menolak pesanan paket ${rDesc.planLabel} dari toko ${rDesc.storeName} (${rDesc.configBadge.label}). Tuliskan alasan penolakan agar merchant dapat menindaklanjuti:`
+                  : 'Tuliskan alasan penolakan bukti pembayaran agar merchant dapat mengunggah bukti valid.'}
+              </p>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.75rem' }}>
+                {[
+                  'Bukti pembayaran tidak terbaca / buram',
+                  'Nominal mutasi tidak sesuai tagihan',
+                  'Dana belum masuk ke rekening / QRIS platform',
+                  'Transaksi duplikat / kedaluwarsa'
+                ].map(preset => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setRejectionReason(preset)}
+                    style={{
+                      padding: '0.32rem 0.65rem',
+                      borderRadius: '999px',
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      backgroundColor: rejectionReason === preset ? 'rgba(239, 68, 68, 0.16)' : 'var(--bg-deep)',
+                      color: rejectionReason === preset ? '#ef4444' : 'var(--text-secondary)',
+                      border: `1px solid ${rejectionReason === preset ? 'rgba(239, 68, 68, 0.4)' : 'var(--border-light)'}`,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                required
+                rows={3}
+                value={rejectionReason}
+                onChange={e => setRejectionReason(e.target.value)}
+                placeholder="Contoh: Bukti transfer tidak jelas / nominal tidak sesuai / nama pengirim berbeda"
                 style={{
-                  padding: '0.55rem 1rem',
-                  borderRadius: '0.55rem',
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '0.5rem',
                   border: '1px solid var(--border-light)',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-muted)',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer'
+                  backgroundColor: 'var(--bg-deep)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.85rem',
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                  marginBottom: '1.15rem'
                 }}
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedOrderId) {
-                    handleUpdateOrderStatus(selectedOrderId, 'rejected', rejectionReason);
-                  }
-                }}
-                style={{
-                  padding: '0.55rem 1.25rem',
-                  borderRadius: '0.55rem',
-                  border: 'none',
-                  backgroundColor: '#ef4444',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Konfirmasi Tolak
-              </button>
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectionReason('');
+                  }}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1rem',
+                    borderRadius: '0.55rem',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--text-muted)',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={actionLoadingOrder}
+                  onClick={() => {
+                    if (selectedOrderId) {
+                      handleUpdateOrderStatus(selectedOrderId, 'rejected', rejectionReason.trim() || 'Ditolak oleh Admin Keuangan');
+                    }
+                  }}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1.25rem',
+                    borderRadius: '0.55rem',
+                    border: 'none',
+                    backgroundColor: '#ef4444',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    cursor: actionLoadingOrder ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Konfirmasi Tolak Pesanan
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Official Invoice Receipt Modal (Finance Tab Printable Voucher) */}
-      {selectedReceiptOrder && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(0,0,0,0.65)',
-          zIndex: 99999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1.5rem'
-        }}>
+      {selectedReceiptOrder && (() => {
+        const recDesc = describeSubscriptionOrder(selectedReceiptOrder);
+        return (
           <div style={{
-            width: '100%',
-            maxWidth: '560px',
-            backgroundColor: 'var(--bg-card)',
-            borderRadius: '1.25rem',
-            border: '1px solid var(--border-light)',
-            padding: '2rem',
-            boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            zIndex: 99999,
             display: 'flex',
-            flexDirection: 'column',
-            gap: '1.25rem'
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem'
           }}>
-            {/* Printable Receipt Area */}
-            <div id="catavor-invoice-receipt" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px dashed var(--border-light)', paddingBottom: '1rem' }}>
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', letterSpacing: '0.05em' }}>
-                    CATAVOR PLATFORM &bull; TANDA TERIMA RESMI
+            <div style={{
+              width: '100%',
+              maxWidth: '580px',
+              backgroundColor: 'var(--bg-card)',
+              borderRadius: '1.25rem',
+              border: '1px solid var(--border-light)',
+              padding: '2rem',
+              boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.25rem'
+            }}>
+              {/* Printable Receipt Area */}
+              <div id="catavor-invoice-receipt" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px dashed var(--border-light)', paddingBottom: '1rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', letterSpacing: '0.05em' }}>
+                      CATAVOR PLATFORM &bull; TANDA TERIMA RESMI
+                    </div>
+                    <h2 style={{ fontSize: '1.3rem', fontWeight: 900, margin: '0.25rem 0 0 0' }}>
+                      Rincian Transaksi Langganan
+                    </h2>
                   </div>
-                  <h2 style={{ fontSize: '1.35rem', fontWeight: 900, margin: '0.25rem 0 0 0' }}>
-                    Bukti Pelunasan Langganan
-                  </h2>
+                  <div style={{
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '999px',
+                    backgroundColor: recDesc.statusMeta.bg,
+                    color: recDesc.statusMeta.color,
+                    border: `1px solid ${recDesc.statusMeta.border}`,
+                    fontSize: '0.72rem',
+                    fontWeight: 900
+                  }}>
+                    {recDesc.statusMeta.label}
+                  </div>
                 </div>
-                <div style={{
-                  padding: '0.35rem 0.75rem',
-                  borderRadius: '999px',
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                  color: '#10b981',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                  fontSize: '0.75rem',
-                  fontWeight: 900
-                }}>
-                  LUNAS / TERVERIFIKASI
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.85rem', fontSize: '0.82rem' }}>
+                  <div>
+                    <div style={{ color: 'var(--text-muted)' }}>Nomor Invoice</div>
+                    <div style={{ fontWeight: 800, fontFamily: 'monospace' }}>#{recDesc.orderNumber}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-muted)' }}>Tanggal Transaksi</div>
+                    <div style={{ fontWeight: 700 }}>{selectedReceiptOrder.created_at ? new Date(selectedReceiptOrder.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' }) : '-'}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-muted)' }}>Katalog Merchant Penerima</div>
+                    <div style={{ fontWeight: 800 }}>{recDesc.storeName}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-muted)' }}>Pelanggan / Pemilik</div>
+                    <div style={{ fontWeight: 700 }}>{recDesc.customerName}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-muted)' }}>Paket Langganan</div>
+                    <div style={{ fontWeight: 800, color: '#10b981' }}>{recDesc.planLabel}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: 'var(--text-muted)' }}>Konfigurasi Pembayaran</div>
+                    <div style={{ fontWeight: 800, color: recDesc.configBadge.color }}>{recDesc.configBadge.label}</div>
+                  </div>
+                </div>
+
+                <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Total Tagihan Akhir</span>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#10b981' }}>
+                      {recDesc.finalAmount === 0 ? 'GRATIS (Rp 0)' : `Rp ${recDesc.finalAmount.toLocaleString('id-ID')}`}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                    Saluran: {recDesc.subChannelLabel}
+                    {recDesc.gatewayRef ? ` • Ref: ${recDesc.gatewayRef}` : ''}
+                    {recDesc.uniqueCode > 0 && recDesc.configType === 'manual_bank' ? ` • Kode Unik: +Rp ${recDesc.uniqueCode}` : ''}
+                  </div>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.85rem', fontSize: '0.82rem' }}>
-                <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Nomor Invoice</div>
-                  <div style={{ fontWeight: 800, fontFamily: 'monospace' }}>#{selectedReceiptOrder.invoice_number || selectedReceiptOrder.id}</div>
-                </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Tanggal Pembayaran</div>
-                  <div style={{ fontWeight: 700 }}>{new Date(selectedReceiptOrder.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' })}</div>
-                </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Katalog Merchant Penerima</div>
-                  <div style={{ fontWeight: 800 }}>{selectedReceiptOrder.store_name || `Store #${selectedReceiptOrder.store_id}`}</div>
-                </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Paket Langganan</div>
-                  <div style={{ fontWeight: 800, color: '#10b981' }}>{selectedReceiptOrder.plan_name || selectedReceiptOrder.plan?.toUpperCase()}</div>
-                </div>
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border-light)', paddingTop: '1rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReceiptOrder(null)}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1rem',
+                    borderRadius: '0.55rem',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--text-muted)',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.55rem 1.25rem',
+                    borderRadius: '0.55rem',
+                    border: 'none',
+                    backgroundColor: 'var(--primary)',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}
+                >
+                  <Printer size={15} />
+                  <span>Cetak Tanda Terima</span>
+                </button>
               </div>
-
-              <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Total Biaya Langganan</span>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 900, color: '#10b981' }}>
-                    Rp {(selectedReceiptOrder.amount || selectedReceiptOrder.price || 0).toLocaleString('id-ID')}
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-                  Metode: {selectedReceiptOrder.payment_method || 'Transfer Bank Manual'} &bull; Diverifikasi oleh Admin Pengelola
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border-light)', paddingTop: '1rem' }}>
-              <button
-                type="button"
-                onClick={() => setSelectedReceiptOrder(null)}
-                style={{
-                  padding: '0.55rem 1rem',
-                  borderRadius: '0.55rem',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-muted)',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Tutup
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                style={{
-                  padding: '0.55rem 1.25rem',
-                  borderRadius: '0.55rem',
-                  border: 'none',
-                  backgroundColor: 'var(--primary)',
-                  color: '#ffffff',
-                  fontWeight: 800,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem'
-                }}
-              >
-                <Printer size={15} />
-                <span>Cetak Tanda Terima</span>
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* CS Canned Template Macro Selector Modal */}
       {showCannedModal && (
@@ -7120,31 +7452,102 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     onClearSelection={() => setSelectedOrderId(null)}
                     masterPane={
                       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                        {/* Status Filter */}
-                        <div style={{ position: 'relative', width: '100%' }}>
+                        {/* Search Input + Status & Payment System Configuration Filters */}
+                        <div style={{
+                          padding: '0.75rem',
+                          borderBottom: '1px solid var(--border-light)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.55rem'
+                        }}>
+                          {/* Search Box */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                            <div style={{ position: 'relative', flex: 1 }}>
+                              <Search size={14} style={{ position: 'absolute', left: '0.7rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                              <input
+                                type="text"
+                                value={ordersSearchQuery}
+                                onChange={(e) => setOrdersSearchQuery(e.target.value)}
+                                placeholder="Cari invoice, toko, pelanggan, ref Aulaa..."
+                                style={{
+                                  width: '100%',
+                                  minHeight: '44px',
+                                  padding: '0.45rem 2rem 0.45rem 2.1rem',
+                                  borderRadius: '0.6rem',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  border: '1px solid var(--border-light)',
+                                  color: 'var(--text-primary)',
+                                  fontSize: '0.76rem',
+                                  outline: 'none'
+                                }}
+                              />
+                              {ordersSearchQuery && (
+                                <button
+                                  type="button"
+                                  onClick={() => setOrdersSearchQuery('')}
+                                  style={{
+                                    position: 'absolute',
+                                    right: '0.5rem',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-muted)',
+                                    cursor: 'pointer',
+                                    padding: '0.2rem'
+                                  }}
+                                >
+                                  <X size={14} />
+                                </button>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => fetchOrders()}
+                              title="Segarkan Data Pesanan"
+                              style={{
+                                minHeight: '44px',
+                                minWidth: '44px',
+                                borderRadius: '0.6rem',
+                                backgroundColor: 'var(--bg-deep)',
+                                border: '1px solid var(--border-light)',
+                                color: 'var(--text-primary)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <RefreshCw size={15} />
+                            </button>
+                          </div>
+
+                          {/* Status Filter Pills */}
                           <div style={{
-                            padding: '0.75rem',
-                            borderBottom: '1px solid var(--border-light)',
                             display: 'flex',
                             gap: '0.35rem',
                             overflowX: 'auto',
                             scrollbarWidth: 'thin',
                             WebkitOverflowScrolling: 'touch'
                           }}>
-                            {(['all', 'pending_verification', 'pending_payment', 'paid', 'rejected'] as const).map(tab => (
+                            {([
+                              { id: 'all', label: 'Semua Status' },
+                              { id: 'pending', label: 'Pending / Verifikasi' },
+                              { id: 'paid', label: 'Aktif / Lunas' },
+                              { id: 'rejected', label: 'Ditolak / Batal' }
+                            ] as const).map(tab => (
                               <button
-                                key={tab}
+                                key={tab.id}
                                 type="button"
-                                onClick={() => setFinanceFilter(tab)}
+                                onClick={() => setFinanceFilter(tab.id)}
                                 style={{
-                                  minHeight: '44px',
-                                  minWidth: '44px',
-                                  padding: '0.35rem 0.65rem',
+                                  minHeight: '38px',
+                                  padding: '0.3rem 0.65rem',
                                   borderRadius: '999px',
-                                  border: `1px solid ${financeFilter === tab ? '#10b981' : 'var(--border-light)'}`,
-                                  backgroundColor: financeFilter === tab ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
-                                  color: financeFilter === tab ? '#10b981' : 'var(--text-muted)',
-                                  fontSize: '0.72rem',
+                                  border: `1px solid ${financeFilter === tab.id ? '#10b981' : 'var(--border-light)'}`,
+                                  backgroundColor: financeFilter === tab.id ? 'rgba(16, 185, 129, 0.14)' : 'transparent',
+                                  color: financeFilter === tab.id ? '#10b981' : 'var(--text-muted)',
+                                  fontSize: '0.7rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
                                   whiteSpace: 'nowrap',
@@ -7154,75 +7557,233 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   justifyContent: 'center'
                                 }}
                               >
-                                {tab === 'all' ? 'Semua' : tab === 'pending_verification' ? 'Verifikasi' : tab === 'pending_payment' ? 'Menunggu Bayar' : tab === 'paid' ? 'Lunas' : tab === 'rejected' ? 'Ditolak' : tab}
+                                {tab.label}
                               </button>
                             ))}
                           </div>
-                          {/* Smooth Right Edge Fade Indicator */}
-                          <div
-                            aria-hidden="true"
-                            style={{
-                              position: 'absolute',
-                              right: 0,
-                              top: 0,
-                              bottom: '1px',
-                              width: '28px',
-                              background: 'linear-gradient(to right, transparent, var(--bg-card))',
-                              pointerEvents: 'none',
-                              opacity: 0.95
-                            }}
-                          />
+
+                          {/* Payment System Configuration Filter Pills */}
+                          <div style={{
+                            display: 'flex',
+                            gap: '0.35rem',
+                            overflowX: 'auto',
+                            scrollbarWidth: 'thin',
+                            WebkitOverflowScrolling: 'touch'
+                          }}>
+                            {([
+                              { id: 'all', label: 'Semua Sistem' },
+                              { id: 'gateway_aulaa', label: 'Aulaa Gateway' },
+                              { id: 'manual_qris', label: 'QRIS Manual' },
+                              { id: 'manual_bank', label: 'Transfer Bank' },
+                              { id: 'coupon_free', label: 'Kupon Gratis' }
+                            ] as const).map(cf => (
+                              <button
+                                key={cf.id}
+                                type="button"
+                                onClick={() => setOrdersConfigFilter(cf.id)}
+                                style={{
+                                  minHeight: '36px',
+                                  padding: '0.28rem 0.6rem',
+                                  borderRadius: '0.5rem',
+                                  border: `1px solid ${ordersConfigFilter === cf.id ? '#38bdf8' : 'var(--border-light)'}`,
+                                  backgroundColor: ordersConfigFilter === cf.id ? 'rgba(56, 189, 248, 0.14)' : 'var(--bg-deep)',
+                                  color: ordersConfigFilter === cf.id ? '#38bdf8' : 'var(--text-secondary)',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                {cf.label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
 
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {/* Master List Cards */}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                           {filteredOrders.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
                               <CreditCard size={36} color="#10b981" style={{ marginBottom: '0.5rem' }} />
-                              <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>Tidak ada transaksi billing</div>
+                              <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>Tidak ada transaksi yang sesuai filter</div>
                             </div>
                           ) : (
                             filteredOrders.map(ord => {
                               const isSelected = selectedOrderId === ord.id;
+                              const desc = describeSubscriptionOrder(ord);
                               return (
                                 <div
                                   key={ord.id}
                                   onClick={() => setSelectedOrderId(ord.id)}
                                   style={{
-                                    padding: '0.85rem',
-                                    borderRadius: '0.75rem',
+                                    padding: '0.9rem',
+                                    borderRadius: '0.85rem',
                                     backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-card)',
-                                    border: `1px solid ${isSelected ? '#10b981' : 'var(--border-light)'}`,
+                                    border: `1.5px solid ${isSelected ? '#10b981' : (desc.isPending ? 'rgba(245, 158, 11, 0.45)' : 'var(--border-light)')}`,
                                     cursor: 'pointer',
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    gap: '0.35rem'
+                                    gap: '0.45rem'
                                   }}
                                 >
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#10b981' }}>
-                                      {ord.plan_name || ord.plan?.toUpperCase() || 'PAKET PRO'}
-                                    </span>
-                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                                      #{ord.invoice_number || ord.id}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                      <span style={{ fontSize: '0.66rem', fontWeight: 800, color: '#10b981' }}>
+                                        {desc.planLabel}
+                                      </span>
+                                      <span style={{
+                                        padding: '0.12rem 0.45rem',
+                                        borderRadius: '999px',
+                                        fontSize: '0.62rem',
+                                        fontWeight: 800,
+                                        backgroundColor: desc.configBadge.bg,
+                                        color: desc.configBadge.color,
+                                        border: `1px solid ${desc.configBadge.border}`
+                                      }}>
+                                        {desc.configBadge.shortLabel}
+                                      </span>
+                                    </div>
+                                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                      #{desc.orderNumber}
                                     </span>
                                   </div>
-                                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                    {ord.store_name || `Store #${ord.store_id}`}
+
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                                    <div>
+                                      <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                        {desc.storeName}
+                                      </div>
+                                      <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
+                                        {desc.customerName} • {desc.subChannelLabel}
+                                      </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                      <span style={{ fontSize: '0.88rem', fontWeight: 900, color: '#10b981', display: 'block' }}>
+                                        {desc.finalAmount === 0 ? 'GRATIS' : `Rp ${desc.finalAmount.toLocaleString('id-ID')}`}
+                                      </span>
+                                      <span style={{
+                                        fontSize: '0.64rem',
+                                        fontWeight: 800,
+                                        padding: '0.12rem 0.45rem',
+                                        borderRadius: '999px',
+                                        backgroundColor: desc.statusMeta.bg,
+                                        color: desc.statusMeta.color,
+                                        border: `1px solid ${desc.statusMeta.border}`,
+                                        display: 'inline-block',
+                                        marginTop: '0.18rem'
+                                      }}>
+                                        {desc.statusMeta.shortLabel}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#10b981' }}>
-                                      Rp {(ord.amount || ord.price || 0).toLocaleString('id-ID')}
-                                    </span>
-                                    <span style={{
-                                      fontSize: '0.68rem',
-                                      fontWeight: 700,
-                                      padding: '0.15rem 0.5rem',
-                                      borderRadius: '999px',
-                                      backgroundColor: ord.status === 'paid' || ord.status === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
-                                      color: ord.status === 'paid' || ord.status === 'active' ? '#10b981' : '#f59e0b'
-                                    }}>
-                                      {ord.status?.toUpperCase() || 'PENDING'}
-                                    </span>
+
+                                  {/* Quick Action Triggers inside Master Card */}
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: '0.4rem',
+                                      paddingTop: '0.45rem',
+                                      marginTop: '0.15rem',
+                                      borderTop: '1px dashed var(--border-light)'
+                                    }}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedOrderId(ord.id)}
+                                      style={{
+                                        minHeight: '36px',
+                                        padding: '0.25rem 0.6rem',
+                                        borderRadius: '0.5rem',
+                                        backgroundColor: 'var(--bg-deep)',
+                                        border: '1px solid var(--border-light)',
+                                        color: '#38bdf8',
+                                        fontSize: '0.68rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem'
+                                      }}
+                                    >
+                                      <Eye size={12} />
+                                      <span>{desc.proofUrl ? 'Detail & Bukti' : 'Detail'}</span>
+                                    </button>
+
+                                    {canManageFinance && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        {!desc.isRejected && (
+                                          <button
+                                            type="button"
+                                            disabled={actionLoadingOrder}
+                                            onClick={() => {
+                                              setSelectedOrderId(ord.id);
+                                              setRejectionReason(desc.rejectionReason || '');
+                                              setShowRejectModal(true);
+                                            }}
+                                            style={{
+                                              minHeight: '36px',
+                                              padding: '0.25rem 0.6rem',
+                                              borderRadius: '0.5rem',
+                                              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                                              color: '#ef4444',
+                                              fontSize: '0.68rem',
+                                              fontWeight: 700,
+                                              cursor: 'pointer'
+                                            }}
+                                          >
+                                            Tolak
+                                          </button>
+                                        )}
+                                        {!desc.isActive && (
+                                          <button
+                                            type="button"
+                                            disabled={actionLoadingOrder}
+                                            onClick={() => handleUpdateOrderStatus(ord.id, 'active')}
+                                            style={{
+                                              minHeight: '36px',
+                                              padding: '0.25rem 0.65rem',
+                                              borderRadius: '0.5rem',
+                                              backgroundColor: '#10b981',
+                                              border: 'none',
+                                              color: '#ffffff',
+                                              fontSize: '0.68rem',
+                                              fontWeight: 800,
+                                              cursor: 'pointer'
+                                            }}
+                                          >
+                                            Terima
+                                          </button>
+                                        )}
+                                        {!desc.isPending && (
+                                          <button
+                                            type="button"
+                                            disabled={actionLoadingOrder}
+                                            onClick={() => handleUpdateOrderStatus(ord.id, 'pending_verification')}
+                                            style={{
+                                              minHeight: '36px',
+                                              padding: '0.25rem 0.6rem',
+                                              borderRadius: '0.5rem',
+                                              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                                              border: '1px solid rgba(245, 158, 11, 0.3)',
+                                              color: '#f59e0b',
+                                              fontSize: '0.68rem',
+                                              fontWeight: 700,
+                                              cursor: 'pointer'
+                                            }}
+                                          >
+                                            Pending
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -7232,185 +7793,509 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       </div>
                     }
                     detailPane={
-                      selectedOrder ? (
-                        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
-                          <div style={{
-                            padding: '1.25rem',
-                            borderRadius: '1rem',
-                            backgroundColor: 'var(--bg-deep)',
-                            border: '1px solid var(--border-light)'
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981' }}>
-                                Invoice #{selectedOrder.invoice_number || selectedOrder.id}
-                              </span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedReceiptOrder(selectedOrder)}
-                                  style={{
-                                    padding: '0.35rem 0.75rem',
-                                    borderRadius: '0.45rem',
-                                    border: '1px solid var(--border-light)',
-                                    backgroundColor: 'var(--bg-card)',
-                                    color: 'var(--text-secondary)',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.35rem'
-                                  }}
-                                >
-                                  <Receipt size={14} />
-                                  <span>Tanda Terima</span>
-                                </button>
-                                <span style={{
-                                  fontSize: '0.72rem',
-                                  fontWeight: 800,
-                                  padding: '0.2rem 0.6rem',
-                                  borderRadius: '999px',
-                                  backgroundColor: selectedOrder.status === 'active' || selectedOrder.status === 'paid' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                                  color: selectedOrder.status === 'active' || selectedOrder.status === 'paid' ? '#10b981' : '#f59e0b'
-                                }}>
-                                  {selectedOrder.status?.toUpperCase() || 'PENDING'}
-                                </span>
-                              </div>
-                            </div>
+                      selectedOrder ? (() => {
+                        const desc = describeSubscriptionOrder(selectedOrder);
+                        return (
+                          <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.1rem', overflowY: 'auto' }}>
+                            {/* Top Header Banner */}
+                            <div style={{
+                              padding: '1.15rem',
+                              borderRadius: '1rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: `1.5px solid ${desc.configBadge.border}`,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.85rem'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#10b981', fontFamily: 'monospace' }}>
+                                    Invoice #{desc.orderNumber}
+                                  </span>
+                                  <span style={{
+                                    padding: '0.18rem 0.55rem',
+                                    borderRadius: '999px',
+                                    fontSize: '0.66rem',
+                                    fontWeight: 800,
+                                    backgroundColor: desc.configBadge.bg,
+                                    color: desc.configBadge.color,
+                                    border: `1px solid ${desc.configBadge.border}`
+                                  }}>
+                                    {desc.configBadge.label}
+                                  </span>
+                                </div>
 
-                            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                              {selectedOrder.store_name || `Store #${selectedOrder.store_id}`}
-                            </h3>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', fontSize: '0.82rem', marginTop: '1rem' }}>
-                              <div>
-                                <div style={{ color: 'var(--text-muted)' }}>Paket Langganan</div>
-                                <div style={{ fontWeight: 800 }}>{selectedOrder.plan_name || selectedOrder.plan}</div>
-                              </div>
-                              <div>
-                                <div style={{ color: 'var(--text-muted)' }}>Nominal Pembayaran</div>
-                                <div style={{ fontWeight: 800, color: '#10b981' }}>Rp {(selectedOrder.amount || selectedOrder.price || 0).toLocaleString('id-ID')}</div>
-                              </div>
-                              <div>
-                                <div style={{ color: 'var(--text-muted)' }}>Metode Bayar</div>
-                                <div style={{ fontWeight: 700 }}>{selectedOrder.payment_method || 'Transfer Bank'}</div>
-                              </div>
-                              <div>
-                                <div style={{ color: 'var(--text-muted)' }}>Tanggal Pesanan</div>
-                                <div style={{ fontWeight: 700 }}>{new Date(selectedOrder.created_at).toLocaleString('id-ID')}</div>
-                              </div>
-                            </div>
-
-                            {/* Transfer Proof Section */}
-                            <div style={{ marginTop: '1.25rem', padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
-                              <div style={{ fontSize: '0.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>Bukti Transfer Bank:</div>
-                              {selectedOrder.transfer_proof_url ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                  <div style={{ width: '100px', height: '100px', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
-                                    <SafeImage
-                                      src={selectedOrder.transfer_proof_url}
-                                      alt="Bukti Transfer"
-                                      emptyText="Belum Ada Bukti"
-                                      errorText="Bukti Rusak"
-                                      onClick={() => {
-                                        openDocumentPreview({
-                                          file_url: selectedOrder.transfer_proof_url,
-                                          file_name: `Bukti_Transfer_Invoice_#${selectedOrder.invoice_number || selectedOrder.id}.jpg`
-                                        });
-                                      }}
-                                      style={{
-                                        width: '100%',
-                                        height: '100%',
-                                        objectFit: 'cover',
-                                        cursor: 'pointer'
-                                      }}
-                                    />
-                                  </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      openDocumentPreview({
-                                        file_url: selectedOrder.transfer_proof_url,
-                                        file_name: `Bukti_Transfer_Invoice_#${selectedOrder.invoice_number || selectedOrder.id}.jpg`
-                                      });
-                                    }}
+                                    onClick={() => setSelectedReceiptOrder(selectedOrder)}
                                     style={{
-                                      padding: '0.5rem 0.85rem',
+                                      minHeight: '38px',
+                                      padding: '0.35rem 0.75rem',
                                       borderRadius: '0.5rem',
                                       border: '1px solid var(--border-light)',
-                                      backgroundColor: 'var(--bg-deep)',
-                                      color: 'var(--text-primary)',
-                                      fontSize: '0.78rem',
+                                      backgroundColor: 'var(--bg-card)',
+                                      color: 'var(--text-secondary)',
+                                      fontSize: '0.74rem',
                                       fontWeight: 700,
                                       cursor: 'pointer',
-                                      display: 'flex',
+                                      display: 'inline-flex',
                                       alignItems: 'center',
                                       gap: '0.35rem'
                                     }}
                                   >
-                                    <Maximize2 size={14} />
-                                    <span>Lihat Bukti Penuh</span>
+                                    <Receipt size={14} />
+                                    <span>Tanda Terima</span>
                                   </button>
-                                </div>
-                              ) : (
-                                <div style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.75rem',
-                                  padding: '0.85rem 1rem',
-                                  borderRadius: '0.5rem',
-                                  backgroundColor: 'var(--bg-deep)',
-                                  border: '1px dashed var(--border-light)',
-                                  color: 'var(--text-muted)',
-                                  fontSize: '0.78rem'
-                                }}>
-                                  <ImageIcon size={18} style={{ opacity: 0.7 }} />
-                                  <span>Merchant belum mengunggah foto bukti transfer pembayaran</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Approval Actions */}
-                            {selectedOrder.status !== 'paid' && selectedOrder.status !== 'active' && canManageFinance && (
-                              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateOrderStatus(selectedOrder.id, 'active')}
-                                  style={{
-                                    flex: 1,
-                                    padding: '0.65rem 1rem',
-                                    borderRadius: '0.6rem',
-                                    border: 'none',
-                                    backgroundColor: '#10b981',
-                                    color: '#ffffff',
+                                  <span style={{
+                                    fontSize: '0.7rem',
                                     fontWeight: 800,
-                                    fontSize: '0.85rem',
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  Verifikasi & Aktifkan Paket Pro
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setShowRejectModal(true)}
-                                  style={{
-                                    padding: '0.65rem 1rem',
-                                    borderRadius: '0.6rem',
-                                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                                    color: '#ef4444',
-                                    fontWeight: 700,
-                                    fontSize: '0.85rem',
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  Tolak Pembayaran
-                                </button>
+                                    padding: '0.24rem 0.65rem',
+                                    borderRadius: '999px',
+                                    backgroundColor: desc.statusMeta.bg,
+                                    color: desc.statusMeta.color,
+                                    border: `1px solid ${desc.statusMeta.border}`
+                                  }}>
+                                    {desc.statusMeta.label}
+                                  </span>
+                                </div>
                               </div>
-                            )}
+
+                              {/* 1. Identitas Toko & Pelanggan + 2. Rincian Paket & Tagihan */}
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '0.85rem' }}>
+                                <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', fontSize: '0.78rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', marginBottom: '0.15rem' }}>
+                                    1. Identitas Toko &amp; Pelanggan
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Toko:</span>
+                                    <strong style={{ color: 'var(--text-primary)', textAlign: 'right' }}>{desc.storeName}</strong>
+                                  </div>
+                                  {desc.storeSlug && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Slug Katalog:</span>
+                                      <a href={`/${desc.storeSlug}`} target="_blank" rel="noreferrer" style={{ color: '#38bdf8', fontWeight: 700, textDecoration: 'none' }}>
+                                        /{desc.storeSlug}
+                                      </a>
+                                    </div>
+                                  )}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Pelanggan:</span>
+                                    <strong style={{ color: 'var(--text-primary)', textAlign: 'right' }}>{desc.customerName}</strong>
+                                  </div>
+                                  {desc.customerEmail && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Email:</span>
+                                      <span style={{ color: 'var(--text-primary)', textAlign: 'right' }}>{desc.customerEmail}</span>
+                                    </div>
+                                  )}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>WhatsApp:</span>
+                                    <strong style={{ color: 'var(--text-primary)', textAlign: 'right' }}>{desc.customerPhone || '-'}</strong>
+                                  </div>
+                                </div>
+
+                                <div style={{ padding: '0.85rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', fontSize: '0.78rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                  <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#10b981', textTransform: 'uppercase', marginBottom: '0.15rem' }}>
+                                    2. Rincian Paket &amp; Tagihan
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Paket:</span>
+                                    <strong style={{ color: '#10b981' }}>{desc.planLabel}</strong>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Harga Dasar:</span>
+                                    <span>Rp {desc.originalAmount.toLocaleString('id-ID')}</span>
+                                  </div>
+                                  {desc.discountAmount > 0 && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Diskon {desc.couponCode ? `(${desc.couponCode})` : ''}:</span>
+                                      <strong style={{ color: '#10b981' }}>-Rp {desc.discountAmount.toLocaleString('id-ID')}</strong>
+                                    </div>
+                                  )}
+                                  {desc.configType === 'manual_bank' && desc.uniqueCode > 0 && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                                      <span style={{ color: 'var(--text-muted)' }}>Kode Unik 3 Digit:</span>
+                                      <strong style={{ color: '#f59e0b' }}>+Rp {desc.uniqueCode}</strong>
+                                    </div>
+                                  )}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', paddingTop: '0.35rem', borderTop: '1px dashed var(--border-light)' }}>
+                                    <strong style={{ color: 'var(--text-primary)' }}>Total Tagihan:</strong>
+                                    <strong style={{ fontSize: '0.96rem', color: '#10b981' }}>
+                                      {desc.finalAmount === 0 ? 'GRATIS (Rp 0)' : `Rp ${desc.finalAmount.toLocaleString('id-ID')}`}
+                                    </strong>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* 3. Detail Spesifik Konfigurasi Sistem Pembayaran */}
+                              <div style={{
+                                padding: '0.95rem',
+                                borderRadius: '0.75rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.65rem',
+                                fontSize: '0.78rem'
+                              }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: desc.configBadge.color, textTransform: 'uppercase' }}>
+                                    3. Konfigurasi Sistem Pembayaran: {desc.configBadge.label}
+                                  </span>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{desc.configBadge.modeDesc}</span>
+                                </div>
+
+                                {desc.configType === 'gateway_aulaa' && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
+                                      <div>
+                                        <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block' }}>Saluran Gateway</span>
+                                        <strong>{desc.subChannelLabel}</strong>
+                                      </div>
+                                      <div>
+                                        <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block' }}>Referensi Aulaa</span>
+                                        <strong style={{ color: '#38bdf8', fontFamily: 'monospace' }}>{desc.gatewayRef || 'Belum tersedia'}</strong>
+                                      </div>
+                                      <div>
+                                        <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block' }}>Link Checkout</span>
+                                        {desc.gatewayLink ? (
+                                          <a href={desc.gatewayLink} target="_blank" rel="noreferrer" style={{ color: '#10b981', fontWeight: 700, textDecoration: 'none' }}>
+                                            Buka Link Pembayaran
+                                          </a>
+                                        ) : (
+                                          <span style={{ color: 'var(--text-muted)' }}>Tidak ada link aktif</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {desc.gatewayRawResponse && (
+                                      <div style={{
+                                        padding: '0.55rem 0.7rem',
+                                        borderRadius: '0.5rem',
+                                        backgroundColor: 'var(--bg-deep)',
+                                        border: '1px solid var(--border-light)',
+                                        fontSize: '0.7rem',
+                                        fontFamily: 'monospace',
+                                        color: 'var(--text-secondary)',
+                                        maxHeight: '90px',
+                                        overflowY: 'auto',
+                                        wordBreak: 'break-all'
+                                      }}>
+                                        {desc.gatewayRawResponse}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {desc.configType === 'manual_qris' && (
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
+                                    <div>
+                                      <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block' }}>Merchant QRIS Tujuan</span>
+                                      <strong>{googleSettings.payment_qris_manual_merchant || 'Catavor Official Merchant'}</strong>
+                                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Nominal Pas (Tanpa Kode Unik)</div>
+                                    </div>
+                                    <div>
+                                      <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block' }}>Nama Pengirim (E-Wallet/Bank)</span>
+                                      <strong>{desc.senderAccountName || desc.customerName || 'Belum diisi'}</strong>
+                                    </div>
+                                    <div>
+                                      <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block' }}>Catatan Pembayaran</span>
+                                      <span>{desc.notes || 'Tidak ada catatan'}</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {desc.configType === 'manual_bank' && (
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
+                                    <div>
+                                      <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block' }}>Rekening Tujuan Platform</span>
+                                      <strong>{googleSettings.payment_bank_name || 'Bank BCA'} • {googleSettings.payment_bank_account || '8720192831'}</strong>
+                                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>a.n. {googleSettings.payment_bank_holder || 'PT Catavor Digital Nusantara'}</div>
+                                    </div>
+                                    <div>
+                                      <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block' }}>Rekening Pengirim</span>
+                                      <strong>{desc.senderAccountName || desc.customerName || 'Belum diisi'}</strong>
+                                      <div style={{ fontSize: '0.68rem', color: '#f59e0b', fontWeight: 700 }}>
+                                        {desc.uniqueCode > 0 ? `Kode Unik Mutasi: +Rp ${desc.uniqueCode}` : 'Tanpa kode unik'}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block' }}>Catatan Transfer</span>
+                                      <span>{desc.notes || 'Tidak ada catatan'}</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {desc.configType === 'coupon_free' && (
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
+                                    <div>
+                                      <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block' }}>Kode Kupon Promo</span>
+                                      <strong style={{ color: '#10b981', fontFamily: 'monospace' }}>{desc.couponCode || 'PROMO-FREE-100'}</strong>
+                                    </div>
+                                    <div>
+                                      <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block' }}>Potongan Diskon</span>
+                                      <strong style={{ color: '#10b981' }}>100% (Rp {desc.discountAmount.toLocaleString('id-ID')})</strong>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Bukti Pembayaran Preview */}
+                                {(desc.configType === 'manual_qris' || desc.configType === 'manual_bank' || Boolean(desc.proofUrl)) && (
+                                  <div style={{ marginTop: '0.4rem', paddingTop: '0.65rem', borderTop: '1px dashed var(--border-light)' }}>
+                                    <div style={{ fontSize: '0.74rem', fontWeight: 800, marginBottom: '0.45rem' }}>Lampiran Bukti Pembayaran:</div>
+                                    {desc.proofUrl ? (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                        <div style={{ width: '110px', height: '110px', borderRadius: '0.55rem', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                                          <SafeImage
+                                            src={desc.proofUrl}
+                                            alt="Bukti Pembayaran"
+                                            emptyText="Belum Ada Bukti"
+                                            errorText="Bukti Rusak"
+                                            onClick={() => {
+                                              openDocumentPreview({
+                                                file_url: desc.proofUrl,
+                                                file_name: `Bukti_Bayar_Invoice_${desc.orderNumber}.jpg`
+                                              });
+                                            }}
+                                            style={{
+                                              width: '100%',
+                                              height: '100%',
+                                              objectFit: 'cover',
+                                              cursor: 'pointer'
+                                            }}
+                                          />
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            openDocumentPreview({
+                                              file_url: desc.proofUrl,
+                                              file_name: `Bukti_Bayar_Invoice_${desc.orderNumber}.jpg`
+                                            });
+                                          }}
+                                          style={{
+                                            minHeight: '42px',
+                                            padding: '0.5rem 0.9rem',
+                                            borderRadius: '0.55rem',
+                                            border: '1px solid var(--border-light)',
+                                            backgroundColor: 'var(--bg-deep)',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '0.76rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.35rem'
+                                          }}
+                                        >
+                                          <Maximize2 size={14} />
+                                          <span>Lihat Bukti Ukuran Penuh</span>
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.65rem',
+                                        padding: '0.75rem 0.9rem',
+                                        borderRadius: '0.55rem',
+                                        backgroundColor: 'var(--bg-deep)',
+                                        border: '1px dashed var(--border-light)',
+                                        color: 'var(--text-muted)',
+                                        fontSize: '0.76rem'
+                                      }}>
+                                        <ImageIcon size={17} style={{ opacity: 0.7 }} />
+                                        <span>Merchant belum mengunggah foto bukti pembayaran</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* 4. Jejak Waktu & Audit Verifikasi */}
+                              <div style={{
+                                padding: '0.75rem 0.9rem',
+                                borderRadius: '0.7rem',
+                                backgroundColor: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                justifyContent: 'space-between',
+                                gap: '0.5rem 1rem',
+                                fontSize: '0.74rem',
+                                color: 'var(--text-secondary)'
+                              }}>
+                                <div>
+                                  <span style={{ color: 'var(--text-muted)' }}>Dibuat: </span>
+                                  <strong>{selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString('id-ID') : '-'}</strong>
+                                </div>
+                                {selectedOrder.paid_at && (
+                                  <div>
+                                    <span style={{ color: 'var(--text-muted)' }}>Diverifikasi: </span>
+                                    <strong style={{ color: '#10b981' }}>{new Date(selectedOrder.paid_at).toLocaleString('id-ID')}</strong>
+                                  </div>
+                                )}
+                                {desc.approvedByName && (
+                                  <div>
+                                    <span style={{ color: 'var(--text-muted)' }}>Verifikator: </span>
+                                    <strong>{desc.approvedByName}</strong>
+                                  </div>
+                                )}
+                                {desc.rejectionReason && (
+                                  <div style={{ width: '100%', color: '#ef4444', paddingTop: '0.3rem', borderTop: '1px dashed var(--border-light)' }}>
+                                    <strong>Alasan Penolakan:</strong> {desc.rejectionReason}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* 5. Panel Aksi Verifikasi & Trigger (Selalu Ada) */}
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                                gap: '0.6rem',
+                                paddingTop: '0.5rem',
+                                borderTop: '1px solid var(--border-light)'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  {desc.configType === 'gateway_aulaa' && (
+                                    <button
+                                      type="button"
+                                      disabled={syncingOrderId === selectedOrder.id}
+                                      onClick={() => handleSyncOrderWithAulaa(selectedOrder.id)}
+                                      style={{
+                                        minHeight: '44px',
+                                        padding: '0.55rem 0.95rem',
+                                        borderRadius: '0.6rem',
+                                        backgroundColor: 'rgba(56, 189, 248, 0.14)',
+                                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                                        color: '#38bdf8',
+                                        fontSize: '0.76rem',
+                                        fontWeight: 700,
+                                        cursor: syncingOrderId === selectedOrder.id ? 'not-allowed' : 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem'
+                                      }}
+                                    >
+                                      <RefreshCw size={14} className={syncingOrderId === selectedOrder.id ? 'animate-spin' : ''} />
+                                      <span>{syncingOrderId === selectedOrder.id ? 'Sinkronisasi...' : 'Sinkronisasi Status Aulaa'}</span>
+                                    </button>
+                                  )}
+
+                                  {desc.customerPhone && (
+                                    <a
+                                      href={`https://wa.me/${desc.customerPhone.replace(/[^0-9]/g, '').replace(/^0/, '62')}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{
+                                        minHeight: '44px',
+                                        padding: '0.55rem 0.9rem',
+                                        borderRadius: '0.6rem',
+                                        backgroundColor: 'var(--bg-card)',
+                                        border: '1px solid var(--border-light)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.76rem',
+                                        fontWeight: 700,
+                                        textDecoration: 'none',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.35rem'
+                                      }}
+                                    >
+                                      <Phone size={14} color="#10b981" />
+                                      <span>Hubungi WA Merchant</span>
+                                    </a>
+                                  )}
+                                </div>
+
+                                {canManageFinance && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    {!desc.isPending && (
+                                      <button
+                                        type="button"
+                                        disabled={actionLoadingOrder}
+                                        onClick={() => handleUpdateOrderStatus(selectedOrder.id, 'pending_verification')}
+                                        style={{
+                                          minHeight: '44px',
+                                          padding: '0.55rem 0.95rem',
+                                          borderRadius: '0.6rem',
+                                          backgroundColor: 'rgba(245, 158, 11, 0.14)',
+                                          border: '1px solid rgba(245, 158, 11, 0.35)',
+                                          color: '#f59e0b',
+                                          fontSize: '0.76rem',
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.35rem'
+                                        }}
+                                      >
+                                        <RotateCcw size={14} />
+                                        <span>Kembalikan ke Pending</span>
+                                      </button>
+                                    )}
+
+                                    {!desc.isRejected && (
+                                      <button
+                                        type="button"
+                                        disabled={actionLoadingOrder}
+                                        onClick={() => {
+                                          setRejectionReason(desc.rejectionReason || '');
+                                          setShowRejectModal(true);
+                                        }}
+                                        style={{
+                                          minHeight: '44px',
+                                          padding: '0.55rem 1rem',
+                                          borderRadius: '0.6rem',
+                                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                                          backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                                          color: '#ef4444',
+                                          fontWeight: 700,
+                                          fontSize: '0.78rem',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.35rem'
+                                        }}
+                                      >
+                                        <XCircle size={14} />
+                                        <span>{desc.isActive ? 'Cabut & Tolak' : 'Tolak Pesanan'}</span>
+                                      </button>
+                                    )}
+
+                                    {!desc.isActive && (
+                                      <button
+                                        type="button"
+                                        disabled={actionLoadingOrder}
+                                        onClick={() => handleUpdateOrderStatus(selectedOrder.id, 'active')}
+                                        style={{
+                                          minHeight: '44px',
+                                          padding: '0.55rem 1.15rem',
+                                          borderRadius: '0.6rem',
+                                          border: 'none',
+                                          backgroundColor: '#10b981',
+                                          color: '#ffffff',
+                                          fontWeight: 800,
+                                          fontSize: '0.78rem',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.35rem'
+                                        }}
+                                      >
+                                        <CheckCircle2 size={15} />
+                                        <span>Terima &amp; Aktifkan Paket</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ) : null
+                        );
+                      })() : null
                     }
                   />
                 </div>
@@ -7845,7 +8730,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 Konfigurasi QRIS &amp; Rekening Manual (Mode Aktif)
                               </strong>
                               <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                                Pengguna membayar via scan QRIS merchant atau transfer bank langsung dengan alokasi otomatis kode unik nominal 3-digit.
+                                Pengguna membayar via scan QRIS merchant (nominal pas) atau transfer bank langsung dengan alokasi otomatis kode unik nominal 3-digit.
                               </span>
                             </div>
                           </div>
@@ -8115,10 +9000,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 gap: '0.3rem'
                               }}>
                                 <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0284c7' }}>
-                                  Sistem Kode Unik 3-Digit Otomatis:
+                                  Sistem Kode Unik 3-Digit Otomatis (Khusus Transfer Rekening Bank):
                                 </div>
                                 <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                                  Setiap transaksi manual akan secara otomatis dialokasikan 3 angka unik acak (100–999) pada digit nominal transfer untuk memudahkan pencocokan mutasi manual.
+                                  Setiap transaksi transfer rekening bank manual akan secara otomatis dialokasikan 3 angka unik acak (100–999) pada digit nominal transfer untuk memudahkan pencocokan mutasi rekening (sedangkan QRIS manual menggunakan nominal pas).
                                 </p>
                               </div>
                             </div>

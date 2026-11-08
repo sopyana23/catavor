@@ -189,7 +189,8 @@ import {
   broadcastAuthEvent, 
   subscribeAuthSync,
   resolveAuthenticatedRedirect,
-  hasValidSessionToken
+  hasValidSessionToken,
+  clearRegistrationDrafts
 } from './utils/authSync'
 
 export interface UserStoreSummary {
@@ -4151,24 +4152,39 @@ function App() {
       let pathTab: 'home' | 'login' | 'register' | 'checkout' | 'terms' | 'privacy' | 'acceptable_use' = 'home';
       let pathStep: 1 | 2 | 3 = 1;
 
-      if (path === '/login') {
         const curToken = typeof localStorage !== 'undefined' ? (localStorage.getItem('catavor_token') || localStorage.getItem('token')) : null;
-        if (curToken && !isTokenExpired(curToken)) {
+      const isAuthenticated = Boolean(curToken && !isTokenExpired(curToken));
+
+      if (isAuthenticated) {
+        clearRegistrationDrafts();
+      }
+
+      if (path === '/login') {
+        pathTab = isAuthenticated ? 'home' : 'login';
+      } else if (path === '/checkout') {
+        if (isAuthenticated) {
           pathTab = 'home';
         } else {
-          pathTab = 'login';
-        }
-      } else if (path === '/checkout') {
+          // Guard direct checkout access: Guest must have completed step 1 & 2
+          const savedFormRaw = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_register_form') : null;
+          let parsedForm: any = null;
+          try { parsedForm = savedFormRaw ? JSON.parse(savedFormRaw) : null; } catch {}
+          if (parsedForm && parsedForm.email && parsedForm.store_slug) {
         pathTab = 'checkout';
         pathStep = 3;
-      } else if (path === '/register' || path === '/register/step-1') {
+          } else {
         pathTab = 'register';
         pathStep = 1;
+          }
+        }
+      } else if (path === '/register' || path === '/register/step-1') {
+        pathTab = isAuthenticated ? 'home' : 'register';
+        pathStep = 1;
       } else if (path === '/register/step-2') {
-        pathTab = 'register';
+        pathTab = isAuthenticated ? 'home' : 'register';
         pathStep = 2;
       } else if (path === '/register/step-3') {
-        pathTab = 'register';
+        pathTab = isAuthenticated ? 'home' : 'register';
         pathStep = 3;
       } else if (path === '/terms' || path === '/syarat-ketentuan') {
         pathTab = 'terms';
@@ -4676,6 +4692,26 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       if (params.get('payment') === 'success') {
         const ord = params.get('order_number');
         showToast(ord ? `Pembayaran Anda (${ord}) berhasil diverifikasi! Paket toko telah aktif.` : 'Pembayaran Anda berhasil diverifikasi! Paket toko telah aktif.', 'success');
+        if (ord) {
+          const liveToken = localStorage.getItem('catavor_token') || localStorage.getItem('token') || token;
+          fetch(`/api/subscription/orders/${encodeURIComponent(ord)}/sync`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              ...(liveToken ? { 'Authorization': `Bearer ${liveToken}` } : {})
+            }
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.quota) {
+                setStoreQuota(data.quota);
+              }
+              if (desktopFetchMyQuotaRef.current) {
+                desktopFetchMyQuotaRef.current();
+              }
+            })
+            .catch(() => {});
+        }
         params.delete('payment');
         params.delete('order_number');
         const newQuery = params.toString() ? `?${params.toString()}` : '';
@@ -4684,6 +4720,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     } catch {}
   }, []);
 
+  const desktopFetchMyQuotaRef = useRef<(() => void) | null>(null);
   const desktopActiveTicketRef = useRef<string | number | null>(null);
   const desktopFetchTicketDetailsRef = useRef<((id: string | number) => void) | null>(null);
   const desktopFetchSupportTicketsRef = useRef<((silent?: boolean, page?: number) => void) | null>(null);
@@ -5311,7 +5348,7 @@ Terima kasih.`;
 
   const fetchPlatformSettings = async () => {
     try {
-      const res = await fetch('/api/settings');
+      const res = await fetch('/api/settings', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         const settingsData = data.data || data;
@@ -5339,6 +5376,23 @@ Terima kasih.`;
   useEffect(() => {
     fetchPolicies();
     fetchPlatformSettings();
+
+    const handleSyncPlatformSettings = () => {
+      fetchPlatformSettings();
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'catavor_platform_settings_updated') {
+        fetchPlatformSettings();
+      }
+    };
+    window.addEventListener('focus', handleSyncPlatformSettings);
+    window.addEventListener('catavor_platform_settings_updated', handleSyncPlatformSettings);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('focus', handleSyncPlatformSettings);
+      window.removeEventListener('catavor_platform_settings_updated', handleSyncPlatformSettings);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   // Guarantee auto-scroll to top on page/tab navigation (Desktop & Tablet)
@@ -9451,9 +9505,57 @@ Terima kasih atas perhatian dan kerja samanya.`;
     }
 
     if (path === '/checkout' || path.startsWith('/checkout/') || path.startsWith('/checkout?')) {
+      const savedToken = token || localStorage.getItem('catavor_token');
       const urlParams = new URLSearchParams(window.location.search);
       const urlPlan = urlParams.get('plan');
       const urlBilling = urlParams.get('billing');
+
+      if (savedToken && !isTokenExpired(savedToken)) {
+        clearRegistrationDrafts();
+        const savedUserStr = localStorage.getItem('catavor_user');
+        let u: any = adminUser;
+        if (!u && savedUserStr) {
+          try { u = JSON.parse(savedUserStr); } catch {}
+        }
+        const planQuery = (urlPlan === 'pro_starter' || urlPlan === 'pro_business') ? `?plan=${urlPlan}` : '';
+        const dest = resolveAuthenticatedRedirect(u, storeSlug);
+        const pathOnly = dest.split('?')[0];
+        if (pathOnly === '/admin' && isPlatformAdmin(u)) {
+          setView('admin');
+          setStoreSlug(null);
+          setPortalTab('home');
+          window.history.replaceState({}, '', dest);
+          return;
+        } else if (pathOnly !== '/catalogs' && pathOnly !== '/admin' && pathOnly !== '/') {
+          const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+          setStoreSlug(targetSlug);
+          setView('admin');
+          setAdminTab('subscription');
+          setPortalTab('home');
+          window.history.replaceState({}, '', `/${targetSlug}/admin/subscription${planQuery}`);
+          loadData(targetSlug);
+          return;
+        } else {
+          window.history.replaceState({}, '', dest);
+          if (dest.includes('/catalogs')) {
+            setShowStoreSwitcherModal(true);
+          }
+          return;
+        }
+      }
+
+      // Guest direct checkout guard: Must have completed Step 1 & 2
+      const savedFormRaw = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_register_form') : null;
+      let parsedForm: any = null;
+      try { parsedForm = savedFormRaw ? JSON.parse(savedFormRaw) : null; } catch {}
+      if (!parsedForm || !parsedForm.email || !parsedForm.store_slug) {
+        setStoreSlug(null);
+        setPortalTab('register');
+        setRegisterStep(1);
+        window.history.replaceState({ tab: 'register', step: 1 }, '', `/register${urlPlan ? '?plan=' + urlPlan : ''}`);
+        return;
+      }
+
       setStoreSlug(null);
       setPortalTab('checkout');
       setRegisterStep(3);
@@ -9464,6 +9566,50 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setRegisterBillingCycle(urlBilling as any);
       }
       return;
+    }
+
+    if (path === '/register' || path.startsWith('/register/') || path.startsWith('/register?')) {
+      const savedToken = token || localStorage.getItem('catavor_token');
+      if (savedToken && !isTokenExpired(savedToken)) {
+        clearRegistrationDrafts();
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlPlan = urlParams.get('plan');
+        const planQuery = (urlPlan === 'pro_starter' || urlPlan === 'pro_business') ? `?plan=${urlPlan}` : '';
+        const savedUserStr = localStorage.getItem('catavor_user');
+        let u: any = adminUser;
+        if (!u && savedUserStr) {
+          try { u = JSON.parse(savedUserStr); } catch {}
+        }
+        const dest = resolveAuthenticatedRedirect(u, storeSlug);
+        const pathOnly = dest.split('?')[0];
+        if (pathOnly === '/admin' && isPlatformAdmin(u)) {
+          setView('admin');
+          setStoreSlug(null);
+          setPortalTab('home');
+          window.history.replaceState({}, '', dest);
+          return;
+        } else if (pathOnly !== '/catalogs' && pathOnly !== '/admin' && pathOnly !== '/') {
+          const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+          setStoreSlug(targetSlug);
+          setView('admin');
+          if (urlPlan && (urlPlan === 'pro_starter' || urlPlan === 'pro_business')) {
+            setAdminTab('subscription');
+            window.history.replaceState({}, '', `/${targetSlug}/admin/subscription${planQuery}`);
+          } else {
+            setAdminTab('items');
+            window.history.replaceState({}, '', `/${targetSlug}/admin`);
+          }
+          setPortalTab('home');
+          loadData(targetSlug);
+          return;
+        } else {
+          window.history.replaceState({}, '', dest);
+          if (dest.includes('/catalogs')) {
+            setShowStoreSwitcherModal(true);
+          }
+          return;
+        }
+      }
     }
 
     if (isCatalogChooserRoute(path)) {
@@ -10341,16 +10487,64 @@ Terima kasih atas perhatian dan kerja samanya.`;
         } else {
           setPortalTab('login');
         }
-      } else if (path === '/register' || path === '/register/step-1') {
-        const policyReturnStep = sessionStorage.getItem('catavor_policy_return_step');
-        if (policyReturnStep === '3') {
-          sessionStorage.removeItem('catavor_policy_return_step');
-          sessionStorage.removeItem('catavor_policy_return_tab');
-          goToRegisterStep(3);
+      } else if (path === '/register' || path === '/register/step-1' || path === '/register/step-2' || path === '/register/step-3' || path === '/checkout') {
+        const curToken = typeof localStorage !== 'undefined' ? (localStorage.getItem('catavor_token') || localStorage.getItem('token')) : null;
+        if (curToken && !isTokenExpired(curToken)) {
+          clearRegistrationDrafts();
+          const rawUser = localStorage.getItem('catavor_user');
+          let u: any = adminUser;
+          if (!u && rawUser) {
+            try { u = JSON.parse(rawUser); } catch {}
+          }
+          const redirectUrl = resolveAuthenticatedRedirect(u, storeSlug);
+          const pathOnly = redirectUrl.split('?')[0];
+          if (pathOnly === '/admin' && isPlatformAdmin(u)) {
+            setView('admin');
+            setStoreSlug(null);
+            setPortalTab('home');
+            window.history.replaceState({}, '', redirectUrl);
+          } else if (pathOnly !== '/catalogs' && pathOnly !== '/admin' && pathOnly !== '/') {
+            const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+            setStoreSlug(targetSlug);
+            setView('admin');
+            if (urlPlan && (urlPlan === 'pro_starter' || urlPlan === 'pro_business')) {
+              setAdminTab('subscription');
+              window.history.replaceState({}, '', `/${targetSlug}/admin/subscription?plan=${urlPlan}`);
+            } else {
+              setAdminTab('items');
+              window.history.replaceState({}, '', `/${targetSlug}/admin`);
+            }
+            setPortalTab('home');
+            loadData(targetSlug);
+          } else {
+            setStoreSlug(null);
+            if (pathOnly === '/catalogs') setShowStoreSwitcherModal(true);
+            setPortalTab('home');
+            window.history.replaceState({}, '', redirectUrl);
+          }
           return;
         }
+
+        if (path === '/checkout') {
+          // Guest direct checkout guard
+          const savedFormRaw = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_register_form') : null;
+          let parsedForm: any = null;
+          try { parsedForm = savedFormRaw ? JSON.parse(savedFormRaw) : null; } catch {}
+          if (!parsedForm || !parsedForm.email || !parsedForm.store_slug) {
         setPortalTab('register');
         setRegisterStep(1);
+            window.history.replaceState({ tab: 'register', step: 1 }, '', `/register${urlPlan ? '?plan=' + urlPlan : ''}`);
+            return;
+          }
+          setPortalTab('checkout');
+          setRegisterStep(3);
+          if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
+            setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
+          }
+          const urlBilling = urlParams.get('billing');
+          if (urlBilling === 'annual' || urlBilling === 'monthly') {
+            setRegisterBillingCycle(urlBilling);
+          }
       } else if (path === '/register/step-2') {
         const policyReturnStep = sessionStorage.getItem('catavor_policy_return_step');
         if (policyReturnStep === '3') {
@@ -10369,15 +10563,17 @@ Terima kasih atas perhatian dan kerja samanya.`;
         if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
           setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
         }
-      } else if (path === '/checkout') {
-        setPortalTab('checkout');
-        setRegisterStep(3);
-        if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
-          setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
+        } else {
+          // /register or /register/step-1
+          const policyReturnStep = sessionStorage.getItem('catavor_policy_return_step');
+          if (policyReturnStep === '3') {
+            sessionStorage.removeItem('catavor_policy_return_step');
+            sessionStorage.removeItem('catavor_policy_return_tab');
+            goToRegisterStep(3);
+            return;
         }
-        const urlBilling = urlParams.get('billing');
-        if (urlBilling === 'annual' || urlBilling === 'monthly') {
-          setRegisterBillingCycle(urlBilling);
+          setPortalTab('register');
+          setRegisterStep(1);
         }
       } else if (path === '/terms' || path === '/syarat-ketentuan') {
         setPortalTab('terms');
@@ -10565,6 +10761,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       console.warn('Failed to fetch quota data:', err);
     }
   };
+  desktopFetchMyQuotaRef.current = fetchMyQuota;
 
   const fetchSubscriptionPlans = async (forceFresh: boolean = false) => {
     try {
@@ -10815,8 +11012,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
           }
           const currentP = window.location.pathname.toLowerCase();
-          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs';
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTabRef.current === 'register' || portalTabRef.current === 'checkout';
           if (isGenericAuthOrRoot) {
+            clearRegistrationDrafts();
             const rawUser = localStorage.getItem('catavor_user');
             let parsedUser: any = adminUserRef.current;
             if (!parsedUser && rawUser) {
@@ -10920,8 +11118,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
 
           const currentP = window.location.pathname.toLowerCase();
-          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs';
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTab === 'register' || portalTab === 'checkout';
           if (isGenericAuthOrRoot) {
+            clearRegistrationDrafts();
             const rawUser = localStorage.getItem('catavor_user');
             let parsedUser: any = adminUser;
             if (!parsedUser && rawUser) {
@@ -12489,6 +12688,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       if (res.ok && data.success) {
         localStorage.setItem('catavor_token', data.token);
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
+        if (data.stores && Array.isArray(data.stores)) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+        }
+        if (data.user?.store_slug) {
+          localStorage.setItem('catavor_active_slug', data.user.store_slug);
+        }
         localStorage.setItem('catavor_password_changed', 'true');
 
         const initialTheme = data.user?.store_theme || 'navy';
@@ -14857,6 +15062,45 @@ Terima kasih atas perhatian dan kerja samanya.`;
              (st.store_slogan && st.store_slogan.toLowerCase().includes(q));
     });
 
+    const handleLandingPlanSelect = (plan: 'free' | 'pro_starter' | 'pro_business') => {
+      const isAuth = hasValidSessionToken();
+      if (isAuth) {
+        clearRegistrationDrafts();
+        const destination = resolveAuthenticatedRedirect();
+        if (plan === 'free') {
+          window.location.replace(destination);
+        } else {
+          const storesList: UserStoreSummary[] = (userStores && userStores.length > 0) ? userStores : (() => {
+            try {
+              const raw = localStorage.getItem('catavor_stores');
+              return raw ? JSON.parse(raw) : [];
+            } catch {
+              return [];
+            }
+          })();
+          const selectedSessionSlug = typeof window !== 'undefined' ? sessionStorage.getItem('catavor_active_slug_selected') : null;
+          const targetSlug = (selectedSessionSlug && storesList.some(s => s.slug?.toLowerCase() === selectedSessionSlug?.toLowerCase()))
+            ? selectedSessionSlug
+            : (storesList[0]?.slug || '');
+
+          if (targetSlug) {
+            window.location.replace(`/${targetSlug}/admin/subscription?plan=${plan}`);
+          } else {
+            window.location.replace(destination);
+          }
+        }
+        return;
+      }
+
+      setRegisterStep(1);
+      setRegisterPlan(plan);
+      if (plan !== 'free') {
+        setRegisterBillingCycle('monthly');
+      }
+      setPortalTab('register');
+      window.history.pushState({}, '', '/register');
+    };
+
     return (
       <>
         {/* Floating Toast Notification Desktop Portal */}
@@ -15040,7 +15284,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         <button 
                           type="button"
                           className="btn-portal-primary" 
-                          onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }} 
+                          onClick={() => handleLandingPlanSelect('free')} 
                         >
                           <span>Buat Katalog — Gratis</span>
                           <ArrowRight size={16} />
@@ -15084,7 +15328,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                 {/* Primary Action Buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginBottom: '2.5rem' }}>
-                  <button className="btn-portal-primary" style={{ padding: '0.95rem 2.25rem', fontSize: '1.05rem', fontWeight: 800 }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                  <button className="btn-portal-primary" style={{ padding: '0.95rem 2.25rem', fontSize: '1.05rem', fontWeight: 800 }} onClick={() => handleLandingPlanSelect('free')}>
                     <span>Mulai Buat Katalog — Gratis</span>
                     <ArrowRight size={18} />
                   </button>
@@ -15544,7 +15788,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8' }}><X size={16} /> Watermark Catavor aktif</li>
                       </ul>
                     </div>
-                    <button className="btn-portal-secondary" style={{ width: '100%', padding: '0.8rem', marginTop: '2rem', justifyContent: 'center', fontWeight: 700 }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                    <button className="btn-portal-secondary" style={{ width: '100%', padding: '0.8rem', marginTop: '2rem', justifyContent: 'center', fontWeight: 700 }} onClick={() => handleLandingPlanSelect('free')}>
                       Daftar Gratis Sekarang
                     </button>
                   </div>
@@ -15573,7 +15817,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>100% Bebas Watermark</strong></li>
                       </ul>
                     </div>
-                    <button className="btn-portal-primary" style={{ width: '100%', padding: '0.8rem', marginTop: '2rem', justifyContent: 'center', fontSize: '0.9rem', background: '#0284c7' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_starter'); setRegisterBillingCycle('monthly'); setPortalTab('register'); }}>
+                    <button className="btn-portal-primary" style={{ width: '100%', padding: '0.8rem', marginTop: '2rem', justifyContent: 'center', fontSize: '0.9rem', background: '#0284c7' }} onClick={() => handleLandingPlanSelect('pro_starter')}>
                       <span>Pilih Pro Starter</span>
                       <ArrowRight size={16} />
                     </button>
@@ -15603,7 +15847,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> Prioritas VIP Support 24/7</li>
                       </ul>
                     </div>
-                    <button className="btn-portal-primary" style={{ width: '100%', padding: '0.8rem', marginTop: '2rem', justifyContent: 'center', fontSize: '0.9rem', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000', fontWeight: 900 }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_business'); setRegisterBillingCycle('monthly'); setPortalTab('register'); }}>
+                    <button className="btn-portal-primary" style={{ width: '100%', padding: '0.8rem', marginTop: '2rem', justifyContent: 'center', fontSize: '0.9rem', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000', fontWeight: 900 }} onClick={() => handleLandingPlanSelect('pro_business')}>
                       <span>Pilih Pro Bisnis</span>
                       <ArrowRight size={16} />
                     </button>
@@ -15654,7 +15898,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   <p style={{ fontSize: '1.05rem', color: '#dbeafe', marginBottom: '2rem', lineHeight: 1.6 }}>
                     Daftar sekarang dan publikasikan katalog produk interaktif Anda dalam 60 detik. Gratis selamanya tanpa kartu kredit.
                   </p>
-                  <button className="btn-portal-secondary" style={{ padding: '0.9rem 2.2rem', fontSize: '1rem', fontWeight: 800, color: '#1d4ed8' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                  <button className="btn-portal-secondary" style={{ padding: '0.9rem 2.2rem', fontSize: '1rem', fontWeight: 800, color: '#1d4ed8' }} onClick={() => handleLandingPlanSelect('free')}>
                     <span>Buat Link Katalog Saya</span>
                     <ArrowRight size={18} />
                   </button>
@@ -29012,7 +29256,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   <SubscriptionPage
                     currentQuota={storeQuota}
                     plans={subscriptionPlans}
-                    settings={settings}
+                    settings={{ ...settings, ...platformSettings }}
                     onSuccessUpgrade={() => {
                       fetchMyQuota();
                       loadData();
@@ -34058,7 +34302,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           onClose={() => setShowSubscriptionModal(false)}
           currentQuota={storeQuota}
           plans={subscriptionPlans}
-          settings={settings}
+          settings={{ ...settings, ...platformSettings }}
           onSuccessUpgrade={() => {
             fetchMyQuota();
             loadData();

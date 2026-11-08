@@ -172,7 +172,8 @@ import {
   subscribeAuthSync,
   resolveAuthenticatedRedirect,
   hasValidSessionToken,
-  appendViewParam
+  appendViewParam,
+  clearRegistrationDrafts
 } from './utils/authSync'
 
 export interface UserStoreSummary {
@@ -4165,6 +4166,13 @@ function App() {
       let pathTab: 'home' | 'login' | 'register' | 'checkout' | 'terms' | 'privacy' | 'acceptable_use' = 'home';
       let pathStep: 1 | 2 | 3 = 1;
 
+      const curToken = typeof localStorage !== 'undefined' ? (localStorage.getItem('catavor_token') || localStorage.getItem('token')) : null;
+      const isAuthenticated = Boolean(curToken && !isTokenExpired(curToken));
+
+      if (isAuthenticated) {
+        clearRegistrationDrafts();
+      }
+
       if (path === '/dashboard') {
         const savedToken = localStorage.getItem('catavor_token');
         const savedUserStr = localStorage.getItem('catavor_user');
@@ -4191,23 +4199,31 @@ function App() {
           } catch { }
         }
       } else if (path === '/login') {
-        const curToken = typeof localStorage !== 'undefined' ? (localStorage.getItem('catavor_token') || localStorage.getItem('token')) : null;
-        if (curToken && !isTokenExpired(curToken)) {
+        pathTab = isAuthenticated ? 'home' : 'login';
+      } else if (path === '/checkout') {
+        if (isAuthenticated) {
           pathTab = 'home';
         } else {
-          pathTab = 'login';
-        }
-      } else if (path === '/checkout') {
+          // Guard direct checkout access: Guest must have completed step 1 & 2
+          const savedFormRaw = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_register_form') : null;
+          let parsedForm: any = null;
+          try { parsedForm = savedFormRaw ? JSON.parse(savedFormRaw) : null; } catch {}
+          if (parsedForm && parsedForm.email && parsedForm.store_slug) {
         pathTab = 'checkout';
         pathStep = 3;
-      } else if (path === '/register' || path === '/register/step-1') {
+          } else {
         pathTab = 'register';
         pathStep = 1;
+          }
+        }
+      } else if (path === '/register' || path === '/register/step-1') {
+        pathTab = isAuthenticated ? 'home' : 'register';
+        pathStep = 1;
       } else if (path === '/register/step-2') {
-        pathTab = 'register';
+        pathTab = isAuthenticated ? 'home' : 'register';
         pathStep = 2;
       } else if (path === '/register/step-3') {
-        pathTab = 'register';
+        pathTab = isAuthenticated ? 'home' : 'register';
         pathStep = 3;
       } else if (path === '/terms' || path === '/syarat-ketentuan') {
         pathTab = 'terms';
@@ -4218,7 +4234,7 @@ function App() {
       } else {
         const queryTab = urlParams.get('tab');
         const queryStep = urlParams.get('step');
-        if (['login', 'register', 'checkout', 'terms', 'privacy', 'acceptable_use'].includes(queryTab || '')) {
+        if (['login', 'register', 'terms', 'privacy', 'acceptable_use'].includes(queryTab || '')) {
           pathTab = queryTab as any;
           if (queryStep) {
             const stepNum = parseInt(queryStep, 10);
@@ -4226,7 +4242,7 @@ function App() {
           }
         } else {
           const savedTab = sessionStorage.getItem('catavor_portal_tab');
-          if (['terms', 'privacy', 'acceptable_use', 'checkout'].includes(savedTab || '')) {
+          if (['terms', 'privacy', 'acceptable_use'].includes(savedTab || '')) {
             pathTab = savedTab as any;
           }
         }
@@ -4278,6 +4294,7 @@ function App() {
   const [registerBillingCycle, setRegisterBillingCycle] = useState<'monthly' | 'annual'>(initialRegState.billing || 'monthly');
   const [registerStep, setRegisterStep] = useState<1 | 2 | 3>(initialRegState.step);
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'qris'>(initialRegState.paymentMethod || 'bank');
+  const [mobileAulaaChannel, setMobileAulaaChannel] = useState<'qris' | 'va' | 'ewallet' | 'cc'>('qris');
   const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null);
   const [paymentProofNote, setPaymentProofNote] = useState<string>('');
   const [showPaymentSuccessModal, setShowPaymentSuccessModal] = useState<boolean>(false);
@@ -4719,6 +4736,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const mobileHandleStoreBannedEvictionRef = useRef<((bannedSlug?: string, customMessage?: string) => void) | null>(null);
   // checkTokenValidity dideklarasikan setelah effect resync, jadi aksesnya via ref
   const mobileCheckTokenValidityRef = useRef<((force?: boolean) => void) | null>(null);
+  const mobileFetchMyQuotaRef = useRef<((force?: boolean) => void) | null>(null);
   const mobileVerifiedTokenRef = useRef<string | null>(null);
   const mobileLastTokenCheckTimeRef = useRef<number>(0);
   const mobileLastQuotaFetchTimeRef = useRef<number>(0);
@@ -6190,7 +6208,7 @@ Terima kasih.`;
     }
   }, [storeSlug])
 
-  // Check 1-Click Reactivation URL Parameter (?reactivated=true)
+  // Check 1-Click Reactivation URL Parameter (?reactivated=true) & Gateway Return (?payment=success)
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search)
@@ -6205,7 +6223,35 @@ Terima kasih.`;
           last_activity_at: new Date().toISOString()
         }))
       }
-    } catch { }
+      if (params.get('payment') === 'success') {
+        const ord = params.get('order_number')
+        showToast(ord ? `Pembayaran Anda (${ord}) berhasil diverifikasi! Paket toko telah aktif.` : 'Pembayaran Anda berhasil diverifikasi! Paket toko telah aktif.', 'success')
+        if (ord) {
+          const liveToken = localStorage.getItem('catavor_token') || localStorage.getItem('token') || token
+          fetch(`/api/subscription/orders/${encodeURIComponent(ord)}/sync`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              ...(liveToken ? { 'Authorization': `Bearer ${liveToken}` } : {})
+            }
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.quota) {
+                setStoreQuota(data.quota)
+              }
+              if (mobileFetchMyQuotaRef.current) {
+                mobileFetchMyQuotaRef.current(true)
+              }
+            })
+            .catch(() => {})
+        }
+        params.delete('payment')
+        params.delete('order_number')
+        const newQuery = params.toString() ? `?${params.toString()}` : ''
+        window.history.replaceState({}, '', `${window.location.pathname}${newQuery}`)
+      }
+    } catch {}
   }, [])
 
   // Notifications Count & Filtered View (Mobile)
@@ -9804,6 +9850,118 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
     }
 
+    if (path === '/checkout' || path.startsWith('/checkout/') || path.startsWith('/checkout?')) {
+      const savedToken = token || localStorage.getItem('catavor_token');
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlPlan = urlParams.get('plan');
+      const urlBilling = urlParams.get('billing');
+
+      if (savedToken && !isTokenExpired(savedToken)) {
+        clearRegistrationDrafts();
+        const savedUserStr = localStorage.getItem('catavor_user');
+        let u: any = adminUser;
+        if (!u && savedUserStr) {
+          try { u = JSON.parse(savedUserStr); } catch {}
+        }
+        const planQuery = (urlPlan === 'pro_starter' || urlPlan === 'pro_business') ? `?plan=${urlPlan}` : '';
+        const dest = resolveAuthenticatedRedirect(u, storeSlug);
+        const pathOnly = dest.split('?')[0];
+        if (pathOnly === '/admin' && isPlatformAdmin(u)) {
+          setView('tabs');
+          setActiveTab('admin');
+          setStoreSlug(null);
+          setPortalTab('home');
+          window.history.replaceState({}, '', dest);
+          return;
+        } else if (pathOnly !== '/catalogs' && pathOnly !== '/admin' && pathOnly !== '/') {
+          const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+          setStoreSlug(targetSlug);
+          setView('tabs');
+          setActiveTab('admin');
+          setAdminSubTab('subscription');
+          setPortalTab('home');
+          window.history.replaceState({}, '', appendViewParam(`/${targetSlug}/admin/subscription${planQuery}`));
+          loadData(targetSlug);
+          return;
+        } else {
+          window.history.replaceState({}, '', dest);
+          if (dest.includes('/catalogs')) {
+            setShowStoreSwitcherModal(true);
+          }
+          return;
+        }
+      }
+
+      // Guest direct checkout guard: Must have completed Step 1 & 2
+      const savedFormRaw = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_register_form') : null;
+      let parsedForm: any = null;
+      try { parsedForm = savedFormRaw ? JSON.parse(savedFormRaw) : null; } catch {}
+      if (!parsedForm || !parsedForm.email || !parsedForm.store_slug) {
+        setStoreSlug(null);
+        setPortalTab('register');
+        setRegisterStep(1);
+        window.history.replaceState({ tab: 'register', step: 1 }, '', `/register${urlPlan ? '?plan=' + urlPlan : ''}`);
+        return;
+      }
+
+      setStoreSlug(null);
+      setPortalTab('checkout');
+      setRegisterStep(3);
+      if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
+        setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
+      }
+      if (urlBilling === 'annual' || urlBilling === 'monthly') {
+        setRegisterBillingCycle(urlBilling as any);
+      }
+      return;
+    }
+
+    if (path === '/register' || path.startsWith('/register/') || path.startsWith('/register?')) {
+      const savedToken = token || localStorage.getItem('catavor_token');
+      if (savedToken && !isTokenExpired(savedToken)) {
+        clearRegistrationDrafts();
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlPlan = urlParams.get('plan');
+        const planQuery = (urlPlan === 'pro_starter' || urlPlan === 'pro_business') ? `?plan=${urlPlan}` : '';
+        const savedUserStr = localStorage.getItem('catavor_user');
+        let u: any = adminUser;
+        if (!u && savedUserStr) {
+          try { u = JSON.parse(savedUserStr); } catch {}
+        }
+        const dest = resolveAuthenticatedRedirect(u, storeSlug);
+        const pathOnly = dest.split('?')[0];
+        if (pathOnly === '/admin' && isPlatformAdmin(u)) {
+          setView('tabs');
+          setActiveTab('admin');
+          setStoreSlug(null);
+          setPortalTab('home');
+          window.history.replaceState({}, '', dest);
+          return;
+        } else if (pathOnly !== '/catalogs' && pathOnly !== '/admin' && pathOnly !== '/') {
+          const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+          setStoreSlug(targetSlug);
+          setView('tabs');
+          setActiveTab('admin');
+          if (urlPlan && (urlPlan === 'pro_starter' || urlPlan === 'pro_business')) {
+            setAdminSubTab('subscription');
+            window.history.replaceState({}, '', appendViewParam(`/${targetSlug}/admin/subscription${planQuery}`));
+          } else {
+            setAdminSubTab('menu');
+            window.history.replaceState({}, '', appendViewParam(`/${targetSlug}/admin`));
+          }
+          setPortalTab('home');
+          loadData(targetSlug);
+          return;
+        } else {
+          window.history.replaceState({}, '', dest);
+          if (dest.includes('/catalogs')) {
+            setShowStoreSwitcherModal(true);
+          }
+          return;
+        }
+      }
+    }
+
     const cleanPath = (path || '').split('?')[0].toLowerCase().trim().replace(/\/+$/, '') || '/';
     const isPlatformAdminPath = !isCatalogChooserRoute(cleanPath) && (cleanPath === '/admin' || cleanPath.startsWith('/admin/') || cleanPath === '/platform' || cleanPath.startsWith('/platform/') || cleanPath === '/ops' || cleanPath.startsWith('/ops/'));
 
@@ -10712,7 +10870,92 @@ Terima kasih atas perhatian dan kerja samanya.`;
         if (token && isPlatformAdmin(adminUser)) {
           setActiveTab('admin');
         }
-      } else if (path === '/checkout') {
+      } else if (path === '/register' || path === '/register/step-1' || path === '/register/step-2' || path === '/register/step-3' || path === '/checkout') {
+        const curToken = typeof localStorage !== 'undefined' ? (localStorage.getItem('catavor_token') || localStorage.getItem('token')) : null;
+        if (curToken && !isTokenExpired(curToken)) {
+          clearRegistrationDrafts();
+          const rawUser = localStorage.getItem('catavor_user');
+          let u: any = adminUser;
+          if (!u && rawUser) {
+            try { u = JSON.parse(rawUser); } catch {}
+          }
+          const redirectUrl = resolveAuthenticatedRedirect(u);
+          const pathOnly = redirectUrl.split('?')[0];
+          if (pathOnly === '/admin') {
+            if (isPlatformAdmin(u)) {
+              setView('tabs');
+              setActiveTab('admin');
+              setStoreSlug(null);
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+            } else {
+              const fallbackSlug = (u as any)?.store_slug || (u as any)?.stores?.[0]?.slug || localStorage.getItem('catavor_active_slug');
+              if (fallbackSlug) {
+                const targetUrl = appendViewParam(`/${fallbackSlug}/admin`);
+                setStoreSlug(fallbackSlug);
+                setView('tabs');
+                setActiveTab('admin');
+                setAdminSubTab('menu');
+                setPortalTab('home');
+                window.history.replaceState({}, '', targetUrl);
+                loadData(fallbackSlug);
+              } else {
+                setStoreSlug(null);
+                setShowStoreSwitcherModal(true);
+                setPortalTab('home');
+                window.history.replaceState({}, '', appendViewParam('/catalogs'));
+              }
+            }
+          } else if (pathOnly === '/catalogs') {
+            let userStoresList: any[] = [];
+            try {
+              const s = localStorage.getItem('catavor_stores');
+              if (s) userStoresList = JSON.parse(s);
+            } catch {}
+            if (!userStoresList.length && Array.isArray(u?.stores)) {
+              userStoresList = u.stores;
+            }
+            userStoresList = userStoresList.filter((s: any) => s && s.slug && !isReservedStoreSlug(s.slug) && s.dormancy_status !== 'banned' && !s.is_blacklisted);
+            if (userStoresList.length === 1 && userStoresList[0]?.slug) {
+              const singleSlug = userStoresList[0].slug;
+              const targetUrl = appendViewParam(`/${singleSlug}/admin`);
+              setStoreSlug(singleSlug);
+              setView('tabs');
+              setActiveTab('admin');
+              setAdminSubTab('menu');
+              setPortalTab('home');
+              window.history.replaceState({}, '', targetUrl);
+              loadData(singleSlug);
+            } else {
+              setStoreSlug(null);
+              setShowStoreSwitcherModal(true);
+              setPortalTab('home');
+              window.history.replaceState({}, '', redirectUrl);
+            }
+          } else {
+            const targetSlug = pathOnly.replace(/^\//, '').replace(/\/admin.*$/, '');
+            setStoreSlug(targetSlug);
+            setView('tabs');
+            setActiveTab('admin');
+            setAdminSubTab('menu');
+            setPortalTab('home');
+            window.history.replaceState({}, '', redirectUrl);
+            loadData(targetSlug);
+          }
+          return;
+        }
+
+        if (path === '/checkout') {
+          // Guest direct checkout guard: Must have completed Step 1 & 2
+          const savedFormRaw = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('catavor_register_form') : null;
+          let parsedForm: any = null;
+          try { parsedForm = savedFormRaw ? JSON.parse(savedFormRaw) : null; } catch {}
+          if (!parsedForm || !parsedForm.email || !parsedForm.store_slug) {
+            setPortalTab('register');
+            setRegisterStep(1);
+            window.history.replaceState({ tab: 'register', step: 1 }, '', `/register${urlPlan ? '?plan=' + urlPlan : ''}`);
+            return;
+          }
         setPortalTab('checkout');
         setRegisterStep(3);
         if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
@@ -10722,7 +10965,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
         if (urlBilling === 'annual' || urlBilling === 'monthly') {
           setRegisterBillingCycle(urlBilling);
         }
-      } else if (path === '/register' || path === '/register/step-1') {
+          return;
+        }
+
+        if (path === '/register' || path === '/register/step-1') {
         const policyReturnStep = sessionStorage.getItem('catavor_policy_return_step');
         if (policyReturnStep === '3') {
           sessionStorage.removeItem('catavor_policy_return_step');
@@ -10732,7 +10978,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
         setPortalTab('register');
         setRegisterStep(1);
-      } else if (path === '/register/step-2') {
+          if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
+            setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
+          }
+          return;
+        }
+
+        if (path === '/register/step-2') {
         const policyReturnStep = sessionStorage.getItem('catavor_policy_return_step');
         if (policyReturnStep === '3') {
           sessionStorage.removeItem('catavor_policy_return_step');
@@ -10742,13 +10994,21 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
         setPortalTab('register');
         setRegisterStep(2);
-      } else if (path === '/register/step-3') {
+          if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
+            setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
+          }
+          return;
+        }
+
+        if (path === '/register/step-3') {
         sessionStorage.removeItem('catavor_policy_return_step');
         sessionStorage.removeItem('catavor_policy_return_tab');
         setPortalTab('register');
         setRegisterStep(3);
         if (['free', 'pro_starter', 'pro_business', 'pro'].includes(urlPlan || '')) {
           setRegisterPlan(urlPlan === 'pro' ? 'pro_starter' : (urlPlan as any));
+        }
+          return;
         }
       } else if (path === '/terms' || path === '/syarat-ketentuan') {
         setPortalTab('terms');
@@ -10959,6 +11219,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       console.warn('Failed to fetch quota data:', err);
     }
   };
+  mobileFetchMyQuotaRef.current = fetchMyQuota;
 
   const fetchSubscriptionPlans = async (forceFresh: boolean = false) => {
     try {
@@ -11264,8 +11525,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
           }
           const currentP = window.location.pathname.toLowerCase();
-          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs';
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTabRef.current === 'register' || portalTabRef.current === 'checkout';
           if (isGenericAuthOrRoot) {
+            clearRegistrationDrafts();
             const rawUser = localStorage.getItem('catavor_user');
             let parsedUser: any = adminUserRef.current;
             if (!parsedUser && rawUser) {
@@ -11383,8 +11645,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
 
           const currentP = window.location.pathname.toLowerCase();
-          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs';
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTab === 'register' || portalTab === 'checkout';
           if (isGenericAuthOrRoot) {
+            clearRegistrationDrafts();
             const rawUser = localStorage.getItem('catavor_user');
             let parsedUser: any = adminUser;
             if (!parsedUser && rawUser) {
@@ -12778,7 +13041,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         plan: effectivePlan,
         billing_cycle: registerBillingCycle,
         coupon_code: appliedCoupon?.code || '',
-        payment_method: isFreeCoupon ? 'free' : paymentMethod,
+        payment_method: isFreeCoupon ? 'free' : (paymentSystemMode === 'gateway_aulaa' ? mobileAulaaChannel : paymentMethod),
+        payment_mode: isFreeCoupon ? 'free' : (paymentSystemMode === 'gateway_aulaa' ? 'gateway_aulaa' : (paymentMethod === 'qris' ? 'manual_qris' : 'manual_bank')),
         payment_status: isFreeCoupon ? 'approved' : 'pending_approval',
         payment_proof_url: isFreeCoupon ? null : paymentProofPreview,
         payment_note: paymentProofNote || undefined,
@@ -12813,13 +13077,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setToken(data.token);
         setAdminUser(data.user);
         setIsPasswordChanged(true);
+        if (data.user?.store_slug) {
+          saveUserActiveSlug(data.user.id, data.user.store_slug);
+          localStorage.setItem('catavor_active_slug', data.user.store_slug);
+        }
         if (data.payment_url) {
           window.location.href = data.payment_url;
           return;
         }
         if (data.user?.store_slug) {
-          saveUserActiveSlug(data.user.id, data.user.store_slug);
-          localStorage.setItem('catavor_active_slug', data.user.store_slug);
           window.location.href = `/${data.user.store_slug}/admin`;
           return;
         }
@@ -13312,6 +13578,38 @@ Terima kasih atas perhatian dan kerja samanya.`;
   };
 
   const handleCancelCheckout = handleBackToPlanSelect;
+
+  const handleLandingPlanSelect = (plan: 'free' | 'pro_starter' | 'pro_business') => {
+    const isAuth = hasValidSessionToken();
+    if (isAuth) {
+      clearRegistrationDrafts();
+      const destination = resolveAuthenticatedRedirect(adminUser);
+      if (plan === 'free') {
+        window.location.replace(destination);
+      } else {
+        const rawStores = localStorage.getItem('catavor_stores');
+        let storesList: any[] = [];
+        if (rawStores) {
+          try { storesList = JSON.parse(rawStores); } catch {}
+        }
+        if (!storesList.length && (adminUser as any)?.stores?.length) {
+          storesList = (adminUser as any).stores;
+        }
+        const activeSlug = resolveActiveStoreSlug() || (adminUser as any)?.store_slug || storesList[0]?.slug;
+        if (activeSlug && !isReservedStoreSlug(activeSlug)) {
+          window.location.replace(appendViewParam(`/${activeSlug}/admin/subscription?plan=${plan}`));
+        } else {
+          window.location.replace(destination);
+        }
+      }
+    } else {
+      setRegisterStep(1);
+      setRegisterPlan(plan);
+      setRegisterBillingCycle('monthly');
+      setPortalTab('register');
+      window.history.pushState({ tab: 'register', step: 1 }, '', `/register?plan=${plan}`);
+    }
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -15545,7 +15843,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <button
                             type="button"
                             className="btn-portal-primary"
-                            onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}
+                          onClick={() => handleLandingPlanSelect('free')} 
                             style={{ padding: '0.38rem 0.8rem', fontSize: '0.74rem', fontWeight: 800, borderRadius: '0.5rem' }}
                           >
                             Buat Katalog
@@ -15588,7 +15886,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
                   {/* Primary CTA Buttons */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                    <button className="btn-portal-primary" style={{ padding: '0.85rem', fontSize: '0.88rem', fontWeight: 800, justifyContent: 'center' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                  <button className="btn-portal-primary" style={{ padding: '0.85rem', fontSize: '0.88rem', fontWeight: 800, justifyContent: 'center' }} onClick={() => handleLandingPlanSelect('free')}>
                       <span>Mulai Buat Katalog — Gratis</span>
                       <ArrowRight size={16} />
                     </button>
@@ -15928,7 +16226,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         <li>✅ Subdomain kustom &amp; WhatsApp Order</li>
                         <li>✅ Download QR Code siap cetak</li>
                       </ul>
-                      <button className="btn-portal-secondary" style={{ padding: '0.7rem', fontSize: '0.8rem', justifyContent: 'center', fontWeight: 700 }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setRegisterBillingCycle('monthly'); setPortalTab('register'); }}>
+                    <button className="btn-portal-secondary" style={{ padding: '0.7rem', fontSize: '0.8rem', justifyContent: 'center', fontWeight: 700 }} onClick={() => handleLandingPlanSelect('free')}>
                         Daftar Gratis Sekarang
                       </button>
                     </div>
@@ -15952,7 +16250,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         <li>⚡ Lencana Katalog Terverifikasi</li>
                         <li>⚡ <strong>100% Bebas Watermark</strong></li>
                       </ul>
-                      <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 800, justifyContent: 'center', background: '#0284c7' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_starter'); setRegisterBillingCycle('monthly'); setPortalTab('register'); }}>
+                    <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 800, justifyContent: 'center', background: '#0284c7' }} onClick={() => handleLandingPlanSelect('pro_starter')}>
                         <span>Pilih Pro Starter</span>
                         <ArrowRight size={14} />
                       </button>
@@ -15977,7 +16275,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         <li>👑 <strong>Custom Domain (brand.com)</strong></li>
                         <li>👑 Prioritas VIP Support 24/7</li>
                       </ul>
-                      <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 900, justifyContent: 'center', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000' }} onClick={() => { setRegisterStep(1); setRegisterPlan('pro_business'); setRegisterBillingCycle('monthly'); setPortalTab('register'); }}>
+                    <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 900, justifyContent: 'center', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000' }} onClick={() => handleLandingPlanSelect('pro_business')}>
                         <span>Pilih Pro Bisnis</span>
                         <ArrowRight size={14} />
                       </button>
@@ -16026,7 +16324,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   <p style={{ fontSize: '0.78rem', color: '#dbeafe', margin: '0 0 1.25rem 0', lineHeight: 1.45 }}>
                     Buat katalog digital profesional Anda dalam 60 detik. Gratis selamanya.
                   </p>
-                  <button className="btn-portal-secondary" style={{ padding: '0.8rem', fontSize: '0.85rem', fontWeight: 800, justifyContent: 'center', width: '100%', color: '#1d4ed8' }} onClick={() => { setRegisterStep(1); setRegisterPlan('free'); setPortalTab('register'); }}>
+                <button className="btn-portal-secondary" style={{ padding: '0.8rem', fontSize: '0.85rem', fontWeight: 800, justifyContent: 'center', width: '100%', color: '#1d4ed8' }} onClick={() => handleLandingPlanSelect('free')}>
                     <span>Buat Katalog Sekarang</span>
                     <ArrowRight size={16} />
                   </button>
@@ -17065,7 +17363,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 {(() => {
                   const originalPrice = registerPlan === 'pro_business' ? 129000 : 30000;
                   const normalPrice = registerPlan === 'pro_business' ? 150000 : 65000;
-                  const discountAmount = appliedCoupon ? (appliedCoupon.type === 'free' ? originalPrice : appliedCoupon.discount) : 0;
+                const discountAmount = appliedCoupon ? (appliedCoupon.type === 'free' ? originalPrice : Number(appliedCoupon.discount || (appliedCoupon as any).discount_amount || (appliedCoupon as any).discount_value || 0)) : 0;
                   const finalPrice = Math.max(0, originalPrice - discountAmount);
 
                   return (
@@ -17466,40 +17764,124 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 </label>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
                                   {showQRIS && (
-                                    <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.5rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMobileAulaaChannel('qris');
+                                    try { sessionStorage.setItem('catavor_aulaa_channel', 'qris'); } catch {}
+                                  }}
+                                  style={{
+                                    padding: '0.6rem 0.65rem',
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: mobileAulaaChannel === 'qris' ? '#f0fdf4' : '#ffffff',
+                                    border: mobileAulaaChannel === 'qris' ? '2px solid #16a34a' : '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.4rem',
+                                    cursor: 'pointer',
+                                    textAlign: 'left'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                       <QrCode size={15} color="#059669" />
                                       <div>
                                         <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a' }}>QRIS Instan</div>
-                                        <div style={{ fontSize: '0.62rem', color: '#64748b' }}>GoPay, OVO, ShopeePay</div>
+                                      <div style={{ fontSize: '0.62rem', color: '#64748b' }}>GoPay, OVO, Shopee</div>
                                       </div>
                                     </div>
+                                  {mobileAulaaChannel === 'qris' && <Check size={14} color="#059669" style={{ flexShrink: 0 }} />}
+                                </button>
                                   )}
                                   {showVA && (
-                                    <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.5rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMobileAulaaChannel('va');
+                                    try { sessionStorage.setItem('catavor_aulaa_channel', 'va'); } catch {}
+                                  }}
+                                  style={{
+                                    padding: '0.6rem 0.65rem',
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: mobileAulaaChannel === 'va' ? '#f0f9ff' : '#ffffff',
+                                    border: mobileAulaaChannel === 'va' ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.4rem',
+                                    cursor: 'pointer',
+                                    textAlign: 'left'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                       <CreditCard size={15} color="#0284c7" />
                                       <div>
                                         <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a' }}>Virtual Account</div>
-                                        <div style={{ fontSize: '0.62rem', color: '#64748b' }}>BCA, Mandiri, BRI, BNI</div>
+                                      <div style={{ fontSize: '0.62rem', color: '#64748b' }}>BCA, Mandiri, BRI</div>
                                       </div>
                                     </div>
+                                  {mobileAulaaChannel === 'va' && <Check size={14} color="#0284c7" style={{ flexShrink: 0 }} />}
+                                </button>
                                   )}
                                   {showEWallet && (
-                                    <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.5rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMobileAulaaChannel('ewallet');
+                                    try { sessionStorage.setItem('catavor_aulaa_channel', 'ewallet'); } catch {}
+                                  }}
+                                  style={{
+                                    padding: '0.6rem 0.65rem',
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: mobileAulaaChannel === 'ewallet' ? '#fffbeb' : '#ffffff',
+                                    border: mobileAulaaChannel === 'ewallet' ? '2px solid #d97706' : '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.4rem',
+                                    cursor: 'pointer',
+                                    textAlign: 'left'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                       <Zap size={15} color="#d97706" />
                                       <div>
                                         <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a' }}>Dompet Digital</div>
-                                        <div style={{ fontSize: '0.62rem', color: '#64748b' }}>DANA, LinkAja, AstraPay</div>
+                                      <div style={{ fontSize: '0.62rem', color: '#64748b' }}>DANA, LinkAja</div>
                                       </div>
                                     </div>
+                                  {mobileAulaaChannel === 'ewallet' && <Check size={14} color="#d97706" style={{ flexShrink: 0 }} />}
+                                </button>
                                   )}
                                   {showCC && (
-                                    <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.5rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMobileAulaaChannel('cc');
+                                    try { sessionStorage.setItem('catavor_aulaa_channel', 'cc'); } catch {}
+                                  }}
+                                  style={{
+                                    padding: '0.6rem 0.65rem',
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: mobileAulaaChannel === 'cc' ? '#faf5ff' : '#ffffff',
+                                    border: mobileAulaaChannel === 'cc' ? '2px solid #7c3aed' : '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.4rem',
+                                    cursor: 'pointer',
+                                    textAlign: 'left'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                       <CreditCard size={15} color="#7c3aed" />
                                       <div>
-                                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a' }}>Kartu Kredit / Debit</div>
+                                      <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0f172a' }}>Kartu Kredit</div>
                                         <div style={{ fontSize: '0.62rem', color: '#64748b' }}>Visa &amp; Mastercard</div>
                                       </div>
                                     </div>
+                                  {mobileAulaaChannel === 'cc' && <Check size={14} color="#7c3aed" style={{ flexShrink: 0 }} />}
+                                </button>
                                   )}
                                 </div>
                               </div>
@@ -17663,9 +18045,28 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 <p style={{ fontSize: '0.72rem', color: '#64748b', margin: 0 }}>
                                   Scan QRIS dengan GoPay, OVO, ShopeePay, BCA Mobile, atau aplikasi bank lainnya.
                                 </p>
-                                <a
-                                  href={platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || settings.payment_qris_manual_image || settings.payment_qris_image || '/img/qris_demo.svg'}
-                                  download="QRIS_Catavor_Payment.svg"
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                const qrisUrl = platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || settings.payment_qris_manual_image || settings.payment_qris_image || '/img/qris_demo.svg';
+                                try {
+                                  const res = await fetch(qrisUrl);
+                                  if (!res.ok) throw new Error('File tidak dapat diakses');
+                                  const blob = await res.blob();
+                                  const blobUrl = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = blobUrl;
+                                  const ext = qrisUrl.endsWith('.jpg') || qrisUrl.endsWith('.jpeg') ? '.jpg' : (qrisUrl.endsWith('.svg') ? '.svg' : '.png');
+                                  a.download = `QRIS_Catavor_Payment${ext}`;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  window.URL.revokeObjectURL(blobUrl);
+                                } catch {
+                                  window.open(qrisUrl, '_blank');
+                                }
+                              }}
                                   style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
@@ -17677,18 +18078,21 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     color: '#1d4ed8',
                                     fontSize: '0.72rem',
                                     fontWeight: 700,
-                                    textDecoration: 'none'
+                                textDecoration: 'none',
+                                cursor: 'pointer'
                                   }}
                                 >
                                   <Download size={13} /> Download Gambar QRIS
-                                </a>
+                            </button>
                               </div>
                             )}
 
-                            {/* Unique nominal info for manual verification */}
+                        {/* Unique nominal info for manual bank transfer verification */}
+                        {paymentMethod === 'bank' && (
                             <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.5rem', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.72rem', color: '#1e40af', lineHeight: 1.45 }}>
-                              <strong>Catatan Kode Unik:</strong> Nominal transfer/scan akan dialokasikan tambahan kode unik 3 digit acak otomatis oleh sistem untuk verifikasi mutasi cepat.
+                            <strong>Catatan Kode Unik:</strong> Nominal transfer rekening akan dialokasikan tambahan kode unik 3 digit acak otomatis oleh sistem untuk verifikasi mutasi cepat.
                             </div>
+                        )}
 
                             {/* Form Upload Bukti Transfer Mobile */}
                             <form

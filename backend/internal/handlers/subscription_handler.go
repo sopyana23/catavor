@@ -551,9 +551,14 @@ func (h *SubscriptionHandler) RejectOrder(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		Reason string `json:"reason"`
+		Reason          string `json:"reason"`
+		RejectionReason string `json:"rejection_reason"`
 	}
 	_ = c.BodyParser(&req)
+	finalReason := strings.TrimSpace(req.Reason)
+	if finalReason == "" {
+		finalReason = strings.TrimSpace(req.RejectionReason)
+	}
 
 	adminIDVal := c.Locals("user_id")
 	var adminID uint = 0
@@ -561,7 +566,7 @@ func (h *SubscriptionHandler) RejectOrder(c *fiber.Ctx) error {
 		adminID = adminIDVal.(uint)
 	}
 
-	order, err := services.RejectSubscriptionOrder(h.db, uint(orderIDVal), adminID, req.Reason)
+	order, err := services.RejectSubscriptionOrder(h.db, uint(orderIDVal), adminID, finalReason)
 	if err != nil {
 		log.Error().Err(err).Msg("subscription: RejectSubscriptionOrder gagal")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -572,7 +577,7 @@ func (h *SubscriptionHandler) RejectOrder(c *fiber.Ctx) error {
 
 	adminEmail, _ := c.Locals("email").(string)
 	catatAktivitasReject(h.db, c, "billing.subscription_reject", "Invoice langganan ditolak",
-		order, adminID, adminEmail, req.Reason)
+		order, adminID, adminEmail, finalReason)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -584,8 +589,9 @@ func (h *SubscriptionHandler) RejectOrder(c *fiber.Ctx) error {
 // AdminUpdateOrder handles PUT /api/admin/subscription/orders/:id for frontend compatibility
 func (h *SubscriptionHandler) AdminUpdateOrder(c *fiber.Ctx) error {
 	var req struct {
-		Status string `json:"status"` // active | paid | rejected
-		Reason string `json:"reason"`
+		Status          string `json:"status"` // active | paid | rejected | pending | pending_verification
+		Reason          string `json:"reason"`
+		RejectionReason string `json:"rejection_reason"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -599,11 +605,35 @@ func (h *SubscriptionHandler) AdminUpdateOrder(c *fiber.Ctx) error {
 		return h.ApproveOrder(c)
 	} else if st == "rejected" {
 		return h.RejectOrder(c)
+	} else if st == "pending" || st == "pending_verification" {
+		orderIDVal, err := c.ParamsInt("id")
+		if err != nil || orderIDVal <= 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "ID pesanan langganan tidak valid.",
+			})
+		}
+		var adminID uint = 0
+		if adminIDVal := c.Locals("user_id"); adminIDVal != nil {
+			adminID = adminIDVal.(uint)
+		}
+		order, err := services.ResetSubscriptionOrderToPending(h.db, uint(orderIDVal), adminID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": safeErrMsg(err, "Gagal mengembalikan pesanan ke antrean verifikasi."),
+			})
+		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Pesanan dikembalikan ke antrean verifikasi.",
+			"order":   order,
+		})
 	}
 
 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 		"success": false,
-		"message": "Status tidak valid. Gunakan 'active' atau 'rejected'.",
+		"message": "Status tidak valid. Gunakan 'active', 'rejected', atau 'pending_verification'.",
 	})
 }
 
@@ -647,7 +677,7 @@ func (h *SubscriptionHandler) AdminListOrders(c *fiber.Ctx) error {
 		})
 	}
 	var orders []models.SubscriptionOrder
-	query := h.db.Preload("Store").Preload("User").Order("created_at desc")
+	query := h.db.Preload("Store").Preload("User").Preload("ApprovedByUser").Order("created_at desc")
 	if status := c.Query("status"); status != "" {
 		query = query.Where("payment_status = ?", status)
 	}

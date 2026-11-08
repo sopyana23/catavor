@@ -20,6 +20,7 @@ import {
   Archive,
   ShieldAlert,
   Upload,
+  Download,
   ExternalLink,
   Tag,
   Settings2
@@ -123,6 +124,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   // Checkout & Payment step
   const [checkoutStep, setCheckoutStep] = useState<'plan_select' | 'payment_detail'>('plan_select');
   const [paymentMethod, setPaymentMethod] = useState<'qris' | 'bank'>('qris');
+  const [aulaaChannel, setAulaaChannel] = useState<'qris' | 'va' | 'ewallet' | 'cc'>('qris');
   const [submittingOrder, setSubmittingOrder] = useState<boolean>(false);
   const [orderInvoice, setOrderInvoice] = useState<any | null>(null);
   const [copiedAccount, setCopiedAccount] = useState<boolean>(false);
@@ -162,17 +164,76 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   // Load platform payment settings
   const fetchPlatformSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/settings/public');
+      const res = await window.fetch('/api/settings', {
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
       if (res.ok) {
         const json = await res.json();
-        if (json.success && json.data) {
-          setPlatformSettings(json.data);
+        const data = json.data || json;
+        if (data && typeof data === 'object') {
+          setPlatformSettings((prev: any) => ({ ...prev, ...data }));
         }
       }
     } catch (err) {
       console.error('Failed fetching platform settings in tablet modal:', err);
     }
   }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchPlatformSettings();
+    }
+  }, [isOpen, checkoutStep, fetchPlatformSettings]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'catavor_platform_settings_updated') {
+        fetchPlatformSettings();
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPlatformSettings();
+      }
+    };
+    window.addEventListener('focus', fetchPlatformSettings);
+    window.addEventListener('catavor_platform_settings_updated', fetchPlatformSettings);
+    window.addEventListener('storage', handleStorage);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', fetchPlatformSettings);
+      window.removeEventListener('catavor_platform_settings_updated', fetchPlatformSettings);
+      window.removeEventListener('storage', handleStorage);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [isOpen, fetchPlatformSettings]);
+
+  useEffect(() => {
+    const showQRIS = platformSettings?.payment_aulaa_channel_qris !== '0';
+    const showVA = platformSettings?.payment_aulaa_channel_va !== '0';
+    const showEWallet = platformSettings?.payment_aulaa_channel_ewallet !== '0';
+    const showCC = platformSettings?.payment_aulaa_channel_cc === '1';
+    const channelMap: Record<string, boolean> = {
+      qris: showQRIS,
+      va: showVA,
+      ewallet: showEWallet,
+      cc: showCC
+    };
+    if (!channelMap[aulaaChannel]) {
+      if (showQRIS) setAulaaChannel('qris');
+      else if (showVA) setAulaaChannel('va');
+      else if (showEWallet) setAulaaChannel('ewallet');
+      else if (showCC) setAulaaChannel('cc');
+    }
+  }, [
+    platformSettings?.payment_aulaa_channel_qris,
+    platformSettings?.payment_aulaa_channel_va,
+    platformSettings?.payment_aulaa_channel_ewallet,
+    platformSettings?.payment_aulaa_channel_cc,
+    aulaaChannel
+  ]);
 
   useEffect(() => {
     if (isOpen) {
@@ -188,6 +249,19 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       setAppliedCoupon(null);
       setCouponError(null);
       setCouponSuccessMsg(null);
+      setAulaaChannel('qris');
+
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const planParam = params.get('plan');
+        if (planParam && (planParam === 'pro_starter' || planParam === 'pro_business')) {
+          setSelectedPlanCode(planParam);
+          setCheckoutStep('payment_detail');
+          const url = new URL(window.location.href);
+          url.searchParams.delete('plan');
+          window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+        }
+      }
     }
   }, [isOpen, fetchPlans, fetchPlatformSettings]);
 
@@ -220,14 +294,23 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   if (appliedCoupon) {
     if (appliedCoupon.type === 'free') {
       discountAmount = totalPrice;
+    } else if (appliedCoupon.discount !== undefined && appliedCoupon.discount !== null) {
+      discountAmount = Number(appliedCoupon.discount) || 0;
+    } else if (appliedCoupon.discount_amount !== undefined && appliedCoupon.discount_amount !== null) {
+      discountAmount = Number(appliedCoupon.discount_amount) || 0;
+    } else if (appliedCoupon.discount_value !== undefined && appliedCoupon.discount_value !== null) {
+      discountAmount = Number(appliedCoupon.discount_value) || 0;
+    } else if (appliedCoupon.discount_percent !== undefined && appliedCoupon.discount_percent !== null) {
+      discountAmount = Math.round((totalPrice * Number(appliedCoupon.discount_percent)) / 100);
     } else if (appliedCoupon.discount_type === 'percentage') {
       discountAmount = Math.round((totalPrice * (appliedCoupon.discount_value || 0)) / 100);
       if (appliedCoupon.max_discount && appliedCoupon.max_discount > 0) {
         discountAmount = Math.min(discountAmount, appliedCoupon.max_discount);
       }
-    } else {
-      discountAmount = appliedCoupon.discount_value || 0;
     }
+  }
+  if (discountAmount > totalPrice) {
+    discountAmount = totalPrice;
   }
   const finalPrice = Math.max(0, totalPrice - discountAmount);
 
@@ -251,7 +334,8 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       const couponObj = data.coupon || data.data;
       if (res.ok && (data.success || data.valid) && couponObj) {
         setAppliedCoupon(couponObj);
-        const discountLabel = couponObj.type === 'free' ? 'Gratis 100%' : `Potongan Rp ${(couponObj.discount || 0).toLocaleString('id-ID')}`;
+        const discountVal = Number(couponObj.discount || couponObj.discount_amount || couponObj.discount_value || 0);
+        const discountLabel = couponObj.type === 'free' ? 'Gratis 100%' : `Potongan Rp ${discountVal.toLocaleString('id-ID')}`;
         setCouponSuccessMsg(couponObj.label || couponObj.description || `Kupon ${couponObj.code} berhasil diterapkan! (${discountLabel})`);
         showToast('Kupon promo berhasil diterapkan!', 'success');
       } else {
@@ -281,6 +365,27 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   const bankName = platformSettings?.payment_bank_name || 'Bank Central Asia (BCA)';
   const bankAccount = platformSettings?.payment_bank_account || '8830-1928-3920';
   const bankHolder = platformSettings?.payment_bank_holder || 'PT Catavor Media Digital';
+
+  const handleDownloadQRIS = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!manualQrisImage) return;
+    try {
+      const res = await fetch(manualQrisImage);
+      if (!res.ok) throw new Error('File tidak dapat diakses');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const ext = manualQrisImage.endsWith('.jpg') || manualQrisImage.endsWith('.jpeg') ? '.jpg' : (manualQrisImage.endsWith('.svg') ? '.svg' : '.png');
+      a.download = `qris_${(manualQrisMerchant || 'catavor').toLowerCase().replace(/[^a-z0-9]/g, '_')}${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(manualQrisImage, '_blank');
+    }
+  };
 
   const handleProceedToPayment = () => {
     if (selectedPlan?.code === 'free') {
@@ -336,7 +441,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       return;
     }
 
-    const isGateway = systemPaymentMode === 'gateway_aulaa' && paymentMethod !== 'bank';
+    const isGateway = systemPaymentMode === 'gateway_aulaa';
 
     if (finalPrice > 0 && !isGateway && !paymentProofUrl) {
       showToast('Harap unggah bukti transfer pembayaran terlebih dahulu', 'error');
@@ -348,11 +453,19 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       return;
     }
 
-    const orderPaymentMode = isGateway 
+    const orderPaymentMode = finalPrice === 0
+      ? 'coupon_free'
+      : isGateway 
       ? 'gateway_aulaa' 
       : systemPaymentMode === 'manual_qris' 
         ? 'manual_qris' 
         : 'manual_bank';
+
+    const orderPaymentMethod = finalPrice === 0
+      ? 'coupon_free'
+      : isGateway
+        ? aulaaChannel
+        : paymentMethod;
 
     setSubmittingOrder(true);
     try {
@@ -367,11 +480,11 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
           plan_code: selectedPlan.code,
           duration_months: months,
           billing_cycle: billingCycle,
-          payment_method: finalPrice === 0 ? 'coupon' : paymentMethod,
-          payment_mode: finalPrice === 0 ? 'manual_bank' : orderPaymentMode,
+          payment_method: orderPaymentMethod,
+          payment_mode: orderPaymentMode,
           sender_account_name: senderAccountName.trim(),
           sender_phone: senderPhone.trim(),
-          payment_proof_url: finalPrice === 0 ? '' : paymentProofUrl,
+          payment_proof_url: (finalPrice === 0 || isGateway) ? '' : paymentProofUrl,
           coupon_code: appliedCoupon ? appliedCoupon.code : '',
           redirect_url: window.location.href,
           type: 'upgrade',
@@ -384,6 +497,10 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
         const ord = json.data || json.order;
         if (ord?.gateway_payment_link) {
           window.location.href = ord.gateway_payment_link;
+          return;
+        }
+        if (isGateway && finalPrice > 0) {
+          showToast('Gagal mendapatkan tautan pembayaran Aulaa. Saluran pembayaran sedang tidak tersedia atau hubungi admin.', 'error');
           return;
         }
         setOrderInvoice(ord);
@@ -1047,10 +1164,152 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                       </div>
                     ) : (
                       <>
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
-                          Pilih Metode Pembayaran
-                        </h3>
+                        {/* SYSTEM PAYMENT MODES */}
+                        {systemPaymentMode === 'gateway_aulaa' ? (() => {
+                          const showQRIS = platformSettings?.payment_aulaa_channel_qris !== '0';
+                          const showVA = platformSettings?.payment_aulaa_channel_va !== '0';
+                          const showEWallet = platformSettings?.payment_aulaa_channel_ewallet !== '0';
+                          const showCC = platformSettings?.payment_aulaa_channel_cc === '1';
 
+                          return (
+                            <div style={{
+                              padding: '1rem',
+                              borderRadius: '0.75rem',
+                              backgroundColor: 'var(--bg-deep)',
+                              border: '1px solid var(--border-light)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.85rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontWeight: 800 }}>
+                                  <Zap size={16} />
+                                  <span style={{ fontSize: '0.9rem' }}>Gerbang Pembayaran Instan (Aulaa)</span>
+                                </div>
+                                <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.55rem', borderRadius: '9999px', backgroundColor: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                  <CheckCircle2 size={12} /> Otomatis &amp; Real-time
+                                </span>
+                              </div>
+                              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                                Pilih saluran pembayaran di bawah. Setelah menekan tombol bayar, Anda akan dialihkan ke antarmuka aman Aulaa. Paket toko Anda akan langsung aktif otomatis seketika setelah pembayaran terkonfirmasi tanpa verifikasi manual.
+                              </p>
+
+                              {/* Sub-channel Buttons Tablet */}
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
+                                {showQRIS && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAulaaChannel('qris')}
+                                    style={{
+                                      padding: '0.65rem 0.75rem',
+                                      borderRadius: '0.55rem',
+                                      backgroundColor: aulaaChannel === 'qris' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                                      border: aulaaChannel === 'qris' ? '2px solid #10b981' : '1px solid var(--border-light)',
+                                      cursor: 'pointer',
+                                      textAlign: 'left',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: '0.4rem'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <QrCode size={16} color="#10b981" />
+                                      <div>
+                                        <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)' }}>QRIS Instan</div>
+                                        <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>GoPay, OVO, Shopee, BCA</div>
+                                      </div>
+                                    </div>
+                                    {aulaaChannel === 'qris' && <Check size={14} color="#10b981" />}
+                                  </button>
+                                )}
+                                {showVA && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAulaaChannel('va')}
+                                    style={{
+                                      padding: '0.65rem 0.75rem',
+                                      borderRadius: '0.55rem',
+                                      backgroundColor: aulaaChannel === 'va' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                                      border: aulaaChannel === 'va' ? '2px solid #38bdf8' : '1px solid var(--border-light)',
+                                      cursor: 'pointer',
+                                      textAlign: 'left',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: '0.4rem'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <CreditCard size={16} color="#38bdf8" />
+                                      <div>
+                                        <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)' }}>Virtual Account</div>
+                                        <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>BCA, Mandiri, BRI, BNI</div>
+                                      </div>
+                                    </div>
+                                    {aulaaChannel === 'va' && <Check size={14} color="#38bdf8" />}
+                                  </button>
+                                )}
+                                {showEWallet && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAulaaChannel('ewallet')}
+                                    style={{
+                                      padding: '0.65rem 0.75rem',
+                                      borderRadius: '0.55rem',
+                                      backgroundColor: aulaaChannel === 'ewallet' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                                      border: aulaaChannel === 'ewallet' ? '2px solid #f59e0b' : '1px solid var(--border-light)',
+                                      cursor: 'pointer',
+                                      textAlign: 'left',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: '0.4rem'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <Zap size={16} color="#f59e0b" />
+                                      <div>
+                                        <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)' }}>Dompet Digital</div>
+                                        <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>DANA, LinkAja, AstraPay</div>
+                                      </div>
+                                    </div>
+                                    {aulaaChannel === 'ewallet' && <Check size={14} color="#f59e0b" />}
+                                  </button>
+                                )}
+                                {showCC && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAulaaChannel('cc')}
+                                    style={{
+                                      padding: '0.65rem 0.75rem',
+                                      borderRadius: '0.55rem',
+                                      backgroundColor: aulaaChannel === 'cc' ? 'rgba(192, 132, 252, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                                      border: aulaaChannel === 'cc' ? '2px solid #c084fc' : '1px solid var(--border-light)',
+                                      cursor: 'pointer',
+                                      textAlign: 'left',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: '0.4rem'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <CreditCard size={16} color="#c084fc" />
+                                      <div>
+                                        <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)' }}>Kartu Kredit</div>
+                                        <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>Visa &amp; Mastercard</div>
+                                      </div>
+                                    </div>
+                                    {aulaaChannel === 'cc' && <Check size={14} color="#c084fc" />}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })() : (
+                          /* Manual QRIS or Bank Mode */
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         {/* Channel Selector */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
                           <div
@@ -1069,9 +1328,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                             }}
                           >
                             <QrCode size={18} color={paymentMethod === 'qris' ? 'var(--primary)' : 'var(--text-muted)'} />
-                            <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>
-                              {systemPaymentMode === 'gateway_aulaa' ? 'Aulaa QRIS' : 'QRIS Merchant'}
-                            </span>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>QRIS Merchant</span>
                           </div>
 
                           <div
@@ -1094,81 +1351,6 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                           </div>
                         </div>
 
-                        {/* Method Description / Details */}
-                        {systemPaymentMode === 'gateway_aulaa' && paymentMethod === 'qris' ? (() => {
-                          const showQRIS = platformSettings?.payment_aulaa_channel_qris !== '0';
-                          const showVA = platformSettings?.payment_aulaa_channel_va !== '0';
-                          const showEWallet = platformSettings?.payment_aulaa_channel_ewallet !== '0';
-                          const showCC = platformSettings?.payment_aulaa_channel_cc === '1';
-
-                          return (
-                            <div style={{
-                              padding: '0.85rem',
-                              borderRadius: '0.65rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              fontSize: '0.78rem',
-                              color: 'var(--text-secondary)',
-                              lineHeight: 1.5,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.65rem'
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 800 }}>
-                                  <Zap size={14} />
-                                  <span>Verifikasi Otomatis Gateway (Aulaa)</span>
-                                </div>
-                                <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.2rem 0.5rem', borderRadius: '9999px', backgroundColor: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                                  <Zap size={10} /> Real-time
-                                </span>
-                              </div>
-                              <div>Sesi transaksi pembayaran aman akan dibuka via Aulaa Gateway. Tidak perlu upload bukti manual; paket aktif otomatis setelah pembayaran tuntas.</div>
-                              
-                              {/* Sub-channel Badges Tablet */}
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem', marginTop: '0.25rem' }}>
-                                {showQRIS && (
-                                  <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <QrCode size={14} color="#10b981" />
-                                    <div>
-                                      <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>QRIS Instan</div>
-                                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>GoPay, ShopeePay, BCA</div>
-                                    </div>
-                                  </div>
-                                )}
-                                {showVA && (
-                                  <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <CreditCard size={14} color="#38bdf8" />
-                                    <div>
-                                      <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>Virtual Account</div>
-                                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>BCA, Mandiri, BRI, BNI</div>
-                                    </div>
-                                  </div>
-                                )}
-                                {showEWallet && (
-                                  <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <Zap size={14} color="#f59e0b" />
-                                    <div>
-                                      <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>Dompet Digital</div>
-                                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>DANA, LinkAja, AstraPay</div>
-                                    </div>
-                                  </div>
-                                )}
-                                {showCC && (
-                                  <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <CreditCard size={14} color="#c084fc" />
-                                    <div>
-                                      <div style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>Kartu Kredit</div>
-                                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>Visa &amp; Mastercard</div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })() : (
-                          /* Manual QRIS or Bank instructions */
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                             {paymentMethod === 'bank' ? (
                               <div style={{
                                 padding: '0.85rem',
@@ -1190,7 +1372,10 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                                     <strong style={{ letterSpacing: '0.04em' }}>{bankAccount}</strong>
                                     <button
                                       type="button"
-                                      onClick={() => copyToClipboard(bankAccount.replace(/[^0-9]/g, ''))}
+                                      onClick={() => {
+                                        copyToClipboard(bankAccount.replace(/[^0-9]/g, ''));
+                                        showToast('Nomor rekening berhasil disalin', 'success');
+                                      }}
                                       style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--primary)', padding: '0.2rem' }}
                                     >
                                       <Copy size={14} />
@@ -1201,6 +1386,17 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                                   <span style={{ color: 'var(--text-muted)' }}>Atas Nama:</span>
                                   <strong>{bankHolder}</strong>
                                 </div>
+                                <div style={{
+                                  padding: '0.45rem 0.65rem',
+                                  borderRadius: '0.45rem',
+                                  backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                                  fontSize: '0.72rem',
+                                  color: 'var(--text-secondary)',
+                                  marginTop: '0.25rem'
+                                }}>
+                                  Kode unik nominal akan ditambahkan pada tagihan untuk mempermudah verifikasi mutasi transfer rekening.
+                                </div>
                               </div>
                             ) : (
                               <div style={{
@@ -1209,15 +1405,42 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                                 backgroundColor: 'var(--bg-deep)',
                                 border: '1px solid var(--border-light)',
                                 display: 'flex',
+                                flexDirection: 'column',
                                 alignItems: 'center',
-                                gap: '0.75rem'
+                                gap: '0.65rem',
+                                textAlign: 'center'
                               }}>
-                                <div style={{ width: '80px', height: '80px', background: '#ffffff', borderRadius: '8px', padding: '4px', border: '1px solid var(--primary)', flexShrink: 0 }}>
-                                  <img src={manualQrisImage} alt="QRIS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                <div style={{ width: '120px', height: '120px', background: '#ffffff', borderRadius: '8px', padding: '6px', border: '1px solid var(--primary)', overflow: 'hidden' }}>
+                                  <img
+                                    src={manualQrisImage}
+                                    alt="QRIS"
+                                    onError={(e: any) => { e.currentTarget.src = '/img/qris_demo.svg'; }}
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                  />
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={handleDownloadQRIS}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    padding: '0.35rem 0.75rem',
+                                    borderRadius: '0.5rem',
+                                    backgroundColor: 'var(--bg-card)',
+                                    border: '1px solid var(--border-light)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Download size={13} />
+                                  <span>Unduh QRIS</span>
+                                </button>
                                 <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
                                   <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '0.82rem' }}>{manualQrisMerchant}</strong>
-                                  <span>Scan menggunakan ShopeePay / BCA / E-Wallet. Simpan bukti transfer untuk diverifikasi admin.</span>
+                                  <span>Buka aplikasi m-banking atau e-wallet Anda dan scan QRIS resmi di atas.</span>
                                 </div>
                               </div>
                             )}
@@ -1285,7 +1508,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                     )}
 
                     {(() => {
-                      const isGateway = systemPaymentMode === 'gateway_aulaa' && paymentMethod !== 'bank';
+                      const isGateway = systemPaymentMode === 'gateway_aulaa';
                       const isProofRequired = !isGateway && finalPrice > 0;
                       const isSubmitDisabled = submittingOrder || isUploadingProof || (isProofRequired && !paymentProofUrl);
 
@@ -1319,12 +1542,13 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                           ) : isGateway ? (
                             <>
                               <Zap size={18} />
-                              <span>{submittingOrder ? 'Menyiapkan Sesi...' : 'Lanjut ke Pembayaran Otomatis'}</span>
+                              <span>{submittingOrder ? 'Menyiapkan Sesi...' : `Lanjut ke Pembayaran Aulaa (Rp ${finalPrice.toLocaleString('id-ID')})`}</span>
+                              <ArrowRight size={16} />
                             </>
                           ) : (
                             <>
                               <Receipt size={18} />
-                              <span>{submittingOrder ? 'Memproses Pesanan...' : (!paymentProofUrl ? 'Unggah Bukti Transfer untuk Melanjutkan' : 'Kirim Bukti & Aktifkan Paket')}</span>
+                              <span>{submittingOrder ? 'Memproses Pesanan...' : (!paymentProofUrl ? 'Unggah Bukti Transfer untuk Melanjutkan' : `Kirim Bukti Pembayaran (Rp ${finalPrice.toLocaleString('id-ID')})`)}</span>
                             </>
                           )}
                         </button>

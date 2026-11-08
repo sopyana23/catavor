@@ -30,6 +30,7 @@ import {
   LogIn
 } from 'lucide-react';
 import { smartBack } from '../utils/navigation';
+import { hasValidSessionToken, clearRegistrationDrafts, resolveAuthenticatedRedirect } from '../utils/authSync';
 
 export interface TabletCheckoutViewProps {
   initialPlan?: 'pro_starter' | 'pro_business' | 'free';
@@ -54,6 +55,27 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
   const [isMiniTablet, setIsMiniTablet] = useState<boolean>(() => {
     return typeof window !== 'undefined' ? window.innerWidth < 880 : false;
   });
+
+  useEffect(() => {
+    if (hasValidSessionToken()) {
+      clearRegistrationDrafts();
+      const dest = resolveAuthenticatedRedirect();
+      window.location.replace(dest);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasValidSessionToken()) {
+      const saved = sessionStorage.getItem('catavor_register_form');
+      let parsed: any = {};
+      if (saved) {
+        try { parsed = JSON.parse(saved); } catch {}
+      }
+      if (!parsed.email || !parsed.store_slug) {
+        if (onBack) onBack();
+      }
+    }
+  }, [onBack]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -108,20 +130,15 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
         if (saved) {
           parsed = JSON.parse(saved);
         }
-        let localUser: any = null;
-        try {
-          const u = localStorage.getItem('catavor_user');
-          if (u) localUser = JSON.parse(u);
-        } catch {}
 
         return {
-          name: parsed.name || localUser?.name || '',
-          email: parsed.email || localUser?.email || '',
+          name: parsed.name || '',
+          email: parsed.email || '',
           password: parsed.password || '',
-          store_name: parsed.store_name || localUser?.store_title || '',
-          store_slug: parsed.store_slug || localUser?.store_slug || '',
-          google_id: parsed.google_id || localUser?.google_id || '',
-          avatar: parsed.avatar || localUser?.avatar || ''
+          store_name: parsed.store_name || '',
+          store_slug: parsed.store_slug || '',
+          google_id: parsed.google_id || '',
+          avatar: parsed.avatar || ''
         };
       } catch {}
     }
@@ -182,7 +199,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch('/api/settings');
+        const res = await fetch('/api/settings', { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
           const s = json.data || json;
@@ -195,6 +212,27 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
       }
     };
     fetchSettings();
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'catavor_platform_settings_updated') {
+        fetchSettings();
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchSettings();
+      }
+    };
+    window.addEventListener('focus', fetchSettings);
+    window.addEventListener('catavor_platform_settings_updated', fetchSettings);
+    window.addEventListener('storage', handleStorage);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', fetchSettings);
+      window.removeEventListener('catavor_platform_settings_updated', fetchSettings);
+      window.removeEventListener('storage', handleStorage);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   const isCancelledRef = useRef<boolean>(false);
@@ -248,7 +286,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
   const normalPrice = registerPlan === 'free' ? 0 : (registerPlan === 'pro_business' ? 150000 : 65000);
 
   const discountAmount = appliedCoupon
-    ? (appliedCoupon.type === 'free' ? originalPrice : appliedCoupon.discount)
+    ? (appliedCoupon.type === 'free' ? originalPrice : Number(appliedCoupon.discount || (appliedCoupon as any).discount_amount || (appliedCoupon as any).discount_value || 0))
     : 0;
 
   const finalPrice = Math.max(0, originalPrice - discountAmount);
@@ -420,6 +458,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
         billing_cycle: registerBillingCycle,
         coupon_code: appliedCoupon?.code || '',
         payment_method: effectivePaymentMethod,
+        payment_mode: isFreeBypass ? 'free' : (isAulaa ? 'gateway_aulaa' : (paymentMethod === 'qris' ? 'manual_qris' : 'manual_bank')),
         payment_status: isFreeBypass ? 'approved' : 'pending_approval',
         payment_proof_url: isFreeBypass ? null : paymentProofPreview,
         payment_note: paymentProofNote ? paymentProofNote.trim() : undefined,
@@ -454,6 +493,13 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
           setCreatedUserData(data.user);
         }
+        if (data.stores && Array.isArray(data.stores)) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+        }
+        if (data.user?.store_slug) {
+          localStorage.setItem('catavor_active_slug', data.user.store_slug);
+        }
+        localStorage.setItem('catavor_password_changed', 'true');
 
         if (data.payment_url) {
           window.location.href = data.payment_url;
@@ -501,6 +547,28 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
       onCancel();
     } else {
       smartBack('/');
+    }
+  };
+
+  const handleDownloadQRIS = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    const qrisTarget = platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || '/img/qris_demo.svg';
+    if (!qrisTarget) return;
+    try {
+      const res = await fetch(qrisTarget);
+      if (!res.ok) throw new Error('File tidak dapat diakses');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const ext = qrisTarget.endsWith('.jpg') || qrisTarget.endsWith('.jpeg') ? '.jpg' : (qrisTarget.endsWith('.svg') ? '.svg' : '.png');
+      a.download = `QRIS_Catavor_Payment${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(qrisTarget, '_blank');
     }
   };
 
@@ -1903,9 +1971,9 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
                         Scan QRIS dengan GoPay, OVO, ShopeePay, DANA, BCA Mobile, atau aplikasi m-banking lainnya.
                       </p>
 
-                      <a
-                        href={platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || '/img/qris_demo.svg'}
-                        download="QRIS_Catavor_Payment.svg"
+                      <button
+                        type="button"
+                        onClick={handleDownloadQRIS}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -1918,27 +1986,29 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
                           color: '#1d4ed8',
                           fontSize: '0.76rem',
                           fontWeight: 700,
-                          textDecoration: 'none'
+                          cursor: 'pointer'
                         }}
                       >
                         <Download size={15} />
                         <span>Download Gambar QRIS</span>
-                      </a>
+                      </button>
                     </div>
                   )}
 
-                  {/* Unique Code Info */}
-                  <div style={{
-                    padding: '0.75rem 0.85rem',
-                    borderRadius: '0.6rem',
-                    backgroundColor: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    fontSize: '0.76rem',
-                    color: '#1e40af',
-                    lineHeight: 1.45
-                  }}>
-                    <strong>Kode Unik Otomatis:</strong> Sistem akan mengalokasikan kode unik 3 digit acak pada nomor tagihan untuk mempermudah verifikasi mutasi cepat.
-                  </div>
+                  {/* Unique Code Info (Hanya untuk Transfer Bank Manual) */}
+                  {paymentMethod === 'bank' && (
+                    <div style={{
+                      padding: '0.75rem 0.85rem',
+                      borderRadius: '0.6rem',
+                      backgroundColor: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      fontSize: '0.76rem',
+                      color: '#1e40af',
+                      lineHeight: 1.45
+                    }}>
+                      <strong>Kode Unik Otomatis:</strong> Sistem akan mengalokasikan kode unik nominal acak pada nomor tagihan untuk mempermudah verifikasi mutasi transfer bank.
+                    </div>
+                  )}
 
                   {/* Form Upload Bukti Transfer (MANDATORY GATE) */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>

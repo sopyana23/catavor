@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 
@@ -121,6 +122,125 @@ func TestPaymentHandler_HandleAulaaWebhook(t *testing.T) {
 		}
 		if resp.StatusCode != fiber.StatusUnauthorized {
 			t.Errorf("status = %d, want 401", resp.StatusCode)
+		}
+	})
+
+	t.Run("missing signature header should be rejected with 401", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/webhooks/payment/aulaa", bytes.NewBuffer(payloadBytes))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode != fiber.StatusUnauthorized {
+			t.Errorf("status = %d, want 401", resp.StatusCode)
+		}
+	})
+
+	t.Run("underpayment should be rejected with 400 Bad Request", func(t *testing.T) {
+		underpaidOrder := models.SubscriptionOrder{
+			StoreID:       1,
+			UserID:        1,
+			OrderNumber:   "INV-SUB-UNDERPAID-001",
+			PlanCode:      "pro_starter",
+			PaymentStatus: "pending",
+			FinalAmount:   50000,
+		}
+		db.Create(&underpaidOrder)
+
+		underpaidPayload := map[string]interface{}{
+			"order_id":       "INV-SUB-UNDERPAID-001",
+			"amount":         25000, // Kurang dari 50000
+			"currency":       "IDR",
+			"status":         "paid",
+			"payment_method": "qris",
+		}
+		upBytes, _ := json.Marshal(underpaidPayload)
+		upMac := hmac.New(sha256.New, []byte(secret))
+		upMac.Write(upBytes)
+		upSig := hex.EncodeToString(upMac.Sum(nil))
+
+		req := httptest.NewRequest("POST", "/api/webhooks/payment/aulaa", bytes.NewBuffer(upBytes))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Webhook-Signature", upSig)
+
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode != fiber.StatusBadRequest {
+			t.Errorf("status = %d, want 400 for underpayment", resp.StatusCode)
+		}
+	})
+
+	t.Run("unconfigured webhook secret should fail-closed with 503", func(t *testing.T) {
+		// Clear secret from DB
+		db.Model(&models.Setting{}).Where("key = ?", "aulaa_webhook_secret").Update("value", "")
+
+		req := httptest.NewRequest("POST", "/api/webhooks/payment/aulaa", bytes.NewBuffer(payloadBytes))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Webhook-Signature", validSig)
+
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode != fiber.StatusServiceUnavailable {
+			t.Errorf("status = %d, want 503 when secret is unconfigured", resp.StatusCode)
+		}
+
+		// Restore secret
+		db.Model(&models.Setting{}).Where("key = ?", "aulaa_webhook_secret").Update("value", secret)
+	})
+}
+
+func TestPaymentHandler_SyncOrderStatus(t *testing.T) {
+	db := setupTestDBForPayment(t)
+	handler := NewPaymentHandler(db)
+
+	app := fiber.New()
+	app.Post("/api/subscription/orders/:id/sync", handler.SyncOrderStatus)
+
+	paidOrder := models.SubscriptionOrder{
+		StoreID:       1,
+		UserID:        1,
+		OrderNumber:   "ORD-SYNC-PAID-001",
+		PlanCode:      "pro_starter",
+		PaymentStatus: "paid",
+		FinalAmount:   50000,
+	}
+	db.Create(&paidOrder)
+
+	t.Run("sync by numeric ID should return order and quota", func(t *testing.T) {
+		req := httptest.NewRequest("POST", fmt.Sprintf("/api/subscription/orders/%d/sync", paidOrder.ID), nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode != fiber.StatusOK {
+			t.Errorf("status = %d, want 200", resp.StatusCode)
+		}
+		var result map[string]interface{}
+		_ = json.NewDecoder(resp.Body).Decode(&result)
+		if result["success"] != true {
+			t.Errorf("expected success = true, got %v", result["success"])
+		}
+	})
+
+	t.Run("sync by order_number string should succeed and return order and quota", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/api/subscription/orders/ORD-SYNC-PAID-001/sync", nil)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode != fiber.StatusOK {
+			t.Errorf("status = %d, want 200", resp.StatusCode)
+		}
+		var result map[string]interface{}
+		_ = json.NewDecoder(resp.Body).Decode(&result)
+		if result["success"] != true {
+			t.Errorf("expected success = true, got %v", result["success"])
 		}
 	})
 }

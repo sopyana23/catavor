@@ -245,10 +245,9 @@ func main() {
 		strings.EqualFold(cfg.StorageDriver, "minio")
 
 	if isCloudStorageDriver {
-		// PENGAMBILAN DATA CLOUD NATIVE (STANDAR BEST PRACTICE - SINGLE SOURCE OF TRUTH):
-		// Pada mode cloud storage (Cloudflare R2 / S3), server Go mengambil LANGSUNG dari Cloud Storage
-		// tanpa pernah mencegat atau memeriksa disk lokal terlebih dahulu.
-		// Ini menjamin server 100% Stateless dan bebas dari data usang disk lokal.
+		// PENGAMBILAN DATA HYBRID CLOUD & RESILIENT STORAGE:
+		// Prioritaskan Cloud Storage (Cloudflare R2 / S3), dengan fallback otomatis ke disk lokal
+		// (StorageLocalRoot) bila berkas belum tersinkron atau dibuat secara lokal (misal QRIS admin, seeding, aset bawaan).
 		app.Get("/storage/*", func(c *fiber.Ctx) error {
 			rawPath := strings.TrimPrefix(c.Path(), "/storage")
 			cleanKey := strings.TrimLeft(rawPath, "/")
@@ -264,22 +263,44 @@ func main() {
 				}
 			}
 
+			// 1. Coba ambil dari Cloud Storage (R2 / S3)
 			rc, contentType, _, err := storageService.Get(c.Context(), cleanKey)
-			if err != nil {
-				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan di penyimpanan."})
-			}
-
-			data, err := io.ReadAll(rc)
+			if err == nil {
+				data, readErr := io.ReadAll(rc)
 			_ = rc.Close()
-			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "Gagal membaca berkas dari penyimpanan."})
-			}
-
+				if readErr == nil {
 			c.Set("Content-Type", contentType)
 			c.Set("Cache-Control", "public, max-age=2592000, immutable")
 			c.Set("X-Content-Type-Options", "nosniff")
-
 			return c.Send(data)
+				}
+			}
+
+			// 2. Fallback ke Disk Lokal (StorageLocalRoot) bila berkas ada di filesystem
+			cleanRel := filepath.FromSlash(cleanKey)
+			if !filepath.IsAbs(cleanRel) && !strings.Contains(cleanRel, "..") {
+				localPath := filepath.Join(cfg.StorageLocalRoot, cleanRel)
+				if fi, statErr := os.Stat(localPath); statErr == nil && !fi.IsDir() {
+					ext := strings.ToLower(filepath.Ext(localPath))
+					switch ext {
+					case ".jpg", ".jpeg":
+						c.Set("Content-Type", "image/jpeg")
+					case ".png":
+						c.Set("Content-Type", "image/png")
+					case ".webp":
+						c.Set("Content-Type", "image/webp")
+					case ".svg":
+						c.Set("Content-Type", "image/svg+xml")
+					case ".pdf":
+						c.Set("Content-Type", "application/pdf")
+					}
+					c.Set("Cache-Control", "public, max-age=86400")
+					c.Set("X-Content-Type-Options", "nosniff")
+					return c.SendFile(localPath)
+				}
+			}
+
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan di penyimpanan."})
 		})
 	} else {
 		// PENGAMBILAN DATA LOKAL (HANYA UNTUK MODE PENGEMBANGAN OFFLINE):
@@ -720,6 +741,7 @@ func main() {
 		adminApi.Get("/subscription/orders", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.AdminListOrders)
 		adminApi.Post("/subscription/orders/:id/approve", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.ApproveOrder)
 		adminApi.Post("/subscription/orders/:id/reject", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.RejectOrder)
+		adminApi.Post("/subscription/orders/:id/sync", middleware.RequireAnyPermission(cfg, "finance:orders:read", "finance:orders:manage"), paymentHandler.SyncOrderStatus)
 		adminApi.Put("/subscription/orders/:id", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.AdminUpdateOrder)
 
 		// Coupons & Discounts Management
