@@ -677,10 +677,13 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		paymentStatus = "paid"
 		now := time.Now().UTC()
 		paidAt = &now
-	} else if paymentMode == "manual_qris" {
-		// Allocate 3-digit unique code for mutation tracking
-		uniqueCode, finalAmount = AllocateUniqueNominal(db, baseFinalAmount)
-		// 2-Hour TTL for manual QRIS transfer
+	} else if paymentMode == "manual_qris" || paymentMode == "manual_bank" {
+		// Kode unik 3-digit hanya ditambahkan pada transfer bank manual untuk verifikasi mutasi rekening
+		// Untuk pembayaran QRIS manual, tidak perlu kode unik nominal tambahan
+		if paymentMethod == "bank" {
+			uniqueCode, finalAmount = AllocateUniqueNominal(db, baseFinalAmount)
+		}
+		// 2-Hour TTL for manual transfer
 		exp := time.Now().UTC().Add(2 * time.Hour)
 		expiresAt = &exp
 		if strings.TrimSpace(req.PaymentProofURL) != "" {
@@ -789,18 +792,17 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 	return &order, quota, nil
 }
 
-// RejectSubscriptionOrder marks a pending subscription invoice as rejected with a reason
+// RejectSubscriptionOrder marks a subscription invoice as rejected with a reason
 func RejectSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint, reason string) (*models.SubscriptionOrder, error) {
 	var order models.SubscriptionOrder
 	if err := db.First(&order, orderID).Error; err != nil {
 		return nil, fmt.Errorf("invoice langganan tidak ditemukan: %w", err)
 	}
 
-	if order.PaymentStatus == "paid" {
-		return nil, fmt.Errorf("invoice yang sudah berstatus lunas tidak dapat ditolak")
-	}
+	wasPaid := order.PaymentStatus == "paid"
 
 	order.PaymentStatus = "rejected"
+	order.PaidAt = nil
 	cleanReason := strings.TrimSpace(reason)
 	if cleanReason == "" {
 		cleanReason = "Bukti transfer tidak valid atau dana belum masuk mutasi rekening."
@@ -810,8 +812,17 @@ func RejectSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint, reason str
 		order.ApprovedByUserID = &adminID
 	}
 
-	if err := db.Save(&order).Error; err != nil {
-		return nil, fmt.Errorf("gagal memperbarui status penolakan invoice: %w", err)
+	txErr := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&order).Error; err != nil {
+			return fmt.Errorf("gagal memperbarui status penolakan invoice: %w", err)
+		}
+		if wasPaid {
+			_, _ = UpgradeStorePlan(tx, order.StoreID, "free", 0)
+		}
+		return nil
+	})
+	if txErr != nil {
+		return nil, txErr
 	}
 
 	log.Info().
@@ -820,6 +831,41 @@ func RejectSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint, reason str
 		Uint("rejected_by_admin", adminID).
 		Str("reason", cleanReason).
 		Msg("Subscription order rejected by finance admin")
+
+	return &order, nil
+}
+
+// ResetSubscriptionOrderToPending returns a rejected, expired, or paid subscription invoice back to pending verification queue
+func ResetSubscriptionOrderToPending(db *gorm.DB, orderID uint, adminID uint) (*models.SubscriptionOrder, error) {
+	var order models.SubscriptionOrder
+	if err := db.First(&order, orderID).Error; err != nil {
+		return nil, fmt.Errorf("invoice langganan tidak ditemukan: %w", err)
+	}
+
+	wasPaid := order.PaymentStatus == "paid"
+	if strings.TrimSpace(order.PaymentProofURL) != "" {
+		order.PaymentStatus = "pending_verification"
+	} else {
+		order.PaymentStatus = "pending"
+	}
+	order.PaidAt = nil
+	order.RejectionReason = ""
+	if adminID > 0 {
+		order.ApprovedByUserID = &adminID
+	}
+
+	txErr := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&order).Error; err != nil {
+			return fmt.Errorf("gagal mengembalikan status invoice ke antrean verifikasi: %w", err)
+		}
+		if wasPaid {
+			_, _ = UpgradeStorePlan(tx, order.StoreID, "free", 0)
+		}
+		return nil
+	})
+	if txErr != nil {
+		return nil, txErr
+	}
 
 	return &order, nil
 }

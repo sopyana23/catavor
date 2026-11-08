@@ -153,6 +153,87 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   const [actionError, setActionError] = useState<string | null>(null);
   const [internalLoading, setInternalLoading] = useState(false);
 
+  // Live Platform Payment Settings (dynamically synced with /api/settings)
+  const [livePlatformSettings, setLivePlatformSettings] = useState<Record<string, any>>({});
+
+  const fetchFreshPlatformSettings = async () => {
+    try {
+      const res = await fetch(`${apiBase}/settings`, {
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (data && typeof data === 'object') {
+          setLivePlatformSettings(data);
+        }
+      }
+    } catch {
+      // Fallback to prop settings if offline
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen || isPage) {
+      fetchFreshPlatformSettings();
+    }
+  }, [isOpen, isPage, modalView]);
+
+  useEffect(() => {
+    if (!isOpen && !isPage) return;
+    const handleSyncSettings = () => {
+      fetchFreshPlatformSettings();
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'catavor_platform_settings_updated') {
+        fetchFreshPlatformSettings();
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchFreshPlatformSettings();
+      }
+    };
+    window.addEventListener('focus', handleSyncSettings);
+    window.addEventListener('catavor_platform_settings_updated', handleSyncSettings);
+    window.addEventListener('storage', handleStorage);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleSyncSettings);
+      window.removeEventListener('catavor_platform_settings_updated', handleSyncSettings);
+      window.removeEventListener('storage', handleStorage);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [isOpen, isPage, apiBase]);
+
+  const effectiveSettings = { ...settings, ...livePlatformSettings };
+
+  useEffect(() => {
+    const showQRIS = effectiveSettings?.payment_aulaa_channel_qris !== '0';
+    const showVA = effectiveSettings?.payment_aulaa_channel_va !== '0';
+    const showEWallet = effectiveSettings?.payment_aulaa_channel_ewallet !== '0';
+    const showCC = effectiveSettings?.payment_aulaa_channel_cc === '1';
+    const channelMap: Record<string, boolean> = {
+      qris: showQRIS,
+      va: showVA,
+      ewallet: showEWallet,
+      cc: showCC
+    };
+    if (!channelMap[aulaaChannel]) {
+      if (showQRIS) setAulaaChannel('qris');
+      else if (showVA) setAulaaChannel('va');
+      else if (showEWallet) setAulaaChannel('ewallet');
+      else if (showCC) setAulaaChannel('cc');
+    }
+  }, [
+    effectiveSettings?.payment_aulaa_channel_qris,
+    effectiveSettings?.payment_aulaa_channel_va,
+    effectiveSettings?.payment_aulaa_channel_ewallet,
+    effectiveSettings?.payment_aulaa_channel_cc,
+    aulaaChannel
+  ]);
+
   useEffect(() => {
     if (isOpen) {
       setModalView('plans');
@@ -339,14 +420,14 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   const handleSubmitOrder = async () => {
     if (!selectedTargetPlan) return;
     
-    const systemPaymentMode = (settings?.payment_system_mode || 'gateway_aulaa').toLowerCase();
+    const systemPaymentMode = (effectiveSettings?.payment_system_mode || 'gateway_aulaa').toLowerCase();
     if (systemPaymentMode === 'maintenance') {
       setActionError('Sistem transaksi pembayaran sedang dalam masa pemeliharaan berkala.');
       return;
     }
 
     const { finalPrice } = calculateFinalCheckoutPrice();
-    const isGateway = finalPrice > 0 && systemPaymentMode === 'gateway_aulaa' && paymentMethod !== 'bank';
+    const isGateway = finalPrice > 0 && systemPaymentMode === 'gateway_aulaa';
 
     // For manual methods, proof is mandatory
     if (finalPrice > 0 && !isGateway && !paymentProofUrl) {
@@ -541,16 +622,37 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     }
   };
 
-  const systemPaymentMode = (settings?.payment_system_mode || 'gateway_aulaa').toLowerCase();
+  const systemPaymentMode = (effectiveSettings?.payment_system_mode || 'gateway_aulaa').toLowerCase();
   const isMaintenance = systemPaymentMode === 'maintenance';
-  const maintenanceTitle = settings?.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan';
-  const maintenanceMessage = settings?.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.';
-  const manualQrisMerchant = settings?.payment_qris_manual_merchant || 'Catavor Official Store';
-  const manualQrisImage = settings?.payment_qris_manual_image || settings?.payment_qris_image || '/img/qris_demo.svg';
-  const bankName = settings?.payment_bank_name || 'Bank Central Asia (BCA)';
-  const bankAccount = settings?.payment_bank_account || '8830-1928-3920';
-  const bankHolder = settings?.payment_bank_holder || 'PT Catavor Media Digital';
-  const qrisImage = settings?.payment_qris_image || '/img/qris_demo.svg';
+  const maintenanceTitle = effectiveSettings?.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan';
+  const maintenanceMessage = effectiveSettings?.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.';
+  const manualQrisMerchant = effectiveSettings?.payment_qris_manual_merchant || 'Catavor Official Store';
+  const manualQrisImage = effectiveSettings?.payment_qris_manual_image || effectiveSettings?.payment_qris_image || '/img/qris_demo.svg';
+  const bankName = effectiveSettings?.payment_bank_name || 'Bank Central Asia (BCA)';
+  const bankAccount = effectiveSettings?.payment_bank_account || '8830-1928-3920';
+  const bankHolder = effectiveSettings?.payment_bank_holder || 'PT Catavor Media Digital';
+  const qrisImage = effectiveSettings?.payment_qris_image || '/img/qris_demo.svg';
+
+  const handleDownloadQRIS = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!manualQrisImage) return;
+    try {
+      const res = await fetch(manualQrisImage);
+      if (!res.ok) throw new Error('File tidak dapat diakses');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const ext = manualQrisImage.endsWith('.jpg') || manualQrisImage.endsWith('.jpeg') ? '.jpg' : (manualQrisImage.endsWith('.svg') ? '.svg' : '.png');
+      a.download = `qris_${(manualQrisMerchant || 'catavor').toLowerCase().replace(/[^a-z0-9]/g, '_')}${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(manualQrisImage, '_blank');
+    }
+  };
 
   const innerModalContent = (
     <div style={{
@@ -1377,10 +1479,10 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                   const isManualQris = systemPaymentMode === 'manual_qris';
 
                   if (isGateway) {
-                    const showQRIS = settings?.payment_aulaa_channel_qris !== '0';
-                    const showVA = settings?.payment_aulaa_channel_va !== '0';
-                    const showEWallet = settings?.payment_aulaa_channel_ewallet !== '0';
-                    const showCC = settings?.payment_aulaa_channel_cc === '1';
+                    const showQRIS = effectiveSettings?.payment_aulaa_channel_qris !== '0';
+                    const showVA = effectiveSettings?.payment_aulaa_channel_va !== '0';
+                    const showEWallet = effectiveSettings?.payment_aulaa_channel_ewallet !== '0';
+                    const showCC = effectiveSettings?.payment_aulaa_channel_cc === '1';
 
                     return (
                       <div style={{
@@ -1664,11 +1766,9 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                           </div>
 
                           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                            <a
-                              href={manualQrisImage}
-                              download="qris_catavor.png"
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={handleDownloadQRIS}
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1686,7 +1786,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                             >
                               <Download size={14} />
                               <span>Unduh Gambar QRIS</span>
-                            </a>
+                            </button>
                           </div>
 
                           <div>
@@ -1696,17 +1796,6 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                             <p style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0' }}>
                               Buka aplikasi m-banking atau e-wallet Anda dan scan QRIS resmi di atas.
                             </p>
-                          </div>
-                          <div style={{
-                            padding: '0.55rem 0.85rem',
-                            borderRadius: '0.5rem',
-                            background: 'rgba(245, 158, 11, 0.1)',
-                            border: '1px solid rgba(245, 158, 11, 0.3)',
-                            fontSize: '0.74rem',
-                            color: '#d97706',
-                            textAlign: 'left'
-                          }}>
-                            Kode unik 3 digit akan ditambahkan pada tagihan untuk mempermudah pengecekan mutasi transfer rekening oleh admin verifikator.
                           </div>
                         </div>
                       )}
@@ -1769,6 +1858,18 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Atas Nama Rekening:</span>
                             <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{bankHolder}</strong>
+                          </div>
+
+                          <div style={{
+                            padding: '0.55rem 0.85rem',
+                            borderRadius: '0.5rem',
+                            background: 'rgba(59, 130, 246, 0.08)',
+                            border: '1px solid rgba(59, 130, 246, 0.25)',
+                            fontSize: '0.74rem',
+                            color: 'var(--text-secondary)',
+                            textAlign: 'left'
+                          }}>
+                            Kode unik nominal akan ditambahkan pada tagihan untuk mempermudah pengecekan mutasi transfer rekening oleh admin verifikator.
                           </div>
                         </div>
                       )}

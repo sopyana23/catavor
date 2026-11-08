@@ -1673,6 +1673,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   const [selectedProofOrder, setSelectedProofOrder] = useState<any | null>(null);
+  const [ordersConfigFilter, setOrdersConfigFilter] = useState<'all' | 'gateway_aulaa' | 'manual_qris' | 'manual_bank' | 'coupon_free'>('all');
+  const [ordersSearchQuery, setOrdersSearchQuery] = useState('');
+  const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
+  const [rejectingOrder, setRejectingOrder] = useState<any | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState('Dana belum masuk ke mutasi rekening / QRIS platform');
 
   // Deteksi status seluruh overlay/modal aktif (baik global modal stack maupun modal lokal)
   const isGlobalModalOpen = useIsAnyModalOpen();
@@ -1685,7 +1690,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     Boolean(showOptionsMenu) ||
     Boolean(activeFilterModal) || 
     Boolean(docPreview?.isOpen) ||
-    Boolean(selectedProofOrder);
+    Boolean(selectedProofOrder) ||
+    Boolean(rejectingOrder);
 
   // Swipe & Drag Bottom Sheet State for Proof Order Modal
   const [proofSheetDragY, setProofSheetDragY] = useState(0);
@@ -3232,27 +3238,235 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
+  // Normalized Order & Payment Configuration Descriptor (100% Parity across Desktop, Tablet, Mobile)
+  const describeSubscriptionOrder = useCallback((o: any) => {
+    const rawStatus = String(o?.payment_status || o?.status || 'pending').toLowerCase();
+    const isPendingVerification = rawStatus === 'pending_verification';
+    const isPendingPayment = rawStatus === 'pending';
+    const isPending = isPendingVerification || isPendingPayment;
+    const isPaid = rawStatus === 'paid' || rawStatus === 'active';
+    const isRejected = rawStatus === 'rejected';
+    const isExpired = rawStatus === 'expired' || rawStatus === 'cancelled';
+
+    const statusLabel = isPaid
+      ? 'LUNAS & AKTIF'
+      : isPendingVerification
+        ? 'MENUNGGU VERIFIKASI'
+        : isPendingPayment
+          ? 'MENUNGGU PEMBAYARAN'
+          : isRejected
+            ? 'DITOLAK'
+            : isExpired
+              ? 'KEDALUWARSA'
+              : rawStatus.toUpperCase();
+
+    const payMode = String(o?.payment_mode || '').toLowerCase();
+    const payMethod = String(o?.payment_method || 'bank').toLowerCase();
+    const originalAmount = Number(o?.original_amount ?? o?.amount ?? o?.price ?? 0);
+    const discountAmount = Number(o?.discount_amount ?? 0);
+    const uniqueCode = Number(o?.unique_code ?? 0);
+    const finalAmount = Number(o?.final_amount ?? o?.amount ?? o?.price ?? 0);
+
+    const isFreeCoupon = payMode === 'coupon_free' || payMethod === 'coupon_free' || payMethod === 'free' || (finalAmount === 0 && Boolean(o?.coupon_code));
+    const isAulaaGateway = !isFreeCoupon && (payMode === 'gateway_aulaa' || o?.gateway_provider === 'aulaa' || ['va', 'ewallet', 'cc'].includes(payMethod));
+    const isManualQRIS = !isFreeCoupon && !isAulaaGateway && payMethod === 'qris';
+    const isManualBank = !isFreeCoupon && !isAulaaGateway && !isManualQRIS;
+
+    const configType: 'gateway_aulaa' | 'manual_qris' | 'manual_bank' | 'coupon_free' = isFreeCoupon
+      ? 'coupon_free'
+      : isAulaaGateway
+        ? 'gateway_aulaa'
+        : isManualQRIS
+          ? 'manual_qris'
+          : 'manual_bank';
+
+    const configBadgeLabel = isFreeCoupon
+      ? 'Kupon Gratis 100%'
+      : isAulaaGateway
+        ? 'Aulaa Payment Gateway'
+        : isManualQRIS
+          ? 'QRIS Merchant Manual'
+          : 'Transfer Bank Manual';
+
+    const aulaaSubChannelLabel = payMethod === 'qris'
+      ? 'QRIS Instan (Aulaa)'
+      : payMethod === 'va'
+        ? 'Virtual Account Bank (Aulaa)'
+        : payMethod === 'ewallet'
+          ? 'Dompet Digital / E-Wallet (Aulaa)'
+          : payMethod === 'cc'
+            ? 'Kartu Kredit / Debit (Aulaa)'
+            : `Kanal Gateway (${payMethod.toUpperCase()})`;
+
+    const configChannelLabel = isFreeCoupon
+      ? `Kupon Promo (${o?.coupon_code || 'FREE100'})`
+      : isAulaaGateway
+        ? aulaaSubChannelLabel
+        : isManualQRIS
+          ? 'Scan QRIS Statis Merchant (Nominal Pas)'
+          : 'Transfer Rekening Bank (Kode Unik Mutasi)';
+
+    const orderNumber = o?.order_number || o?.invoice_number || `INV-SUB-${o?.id || ''}`;
+    const orderTypeRaw = String(o?.type || 'upgrade').toLowerCase();
+    const orderTypeLabel = orderTypeRaw === 'initial'
+      ? 'Pendaftaran Awal'
+      : orderTypeRaw === 'renewal'
+        ? 'Perpanjangan'
+        : 'Upgrade Paket';
+
+    const planCodeRaw = String(o?.plan_code || o?.plan_name || o?.plan || 'pro_starter').toLowerCase();
+    const planLabel = planCodeRaw === 'pro_business'
+      ? 'PRO BUSINESS'
+      : planCodeRaw === 'pro_starter'
+        ? 'PRO STARTER'
+        : planCodeRaw.toUpperCase().replace(/_/g, ' ');
+
+    const storeTitle = o?.store?.store_title || o?.store?.name || o?.store_name || `Store #${o?.store_id || ''}`;
+    const storeSlug = o?.store?.slug || '';
+    const storeCurrentPlan = String(o?.store?.plan || 'free').toUpperCase().replace(/_/g, ' ');
+    const customerName = o?.user?.name || o?.sender_account_name || 'Merchant Catavor';
+    const customerEmail = o?.user?.email || '-';
+    const senderAccountName = o?.sender_account_name || o?.user?.name || '-';
+    const senderPhone = o?.sender_phone || o?.store?.whatsapp_number || o?.user?.phone || '';
+    const proofUrl = o?.payment_proof_url || o?.transfer_proof_url || '';
+    const notes = o?.notes || '';
+    const rejectionReason = o?.rejection_reason || '';
+    const approvedByLabel = o?.approved_by_user?.name || o?.approved_by_user?.email || (isPaid && isAulaaGateway ? 'Webhook Otomatis Aulaa.co' : (isPaid ? 'Admin Keuangan Platform' : '-'));
+
+    const targetQrisMerchant = googleSettings?.payment_qris_manual_merchant || 'Catavor Official Store';
+    const targetBankName = googleSettings?.payment_bank_name || 'Bank Central Asia (BCA)';
+    const targetBankAccount = googleSettings?.payment_bank_account || '8830-1928-3920';
+    const targetBankHolder = googleSettings?.payment_bank_holder || 'PT Catavor Media Digital';
+
+    let gatewayRawSummary = '';
+    if (o?.gateway_raw_response) {
+      try {
+        const parsed = typeof o.gateway_raw_response === 'string' ? JSON.parse(o.gateway_raw_response) : o.gateway_raw_response;
+        if (parsed && typeof parsed === 'object') {
+          const parts: string[] = [];
+          if (parsed.id || parsed.reference_id) parts.push(`ID: ${parsed.id || parsed.reference_id}`);
+          if (parsed.status) parts.push(`Status: ${String(parsed.status).toUpperCase()}`);
+          if (parsed.payment_method || parsed.channel) parts.push(`Kanal: ${String(parsed.payment_method || parsed.channel).toUpperCase()}`);
+          gatewayRawSummary = parts.join(' • ');
+        }
+      } catch {
+        gatewayRawSummary = '';
+      }
+    }
+
+    return {
+      rawStatus,
+      isPendingVerification,
+      isPendingPayment,
+      isPending,
+      isPaid,
+      isRejected,
+      isExpired,
+      statusLabel,
+      payMode,
+      payMethod,
+      originalAmount,
+      discountAmount,
+      uniqueCode,
+      finalAmount,
+      isFreeCoupon,
+      isAulaaGateway,
+      isManualQRIS,
+      isManualBank,
+      configType,
+      configBadgeLabel,
+      configChannelLabel,
+      orderNumber,
+      orderTypeLabel,
+      planLabel,
+      storeTitle,
+      storeSlug,
+      storeCurrentPlan,
+      customerName,
+      customerEmail,
+      senderAccountName,
+      senderPhone,
+      proofUrl,
+      notes,
+      rejectionReason,
+      approvedByLabel,
+      targetQrisMerchant,
+      targetBankName,
+      targetBankAccount,
+      targetBankHolder,
+      gatewayReference: o?.gateway_reference || '',
+      gatewayPaymentLink: o?.gateway_payment_link || '',
+      gatewayProvider: o?.gateway_provider || (isAulaaGateway ? 'aulaa' : ''),
+      gatewayRawSummary,
+      couponCode: o?.coupon_code || '',
+      durationMonths: Number(o?.duration_months || 1),
+      billingCycle: o?.billing_cycle === 'annual' ? 'Tahunan (12 Bulan)' : 'Bulanan (1 Bulan)',
+      createdAt: o?.created_at || '',
+      paidAt: o?.paid_at || '',
+      expiresAt: o?.expires_at || ''
+    };
+  }, [googleSettings]);
+
   // Finance Order Status Update
-  const handleUpdateOrderStatus = async (orderId: number, status: 'active' | 'rejected', reason?: string) => {
+  const handleUpdateOrderStatus = async (orderId: number, status: 'active' | 'rejected' | 'pending_verification', reason?: string) => {
     try {
-      const endpoint = status === 'active' 
-        ? `/api/admin/subscription/orders/${orderId}/approve` 
-        : `/api/admin/subscription/orders/${orderId}/reject`;
-      const res = await fetch(endpoint, {
-        method: 'POST',
+      const res = await fetch(`/api/admin/subscription/orders/${orderId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ reason: reason || undefined })
+        body: JSON.stringify({ status, reason: reason || undefined, rejection_reason: reason || undefined })
       });
-      if (res.ok) {
-        showToast(status === 'active' ? 'Paket langganan berhasil diaktifkan' : 'Pesanan ditandai ditolak', 'success');
-        loadData();
-        setSelectedProofOrder(null);
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.success !== false) {
+        const msg = status === 'active'
+          ? 'Paket langganan berhasil diverifikasi & diaktifkan!'
+          : status === 'rejected'
+            ? 'Pesanan langganan berhasil ditolak.'
+            : 'Pesanan dikembalikan ke antrean verifikasi.';
+        showToast(msg, 'success');
+        await loadData();
+        if (d.order && selectedProofOrder?.id === orderId) {
+          setSelectedProofOrder((prev: any) => prev ? { ...prev, ...d.order } : null);
+        } else if (status !== 'pending_verification') {
+          setSelectedProofOrder(null);
+        }
+        setRejectingOrder(null);
       } else {
-        const d = await res.json().catch(() => ({}));
         showToast(d.message || 'Gagal memproses pesanan', 'error');
       }
     } catch {
-      showToast('Kesalahan server', 'error');
+      showToast('Kesalahan server saat memproses pesanan', 'error');
+    }
+  };
+
+  // Sync Order Status with Aulaa Payment Gateway
+  const handleSyncOrderWithAulaa = async (orderId: number) => {
+    setSyncingOrderId(orderId);
+    try {
+      let res = await fetch(`/api/admin/subscription/orders/${orderId}/sync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok && res.status === 404) {
+        res = await fetch(`/api/subscription/orders/${orderId}/sync`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.success) {
+        showToast(d.message || 'Sinkronisasi status gateway Aulaa selesai', 'success');
+        await loadData();
+        const updatedOrder = d.order || d.data;
+        if (updatedOrder && selectedProofOrder?.id === orderId) {
+          setSelectedProofOrder((prev: any) => prev ? { ...prev, ...updatedOrder } : null);
+        }
+      } else {
+        showToast(d.message || 'Gagal menyinkronkan status ke gateway Aulaa', 'error');
+      }
+    } catch {
+      showToast('Gagal menghubungi server sinkronisasi Aulaa', 'error');
+    } finally {
+      setSyncingOrderId(null);
     }
   };
 
@@ -3589,6 +3803,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       });
       if (res.ok) {
         savedQrisImageRef.current = (googleSettings.payment_qris_manual_image || '').trim();
+        try {
+          localStorage.setItem('catavor_platform_settings_updated', String(Date.now()));
+          window.dispatchEvent(new Event('catavor_platform_settings_updated'));
+        } catch {}
         showToast('Konfigurasi sistem pembayaran berhasil disimpan!', 'success');
         loadData();
       } else {
@@ -8744,215 +8962,545 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
           {financeSubTab === 'orders' && (
             <>
-              {/* Filter Chips */}
-              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
-                {(['all', 'pending', 'active', 'rejected'] as const).map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setOrdersFilter(f)}
-                    style={{
-                      padding: '0.35rem 0.75rem',
-                      borderRadius: '999px',
-                      fontSize: '0.72rem',
-                  fontWeight: 700,
-                  backgroundColor: ordersFilter === f ? '#10b981' : theme.chipInactiveBg,
-                  color: ordersFilter === f ? '#ffffff' : theme.chipInactiveText,
-                  border: `1px solid ${ordersFilter === f ? '#10b981' : theme.border}`,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {f === 'all' ? 'Semua' : f === 'pending' ? 'Pending' : f === 'active' ? 'Aktif' : 'Ditolak'}
-              </button>
-            ))}
-          </div>
-
-          {/* Orders Feed */}
-          {orders
-            .filter(o => {
-              const st = o.payment_status || o.status || 'pending';
-              if (ordersFilter === 'all') return true;
-              if (ordersFilter === 'pending') return st === 'pending' || st === 'pending_verification';
-              if (ordersFilter === 'active') return st === 'paid' || st === 'active';
-              if (ordersFilter === 'rejected') return st === 'rejected';
-              return st === ordersFilter;
-            })
-            .length === 0 ? (
-            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <CreditCard size={36} color="#10b981" style={{ margin: '0 auto 0.65rem' }} />
-              <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>Tidak Ada Pesanan Paket</h4>
-              <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>Semua transaksi paket langganan telah terverifikasi.</p>
-            </div>
-          ) : (
-            orders
-              .filter(o => {
-                const st = o.payment_status || o.status || 'pending';
-                if (ordersFilter === 'all') return true;
-                if (ordersFilter === 'pending') return st === 'pending' || st === 'pending_verification';
-                if (ordersFilter === 'active') return st === 'paid' || st === 'active';
-                if (ordersFilter === 'rejected') return st === 'rejected';
-                return st === ordersFilter;
-              })
-              .map(o => {
-                const orderStatus = o.payment_status || o.status || 'pending';
-                const isPending = orderStatus === 'pending' || orderStatus === 'pending_verification';
-                const isPaid = orderStatus === 'paid' || orderStatus === 'active';
-                const storeName = o.store?.store_title || o.store?.name || o.store_name || `Store #${o.store_id || ''}`;
-                const amount = o.final_amount ?? o.amount ?? o.price ?? 0;
-
+              {/* Summary Metrics Bar */}
+              {(() => {
+                const totalCnt = orders.length;
+                const pendingCnt = orders.filter(o => describeSubscriptionOrder(o).isPending).length;
+                const paidCnt = orders.filter(o => describeSubscriptionOrder(o).isPaid).length;
+                const rejectedCnt = orders.filter(o => {
+                  const d = describeSubscriptionOrder(o);
+                  return d.isRejected || d.isExpired;
+                }).length;
                 return (
-                  <div
-                    key={o.id}
-                    style={{
-                      padding: '1.05rem',
-                      borderRadius: '1.15rem',
-                      backgroundColor: theme.surface,
-                      border: isPending ? '1px solid rgba(250, 204, 21, 0.5)' : `1px solid ${theme.border}`,
-                      boxShadow: theme.cardShadow,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.75rem'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{
-                        padding: '0.15rem 0.55rem',
-                        borderRadius: '999px',
-                        fontSize: '0.65rem',
-                        fontWeight: 800,
-                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        color: isDark ? '#34d399' : '#059669',
-                        border: '1px solid rgba(16, 185, 129, 0.3)'
-                      }}>
-                        {o.plan_code ? o.plan_code.toUpperCase().replace('_', ' ') : 'PRO STARTER'}
-                      </span>
-                      <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isPaid ? (isDark ? '#34d399' : '#059669') : isPending ? (isDark ? '#facc15' : '#d97706') : '#f87171' }}>
-                        {isPaid ? 'LUNAS' : isPending ? 'PENDING' : orderStatus === 'rejected' ? 'DITOLAK' : orderStatus.toUpperCase()}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
-                          {storeName}
-                        </h4>
-                        <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
-                          Metode: {o.payment_method ? o.payment_method.toUpperCase() : 'TRANSFER BANK'} {o.sender_account_name ? `• a.n. ${o.sender_account_name}` : ''}
-                        </span>
-                      </div>
-
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: '1rem', fontWeight: 900, color: isDark ? '#34d399' : '#059669', display: 'block' }}>
-                          Rp {amount.toLocaleString('id-ID')}
-                        </span>
-                        {o.unique_code > 0 && (
-                          <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block' }}>
-                            Kode Unik: +{o.unique_code}
-                          </span>
-                        )}
-                        <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                          {o.created_at ? new Date(o.created_at).toLocaleDateString('id-ID') : 'Baru'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {o.payment_proof_url ? (
-                      <button
-                        onClick={() => setSelectedProofOrder(o)}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                    {[
+                      { key: 'all', label: 'Total Transaksi', count: totalCnt, color: '#10b981' },
+                      { key: 'pending', label: 'Perlu Verifikasi', count: pendingCnt, color: '#f59e0b' },
+                      { key: 'active', label: 'Lunas & Aktif', count: paidCnt, color: '#0284c7' },
+                      { key: 'rejected', label: 'Ditolak / Batal', count: rejectedCnt, color: '#ef4444' }
+                    ].map(stat => (
+                      <div
+                        key={stat.key}
+                        onClick={() => setOrdersFilter(stat.key as any)}
                         style={{
-                          padding: '0.45rem',
-                          borderRadius: '0.6rem',
-                          backgroundColor: theme.cardAlt,
-                          border: `1px solid ${theme.border}`,
-                          color: isDark ? '#38bdf8' : '#0284c7',
-                          fontSize: '0.74rem',
-                          fontWeight: 600,
+                          padding: '0.7rem 0.85rem',
+                          borderRadius: '0.85rem',
+                          backgroundColor: ordersFilter === stat.key ? `${stat.color}14` : theme.surface,
+                          border: `1px solid ${ordersFilter === stat.key ? stat.color : theme.border}`,
                           cursor: 'pointer',
                           display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.35rem'
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
                         }}
                       >
-                        <Eye size={13} />
-                        <span>Lihat Bukti Pembayaran</span>
-                      </button>
-                    ) : (
-                      <div style={{
-                        padding: '0.4rem 0.5rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: theme.cardAlt,
-                        border: `1px dashed ${theme.border}`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.35rem',
-                        fontSize: '0.72rem',
-                        color: theme.textMuted
-                      }}>
-                        <ImageIcon size={13} />
-                        <span>Bukti transfer belum diunggah</span>
+                        <div>
+                          <div style={{ fontSize: '0.68rem', color: theme.textSecondary, fontWeight: 700 }}>{stat.label}</div>
+                          <div style={{ fontSize: '1.15rem', fontWeight: 900, color: stat.color, marginTop: '0.1rem' }}>{stat.count}</div>
+                        </div>
+                        <CreditCard size={18} color={stat.color} style={{ opacity: 0.8 }} />
                       </div>
-                    )}
+                    ))}
+                  </div>
+                );
+              })()}
 
-                    {isPending && (
-                      canManageFinance ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
-                        <button
-                          onClick={() => {
-                            const reason = window.prompt('Masukkan alasan penolakan (opsional):', 'Dana belum masuk ke mutasi merchant');
-                            if (reason !== null) {
-                              handleUpdateOrderStatus(o.id, 'rejected', reason);
-                            }
-                          }}
-                          style={{
-                            padding: '0.5rem',
-                            borderRadius: '0.65rem',
-                            backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            color: '#f87171',
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Tolak
-                        </button>
-                        <button
-                          onClick={() => handleUpdateOrderStatus(o.id, 'active')}
-                          style={{
-                            padding: '0.5rem',
-                            borderRadius: '0.65rem',
-                            backgroundColor: '#10b981',
-                            color: '#ffffff',
-                            border: 'none',
-                            fontSize: '0.74rem',
+              {/* Search Input */}
+              <div style={{ position: 'relative' }}>
+                <Search size={15} color={theme.textMuted} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  value={ordersSearchQuery}
+                  onChange={e => setOrdersSearchQuery(e.target.value)}
+                  placeholder="Cari no. invoice, toko, pelanggan, pengirim, ref Aulaa..."
+                  style={{
+                    width: '100%',
+                    minHeight: '44px',
+                    padding: '0.55rem 2.2rem 0.55rem 2.35rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: theme.surface,
+                    border: `1px solid ${theme.border}`,
+                    color: theme.textPrimary,
+                    fontSize: '0.78rem',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                {ordersSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setOrdersSearchQuery('')}
+                    style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: '0.25rem' }}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter Chips */}
+              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
+                {([
+                  { id: 'all', label: 'Semua Status' },
+                  { id: 'pending', label: 'Perlu Verifikasi' },
+                  { id: 'active', label: 'Lunas & Aktif' },
+                  { id: 'rejected', label: 'Ditolak / Expired' }
+                ] as const).map(f => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setOrdersFilter(f.id)}
+                    style={{
+                      minHeight: '38px',
+                      padding: '0.35rem 0.8rem',
+                      borderRadius: '999px',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      backgroundColor: ordersFilter === f.id ? '#10b981' : theme.chipInactiveBg,
+                      color: ordersFilter === f.id ? '#ffffff' : theme.chipInactiveText,
+                      border: `1px solid ${ordersFilter === f.id ? '#10b981' : theme.border}`,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Payment Configuration Filter Chips */}
+              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
+                {([
+                  { id: 'all', label: 'Semua Sistem Pembayaran' },
+                  { id: 'gateway_aulaa', label: 'Gateway Aulaa.co' },
+                  { id: 'manual_qris', label: 'QRIS Merchant Manual' },
+                  { id: 'manual_bank', label: 'Transfer Bank Manual' },
+                  { id: 'coupon_free', label: 'Kupon Gratis 100%' }
+                ] as const).map(cf => (
+                  <button
+                    key={cf.id}
+                    type="button"
+                    onClick={() => setOrdersConfigFilter(cf.id)}
+                    style={{
+                      minHeight: '36px',
+                      padding: '0.3rem 0.75rem',
+                      borderRadius: '999px',
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      backgroundColor: ordersConfigFilter === cf.id ? 'rgba(2, 132, 199, 0.15)' : theme.surface,
+                      color: ordersConfigFilter === cf.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.textSecondary,
+                      border: `1px solid ${ordersConfigFilter === cf.id ? '#0284c7' : theme.border}`,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {cf.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Orders Feed */}
+              {(() => {
+                const filteredList = orders.filter(o => {
+                  const d = describeSubscriptionOrder(o);
+                  if (ordersFilter === 'pending' && !d.isPending) return false;
+                  if (ordersFilter === 'active' && !d.isPaid) return false;
+                  if (ordersFilter === 'rejected' && !(d.isRejected || d.isExpired)) return false;
+                  if (ordersConfigFilter !== 'all' && d.configType !== ordersConfigFilter) return false;
+                  if (ordersSearchQuery.trim()) {
+                    const q = ordersSearchQuery.trim().toLowerCase();
+                    const hay = `${d.orderNumber} ${d.storeTitle} ${d.storeSlug} ${d.customerName} ${d.customerEmail} ${d.senderAccountName} ${d.senderPhone} ${d.gatewayReference} ${d.configBadgeLabel} ${d.planLabel}`.toLowerCase();
+                    if (!hay.includes(q)) return false;
+                  }
+                  return true;
+                });
+
+                if (filteredList.length === 0) {
+                  return (
+                    <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                      <CreditCard size={36} color="#10b981" style={{ margin: '0 auto 0.65rem' }} />
+                      <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>Tidak Ada Transaksi Ditemukan</h4>
+                      <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>Belum ada transaksi yang sesuai dengan filter status atau sistem pembayaran saat ini.</p>
+                    </div>
+                  );
+                }
+
+                return filteredList.map(o => {
+                  const d = describeSubscriptionOrder(o);
+                  const statusColor = d.isPaid ? (isDark ? '#34d399' : '#059669') : d.isPending ? (isDark ? '#facc15' : '#d97706') : '#ef4444';
+                  const statusBg = d.isPaid ? 'rgba(16, 185, 129, 0.14)' : d.isPending ? 'rgba(245, 158, 11, 0.14)' : 'rgba(239, 68, 68, 0.14)';
+                  const configAccent = d.isAulaaGateway ? '#10b981' : d.isManualQRIS ? '#0284c7' : d.isFreeCoupon ? '#a855f7' : '#3b82f6';
+
+                  return (
+                    <div
+                      key={o.id}
+                      onClick={() => setSelectedProofOrder(o)}
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '1.15rem',
+                        backgroundColor: theme.surface,
+                        border: d.isPending ? '1.5px solid rgba(250, 204, 21, 0.55)' : `1px solid ${theme.border}`,
+                        boxShadow: theme.cardShadow,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {/* Row 1: Plan, Type, Invoice & Status Badge */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          <span style={{
+                            padding: '0.15rem 0.55rem',
+                            borderRadius: '999px',
+                            fontSize: '0.64rem',
                             fontWeight: 800,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Aktifkan Paket
-                        </button>
+                            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                            color: isDark ? '#34d399' : '#059669',
+                            border: '1px solid rgba(16, 185, 129, 0.3)'
+                          }}>
+                            {d.planLabel}
+                          </span>
+                          <span style={{
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '999px',
+                            fontSize: '0.62rem',
+                            fontWeight: 700,
+                            backgroundColor: theme.cardAlt,
+                            color: theme.textSecondary,
+                            border: `1px solid ${theme.border}`
+                          }}>
+                            {d.orderTypeLabel}
+                          </span>
+                          <span style={{ fontSize: '0.66rem', fontFamily: 'monospace', color: theme.textMuted, fontWeight: 700 }}>
+                            #{d.orderNumber}
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: '0.66rem',
+                          fontWeight: 800,
+                          padding: '0.18rem 0.55rem',
+                          borderRadius: '999px',
+                          backgroundColor: statusBg,
+                          color: statusColor
+                        }}>
+                          {d.statusLabel}
+                        </span>
                       </div>
-                    ) : (
+
+                      {/* Row 2: Store, Customer & Total Nominal */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <h4 style={{ margin: '0 0 0.15rem 0', fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                            {d.storeTitle} {d.storeSlug ? <span style={{ fontSize: '0.72rem', fontWeight: 600, color: theme.textMuted }}>/@{d.storeSlug}</span> : null}
+                          </h4>
+                          <div style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
+                            Pelanggan: <strong style={{ color: theme.textPrimary }}>{d.customerName}</strong> ({d.customerEmail})
+                          </div>
+                        </div>
+
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <span style={{ fontSize: '1.02rem', fontWeight: 900, color: isDark ? '#34d399' : '#059669', display: 'block' }}>
+                            Rp {d.finalAmount.toLocaleString('id-ID')}
+                          </span>
+                          {d.isManualBank && d.uniqueCode > 0 && (
+                            <span style={{ fontSize: '0.64rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 700, display: 'block' }}>
+                              Kode Unik Mutasi: +Rp {d.uniqueCode}
+                            </span>
+                          )}
+                          {d.isManualQRIS && (
+                            <span style={{ fontSize: '0.64rem', color: theme.textMuted, display: 'block' }}>
+                              Nominal Pas QRIS
+                            </span>
+                          )}
+                          <span style={{ fontSize: '0.65rem', color: theme.textMuted }}>
+                            {d.createdAt ? new Date(d.createdAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Baru'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Row 3: Dynamic Payment Configuration Box (Represents Aulaa vs Manual QRIS vs Manual Bank vs Coupon) */}
                       <div style={{
-                        padding: '0.4rem 0.6rem',
-                        borderRadius: '0.5rem',
-                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : '#f8fafc',
-                        border: `1px dashed ${theme.border}`,
-                        fontSize: '0.72rem',
-                        color: theme.textMuted,
-                        textAlign: 'center',
-                        marginTop: '0.35rem'
+                        padding: '0.65rem 0.75rem',
+                        borderRadius: '0.75rem',
+                        backgroundColor: `${configAccent}10`,
+                        border: `1px solid ${configAccent}35`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.35rem',
+                        fontSize: '0.72rem'
                       }}>
-                        Menunggu verifikasi admin keuangan (<code style={{ fontSize: '0.68rem' }}>finance:orders:manage</code>)
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontWeight: 800, color: configAccent, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            {d.isAulaaGateway ? <Zap size={13} /> : d.isManualQRIS ? <QrCode size={13} /> : d.isFreeCoupon ? <Tag size={13} /> : <CreditCard size={13} />}
+                            <span>{d.configBadgeLabel}</span>
+                          </span>
+                          <span style={{ fontSize: '0.66rem', fontWeight: 700, color: theme.textSecondary }}>
+                            {d.configChannelLabel}
+                          </span>
+                        </div>
+
+                        {d.isAulaaGateway && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', color: theme.textSecondary, fontSize: '0.69rem' }}>
+                            <div>Ref Aulaa: <strong style={{ color: theme.textPrimary, fontFamily: 'monospace' }}>{d.gatewayReference || 'Menunggu Sesi'}</strong></div>
+                            <div>Link Sesi: <strong style={{ color: d.gatewayPaymentLink ? '#10b981' : theme.textMuted }}>{d.gatewayPaymentLink ? 'Tersedia' : 'Belum Terbit'}</strong></div>
+                            {d.gatewayRawSummary && (
+                              <div style={{ gridColumn: '1 / -1', color: theme.textMuted }}>Webhook: {d.gatewayRawSummary}</div>
+                            )}
+                          </div>
+                        )}
+
+                        {d.isManualQRIS && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', color: theme.textSecondary, fontSize: '0.69rem' }}>
+                            <div>Pengirim: <strong style={{ color: theme.textPrimary }}>{d.senderAccountName}</strong></div>
+                            <div>WA: <strong style={{ color: theme.textPrimary }}>{d.senderPhone || '-'}</strong></div>
+                            <div>QRIS Tujuan: <strong style={{ color: theme.textPrimary }}>{d.targetQrisMerchant}</strong></div>
+                            <div>Bukti Scan: <strong style={{ color: d.proofUrl ? '#10b981' : '#f59e0b' }}>{d.proofUrl ? 'Terlampir' : 'Belum Ada'}</strong></div>
+                          </div>
+                        )}
+
+                        {d.isManualBank && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', color: theme.textSecondary, fontSize: '0.69rem' }}>
+                            <div>Rek. Pengirim: <strong style={{ color: theme.textPrimary }}>{d.senderAccountName}</strong></div>
+                            <div>WA: <strong style={{ color: theme.textPrimary }}>{d.senderPhone || '-'}</strong></div>
+                            <div>Bank Tujuan: <strong style={{ color: theme.textPrimary }}>{d.targetBankName}</strong></div>
+                            <div>Bukti Transfer: <strong style={{ color: d.proofUrl ? '#10b981' : '#f59e0b' }}>{d.proofUrl ? 'Terlampir' : 'Belum Ada'}</strong></div>
+                          </div>
+                        )}
+
+                        {d.isFreeCoupon && (
+                          <div style={{ color: theme.textSecondary, fontSize: '0.69rem' }}>
+                            Kode Promo: <strong style={{ color: theme.textPrimary }}>{d.couponCode || 'FREE'}</strong> • Diskon: <strong style={{ color: '#10b981' }}>-Rp {d.discountAmount.toLocaleString('id-ID')}</strong>
+                          </div>
+                        )}
+
+                        {d.isRejected && d.rejectionReason && (
+                          <div style={{ color: '#ef4444', fontSize: '0.68rem', fontWeight: 700, paddingTop: '0.2rem', borderTop: `1px dashed ${theme.border}` }}>
+                            Alasan Ditolak: {d.rejectionReason}
+                          </div>
+                        )}
                       </div>
-                    )
-                  )}
-                </div>
-              );
-            })
-          )}
+
+                      {/* Row 4: Action Triggers (Always Present on Every Card!) */}
+                      <div
+                        onClick={e => e.stopPropagation()}
+                        style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', paddingTop: '0.35rem', borderTop: `1px solid ${theme.border}` }}
+                      >
+                        <div style={{ display: 'flex', gap: '0.45rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedProofOrder(o)}
+                            style={{
+                              flex: 1,
+                              minHeight: '42px',
+                              padding: '0.45rem 0.65rem',
+                              borderRadius: '0.65rem',
+                              backgroundColor: theme.cardAlt,
+                              border: `1px solid ${theme.border}`,
+                              color: isDark ? '#38bdf8' : '#0284c7',
+                              fontSize: '0.73rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem'
+                            }}
+                          >
+                            <Eye size={14} />
+                            <span>Detail &amp; Verifikasi</span>
+                          </button>
+
+                          {d.isAulaaGateway && d.isPending && (
+                            <button
+                              type="button"
+                              disabled={syncingOrderId === o.id}
+                              onClick={() => handleSyncOrderWithAulaa(o.id)}
+                              style={{
+                                minHeight: '42px',
+                                padding: '0.45rem 0.75rem',
+                                borderRadius: '0.65rem',
+                                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                border: '1px solid rgba(16, 185, 129, 0.35)',
+                                color: '#10b981',
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem'
+                              }}
+                            >
+                              <RefreshCw size={13} className={syncingOrderId === o.id ? 'animate-spin' : ''} />
+                              <span>{syncingOrderId === o.id ? 'Sinkron...' : 'Cek Aulaa'}</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {canManageFinance ? (
+                          d.isPending ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '0.45rem' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRejectingOrder(o);
+                                  setRejectReasonInput(d.isManualQRIS ? 'Dana scan QRIS belum masuk ke mutasi merchant' : d.isAulaaGateway ? 'Pembayaran gateway melewati batas waktu / dibatalkan' : 'Dana transfer belum masuk ke mutasi rekening bank');
+                                }}
+                                style={{
+                                  minHeight: '42px',
+                                  padding: '0.45rem',
+                                  borderRadius: '0.65rem',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.14)',
+                                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                                  color: '#f87171',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.3rem'
+                                }}
+                              >
+                                <XCircle size={14} />
+                                <span>Tolak</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateOrderStatus(o.id, 'active')}
+                                style={{
+                                  minHeight: '42px',
+                                  padding: '0.45rem',
+                                  borderRadius: '0.65rem',
+                                  backgroundColor: '#10b981',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.3rem'
+                                }}
+                              >
+                                <CheckCircle2 size={14} />
+                                <span>Terima &amp; Aktifkan</span>
+                              </button>
+                            </div>
+                          ) : d.isPaid ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateOrderStatus(o.id, 'pending_verification')}
+                                style={{
+                                  minHeight: '40px',
+                                  padding: '0.4rem',
+                                  borderRadius: '0.6rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: theme.textSecondary,
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.3rem'
+                                }}
+                              >
+                                <RotateCcw size={13} />
+                                <span>Set Pending</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRejectingOrder(o);
+                                  setRejectReasonInput('Pembatalan verifikasi oleh admin keuangan');
+                                }}
+                                style={{
+                                  minHeight: '40px',
+                                  padding: '0.4rem',
+                                  borderRadius: '0.6rem',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                                  color: '#f87171',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.3rem'
+                                }}
+                              >
+                                <XCircle size={13} />
+                                <span>Batalkan / Tolak</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '0.45rem' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateOrderStatus(o.id, 'pending_verification')}
+                                style={{
+                                  minHeight: '40px',
+                                  padding: '0.4rem',
+                                  borderRadius: '0.6rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: theme.textSecondary,
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.3rem'
+                                }}
+                              >
+                                <RotateCcw size={13} />
+                                <span>Kembalikan Pending</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateOrderStatus(o.id, 'active')}
+                                style={{
+                                  minHeight: '40px',
+                                  padding: '0.4rem',
+                                  borderRadius: '0.6rem',
+                                  backgroundColor: '#10b981',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.3rem'
+                                }}
+                              >
+                                <CheckCircle2 size={13} />
+                                <span>Setujui &amp; Aktifkan</span>
+                              </button>
+                            </div>
+                          )
+                        ) : (
+                          <div style={{
+                            padding: '0.4rem 0.6rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : '#f8fafc',
+                            border: `1px dashed ${theme.border}`,
+                            fontSize: '0.7rem',
+                            color: theme.textMuted,
+                            textAlign: 'center'
+                          }}>
+                            Aksi verifikasi memerlukan izin <code style={{ fontSize: '0.66rem' }}>finance:orders:manage</code>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </>
           )}
 
@@ -9352,7 +9900,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             QRIS &amp; Transfer Manual (Mode Aktif)
                           </strong>
                           <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
-                            Pembayaran manual diverifikasi oleh staf admin dengan alokasi kode unik 3-digit.
+                            Pembayaran manual diverifikasi staf admin (kode unik untuk transfer bank, nominal pas untuk QRIS).
                           </span>
                         </div>
                       </div>
@@ -9618,7 +10166,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           Kode Unik 3-Digit Otomatis:
                         </div>
                         <p style={{ margin: 0, fontSize: '0.68rem', color: theme.textSecondary, lineHeight: 1.4 }}>
-                          Setiap invoice pembayaran manual otomatis ditambah kode unik 3 digit (100–999) pada total tagihan untuk pencocokan mutasi.
+                          Setiap invoice transfer bank manual otomatis ditambah kode unik nominal acak (100–999) untuk pencocokan mutasi. Pembayaran QRIS manual menggunakan nominal pas.
                         </p>
                       </div>
                     </div>
@@ -16539,203 +17087,859 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
 
 
-      {/* Bottom Sheet: Preview Bukti Transfer */}
-      {selectedProofOrder && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          backgroundColor: theme.modalOverlay,
-          backdropFilter: 'blur(8px)',
-          zIndex: 99999,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'flex-end'
-        }} onClick={() => setSelectedProofOrder(null)}>
+      {/* Bottom Sheet: Detail Transaksi & Verifikasi Sistem Pembayaran */}
+      {selectedProofOrder && (() => {
+        const d = describeSubscriptionOrder(selectedProofOrder);
+        const statusColor = d.isPaid ? (isDark ? '#34d399' : '#059669') : d.isPending ? (isDark ? '#facc15' : '#d97706') : '#ef4444';
+        const statusBg = d.isPaid ? 'rgba(16, 185, 129, 0.14)' : d.isPending ? 'rgba(245, 158, 11, 0.14)' : 'rgba(239, 68, 68, 0.14)';
+        const configAccent = d.isAulaaGateway ? '#10b981' : d.isManualQRIS ? '#0284c7' : d.isFreeCoupon ? '#a855f7' : '#3b82f6';
+        const cleanWaPhone = d.senderPhone.replace(/[^0-9]/g, '').replace(/^0/, '62');
+
+        return (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: theme.modalOverlay,
+            backdropFilter: 'blur(8px)',
+            zIndex: 99999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'flex-end'
+          }} onClick={() => setSelectedProofOrder(null)}>
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                maxWidth: '520px',
+                width: '100%',
+                maxHeight: '90vh',
+                backgroundColor: theme.modalBg,
+                borderTopLeftRadius: '1.5rem',
+                borderTopRightRadius: '1.5rem',
+                border: `1px solid ${theme.borderStrong}`,
+                borderBottom: 'none',
+                boxShadow: theme.shadow,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                transform: `translateY(${Math.max(0, proofSheetDragY)}px)`,
+                transition: isProofSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
+              }}
+            >
+              {/* Drag Handle & Clean Header (No X button per Mobile Native Standard) */}
+              <div
+                style={{
+                  padding: '0.65rem 1.25rem 0.85rem',
+                  borderBottom: `1px solid ${theme.border}`,
+                  cursor: 'grab',
+                  touchAction: 'none',
+                  flexShrink: 0
+                }}
+                onTouchStart={(e) => handleProofSheetDragStart(e.touches[0].clientY)}
+                onTouchMove={(e) => handleProofSheetDragMove(e.touches[0].clientY)}
+                onTouchEnd={handleProofSheetDragEnd}
+                onMouseDown={(e) => handleProofSheetDragStart(e.clientY)}
+                onMouseMove={(e) => handleProofSheetDragMove(e.clientY)}
+                onMouseUp={handleProofSheetDragEnd}
+              >
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.6rem' }}>
+                  <div style={{ width: '44px', height: '5px', borderRadius: '3px', backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : '#cbd5e1' }} />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.65rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '0.65rem',
+                      backgroundColor: `${configAccent}20`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: configAccent,
+                      flexShrink: 0
+                    }}>
+                      {d.isAulaaGateway ? <Zap size={18} /> : d.isManualQRIS ? <QrCode size={18} /> : d.isFreeCoupon ? <Tag size={18} /> : <CreditCard size={18} />}
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.94rem', fontWeight: 800 }}>
+                        Detail Transaksi #{d.orderNumber}
+                      </h4>
+                      <span style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
+                        {d.configBadgeLabel} &bull; {d.orderTypeLabel}
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '0.66rem',
+                    fontWeight: 800,
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '999px',
+                    backgroundColor: statusBg,
+                    color: statusColor,
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {d.statusLabel}
+                  </span>
+                </div>
+              </div>
+
+              {/* Scrollable Body Content (5 Structured Parity Sections) */}
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                overscrollBehavior: 'contain',
+                padding: '1rem 1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.95rem'
+              }}>
+                {/* Rejected Reason Alert */}
+                {d.isRejected && d.rejectionReason && (
+                  <div style={{
+                    padding: '0.75rem 0.9rem',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    fontSize: '0.75rem',
+                    color: '#f87171',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.5rem'
+                  }}>
+                    <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div>
+                      <strong style={{ display: 'block', marginBottom: '0.15rem' }}>Alasan Penolakan:</strong>
+                      <span>{d.rejectionReason}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 1: Identitas Invoice & Paket Langganan */}
+                <div style={{
+                  padding: '0.85rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: theme.cardAlt,
+                  border: `1px solid ${theme.border}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  fontSize: '0.74rem'
+                }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    1. Identitas Invoice &amp; Paket
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
+                    <div>
+                      <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Nomor Invoice</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <strong style={{ color: theme.textPrimary, fontFamily: 'monospace' }}>#{d.orderNumber}</strong>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(d.orderNumber);
+                            showToast('Nomor invoice disalin', 'success');
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', padding: '2px' }}
+                        >
+                          <Copy size={12} />
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Paket &amp; Siklus</span>
+                      <strong style={{ color: '#10b981' }}>{d.planLabel} ({d.billingCycle})</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Jenis Transaksi</span>
+                      <strong style={{ color: theme.textPrimary }}>{d.orderTypeLabel}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Waktu Pesanan</span>
+                      <strong style={{ color: theme.textPrimary }}>{d.createdAt ? new Date(d.createdAt).toLocaleString('id-ID') : '-'}</strong>
+                    </div>
+                    {d.paidAt && (
+                      <div>
+                        <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Waktu Lunas</span>
+                        <strong style={{ color: '#10b981' }}>{new Date(d.paidAt).toLocaleString('id-ID')}</strong>
+                      </div>
+                    )}
+                    <div>
+                      <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Diverifikasi Oleh</span>
+                      <strong style={{ color: theme.textPrimary }}>{d.approvedByLabel}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION 2: Informasi Pelanggan & Katalog Merchant */}
+                <div style={{
+                  padding: '0.85rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: theme.cardAlt,
+                  border: `1px solid ${theme.border}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.55rem',
+                  fontSize: '0.74rem'
+                }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    2. Informasi Pelanggan &amp; Toko
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.55rem' }}>
+                    <div>
+                      <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Nama Toko Katalog</span>
+                      <strong style={{ color: theme.textPrimary }}>{d.storeTitle}</strong>
+                      {d.storeSlug && <span style={{ display: 'block', fontSize: '0.66rem', color: theme.textMuted }}>/@{d.storeSlug} (Paket Aktif: {d.storeCurrentPlan})</span>}
+                    </div>
+                    <div>
+                      <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Pemilik / Pelanggan</span>
+                      <strong style={{ color: theme.textPrimary }}>{d.customerName}</strong>
+                      <span style={{ display: 'block', fontSize: '0.66rem', color: theme.textMuted }}>{d.customerEmail}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', paddingTop: '0.2rem' }}>
+                    {cleanWaPhone && (
+                      <a
+                        href={`https://wa.me/${cleanWaPhone}?text=${encodeURIComponent(`Halo ${d.customerName} (${d.storeTitle}), terkait transaksi langganan #${d.orderNumber} paket ${d.planLabel} senilai Rp ${d.finalAmount.toLocaleString('id-ID')}:`)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          minHeight: '38px',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'rgba(16, 185, 129, 0.14)',
+                          border: '1px solid rgba(16, 185, 129, 0.35)',
+                          color: '#10b981',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <MessageSquare size={13} />
+                        <span>Hubungi WA ({d.senderPhone})</span>
+                      </a>
+                    )}
+                    {d.storeSlug && (
+                      <a
+                        href={`/${d.storeSlug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          minHeight: '38px',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: theme.surface,
+                          border: `1px solid ${theme.border}`,
+                          color: theme.textPrimary,
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <Store size={13} />
+                        <span>Buka Katalog</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* SECTION 3: Konfigurasi Sistem Pembayaran Spesifik Transaksi */}
+                <div style={{
+                  padding: '0.85rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: `${configAccent}0D`,
+                  border: `1.5px solid ${configAccent}40`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.6rem',
+                  fontSize: '0.74rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: configAccent, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      3. Rincian Sistem Pembayaran ({d.configBadgeLabel})
+                    </span>
+                  </div>
+
+                  {/* AULAA PAYMENT GATEWAY DETAILS */}
+                  {d.isAulaaGateway && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Provider Gateway</span>
+                          <strong style={{ color: theme.textPrimary }}>Aulaa.co ({d.gatewayProvider.toUpperCase()})</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Sub-Kanal Pembayaran</span>
+                          <strong style={{ color: configAccent }}>{d.configChannelLabel}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>ID Referensi Aulaa</span>
+                          <strong style={{ color: theme.textPrimary, fontFamily: 'monospace' }}>{d.gatewayReference || 'Belum diterbitkan'}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Status Sesi / Webhook</span>
+                          <strong style={{ color: d.isPaid ? '#10b981' : '#f59e0b' }}>
+                            {d.isPaid ? 'Webhook Terverifikasi Lunas' : 'Menunggu Pembayaran / Callback'}
+                          </strong>
+                        </div>
+                      </div>
+                      {d.gatewayRawSummary && (
+                        <div style={{ padding: '0.5rem 0.65rem', borderRadius: '0.5rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, fontSize: '0.68rem', color: theme.textSecondary }}>
+                          <strong>Payload Aulaa:</strong> {d.gatewayRawSummary}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        {d.gatewayPaymentLink && (
+                          <a
+                            href={d.gatewayPaymentLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              minHeight: '38px',
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: theme.surface,
+                              border: `1px solid ${theme.border}`,
+                              color: configAccent,
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem'
+                            }}
+                          >
+                            <ExternalLink size={13} />
+                            <span>Buka Link Checkout Aulaa</span>
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          disabled={syncingOrderId === selectedProofOrder.id}
+                          onClick={() => handleSyncOrderWithAulaa(selectedProofOrder.id)}
+                          style={{
+                            minHeight: '38px',
+                            padding: '0.4rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: '#10b981',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem'
+                          }}
+                        >
+                          <RefreshCw size={13} className={syncingOrderId === selectedProofOrder.id ? 'animate-spin' : ''} />
+                          <span>{syncingOrderId === selectedProofOrder.id ? 'Menyinkronkan...' : 'Sinkronisasi Status Aulaa'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* MANUAL QRIS MERCHANT DETAILS */}
+                  {d.isManualQRIS && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Merchant QRIS Tujuan</span>
+                          <strong style={{ color: theme.textPrimary }}>{d.targetQrisMerchant}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Kebijakan Tagihan QRIS</span>
+                          <strong style={{ color: configAccent }}>Nominal Pas (Tanpa Kode Unik)</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Nama Akun / E-Wallet Pengirim</span>
+                          <strong style={{ color: theme.textPrimary }}>{d.senderAccountName}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Nomor WhatsApp Pengirim</span>
+                          <strong style={{ color: theme.textPrimary }}>{d.senderPhone || '-'}</strong>
+                        </div>
+                      </div>
+                      {d.notes && (
+                        <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
+                          Catatan Pengirim: <strong style={{ color: theme.textPrimary }}>{d.notes}</strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* MANUAL BANK TRANSFER DETAILS */}
+                  {d.isManualBank && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Bank &amp; Rekening Tujuan</span>
+                          <strong style={{ color: theme.textPrimary }}>{d.targetBankName} ({d.targetBankAccount})</strong>
+                          <span style={{ display: 'block', fontSize: '0.64rem', color: theme.textMuted }}>a.n. {d.targetBankHolder}</span>
+                        </div>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Kode Unik Mutasi 3-Digit</span>
+                          <strong style={{ color: configAccent }}>{d.uniqueCode > 0 ? `+Rp ${d.uniqueCode.toLocaleString('id-ID')}` : 'Tanpa Kode Unik'}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Nama Rekening Pengirim</span>
+                          <strong style={{ color: theme.textPrimary }}>{d.senderAccountName}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Nomor WhatsApp Pengirim</span>
+                          <strong style={{ color: theme.textPrimary }}>{d.senderPhone || '-'}</strong>
+                        </div>
+                      </div>
+                      {d.notes && (
+                        <div style={{ fontSize: '0.7rem', color: theme.textSecondary }}>
+                          Catatan Transfer: <strong style={{ color: theme.textPrimary }}>{d.notes}</strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* COUPON FREE 100% DETAILS */}
+                  {d.isFreeCoupon && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <div>
+                        <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Kode Kupon Digunakan</span>
+                        <strong style={{ color: configAccent }}>{d.couponCode || 'FREE100'}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: theme.textSecondary, display: 'block', fontSize: '0.68rem' }}>Potongan Diskon</span>
+                        <strong style={{ color: '#10b981' }}>100% (-Rp {d.discountAmount.toLocaleString('id-ID')})</strong>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment Proof Image (Shown for Manual QRIS / Manual Bank or whenever proofUrl exists) */}
+                  {(d.isManualQRIS || d.isManualBank || d.proofUrl) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginTop: '0.25rem' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: theme.textSecondary }}>
+                        Lampiran Bukti {d.isManualQRIS ? 'Scan QRIS' : 'Transfer Bank'}:
+                      </span>
+                      <div style={{ width: '100%', minHeight: '150px', maxHeight: '260px', overflow: 'hidden', borderRadius: '0.75rem', backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <SafeImage
+                          src={d.proofUrl}
+                          alt="Bukti Pembayaran"
+                          emptyLabel="Belum Ada Bukti Pembayaran"
+                          emptySubLabel="Pelanggan belum mengunggah foto struk/bukti pembayaran"
+                          errorLabel="Bukti Pembayaran Rusak"
+                          errorSubLabel="Berkas bukti tidak dapat ditampilkan"
+                          isDark={isDark}
+                          objectFit="contain"
+                          onPreview={() => {
+                            if (d.proofUrl) {
+                              openAttachmentLightbox([{ file_url: d.proofUrl, file_name: `Bukti_Bayar_${d.orderNumber}.jpg` }]);
+                            }
+                          }}
+                          style={{ maxWidth: '100%', maxHeight: '260px', objectFit: 'contain' }}
+                        />
+                      </div>
+                      {d.proofUrl && (
+                        <button
+                          type="button"
+                          onClick={() => openAttachmentLightbox([{ file_url: d.proofUrl, file_name: `Bukti_Bayar_${d.orderNumber}.jpg` }])}
+                          style={{
+                            minHeight: '38px',
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: theme.surface,
+                            border: `1px solid ${theme.border}`,
+                            color: theme.textPrimary,
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.35rem'
+                          }}
+                        >
+                          <Eye size={13} />
+                          <span>Perbesar Gambar Bukti Penuh</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* SECTION 4: Rincian Kalkulasi Tagihan */}
+                <div style={{
+                  padding: '0.85rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: theme.cardAlt,
+                  border: `1px solid ${theme.border}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.4rem',
+                  fontSize: '0.74rem'
+                }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    4. Rincian Kalkulasi Tagihan
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: theme.textSecondary }}>
+                    <span>Harga Dasar Paket ({d.planLabel})</span>
+                    <strong style={{ color: theme.textPrimary }}>Rp {d.originalAmount.toLocaleString('id-ID')}</strong>
+                  </div>
+                  {d.discountAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
+                      <span>Potongan Kupon {d.couponCode ? `(${d.couponCode})` : ''}</span>
+                      <strong>-Rp {d.discountAmount.toLocaleString('id-ID')}</strong>
+                    </div>
+                  )}
+                  {d.isManualBank && d.uniqueCode > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: isDark ? '#38bdf8' : '#0284c7' }}>
+                      <span>Kode Unik Mutasi Rekening (3-Digit)</span>
+                      <strong>+Rp {d.uniqueCode.toLocaleString('id-ID')}</strong>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem', borderTop: `1px dashed ${theme.border}`, fontSize: '0.84rem' }}>
+                    <strong style={{ color: theme.textPrimary }}>Total Tagihan Akhir</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <strong style={{ fontSize: '0.96rem', fontWeight: 900, color: '#10b981' }}>
+                        Rp {d.finalAmount.toLocaleString('id-ID')}
+                      </strong>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(String(d.finalAmount));
+                          showToast('Nominal tagihan disalin', 'success');
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', padding: '2px' }}
+                      >
+                        <Copy size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 5: Sticky Action Triggers Footer */}
+              <div style={{
+                padding: '0.75rem 1.25rem 1.25rem',
+                borderTop: `1px solid ${theme.border}`,
+                backgroundColor: theme.surface,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+                flexShrink: 0
+              }}>
+                {canManageFinance && (
+                  d.isPending ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.25fr', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRejectingOrder(selectedProofOrder);
+                          setRejectReasonInput(d.isManualQRIS ? 'Dana scan QRIS belum masuk ke mutasi merchant' : d.isAulaaGateway ? 'Pembayaran gateway melewati batas waktu / dibatalkan' : 'Dana transfer belum masuk ke mutasi rekening bank');
+                        }}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.6rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          color: '#f87171',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <XCircle size={15} />
+                        <span>Tolak Pesanan</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateOrderStatus(selectedProofOrder.id, 'active')}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.6rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: '#10b981',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <CheckCircle2 size={15} />
+                        <span>Terima &amp; Aktifkan Paket</span>
+                      </button>
+                    </div>
+                  ) : d.isPaid ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateOrderStatus(selectedProofOrder.id, 'pending_verification')}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.6rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: theme.cardAlt,
+                          border: `1px solid ${theme.border}`,
+                          color: theme.textSecondary,
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <RotateCcw size={14} />
+                        <span>Kembalikan Pending</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRejectingOrder(selectedProofOrder);
+                          setRejectReasonInput('Pembatalan verifikasi oleh admin keuangan');
+                        }}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.6rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: 'rgba(239, 68, 68, 0.14)',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          color: '#f87171',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <XCircle size={14} />
+                        <span>Batalkan / Tolak</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.25fr', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateOrderStatus(selectedProofOrder.id, 'pending_verification')}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.6rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: theme.cardAlt,
+                          border: `1px solid ${theme.border}`,
+                          color: theme.textSecondary,
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <RotateCcw size={14} />
+                        <span>Kembalikan Pending</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateOrderStatus(selectedProofOrder.id, 'active')}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.6rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: '#10b981',
+                          color: '#ffffff',
+                          border: 'none',
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <CheckCircle2 size={15} />
+                        <span>Setujui &amp; Aktifkan Ulang</span>
+                      </button>
+                    </div>
+                  )
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedProofOrder(null)}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.65rem',
+                    borderRadius: '0.65rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: theme.cardAlt,
+                    color: theme.textSecondary,
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Tutup Rincian
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Bottom Sheet: Konfirmasi Alasan Penolakan Pesanan */}
+      {rejectingOrder && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: theme.modalOverlay,
+            backdropFilter: 'blur(8px)',
+            zIndex: 100000,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'flex-end'
+          }}
+          onClick={() => setRejectingOrder(null)}
+        >
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              maxWidth: '480px',
+              maxWidth: '500px',
               width: '100%',
               backgroundColor: theme.modalBg,
               borderTopLeftRadius: '1.5rem',
               borderTopRightRadius: '1.5rem',
               border: `1px solid ${theme.borderStrong}`,
               borderBottom: 'none',
-              boxShadow: theme.shadow,
-              padding: '0.75rem 1.25rem 1.5rem 1.25rem',
+              padding: '0.85rem 1.25rem 1.5rem',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.85rem',
-              transform: `translateY(${Math.max(0, proofSheetDragY)}px)`,
-              transition: isProofSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
+              gap: '0.85rem'
             }}
           >
-            {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                padding: '0.25rem 0 0.5rem 0',
-                cursor: 'grab',
-                touchAction: 'none'
-              }}
-              onTouchStart={(e) => handleProofSheetDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleProofSheetDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleProofSheetDragEnd}
-              onMouseDown={(e) => handleProofSheetDragStart(e.clientY)}
-              onMouseMove={(e) => handleProofSheetDragMove(e.clientY)}
-              onMouseUp={handleProofSheetDragEnd}
-            >
-              <div
-                style={{
-                  width: '44px',
-                  height: '5px',
-                  borderRadius: '3px',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : '#cbd5e1'
-                }}
-              />
+            <div style={{ display: 'flex', justifyContent: 'center', touchAction: 'none' }}>
+              <div style={{ width: '44px', height: '5px', borderRadius: '3px', backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : '#cbd5e1' }} />
             </div>
-
-            {/* Clean Header (Standard Mobile: No X button, dismiss via drag handle, backdrop, or footer actions) */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.65rem',
-                cursor: 'grab',
-                touchAction: 'none'
-              }}
-              onTouchStart={(e) => handleProofSheetDragStart(e.touches[0].clientY)}
-              onTouchMove={(e) => handleProofSheetDragMove(e.touches[0].clientY)}
-              onTouchEnd={handleProofSheetDragEnd}
-              onMouseDown={(e) => handleProofSheetDragStart(e.clientY)}
-              onMouseMove={(e) => handleProofSheetDragMove(e.clientY)}
-              onMouseUp={handleProofSheetDragEnd}
-            >
-              <div
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#10b981',
-                  flexShrink: 0
-                }}
-              >
-                <CreditCard size={18} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '0.65rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AlertTriangle size={18} />
               </div>
               <div>
-                <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.98rem', fontWeight: 800 }}>
-                  Bukti Pembayaran #{selectedProofOrder.id}
+                <h4 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: theme.textPrimary }}>
+                  Tolak / Batalkan Pesanan #{rejectingOrder.order_number || rejectingOrder.id}
                 </h4>
-                <span style={{ fontSize: '0.72rem', color: theme.textMuted }}>
-                  Verifikasi transfer langganan katalog
+                <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
+                  Pilih atau tulis alasan penolakan untuk diinformasikan ke merchant
                 </span>
               </div>
             </div>
 
-            <div 
-              style={{ width: '100%', minHeight: '160px', maxHeight: '300px', overflow: 'hidden', borderRadius: '0.75rem', backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <SafeImage
-                src={selectedProofOrder.payment_proof_url}
-                alt="Bukti Transfer"
-                emptyLabel="Belum Ada Bukti Transfer"
-                emptySubLabel="Merchant belum mengunggah foto bukti transfer pembayaran"
-                errorLabel="Bukti Transfer Rusak"
-                errorSubLabel="Berkas bukti transfer tidak dapat ditampilkan atau tautan terputus"
-                isDark={isDark}
-                objectFit="contain"
-                onPreview={() => {
-                  if (selectedProofOrder.payment_proof_url) {
-                    openAttachmentLightbox([{ file_url: selectedProofOrder.payment_proof_url, file_name: `Bukti_Bayar_Order_${selectedProofOrder.id}.jpg` }]);
-                  }
-                }}
-                style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.76rem', color: theme.textSecondary }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Toko: <strong style={{ color: theme.textPrimary }}>{selectedProofOrder.store?.store_title || selectedProofOrder.store?.name || selectedProofOrder.store_name || 'Toko'}</strong></span>
-                <span>Nominal: <strong style={{ color: isDark ? '#34d399' : '#059669' }}>Rp {(selectedProofOrder.final_amount ?? selectedProofOrder.amount ?? 0).toLocaleString('id-ID')}</strong></span>
-              </div>
-              {selectedProofOrder.unique_code > 0 && (
-                <div style={{ fontSize: '0.7rem', color: isDark ? '#38bdf8' : '#0284c7' }}>
-                  <span>Termasuk Kode Unik: +{selectedProofOrder.unique_code}</span>
-                </div>
-              )}
-              {selectedProofOrder.sender_account_name && (
-                <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
-                  <span>Pengirim: <strong>{selectedProofOrder.sender_account_name}</strong> {selectedProofOrder.sender_phone ? `(${selectedProofOrder.sender_phone})` : ''}</span>
-                </div>
-              )}
-            </div>
-
-            {((selectedProofOrder.payment_status || selectedProofOrder.status) === 'pending' || (selectedProofOrder.payment_status || selectedProofOrder.status) === 'pending_verification') ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.35rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {[
+                'Dana belum masuk ke mutasi rekening / QRIS platform',
+                'Nominal pembayaran tidak sesuai tagihan invoice',
+                'Foto bukti pembayaran buram, terpotong, atau tidak valid',
+                'Batas waktu pembayaran telah kedaluwarsa'
+              ].map(preset => (
                 <button
-                  onClick={() => {
-                    const reason = window.prompt('Masukkan alasan penolakan bukti pembayaran:', 'Dana belum masuk ke mutasi merchant');
-                    if (reason !== null) {
-                      handleUpdateOrderStatus(selectedProofOrder.id, 'rejected', reason);
-                    }
-                  }}
+                  key={preset}
+                  type="button"
+                  onClick={() => setRejectReasonInput(preset)}
                   style={{
-                    padding: '0.65rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    color: '#f87171',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
+                    minHeight: '42px',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '0.6rem',
+                    backgroundColor: rejectReasonInput === preset ? 'rgba(239, 68, 68, 0.12)' : theme.cardAlt,
+                    border: `1px solid ${rejectReasonInput === preset ? '#ef4444' : theme.border}`,
+                    color: rejectReasonInput === preset ? '#f87171' : theme.textSecondary,
+                    fontSize: '0.73rem',
+                    fontWeight: 600,
+                    textAlign: 'left',
                     cursor: 'pointer'
                   }}
                 >
-                  Tolak
+                  {preset}
                 </button>
-                <button
-                  onClick={() => handleUpdateOrderStatus(selectedProofOrder.id, 'active')}
-                  style={{
-                    padding: '0.65rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: '#10b981',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontSize: '0.78rem',
-                    fontWeight: 800,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Aktifkan Paket
-                </button>
-              </div>
-            ) : (
+              ))}
+            </div>
+
+            <textarea
+              rows={3}
+              value={rejectReasonInput}
+              onChange={e => setRejectReasonInput(e.target.value)}
+              placeholder="Tulis alasan penolakan..."
+              style={{
+                width: '100%',
+                padding: '0.65rem 0.85rem',
+                borderRadius: '0.65rem',
+                backgroundColor: theme.surface,
+                border: `1px solid ${theme.border}`,
+                color: theme.textPrimary,
+                fontSize: '0.78rem',
+                boxSizing: 'border-box',
+                resize: 'vertical'
+              }}
+            />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '0.5rem' }}>
               <button
                 type="button"
-                onClick={() => setSelectedProofOrder(null)}
+                onClick={() => setRejectingOrder(null)}
                 style={{
-                  marginTop: '0.35rem',
-                  padding: '0.75rem',
+                  minHeight: '44px',
+                  padding: '0.6rem',
                   borderRadius: '0.65rem',
-                  border: `1px solid ${theme.border}`,
                   backgroundColor: theme.cardAlt,
+                  border: `1px solid ${theme.border}`,
                   color: theme.textSecondary,
+                  fontSize: '0.78rem',
                   fontWeight: 700,
-                  fontSize: '0.82rem',
                   cursor: 'pointer'
                 }}
               >
-                Tutup
+                Batal
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => handleUpdateOrderStatus(rejectingOrder.id, 'rejected', rejectReasonInput)}
+                style={{
+                  minHeight: '44px',
+                  padding: '0.6rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: '#ef4444',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                Konfirmasi Tolak
+              </button>
+            </div>
           </div>
         </div>
       )}

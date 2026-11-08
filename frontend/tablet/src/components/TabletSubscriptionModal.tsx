@@ -163,17 +163,76 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   // Load platform payment settings
   const fetchPlatformSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/settings/public');
+      const res = await window.fetch('/api/settings', {
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
       if (res.ok) {
         const json = await res.json();
-        if (json.success && json.data) {
-          setPlatformSettings(json.data);
+        const data = json.data || json;
+        if (data && typeof data === 'object') {
+          setPlatformSettings((prev: any) => ({ ...prev, ...data }));
         }
       }
     } catch (err) {
       console.error('Failed fetching platform settings in tablet modal:', err);
     }
   }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchPlatformSettings();
+    }
+  }, [isOpen, checkoutStep, fetchPlatformSettings]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'catavor_platform_settings_updated') {
+        fetchPlatformSettings();
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPlatformSettings();
+      }
+    };
+    window.addEventListener('focus', fetchPlatformSettings);
+    window.addEventListener('catavor_platform_settings_updated', fetchPlatformSettings);
+    window.addEventListener('storage', handleStorage);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', fetchPlatformSettings);
+      window.removeEventListener('catavor_platform_settings_updated', fetchPlatformSettings);
+      window.removeEventListener('storage', handleStorage);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [isOpen, fetchPlatformSettings]);
+
+  useEffect(() => {
+    const showQRIS = platformSettings?.payment_aulaa_channel_qris !== '0';
+    const showVA = platformSettings?.payment_aulaa_channel_va !== '0';
+    const showEWallet = platformSettings?.payment_aulaa_channel_ewallet !== '0';
+    const showCC = platformSettings?.payment_aulaa_channel_cc === '1';
+    const channelMap: Record<string, boolean> = {
+      qris: showQRIS,
+      va: showVA,
+      ewallet: showEWallet,
+      cc: showCC
+    };
+    if (!channelMap[aulaaChannel]) {
+      if (showQRIS) setAulaaChannel('qris');
+      else if (showVA) setAulaaChannel('va');
+      else if (showEWallet) setAulaaChannel('ewallet');
+      else if (showCC) setAulaaChannel('cc');
+    }
+  }, [
+    platformSettings?.payment_aulaa_channel_qris,
+    platformSettings?.payment_aulaa_channel_va,
+    platformSettings?.payment_aulaa_channel_ewallet,
+    platformSettings?.payment_aulaa_channel_cc,
+    aulaaChannel
+  ]);
 
   useEffect(() => {
     if (isOpen) {
@@ -305,6 +364,27 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   const bankName = platformSettings?.payment_bank_name || 'Bank Central Asia (BCA)';
   const bankAccount = platformSettings?.payment_bank_account || '8830-1928-3920';
   const bankHolder = platformSettings?.payment_bank_holder || 'PT Catavor Media Digital';
+
+  const handleDownloadQRIS = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!manualQrisImage) return;
+    try {
+      const res = await fetch(manualQrisImage);
+      if (!res.ok) throw new Error('File tidak dapat diakses');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const ext = manualQrisImage.endsWith('.jpg') || manualQrisImage.endsWith('.jpeg') ? '.jpg' : (manualQrisImage.endsWith('.svg') ? '.svg' : '.png');
+      a.download = `qris_${(manualQrisMerchant || 'catavor').toLowerCase().replace(/[^a-z0-9]/g, '_')}${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(manualQrisImage, '_blank');
+    }
+  };
 
   const handleProceedToPayment = () => {
     if (selectedPlan?.code === 'free') {
@@ -1305,6 +1385,17 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                                   <span style={{ color: 'var(--text-muted)' }}>Atas Nama:</span>
                                   <strong>{bankHolder}</strong>
                                 </div>
+                                <div style={{
+                                  padding: '0.45rem 0.65rem',
+                                  borderRadius: '0.45rem',
+                                  backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                                  fontSize: '0.72rem',
+                                  color: 'var(--text-secondary)',
+                                  marginTop: '0.25rem'
+                                }}>
+                                  Kode unik nominal akan ditambahkan pada tagihan untuk mempermudah verifikasi mutasi transfer rekening.
+                                </div>
                               </div>
                             ) : (
                               <div style={{
@@ -1318,14 +1409,17 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                                 gap: '0.65rem',
                                 textAlign: 'center'
                               }}>
-                                <div style={{ width: '120px', height: '120px', background: '#ffffff', borderRadius: '8px', padding: '6px', border: '1px solid var(--primary)' }}>
-                                  <img src={manualQrisImage} alt="QRIS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                <div style={{ width: '120px', height: '120px', background: '#ffffff', borderRadius: '8px', padding: '6px', border: '1px solid var(--primary)', overflow: 'hidden' }}>
+                                  <img
+                                    src={manualQrisImage}
+                                    alt="QRIS"
+                                    onError={(e: any) => { e.currentTarget.src = '/img/qris_demo.svg'; }}
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                  />
                                 </div>
-                                <a
-                                  href={manualQrisImage}
-                                  download="qris_catavor.png"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <button
+                                  type="button"
+                                  onClick={handleDownloadQRIS}
                                   style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
@@ -1337,15 +1431,15 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                                     color: 'var(--text-primary)',
                                     fontSize: '0.72rem',
                                     fontWeight: 700,
-                                    textDecoration: 'none'
+                                    cursor: 'pointer'
                                   }}
                                 >
                                   <Download size={13} />
                                   <span>Unduh QRIS</span>
-                                </a>
+                                </button>
                                 <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
                                   <strong style={{ color: 'var(--text-primary)', display: 'block', fontSize: '0.82rem' }}>{manualQrisMerchant}</strong>
-                                  <span>Scan menggunakan ShopeePay / BCA / E-Wallet. Kode unik 3 digit akan ditambahkan pada tagihan.</span>
+                                  <span>Buka aplikasi m-banking atau e-wallet Anda dan scan QRIS resmi di atas.</span>
                                 </div>
                               </div>
                             )}

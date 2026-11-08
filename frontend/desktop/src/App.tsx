@@ -5327,7 +5327,7 @@ Terima kasih.`;
 
   const fetchPlatformSettings = async () => {
     try {
-      const res = await fetch('/api/settings');
+      const res = await fetch('/api/settings', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         const settingsData = data.data || data;
@@ -5355,6 +5355,23 @@ Terima kasih.`;
   useEffect(() => {
     fetchPolicies();
     fetchPlatformSettings();
+
+    const handleSyncPlatformSettings = () => {
+      fetchPlatformSettings();
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'catavor_platform_settings_updated') {
+        fetchPlatformSettings();
+      }
+    };
+    window.addEventListener('focus', handleSyncPlatformSettings);
+    window.addEventListener('catavor_platform_settings_updated', handleSyncPlatformSettings);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('focus', handleSyncPlatformSettings);
+      window.removeEventListener('catavor_platform_settings_updated', handleSyncPlatformSettings);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   // Guarantee auto-scroll to top on page/tab navigation (Desktop & Tablet)
@@ -29192,7 +29209,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   <SubscriptionPage
                     currentQuota={storeQuota}
                     plans={subscriptionPlans}
-                    settings={settings}
+                    settings={{ ...settings, ...platformSettings }}
                     onSuccessUpgrade={() => {
                       fetchMyQuota();
                       loadData();
@@ -34227,7 +34244,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           onClose={() => setShowSubscriptionModal(false)}
           currentQuota={storeQuota}
           plans={subscriptionPlans}
-          settings={settings}
+          settings={{ ...settings, ...platformSettings }}
           onSuccessUpgrade={() => {
             fetchMyQuota();
             loadData();

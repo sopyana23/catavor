@@ -199,7 +199,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const res = await fetch('/api/settings');
+        const res = await fetch('/api/settings', { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
           const s = json.data || json;
@@ -212,6 +212,27 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
       }
     };
     fetchSettings();
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'catavor_platform_settings_updated') {
+        fetchSettings();
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchSettings();
+      }
+    };
+    window.addEventListener('focus', fetchSettings);
+    window.addEventListener('catavor_platform_settings_updated', fetchSettings);
+    window.addEventListener('storage', handleStorage);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', fetchSettings);
+      window.removeEventListener('catavor_platform_settings_updated', fetchSettings);
+      window.removeEventListener('storage', handleStorage);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   const isCancelledRef = useRef<boolean>(false);
@@ -518,6 +539,28 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
       onCancel();
     } else {
       smartBack('/');
+    }
+  };
+
+  const handleDownloadQRIS = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    const qrisTarget = platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || '/img/qris_demo.svg';
+    if (!qrisTarget) return;
+    try {
+      const res = await fetch(qrisTarget);
+      if (!res.ok) throw new Error('File tidak dapat diakses');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const ext = qrisTarget.endsWith('.jpg') || qrisTarget.endsWith('.jpeg') ? '.jpg' : (qrisTarget.endsWith('.svg') ? '.svg' : '.png');
+      a.download = `QRIS_Catavor_Payment${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(qrisTarget, '_blank');
     }
   };
 
@@ -1920,9 +1963,9 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
                         Scan QRIS dengan GoPay, OVO, ShopeePay, DANA, BCA Mobile, atau aplikasi m-banking lainnya.
                       </p>
 
-                      <a
-                        href={platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || '/img/qris_demo.svg'}
-                        download="QRIS_Catavor_Payment.svg"
+                      <button
+                        type="button"
+                        onClick={handleDownloadQRIS}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -1935,27 +1978,29 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
                           color: '#1d4ed8',
                           fontSize: '0.76rem',
                           fontWeight: 700,
-                          textDecoration: 'none'
+                          cursor: 'pointer'
                         }}
                       >
                         <Download size={15} />
                         <span>Download Gambar QRIS</span>
-                      </a>
+                      </button>
                     </div>
                   )}
 
-                  {/* Unique Code Info */}
-                  <div style={{
-                    padding: '0.75rem 0.85rem',
-                    borderRadius: '0.6rem',
-                    backgroundColor: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    fontSize: '0.76rem',
-                    color: '#1e40af',
-                    lineHeight: 1.45
-                  }}>
-                    <strong>Kode Unik Otomatis:</strong> Sistem akan mengalokasikan kode unik 3 digit acak pada nomor tagihan untuk mempermudah verifikasi mutasi cepat.
-                  </div>
+                  {/* Unique Code Info (Hanya untuk Transfer Bank Manual) */}
+                  {paymentMethod === 'bank' && (
+                    <div style={{
+                      padding: '0.75rem 0.85rem',
+                      borderRadius: '0.6rem',
+                      backgroundColor: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      fontSize: '0.76rem',
+                      color: '#1e40af',
+                      lineHeight: 1.45
+                    }}>
+                      <strong>Kode Unik Otomatis:</strong> Sistem akan mengalokasikan kode unik nominal acak pada nomor tagihan untuk mempermudah verifikasi mutasi transfer bank.
+                    </div>
+                  )}
 
                   {/* Form Upload Bukti Transfer (MANDATORY GATE) */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>

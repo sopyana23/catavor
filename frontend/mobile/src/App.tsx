@@ -18010,9 +18010,28 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             <p style={{ fontSize: '0.72rem', color: '#64748b', margin: 0 }}>
                               Scan QRIS dengan GoPay, OVO, ShopeePay, BCA Mobile, atau aplikasi bank lainnya.
                             </p>
-                            <a 
-                              href={platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || settings.payment_qris_manual_image || settings.payment_qris_image || '/img/qris_demo.svg'} 
-                              download="QRIS_Catavor_Payment.svg"
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                const qrisUrl = platformSettings.payment_qris_manual_image || platformSettings.payment_qris_image || settings.payment_qris_manual_image || settings.payment_qris_image || '/img/qris_demo.svg';
+                                try {
+                                  const res = await fetch(qrisUrl);
+                                  if (!res.ok) throw new Error('File tidak dapat diakses');
+                                  const blob = await res.blob();
+                                  const blobUrl = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = blobUrl;
+                                  const ext = qrisUrl.endsWith('.jpg') || qrisUrl.endsWith('.jpeg') ? '.jpg' : (qrisUrl.endsWith('.svg') ? '.svg' : '.png');
+                                  a.download = `QRIS_Catavor_Payment${ext}`;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  window.URL.revokeObjectURL(blobUrl);
+                                } catch {
+                                  window.open(qrisUrl, '_blank');
+                                }
+                              }}
                               style={{ 
                                 display: 'inline-flex', 
                                 alignItems: 'center', 
@@ -18024,18 +18043,21 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 color: '#1d4ed8', 
                                 fontSize: '0.72rem', 
                                 fontWeight: 700, 
-                                textDecoration: 'none' 
+                                textDecoration: 'none',
+                                cursor: 'pointer'
                               }}
                             >
                               <Download size={13} /> Download Gambar QRIS
-                            </a>
+                            </button>
                           </div>
                         )}
 
-                        {/* Unique nominal info for manual verification */}
-                        <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.5rem', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.72rem', color: '#1e40af', lineHeight: 1.45 }}>
-                          <strong>Catatan Kode Unik:</strong> Nominal transfer/scan akan dialokasikan tambahan kode unik 3 digit acak otomatis oleh sistem untuk verifikasi mutasi cepat.
-                        </div>
+                        {/* Unique nominal info for manual bank transfer verification */}
+                        {paymentMethod === 'bank' && (
+                          <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.5rem', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.72rem', color: '#1e40af', lineHeight: 1.45 }}>
+                            <strong>Catatan Kode Unik:</strong> Nominal transfer rekening akan dialokasikan tambahan kode unik 3 digit acak otomatis oleh sistem untuk verifikasi mutasi cepat.
+                          </div>
+                        )}
 
                         {/* Form Upload Bukti Transfer Mobile */}
                         <form 
