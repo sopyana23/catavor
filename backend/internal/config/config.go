@@ -31,6 +31,7 @@ type Config struct {
 	DBName             string
 	DBSSLMode          string
 	DBAutoMigrate      bool
+	SkipDBMigrate      bool
 	JWTSecret          string
 	JWTExpirationHours int
 	GoogleClientID     string
@@ -97,7 +98,8 @@ func LoadConfig() *Config {
 
 	dbAutoMigrateStr := strings.ToLower(getEnv("DB_AUTO_MIGRATE", getEnv("AUTO_MIGRATE", "true")))
 	skipDBMigrateStr := strings.ToLower(getEnv("SKIP_DB_MIGRATE", "false"))
-	dbAutoMigrate := (dbAutoMigrateStr != "false" && dbAutoMigrateStr != "0" && dbAutoMigrateStr != "no") && (skipDBMigrateStr != "true" && skipDBMigrateStr != "1" && skipDBMigrateStr != "yes")
+	skipDBMigrate := (skipDBMigrateStr == "true" || skipDBMigrateStr == "1" || skipDBMigrateStr == "yes")
+	dbAutoMigrate := (dbAutoMigrateStr != "false" && dbAutoMigrateStr != "0" && dbAutoMigrateStr != "no") && !skipDBMigrate
 
 	appEnv := strings.ToLower(strings.TrimSpace(getEnv("APP_ENV", "local")))
 
@@ -229,6 +231,7 @@ func LoadConfig() *Config {
 		DBName:             getEnv("DB_NAME", "catavor"),
 		DBSSLMode:          dbSSLMode,
 		DBAutoMigrate:      dbAutoMigrate,
+		SkipDBMigrate:      skipDBMigrate,
 		JWTSecret:          jwtSecret,
 		JWTExpirationHours: jwtHours,
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),

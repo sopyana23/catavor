@@ -66,4 +66,3 @@ CREATE TABLE IF NOT EXISTS recent_visitor_events (
 
 CREATE INDEX IF NOT EXISTS idx_recent_visitors_store ON recent_visitor_events (store_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_recent_visitors_global ON recent_visitor_events (created_at DESC);
-

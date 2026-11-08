@@ -80,6 +80,12 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
+	if cfg.SkipDBMigrate || os.Getenv("SKIP_DB_MIGRATE") == "true" {
+		DB = db
+		log.Info().Msg("PostgreSQL connected successfully (DB migrations completely SKIPPED via SKIP_DB_MIGRATE)")
+		return db, nil
+	}
+
 	if !cfg.DBAutoMigrate {
 		// AutoMigrate dan seeding dilewati, TETAPI migrasi SQL tetap
 		// dijalankan: skema harus tetap terkelola walau AutoMigrate dimatikan.
