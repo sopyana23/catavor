@@ -23,6 +23,8 @@ import {
   CheckCircle2,
   Store
 } from 'lucide-react';
+import { MobileDimensionSheet } from './MobileDimensionSheet';
+import { aggregateTopNDimensions, computeHourlyTimeBands, type DimensionalMetric } from '../utils/telemetryHelpers';
 
 export interface GlobalAnalyticsOverview {
   period: string;
@@ -183,6 +185,18 @@ export const MobileMarketIntelView: React.FC<MobileMarketIntelViewProps> = ({
   const [telemetryData, setTelemetryData] = useState<GlobalAnalyticsOverview | null>(null);
   const [telemetryLoading, setTelemetryLoading] = useState<boolean>(false);
   const [telemetryPeriod, setTelemetryPeriod] = useState<'7d' | '30d' | '90d'>('7d');
+
+  // Scalable Dimensional Sheet & Filter State
+  const [dimensionSheetOpen, setDimensionSheetOpen] = useState(false);
+  const [selectedDimension, setSelectedDimension] = useState<{
+    type: 'locations' | 'browsers' | 'operating_systems' | 'devices';
+    title: string;
+    items: DimensionalMetric[];
+  } | null>(null);
+  const [topStoresLimit, setTopStoresLimit] = useState<number>(5);
+  const [liveEventFilter, setLiveEventFilter] = useState<'all' | 'store_view' | 'product_view' | 'action_wa' | 'rekber_click'>('all');
+  const [isOsExpanded, setIsOsExpanded] = useState(false);
+  const [heatmapViewMode, setHeatmapViewMode] = useState<'24h' | 'time_bands'>('24h');
 
   const fetchGlobalTelemetry = async (period: '7d' | '30d' | '90d' = telemetryPeriod) => {
     setTelemetryLoading(true);
@@ -1154,16 +1168,52 @@ export const MobileMarketIntelView: React.FC<MobileMarketIntelViewProps> = ({
                   padding: '1rem'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
-                  <Store size={16} style={{ color: '#3b82f6' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
-                    10 Toko Terpopuler Platform
-                  </h4>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Store size={16} style={{ color: '#3b82f6' }} />
+                    <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
+                      Toko Terpopuler Platform
+                    </h4>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', backgroundColor: theme.cardAlt, padding: '2px', borderRadius: '5px', border: `1px solid ${theme.border}` }}>
+                    <button
+                      type="button"
+                      onClick={() => setTopStoresLimit(5)}
+                      style={{
+                        padding: '0.15rem 0.45rem',
+                        fontSize: '0.65rem',
+                        fontWeight: topStoresLimit === 5 ? 700 : 500,
+                        border: 'none',
+                        borderRadius: '3px',
+                        backgroundColor: topStoresLimit === 5 ? theme.surface : 'transparent',
+                        color: topStoresLimit === 5 ? theme.textPrimary : theme.textSecondary,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Top 5
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTopStoresLimit(10)}
+                      style={{
+                        padding: '0.15rem 0.45rem',
+                        fontSize: '0.65rem',
+                        fontWeight: topStoresLimit === 10 ? 700 : 500,
+                        border: 'none',
+                        borderRadius: '3px',
+                        backgroundColor: topStoresLimit === 10 ? theme.surface : 'transparent',
+                        color: topStoresLimit === 10 ? theme.textPrimary : theme.textSecondary,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Top 10
+                    </button>
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {telemetryData.top_stores && telemetryData.top_stores.length > 0 ? (
-                    telemetryData.top_stores.map((st, idx) => (
+                    telemetryData.top_stores.slice(0, topStoresLimit).map((st, idx) => (
                       <div
                         key={st.store_id || idx}
                         style={{
@@ -1223,157 +1273,423 @@ export const MobileMarketIntelView: React.FC<MobileMarketIntelViewProps> = ({
                 </div>
               </div>
 
-              {/* Perangkat & Sistem Operasi */}
-              <div
-                style={{
-                  backgroundColor: theme.surface,
-                  borderRadius: '1rem',
-                  border: `1px solid ${theme.border}`,
-                  padding: '1rem'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
-                  <Smartphone size={16} style={{ color: '#10b981' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
-                    Perangkat &amp; Sistem Operasi
-                  </h4>
-                </div>
+              {/* 4-Card Global Audience Dimensions */}
+              {(() => {
+                const devicesResult = aggregateTopNDimensions(telemetryData.devices || [], 3, 'Perangkat Lainnya');
+                const browsersResult = aggregateTopNDimensions(telemetryData.browsers || [], 5, 'Peramban Lainnya');
+                const locationsResult = aggregateTopNDimensions(telemetryData.locations || [], 5, 'Kota Lainnya');
+                const allOs = telemetryData.operating_systems || [];
+                const visibleOs = isOsExpanded ? allOs : allOs.slice(0, 3);
+                const remainingOsCount = Math.max(0, allOs.length - 3);
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  {telemetryData.devices && telemetryData.devices.map((d, idx) => (
-                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                        <span style={{ fontWeight: 700, color: theme.textPrimary }}>{d.name}</span>
-                        <span style={{ fontWeight: 800, color: '#10b981' }}>{d.percentage}% ({d.views})</span>
+                const timeBands = computeHourlyTimeBands(
+                  telemetryData.hourly_heatmap && telemetryData.hourly_heatmap.length === 24
+                    ? telemetryData.hourly_heatmap
+                    : Array.from({ length: 24 }, (_, i) => ({ hour: String(i).padStart(2, '0'), views: 0 }))
+                );
+
+                return (
+                  <>
+                    {/* Card 1: Perangkat & Sistem Operasi */}
+                    <div
+                      style={{
+                        backgroundColor: theme.surface,
+                        borderRadius: '1rem',
+                        border: `1px solid ${theme.border}`,
+                        padding: '1rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Smartphone size={16} style={{ color: '#10b981' }} />
+                          <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
+                            Perangkat &amp; Sistem Operasi
+                          </h4>
+                        </div>
+                        <span style={{ fontSize: '0.65rem', color: theme.textSecondary }}>
+                          {devicesResult.totalItemsCount} perangkat
+                        </span>
                       </div>
-                      <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: theme.cardAlt, overflow: 'hidden' }}>
-                        <div style={{ width: `${Math.min(100, d.percentage)}%`, height: '100%', backgroundColor: '#10b981', borderRadius: '3px' }} />
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                        {devicesResult.displayItems.map((d) => (
+                          <div key={d.dimension_value} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+                              <span style={{ fontWeight: 700, color: theme.textPrimary }}>{d.name}</span>
+                              <span style={{ fontWeight: 800, color: '#10b981' }}>{d.percentage.toFixed(0)}% ({d.views})</span>
+                            </div>
+                            <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: theme.cardAlt, overflow: 'hidden' }}>
+                              <div style={{ width: `${Math.max(4, Math.min(100, d.percentage))}%`, height: '100%', backgroundColor: '#10b981', borderRadius: '3px' }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {allOs.length > 0 && (
+                        <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: `1px solid ${theme.border}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary }}>
+                              Sistem Operasi ({allOs.length})
+                            </span>
+                            {allOs.length > 3 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedDimension({
+                                    type: 'operating_systems',
+                                    title: 'Sebaran Sistem Operasi Platform',
+                                    items: allOs
+                                  });
+                                  setDimensionSheetOpen(true);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#3b82f6',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  padding: 0
+                                }}
+                              >
+                                Lihat Semua ↗
+                              </button>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                            {visibleOs.map((os) => (
+                              <span
+                                key={os.dimension_value}
+                                style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  padding: '0.2rem 0.5rem',
+                                  borderRadius: '0.45rem',
+                                  backgroundColor: theme.cardAlt,
+                                  border: `1px solid ${theme.border}`,
+                                  color: theme.textPrimary
+                                }}
+                              >
+                                {os.name}: {os.percentage.toFixed(0)}%
+                              </span>
+                            ))}
+                            {!isOsExpanded && remainingOsCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setIsOsExpanded(true)}
+                                style={{
+                                  fontSize: '0.65rem',
+                                  padding: '0.15rem 0.45rem',
+                                  borderRadius: '6px',
+                                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                                  color: '#3b82f6',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                +{remainingOsCount} Lainnya
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card 2: Browser & In-App Social */}
+                    <div
+                      style={{
+                        backgroundColor: theme.surface,
+                        borderRadius: '1rem',
+                        border: `1px solid ${theme.border}`,
+                        padding: '1rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Compass size={16} style={{ color: '#3b82f6' }} />
+                          <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
+                            Browser &amp; In-App Social
+                          </h4>
+                        </div>
+                        {browsersResult.totalItemsCount > 5 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedDimension({
+                                type: 'browsers',
+                                title: 'Peramban & Webview In-App Sosial Platform',
+                                items: telemetryData.browsers || []
+                              });
+                              setDimensionSheetOpen(true);
+                            }}
+                            style={{
+                              padding: '0.1rem 0.45rem',
+                              borderRadius: '5px',
+                              border: `1px solid ${theme.border}`,
+                              backgroundColor: theme.cardAlt,
+                              color: '#3b82f6',
+                              fontSize: '0.65rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Lihat ({browsersResult.totalItemsCount}) ↗
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.65rem', color: theme.textSecondary }}>Instagram / TikTok</span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                        {browsersResult.displayItems.map((b) => {
+                          const isInApp = b.dimension_value.includes('in-app') || b.name.toLowerCase().includes('in-app');
+                          const isOthers = b.dimension_value === '__others__';
+                          return (
+                            <div
+                              key={b.dimension_value}
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.2rem',
+                                cursor: isOthers ? 'pointer' : 'default'
+                              }}
+                              onClick={() => {
+                                if (isOthers) {
+                                  setSelectedDimension({
+                                    type: 'browsers',
+                                    title: 'Peramban & Webview In-App Sosial Platform',
+                                    items: telemetryData.browsers || []
+                                  });
+                                  setDimensionSheetOpen(true);
+                                }
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+                                <span style={{ fontWeight: 700, color: isOthers ? '#3b82f6' : theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                  <span>{b.name}</span>
+                                  {isInApp && (
+                                    <span style={{ fontSize: '0.58rem', padding: '0.05rem 0.3rem', borderRadius: '4px', backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', fontWeight: 700 }}>
+                                      In-App
+                                    </span>
+                                  )}
+                                  {isOthers && <span style={{ fontSize: '0.65rem', textDecoration: 'underline' }}>↗</span>}
+                                </span>
+                                <span style={{ fontWeight: 800, color: '#3b82f6' }}>{b.percentage.toFixed(0)}% ({b.views})</span>
+                              </div>
+                              <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: theme.cardAlt, overflow: 'hidden' }}>
+                                <div style={{ width: `${Math.max(4, Math.min(100, b.percentage))}%`, height: '100%', backgroundColor: isInApp ? '#ec4899' : '#3b82f6', borderRadius: '3px' }} />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: `1px solid ${theme.border}` }}>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, display: 'block', marginBottom: '0.45rem' }}>
-                    Sistem Operasi
-                  </span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                    {telemetryData.operating_systems && telemetryData.operating_systems.map((os, idx) => (
-                      <span
-                        key={idx}
-                        style={{
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '0.45rem',
-                          backgroundColor: theme.cardAlt,
-                          border: `1px solid ${theme.border}`,
-                          color: theme.textPrimary
-                        }}
-                      >
-                        {os.name}: {os.percentage}%
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Browser & In-App Social */}
-              <div
-                style={{
-                  backgroundColor: theme.surface,
-                  borderRadius: '1rem',
-                  border: `1px solid ${theme.border}`,
-                  padding: '1rem'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
-                  <Compass size={16} style={{ color: '#3b82f6' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
-                    Browser &amp; In-App Social
-                  </h4>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  {telemetryData.browsers && telemetryData.browsers.map((b, idx) => (
-                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                        <span style={{ fontWeight: 700, color: theme.textPrimary }}>{b.name}</span>
-                        <span style={{ fontWeight: 800, color: '#3b82f6' }}>{b.percentage}% ({b.views})</span>
+                    {/* Card 3: Kota Pengunjung Platform */}
+                    <div
+                      style={{
+                        backgroundColor: theme.surface,
+                        borderRadius: '1rem',
+                        border: `1px solid ${theme.border}`,
+                        padding: '1rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Globe size={16} style={{ color: '#f59e0b' }} />
+                          <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
+                            Kota Pengunjung Platform
+                          </h4>
+                        </div>
+                        {locationsResult.totalItemsCount > 5 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedDimension({
+                                type: 'locations',
+                                title: 'Sebaran Kota Pengunjung Nasional (Coarse Geo)',
+                                items: telemetryData.locations || []
+                              });
+                              setDimensionSheetOpen(true);
+                            }}
+                            style={{
+                              padding: '0.1rem 0.45rem',
+                              borderRadius: '5px',
+                              border: `1px solid ${theme.border}`,
+                              backgroundColor: theme.cardAlt,
+                              color: '#f59e0b',
+                              fontSize: '0.65rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Lihat ({locationsResult.totalItemsCount}) ↗
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.65rem', color: theme.textSecondary }}>Zero-PII Geo</span>
+                        )}
                       </div>
-                      <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: theme.cardAlt, overflow: 'hidden' }}>
-                        <div style={{ width: `${Math.min(100, b.percentage)}%`, height: '100%', backgroundColor: '#3b82f6', borderRadius: '3px' }} />
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                        {locationsResult.displayItems.map((loc) => {
+                          const isOthers = loc.dimension_value === '__others__';
+                          return (
+                            <div
+                              key={loc.dimension_value}
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.2rem',
+                                cursor: isOthers ? 'pointer' : 'default'
+                              }}
+                              onClick={() => {
+                                if (isOthers) {
+                                  setSelectedDimension({
+                                    type: 'locations',
+                                    title: 'Sebaran Kota Pengunjung Nasional (Coarse Geo)',
+                                    items: telemetryData.locations || []
+                                  });
+                                  setDimensionSheetOpen(true);
+                                }
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+                                <span style={{ fontWeight: 700, color: isOthers ? '#f59e0b' : theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                  <span>{loc.name}</span>
+                                  {isOthers && <span style={{ fontSize: '0.65rem', textDecoration: 'underline' }}>↗</span>}
+                                </span>
+                                <span style={{ fontWeight: 800, color: '#f59e0b' }}>{loc.percentage.toFixed(0)}% ({loc.views})</span>
+                              </div>
+                              <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: theme.cardAlt, overflow: 'hidden' }}>
+                                <div style={{ width: `${Math.max(4, Math.min(100, loc.percentage))}%`, height: '100%', backgroundColor: '#f59e0b', borderRadius: '3px' }} />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: `1px solid ${theme.border}` }}>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, display: 'block', marginBottom: '0.45rem' }}>
-                    Kota Pengunjung Teratas
-                  </span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                    {telemetryData.locations && telemetryData.locations.slice(0, 6).map((loc, idx) => (
-                      <span
-                        key={idx}
-                        style={{
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '0.45rem',
-                          backgroundColor: theme.cardAlt,
-                          border: `1px solid ${theme.border}`,
-                          color: theme.textPrimary
-                        }}
-                      >
-                        {loc.name}: {loc.views}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* 24-Hour Peak Activity Heatmap */}
-              <div
-                style={{
-                  backgroundColor: theme.surface,
-                  borderRadius: '1rem',
-                  border: `1px solid ${theme.border}`,
-                  padding: '1rem'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem' }}>
-                  <Clock size={16} style={{ color: '#f59e0b' }} />
-                  <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
-                    Kurva Jam Sibuk Pengunjung (24 Jam)
-                  </h4>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '0.25rem', alignItems: 'end', minHeight: '80px' }}>
-                  {telemetryData.hourly_heatmap && telemetryData.hourly_heatmap.map((h, idx) => {
-                    const maxViews = Math.max(...telemetryData.hourly_heatmap.map((item) => item.views), 1);
-                    const heightPercent = Math.max(12, Math.round((h.views / maxViews) * 100));
-                    return (
-                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', height: '100%', justifyContent: 'flex-end' }}>
-                        <div
-                          title={`Pukul ${h.hour}:00 - ${h.views} kunjungan`}
-                          style={{
-                            width: '100%',
-                            height: `${heightPercent}%`,
-                            maxHeight: '55px',
-                            borderRadius: '2px',
-                            backgroundColor: h.views > 0 ? '#f59e0b' : theme.cardAlt,
-                            transition: 'height 0.2s ease'
-                          }}
-                        />
-                        <span style={{ fontSize: '0.58rem', color: theme.textSecondary }}>{h.hour}</span>
+                    {/* Card 4: 24-Hour Peak Activity Heatmap with 4-Band Toggle */}
+                    <div
+                      style={{
+                        backgroundColor: theme.surface,
+                        borderRadius: '1rem',
+                        border: `1px solid ${theme.border}`,
+                        padding: '1rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Clock size={16} style={{ color: '#8b5cf6' }} />
+                          <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
+                            Kurva Jam Sibuk Pengunjung
+                          </h4>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', backgroundColor: theme.cardAlt, padding: '2px', borderRadius: '5px', border: `1px solid ${theme.border}` }}>
+                          <button
+                            type="button"
+                            onClick={() => setHeatmapViewMode('24h')}
+                            style={{
+                              padding: '0.1rem 0.35rem',
+                              fontSize: '0.62rem',
+                              fontWeight: heatmapViewMode === '24h' ? 700 : 500,
+                              border: 'none',
+                              borderRadius: '3px',
+                              backgroundColor: heatmapViewMode === '24h' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
+                              color: heatmapViewMode === '24h' ? '#8b5cf6' : theme.textSecondary,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            24 Jam
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setHeatmapViewMode('time_bands')}
+                            style={{
+                              padding: '0.1rem 0.35rem',
+                              fontSize: '0.62rem',
+                              fontWeight: heatmapViewMode === 'time_bands' ? 700 : 500,
+                              border: 'none',
+                              borderRadius: '3px',
+                              backgroundColor: heatmapViewMode === 'time_bands' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
+                              color: heatmapViewMode === 'time_bands' ? '#8b5cf6' : theme.textSecondary,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            4 Blok
+                          </button>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Real-Time Live Feed */}
+                      {heatmapViewMode === '24h' ? (
+                        <>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '0.25rem', alignItems: 'end', minHeight: '80px' }}>
+                            {telemetryData.hourly_heatmap && telemetryData.hourly_heatmap.map((h, idx) => {
+                              const maxViews = Math.max(...telemetryData.hourly_heatmap.map((item) => item.views), 1);
+                              const heightPercent = Math.max(12, Math.round((h.views / maxViews) * 100));
+                              return (
+                                <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', height: '100%', justifyContent: 'flex-end' }}>
+                                  <div
+                                    title={`Pukul ${h.hour}:00 - ${h.views} kunjungan`}
+                                    style={{
+                                      width: '100%',
+                                      height: `${heightPercent}%`,
+                                      maxHeight: '55px',
+                                      borderRadius: '2px',
+                                      backgroundColor: h.views === maxViews && h.views > 0 ? '#8b5cf6' : h.views > 0 ? 'rgba(139, 92, 246, 0.45)' : theme.cardAlt,
+                                      transition: 'height 0.2s ease'
+                                    }}
+                                  />
+                                  <span style={{ fontSize: '0.58rem', color: theme.textSecondary }}>{h.hour}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: theme.textSecondary, marginTop: '0.35rem' }}>
+                            <span>00:00</span>
+                            <span>06:00</span>
+                            <span>12:00</span>
+                            <span>18:00</span>
+                            <span>23:00</span>
+                          </div>
+                        </>
+                      ) : (
+                        /* 4 Ergonomic Time-Bands */
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.4rem', paddingTop: '0.2rem' }}>
+                          {timeBands.bands.map((band) => (
+                            <div
+                              key={band.key}
+                              style={{
+                                padding: '0.45rem 0.55rem',
+                                borderRadius: '0.45rem',
+                                backgroundColor: theme.cardAlt,
+                                border: `1px solid ${theme.border}`,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.15rem'
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem' }}>
+                                <span style={{ fontWeight: 700, color: theme.textPrimary }}>{band.label}</span>
+                                <span style={{ color: '#8b5cf6', fontWeight: 800 }}>{band.percentage.toFixed(0)}%</span>
+                              </div>
+                              <div style={{ fontSize: '0.62rem', color: theme.textSecondary }}>
+                                {band.range} • {band.views.toLocaleString('id-ID')} tayangan
+                              </div>
+                              <div style={{ width: '100%', height: '4px', borderRadius: '2px', backgroundColor: theme.border, overflow: 'hidden', marginTop: '0.15rem' }}>
+                                <div style={{ width: `${Math.max(4, Math.min(100, band.percentage))}%`, height: '100%', backgroundColor: '#8b5cf6', borderRadius: '2px' }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* Real-Time Live Feed with Event Filter */}
               <div
                 style={{
                   backgroundColor: theme.surface,
@@ -1382,7 +1698,7 @@ export const MobileMarketIntelView: React.FC<MobileMarketIntelViewProps> = ({
                   padding: '1rem'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.4rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Activity size={16} style={{ color: '#10b981' }} />
                     <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
@@ -1395,47 +1711,84 @@ export const MobileMarketIntelView: React.FC<MobileMarketIntelViewProps> = ({
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '280px', overflowY: 'auto' }}>
+                {/* In-Stream Quick Filter Scrollable Pills */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', overflowX: 'auto', paddingBottom: '0.3rem', marginBottom: '0.4rem' }}>
+                  {[
+                    { key: 'all', label: `Semua (${(telemetryData.recent_visitors || []).length})` },
+                    { key: 'store_view', label: 'Katalog' },
+                    { key: 'product_view', label: 'Item' },
+                    { key: 'action_wa', label: 'WhatsApp' },
+                    { key: 'rekber_click', label: 'Rekber' }
+                  ].map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setLiveEventFilter(f.key as any)}
+                      style={{
+                        padding: '0.18rem 0.45rem',
+                        borderRadius: '0.35rem',
+                        border: `1px solid ${liveEventFilter === f.key ? '#10b981' : theme.border}`,
+                        backgroundColor: liveEventFilter === f.key ? 'rgba(16, 185, 129, 0.15)' : theme.cardAlt,
+                        color: liveEventFilter === f.key ? '#10b981' : theme.textSecondary,
+                        fontSize: '0.68rem',
+                        fontWeight: liveEventFilter === f.key ? 700 : 500,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="catavor-custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '280px', overflowY: 'auto' }}>
                   {telemetryData.recent_visitors && telemetryData.recent_visitors.length > 0 ? (
-                    telemetryData.recent_visitors.map((ev, idx) => (
-                      <div
-                        key={ev.id || idx}
-                        style={{
-                          padding: '0.55rem 0.65rem',
-                          borderRadius: '0.55rem',
-                          backgroundColor: theme.cardAlt,
-                          border: `1px solid ${theme.border}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '0.45rem',
-                          fontSize: '0.72rem'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-                          <span
-                            style={{
-                              padding: '0.15rem 0.4rem',
-                              borderRadius: '0.35rem',
-                              backgroundColor: ev.event === 'action_wa' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                              color: ev.event === 'action_wa' ? '#10b981' : '#3b82f6',
-                              fontWeight: 800,
-                              fontSize: '0.62rem',
-                              flexShrink: 0
-                            }}
-                          >
-                            {ev.event === 'store_view' ? 'TOKO' : ev.event === 'product_view' ? 'PRODUK' : ev.event.toUpperCase()}
-                          </span>
-                          <span style={{ fontWeight: 700, color: theme.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {ev.product_name ? `${ev.product_name}` : `/${ev.store_slug}`}
-                          </span>
+                    telemetryData.recent_visitors
+                      .filter(ev => {
+                        if (liveEventFilter === 'all') return true;
+                        if (liveEventFilter === 'action_wa') return ev.event === 'action_wa' || ev.event === 'direct_wa_click';
+                        return ev.event === liveEventFilter;
+                      })
+                      .map((ev, idx) => (
+                        <div
+                          key={ev.id || idx}
+                          style={{
+                            padding: '0.55rem 0.65rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: theme.cardAlt,
+                            border: `1px solid ${theme.border}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.45rem',
+                            fontSize: '0.72rem'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+                            <span
+                              style={{
+                                padding: '0.15rem 0.4rem',
+                                borderRadius: '0.35rem',
+                                backgroundColor: ev.event.includes('click') || ev.event.includes('action') ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                color: ev.event.includes('click') || ev.event.includes('action') ? '#10b981' : '#3b82f6',
+                                fontWeight: 800,
+                                fontSize: '0.62rem',
+                                flexShrink: 0
+                              }}
+                            >
+                              {ev.event === 'store_view' ? 'TOKO' : ev.event === 'product_view' ? 'PRODUK' : ev.event.toUpperCase()}
+                            </span>
+                            <span style={{ fontWeight: 700, color: theme.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {ev.product_name ? `${ev.product_name}` : `/${ev.store_slug}`}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, fontSize: '0.65rem', color: theme.textSecondary }}>
+                            <span>{ev.device_type} &bull; {ev.city}</span>
+                            <span style={{ fontWeight: 700, color: theme.textSecondary }}>{ev.time_ago}</span>
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, fontSize: '0.65rem', color: theme.textSecondary }}>
-                          <span>{ev.device_type} &bull; {ev.city}</span>
-                          <span style={{ fontWeight: 700, color: theme.textSecondary }}>{ev.time_ago}</span>
-                        </div>
-                      </div>
-                    ))
+                      ))
                   ) : (
                     <div style={{ padding: '1rem', textAlign: 'center', color: theme.textSecondary, fontSize: '0.74rem' }}>
                       Belum ada aliran event real-time yang tercatat dalam ring buffer memori.
@@ -1464,6 +1817,18 @@ export const MobileMarketIntelView: React.FC<MobileMarketIntelViewProps> = ({
             </>
           )}
         </div>
+      )}
+
+      {/* Scalable Dimension Bottom Sheet */}
+      {selectedDimension && (
+        <MobileDimensionSheet
+          isOpen={dimensionSheetOpen}
+          onClose={() => setDimensionSheetOpen(false)}
+          title={selectedDimension.title}
+          dimensionType={selectedDimension.type}
+          items={selectedDimension.items}
+          themeMode={isDark ? 'dark' : 'light'}
+        />
       )}
     </div>
   );

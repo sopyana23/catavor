@@ -53,6 +53,8 @@ import {
 import { createAuthFetch } from '../utils/auth';
 import { useModalBackHandler } from '../utils/navigation';
 import { MarketIntelligenceModal } from './MarketIntelligenceModal';
+import { TabletDimensionSheet } from './TabletDimensionSheet';
+import { aggregateTopNDimensions, type DimensionalMetric } from '../utils/telemetryHelpers';
 
 export interface AnalyticsTrendPoint {
   date: string;
@@ -274,6 +276,16 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [exportPeriod, setExportPeriod] = useState<'7d' | '30d' | '90d' | 'all'>('all');
   const [exportType, setExportType] = useState<'full' | 'products' | 'daily'>('full');
+
+  // Scalable Dimensional Sheet & Filter State
+  const [dimensionSheetOpen, setDimensionSheetOpen] = useState(false);
+  const [selectedDimension, setSelectedDimension] = useState<{
+    type: 'locations' | 'browsers' | 'operating_systems' | 'devices';
+    title: string;
+    items: DimensionalMetric[];
+  } | null>(null);
+  const [liveEventFilter, setLiveEventFilter] = useState<'all' | 'store_view' | 'product_view' | 'action_wa' | 'rekber_click'>('all');
+  const [isOsExpanded, setIsOsExpanded] = useState(false);
 
   // Intercept back action when export modal is open (Rule 2)
   useModalBackHandler({
@@ -2125,216 +2137,425 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
           </div>
         </div>
 
-        {/* Sub-grid of Audience Dimensions */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-          {/* Devices & OS Breakdown Card */}
-          <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Smartphone size={15} style={{ color: '#3b82f6' }} />
-                <span>Perangkat & Sistem Operasi</span>
-              </span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                {(analyticsData?.devices || []).length} tipe
-              </span>
-            </div>
+        {/* Sub-grid of Audience Dimensions (Equal Height Clamped) */}
+        {(() => {
+          const locationsResult = aggregateTopNDimensions(
+            (analyticsData?.locations && analyticsData.locations.length > 0)
+              ? analyticsData.locations
+              : [{ dimension_value: 'indonesia', name: 'Indonesia (Nasional)', views: storeViews, percentage: 100, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions }],
+            5,
+            'Kota Lainnya'
+          );
 
-            {/* Devices list */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-              {((analyticsData?.devices && analyticsData.devices.length > 0)
-                ? analyticsData.devices
-                : [{ dimension_value: 'mobile', name: 'Mobile', views: storeViews, percentage: 85, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions },
-                   { dimension_value: 'desktop', name: 'Desktop', views: Math.round(storeViews * 0.15), percentage: 15, conversion_rate_percent: conversionRate, unique_visitors: Math.round(uniqueVisitors * 0.15), total_actions: 0 }]
-              ).map(dev => (
-                <div key={dev.dimension_value} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{dev.name || dev.dimension_value}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>{dev.views.toLocaleString('id-ID')} ({dev.percentage.toFixed(0)}%)</span>
-                      <span style={{ fontSize: '0.68rem', color: dev.conversion_rate_percent > 0 ? '#10b981' : 'var(--text-secondary)', fontWeight: 700 }}>
-                        {dev.conversion_rate_percent.toFixed(0)}% CR
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.max(4, Math.min(100, dev.percentage))}%`, height: '100%', backgroundColor: '#3b82f6', borderRadius: '3px' }} />
-                  </div>
-                </div>
-              ))}
-            </div>
+          const browsersResult = aggregateTopNDimensions(
+            (analyticsData?.browsers && analyticsData.browsers.length > 0)
+              ? analyticsData.browsers
+              : [{ dimension_value: 'chrome', name: 'Chrome', views: Math.round(storeViews * 0.6), percentage: 60, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions },
+                 { dimension_value: 'instagram', name: 'Instagram In-App', views: Math.round(storeViews * 0.4), percentage: 40, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions }],
+            5,
+            'Peramban Lainnya'
+          );
 
-            {/* Operating Systems chips */}
-            {analyticsData?.operating_systems && analyticsData.operating_systems.length > 0 && (
-              <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)', display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                {analyticsData.operating_systems.map(os => (
-                  <span key={os.dimension_value} style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem', borderRadius: '6px', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', color: 'var(--text-secondary)' }}>
-                    <strong style={{ color: 'var(--text-primary)' }}>{os.name}</strong>: {os.percentage.toFixed(0)}%
+          const devicesResult = aggregateTopNDimensions(
+            (analyticsData?.devices && analyticsData.devices.length > 0)
+              ? analyticsData.devices
+              : [{ dimension_value: 'mobile', name: 'Mobile', views: storeViews, percentage: 85, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions },
+                 { dimension_value: 'desktop', name: 'Desktop', views: Math.round(storeViews * 0.15), percentage: 15, conversion_rate_percent: conversionRate, unique_visitors: Math.round(uniqueVisitors * 0.15), total_actions: 0 }],
+            4,
+            'Perangkat Lainnya'
+          );
+
+          const allOs = analyticsData?.operating_systems || [];
+          const visibleOs = isOsExpanded ? allOs : allOs.slice(0, 4);
+          const remainingOsCount = Math.max(0, allOs.length - 4);
+
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+              {/* Card 1: Devices & OS Breakdown */}
+              <div style={{ padding: '1rem 1.15rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: '340px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Smartphone size={15} style={{ color: '#3b82f6' }} />
+                    <span>Perangkat &amp; Sistem Operasi</span>
                   </span>
-                ))}
-              </div>
-            )}
-          </div>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                    {devicesResult.totalItemsCount} perangkat
+                  </span>
+                </div>
 
-          {/* Browsers & In-App Social Card */}
-          <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Globe size={15} style={{ color: '#10b981' }} />
-                <span>Peramban & In-App Social</span>
-              </span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                Deteksi Webview Sosial
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-              {((analyticsData?.browsers && analyticsData.browsers.length > 0)
-                ? analyticsData.browsers
-                : [{ dimension_value: 'chrome', name: 'Chrome', views: Math.round(storeViews * 0.6), percentage: 60, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions },
-                   { dimension_value: 'instagram', name: 'Instagram In-App', views: Math.round(storeViews * 0.4), percentage: 40, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions }]
-              ).slice(0, 5).map(br => {
-                const isInApp = br.dimension_value.includes('in-app') || br.name.toLowerCase().includes('in-app');
-                return (
-                  <div key={br.dimension_value} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                      <span style={{ color: 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <span>{br.name || br.dimension_value}</span>
-                        {isInApp && (
-                          <span style={{ fontSize: '0.6rem', padding: '0.05rem 0.35rem', borderRadius: '4px', backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', fontWeight: 700 }}>
-                            In-App
-                          </span>
-                        )}
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>{br.views.toLocaleString('id-ID')} ({br.percentage.toFixed(0)}%)</span>
-                        <span style={{ fontSize: '0.68rem', color: br.conversion_rate_percent > 0 ? '#10b981' : 'var(--text-secondary)', fontWeight: 700 }}>
-                          {br.conversion_rate_percent.toFixed(0)}% CR
-                        </span>
+                {/* Devices list */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', flex: 1 }}>
+                  {devicesResult.displayItems.map(dev => (
+                    <div key={dev.dimension_value} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{dev.name || dev.dimension_value}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>{dev.views.toLocaleString('id-ID')} ({dev.percentage.toFixed(0)}%)</span>
+                          {(dev.conversion_rate_percent || 0) > 0 && (
+                            <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 700 }}>
+                              {(dev.conversion_rate_percent || 0).toFixed(0)}% CR
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.max(4, Math.min(100, dev.percentage))}%`, height: '100%', backgroundColor: '#3b82f6', borderRadius: '3px' }} />
                       </div>
                     </div>
-                    <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
-                      <div style={{ width: `${Math.max(4, Math.min(100, br.percentage))}%`, height: '100%', backgroundColor: isInApp ? '#ec4899' : '#10b981', borderRadius: '3px' }} />
+                  ))}
+                </div>
+
+                {/* Controlled OS chips */}
+                {allOs.length > 0 && (
+                  <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                        Sistem Operasi ({allOs.length})
+                      </span>
+                      {allOs.length > 4 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDimension({
+                              type: 'operating_systems',
+                              title: 'Sistem Operasi Pengunjung',
+                              items: allOs
+                            });
+                            setDimensionSheetOpen(true);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#3b82f6',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            padding: 0
+                          }}
+                        >
+                          Lihat Semua ↗
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                      {visibleOs.map(os => (
+                        <span key={os.dimension_value} style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem', borderRadius: '6px', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', color: 'var(--text-secondary)' }}>
+                          <strong style={{ color: 'var(--text-primary)' }}>{os.name}</strong>: {os.percentage.toFixed(0)}%
+                        </span>
+                      ))}
+                      {!isOsExpanded && remainingOsCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setIsOsExpanded(true)}
+                          style={{
+                            fontSize: '0.68rem',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '6px',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            border: '1px solid rgba(59, 130, 246, 0.25)',
+                            color: '#3b82f6',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          +{remainingOsCount} Lainnya
+                        </button>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                )}
+              </div>
 
-          {/* Top Visitor Locations / Cities Card */}
-          <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Compass size={15} style={{ color: '#f59e0b' }} />
-                <span>Asal Kota Pengunjung</span>
-              </span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                Zero-PII Coarse Geo
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-              {((analyticsData?.locations && analyticsData.locations.length > 0)
-                ? analyticsData.locations
-                : [{ dimension_value: 'indonesia', name: 'Indonesia (Nasional)', views: storeViews, percentage: 100, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions }]
-              ).slice(0, 5).map(loc => (
-                <div key={loc.dimension_value} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{loc.name || loc.dimension_value}</span>
-                    <span style={{ color: 'var(--text-secondary)' }}>{loc.views.toLocaleString('id-ID')} ({loc.percentage.toFixed(0)}%)</span>
-                  </div>
-                  <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.max(4, Math.min(100, loc.percentage))}%`, height: '100%', backgroundColor: '#f59e0b', borderRadius: '3px' }} />
-                  </div>
+              {/* Card 2: Browsers & In-App Social */}
+              <div style={{ padding: '1rem 1.15rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: '340px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Globe size={15} style={{ color: '#10b981' }} />
+                    <span>Peramban &amp; In-App Social</span>
+                  </span>
+                  {browsersResult.totalItemsCount > 5 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDimension({
+                          type: 'browsers',
+                          title: 'Peramban & Webview In-App Sosial',
+                          items: analyticsData?.browsers || []
+                        });
+                        setDimensionSheetOpen(true);
+                      }}
+                      style={{
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card)',
+                        color: '#10b981',
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Lihat Semua ({browsersResult.totalItemsCount}) ↗
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                      {browsersResult.totalItemsCount} peramban
+                    </span>
+                  )}
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {/* 24-Hour Peak Heatmap Card */}
-          <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Clock size={15} style={{ color: '#8b5cf6' }} />
-                <span>Puncak Kunjungan 24-Jam</span>
-              </span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                Distribusi Waktu (WIB)
-              </span>
-            </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', flex: 1 }}>
+                  {browsersResult.displayItems.map(br => {
+                    const isInApp = br.dimension_value.includes('in-app') || br.name.toLowerCase().includes('in-app');
+                    const isOthers = br.dimension_value === '__others__';
+                    return (
+                      <div
+                        key={br.dimension_value}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.2rem',
+                          cursor: isOthers ? 'pointer' : 'default'
+                        }}
+                        onClick={() => {
+                          if (isOthers) {
+                            setSelectedDimension({
+                              type: 'browsers',
+                              title: 'Peramban & Webview In-App Sosial',
+                              items: analyticsData?.browsers || []
+                            });
+                            setDimensionSheetOpen(true);
+                          }
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                          <span style={{ color: isOthers ? '#10b981' : 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <span>{br.name || br.dimension_value}</span>
+                            {isInApp && (
+                              <span style={{ fontSize: '0.6rem', padding: '0.05rem 0.35rem', borderRadius: '4px', backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', fontWeight: 700 }}>
+                                In-App
+                              </span>
+                            )}
+                            {isOthers && <span style={{ fontSize: '0.65rem', textDecoration: 'underline' }}>↗</span>}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>{br.views.toLocaleString('id-ID')} ({br.percentage.toFixed(0)}%)</span>
+                            {(br.conversion_rate_percent || 0) > 0 && (
+                              <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 700 }}>
+                                {(br.conversion_rate_percent || 0).toFixed(0)}% CR
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.max(4, Math.min(100, br.percentage))}%`, height: '100%', backgroundColor: isInApp ? '#ec4899' : '#10b981', borderRadius: '3px' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
-            {/* 24 bars mini spark-heatmap */}
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '60px', paddingTop: '0.4rem' }}>
-              {(analyticsData?.hourly_heatmap && analyticsData.hourly_heatmap.length === 24
-                ? analyticsData.hourly_heatmap
-                : Array.from({ length: 24 }, (_, i) => ({ hour: String(i).padStart(2, '0'), views: i >= 18 && i <= 21 ? 12 : i >= 12 && i <= 14 ? 8 : 2 }))
-              ).map(hPoint => {
-                const maxHViews = Math.max(1, ...(analyticsData?.hourly_heatmap || []).map(p => p.views));
-                const heightPercent = Math.max(8, Math.min(100, (hPoint.views / maxHViews) * 100));
-                const isPeakHour = hPoint.views === maxHViews && hPoint.views > 0;
-                return (
-                  <div
-                    key={hPoint.hour}
-                    title={`Jam ${hPoint.hour}:00 - ${hPoint.views} tayangan`}
-                    style={{
-                      flex: 1,
-                      height: `${heightPercent}%`,
-                      backgroundColor: isPeakHour ? '#8b5cf6' : hPoint.views > 0 ? 'rgba(139, 92, 246, 0.45)' : 'var(--border-light)',
-                      borderRadius: '3px 3px 0 0',
-                      transition: 'height 0.2s ease',
-                      cursor: 'pointer'
-                    }}
-                  />
-                );
-              })}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-              <span>00:00</span>
-              <span>06:00</span>
-              <span>12:00</span>
-              <span>18:00</span>
-              <span>23:00</span>
-            </div>
-          </div>
-        </div>
+              {/* Card 3: Top Visitor Locations / Cities */}
+              <div style={{ padding: '1rem 1.15rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: '340px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Compass size={15} style={{ color: '#f59e0b' }} />
+                    <span>Asal Kota Pengunjung</span>
+                  </span>
+                  {locationsResult.totalItemsCount > 5 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDimension({
+                          type: 'locations',
+                          title: 'Asal Kota Pengunjung (Coarse Geo)',
+                          items: analyticsData?.locations || []
+                        });
+                        setDimensionSheetOpen(true);
+                      }}
+                      style={{
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card)',
+                        color: '#f59e0b',
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Lihat Semua ({locationsResult.totalItemsCount}) ↗
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                      Zero-PII Coarse Geo
+                    </span>
+                  )}
+                </div>
 
-        {/* Real-time Live Visitors Feed */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', flex: 1 }}>
+                  {locationsResult.displayItems.map(loc => {
+                    const isOthers = loc.dimension_value === '__others__';
+                    return (
+                      <div
+                        key={loc.dimension_value}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.2rem',
+                          cursor: isOthers ? 'pointer' : 'default'
+                        }}
+                        onClick={() => {
+                          if (isOthers) {
+                            setSelectedDimension({
+                              type: 'locations',
+                              title: 'Asal Kota Pengunjung (Coarse Geo)',
+                              items: analyticsData?.locations || []
+                            });
+                            setDimensionSheetOpen(true);
+                          }
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                          <span style={{ color: isOthers ? '#f59e0b' : 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <span>{loc.name || loc.dimension_value}</span>
+                            {isOthers && <span style={{ fontSize: '0.65rem', textDecoration: 'underline' }}>↗</span>}
+                          </span>
+                          <span style={{ color: 'var(--text-secondary)' }}>{loc.views.toLocaleString('id-ID')} ({loc.percentage.toFixed(0)}%)</span>
+                        </div>
+                        <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.max(4, Math.min(100, loc.percentage))}%`, height: '100%', backgroundColor: '#f59e0b', borderRadius: '3px' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Card 4: 24-Hour Peak Heatmap Card */}
+              <div style={{ padding: '1rem 1.15rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: '340px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Clock size={15} style={{ color: '#8b5cf6' }} />
+                    <span>Puncak Kunjungan 24-Jam</span>
+                  </span>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                    Waktu Server (WIB)
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '180px', paddingTop: '1rem', flex: 1 }}>
+                  {(analyticsData?.hourly_heatmap && analyticsData.hourly_heatmap.length === 24
+                    ? analyticsData.hourly_heatmap
+                    : Array.from({ length: 24 }, (_, i) => ({ hour: String(i).padStart(2, '0'), views: i >= 18 && i <= 21 ? 12 : i >= 12 && i <= 14 ? 8 : 2 }))
+                  ).map(hPoint => {
+                    const maxHViews = Math.max(1, ...(analyticsData?.hourly_heatmap || []).map(p => p.views));
+                    const heightPercent = Math.max(8, Math.min(100, (hPoint.views / maxHViews) * 100));
+                    const isPeakHour = hPoint.views === maxHViews && hPoint.views > 0;
+                    return (
+                      <div
+                        key={hPoint.hour}
+                        title={`Jam ${hPoint.hour}:00 - ${hPoint.views} tayangan`}
+                        style={{
+                          flex: 1,
+                          height: `${heightPercent}%`,
+                          backgroundColor: isPeakHour ? '#8b5cf6' : hPoint.views > 0 ? 'rgba(139, 92, 246, 0.45)' : 'var(--border-light)',
+                          borderRadius: '3px 3px 0 0',
+                          transition: 'height 0.2s ease',
+                          cursor: 'pointer'
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                  <span>00:00</span>
+                  <span>06:00</span>
+                  <span>12:00</span>
+                  <span>18:00</span>
+                  <span>23:00</span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Real-time Live Visitors Feed with Event Type Filter */}
         {analyticsData?.recent_visitors && analyticsData.recent_visitors.length > 0 && (
           <div style={{ marginTop: '0.5rem', padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <Radio size={15} style={{ color: '#10b981' }} />
-                <span>Aktivitas Pengunjung Terkini (Real-Time Live Feed)</span>
-              </span>
-              <span style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem', borderRadius: '10px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: 700 }}>
-                Live In-Memory Buffer
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <Radio size={15} style={{ color: '#10b981' }} />
+                  <span>Aktivitas Pengunjung Terkini (Real-Time Live Feed)</span>
+                </span>
+                <span style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem', borderRadius: '10px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: 700 }}>
+                  Ring Buffer Aktif
+                </span>
+              </div>
+
+              {/* In-Stream Quick Filter Pills */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                {[
+                  { key: 'all', label: `Semua (${analyticsData.recent_visitors.length})` },
+                  { key: 'store_view', label: 'Katalog' },
+                  { key: 'product_view', label: 'Item Produk' },
+                  { key: 'action_wa', label: 'WhatsApp' },
+                  { key: 'rekber_click', label: 'Rekber' }
+                ].map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setLiveEventFilter(f.key as any)}
+                    style={{
+                      padding: '0.2rem 0.55rem',
+                      borderRadius: '0.4rem',
+                      border: `1px solid ${liveEventFilter === f.key ? '#10b981' : 'var(--border-light)'}`,
+                      backgroundColor: liveEventFilter === f.key ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                      color: liveEventFilter === f.key ? '#10b981' : 'var(--text-secondary)',
+                      fontSize: '0.7rem',
+                      fontWeight: liveEventFilter === f.key ? 700 : 500,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="catavor-custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '220px', overflowY: 'auto', paddingRight: '0.3rem' }}>
-              {analyticsData.recent_visitors.slice(0, 20).map(rv => (
-                <div key={rv.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', fontSize: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: rv.event.includes('click') ? '#10b981' : '#3b82f6', flexShrink: 0 }} />
-                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-                        {rv.event === 'store_view' ? 'Melihat Beranda Katalog' :
-                         rv.event === 'product_view' ? `Melihat Item ${rv.product_name || ''}` :
-                         rv.event === 'direct_wa_click' ? `Klik Chat WhatsApp ${rv.product_name ? `(${rv.product_name})` : ''}` :
-                         rv.event === 'rekber_click' ? `Klik Rekber Syariah ${rv.product_name ? `(${rv.product_name})` : ''}` :
-                         rv.event === 'marketplace_click' ? `Klik Marketplace ${rv.product_name ? `(${rv.product_name})` : ''}` :
-                         rv.event === 'video_view' ? `Menonton Video Demo` : rv.event}
-                      </strong>
-                      <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block' }}>
-                        {rv.device_type} • {rv.browser || rv.os} • {rv.city} • via {rv.source}
-                      </span>
+              {analyticsData.recent_visitors
+                .filter(rv => {
+                  if (liveEventFilter === 'all') return true;
+                  if (liveEventFilter === 'action_wa') return rv.event === 'action_wa' || rv.event === 'direct_wa_click';
+                  return rv.event === liveEventFilter;
+                })
+                .slice(0, 25)
+                .map(rv => (
+                  <div key={rv.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', fontSize: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: rv.event.includes('click') || rv.event.includes('action') ? '#10b981' : '#3b82f6', flexShrink: 0 }} />
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                          {rv.event === 'store_view' ? 'Melihat Beranda Katalog' :
+                           rv.event === 'product_view' ? `Melihat Item ${rv.product_name || ''}` :
+                           rv.event === 'direct_wa_click' || rv.event === 'action_wa' ? `Klik Chat WhatsApp ${rv.product_name ? `(${rv.product_name})` : ''}` :
+                           rv.event === 'rekber_click' ? `Klik Rekber Syariah ${rv.product_name ? `(${rv.product_name})` : ''}` :
+                           rv.event === 'marketplace_click' ? `Klik Marketplace ${rv.product_name ? `(${rv.product_name})` : ''}` :
+                           rv.event === 'video_view' ? `Menonton Video Demo` : rv.event}
+                        </strong>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', display: 'block' }}>
+                          {rv.device_type} • {rv.browser || rv.os} • {rv.city} • via {rv.source}
+                        </span>
+                      </div>
                     </div>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap', marginLeft: '0.75rem' }}>
+                      {rv.time_ago}
+                    </span>
                   </div>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap', marginLeft: '0.75rem' }}>
-                    {rv.time_ago}
-                  </span>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
         )}
@@ -3432,6 +3653,18 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
         onClose={() => setShowMarketIntel(false)}
         apiBase=""
       />
+
+      {/* 10. Scalable Dimensional Right Sheet */}
+      {selectedDimension && (
+        <TabletDimensionSheet
+          isOpen={dimensionSheetOpen}
+          onClose={() => setDimensionSheetOpen(false)}
+          title={selectedDimension.title}
+          dimensionType={selectedDimension.type}
+          items={selectedDimension.items}
+          totalViews={storeViews}
+        />
+      )}
     </div>
   );
 };

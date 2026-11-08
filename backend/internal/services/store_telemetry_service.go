@@ -929,3 +929,4 @@ func (s *StoreTelemetryService) Stop() {
 		log.Info().Msg("StoreTelemetryService stopped: all buffers safely flushed to DB")
 	})
 }
+
