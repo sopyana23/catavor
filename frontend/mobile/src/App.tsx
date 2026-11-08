@@ -6894,28 +6894,38 @@ Terima kasih.`;
       const sid = getMobileAnonymousSessionId();
       const attr = getMobileTrafficAttribution();
 
-      fetch(`${API_BASE}/analytics/track`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          store_slug: slug,
-          event,
-          product_id: productId,
-          product_type: productType,
-          session_id: sid,
-          source: attr.source,
-          medium: attr.medium,
-          campaign: attr.campaign,
-          metadata: {
-            ...metadata,
-            referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
-            utm_source: attr.source,
-            utm_medium: attr.medium,
-            utm_campaign: attr.campaign
-          }
-        }),
-        keepalive: true
-      }).catch(() => { });
+      const payload = {
+        store_slug: slug,
+        event,
+        product_id: productId,
+        product_type: productType,
+        session_id: sid,
+        source: attr.source,
+        medium: attr.medium,
+        campaign: attr.campaign,
+        metadata: {
+          ...metadata,
+          referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
+          timezone: typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '',
+          screen_width: typeof window !== 'undefined' ? window.screen?.width : 0,
+          utm_source: attr.source,
+          utm_medium: attr.medium,
+          utm_campaign: attr.campaign
+        }
+      };
+
+      const jsonStr = JSON.stringify(payload);
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        navigator.sendBeacon(`${API_BASE}/analytics/track`, blob);
+      } else {
+        fetch(`${API_BASE}/analytics/track`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: jsonStr,
+          keepalive: true
+        }).catch(() => { });
+      }
     } catch (_) { }
   };
 

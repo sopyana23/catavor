@@ -57,9 +57,17 @@ func ParseUserAgent(ua string) DeviceInfo {
 		os = "Linux"
 	}
 
-	// 3. Detect Browser
+	// 3. Detect Browser (Check Social & Mobile In-App WebViews first)
 	browser := "Browser Web"
 	switch {
+	case strings.Contains(lower, "instagram"):
+		browser = "Instagram In-App"
+	case strings.Contains(lower, "tiktok") || strings.Contains(lower, "bytedance") || strings.Contains(lower, "musical_ly"):
+		browser = "TikTok In-App"
+	case strings.Contains(lower, "fban") || strings.Contains(lower, "fbav"):
+		browser = "Facebook In-App"
+	case strings.Contains(lower, "whatsapp"):
+		browser = "WhatsApp Browser"
 	case strings.Contains(lower, "edg/"):
 		browser = "Microsoft Edge"
 	case strings.Contains(lower, "opr/") || strings.Contains(lower, "opera"):

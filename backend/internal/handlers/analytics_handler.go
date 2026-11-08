@@ -15,7 +15,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // In-memory sliding window deduplication cache
@@ -243,198 +242,67 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"success": true, "message": "Event tercatat."})
 	}
 
-	today := time.Now().Format("2006-01-02")
-
 	// Extract and categorize traffic source
 	cleanSource := strings.TrimSpace(strings.ToLower(req.Source))
+	ref := c.Get("Referer")
 	if cleanSource == "" && req.Metadata != nil {
 		if src, ok := req.Metadata["source"].(string); ok {
 			cleanSource = strings.TrimSpace(strings.ToLower(src))
-		} else if ref, ok := req.Metadata["referrer"].(string); ok {
-			cleanSource = strings.TrimSpace(strings.ToLower(ref))
+		} else if r, ok := req.Metadata["referrer"].(string); ok {
+			cleanSource = strings.TrimSpace(strings.ToLower(r))
+		}
+	}
+	if cleanSource == "" && ref != "" {
+		cleanSource = ref
+	}
+
+	// Extract optional city / country if provided by CDN / headers or client metadata
+	city := ""
+	country := ""
+	if req.Metadata != nil {
+		if ct, ok := req.Metadata["city"].(string); ok {
+			city = ct
+		}
+		if cy, ok := req.Metadata["country"].(string); ok {
+			country = cy
+		}
+	}
+	if city == "" {
+		if cHeader := c.Get("CF-IPCity"); cHeader != "" {
+			city = cHeader
+		} else if cHeader := c.Get("X-City"); cHeader != "" {
+			city = cHeader
+		}
+	}
+	if country == "" {
+		if cHeader := c.Get("CF-IPCountry"); cHeader != "" {
+			country = cHeader
 		}
 	}
 
-	normSource := "direct"
-	if strings.Contains(cleanSource, "instagram") || strings.Contains(cleanSource, "ig") {
-		normSource = "instagram"
-	} else if strings.Contains(cleanSource, "tiktok") {
-		normSource = "tiktok"
-	} else if strings.Contains(cleanSource, "whatsapp") || strings.Contains(cleanSource, "wa.me") {
-		normSource = "whatsapp"
-	} else if strings.Contains(cleanSource, "facebook") || strings.Contains(cleanSource, "fb") {
-		normSource = "facebook"
-	} else if strings.Contains(cleanSource, "google") {
-		normSource = "google"
-	} else if strings.Contains(cleanSource, "shopee") || strings.Contains(cleanSource, "tokopedia") || strings.Contains(cleanSource, "lazada") {
-		normSource = "marketplace"
-	} else if cleanSource != "" && !strings.Contains(cleanSource, "direct") && !strings.Contains(cleanSource, "catavor") && !strings.Contains(cleanSource, "localhost") {
-		normSource = "other"
+	// Enqueue to high-performance non-blocking telemetry service (0 DB queries in request path)
+	svc := services.GetStoreTelemetryService()
+	if svc != nil {
+		svc.EnqueueEvent(services.StoreTelemetryEvent{
+			StoreID:     storeID,
+			StoreSlug:   slug,
+			Event:       event,
+			ProductID:   req.ProductID,
+			ProductType: req.ProductType,
+			ClientIP:    clientIP,
+			SessionID:   sessionToken,
+			UserAgent:   ua,
+			Source:      cleanSource,
+			Medium:      req.Medium,
+			Campaign:    req.Campaign,
+			Referrer:    ref,
+			City:        city,
+			Country:     country,
+			Timestamp:   time.Now().UTC(),
+		})
 	}
 
-	// 4a. Process traffic source daily analytics upsert
-	trafficAssignments := map[string]interface{}{
-		"updated_at": time.Now(),
-	}
-	initialTraffic := models.StoreDailyTrafficSource{
-		StoreID: storeID,
-		Date:    today,
-		Source:  normSource,
-	}
-	if event == "store_view" || event == "product_view" {
-		trafficAssignments["views"] = gorm.Expr("store_daily_traffic_sources.views + 1")
-		initialTraffic.Views = 1
-	} else {
-		trafficAssignments["total_actions"] = gorm.Expr("store_daily_traffic_sources.total_actions + 1")
-		initialTraffic.TotalActions = 1
-	}
-	_ = db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "store_id"}, {Name: "date"}, {Name: "source"}},
-		DoUpdates: clause.Assignments(trafficAssignments),
-	}).Create(&initialTraffic).Error
-
-	// 4b. Process store-level analytics upsert
-	storeAssignments := map[string]interface{}{
-		"updated_at": time.Now(),
-	}
-	initialStore := models.StoreDailyAnalytics{
-		StoreID: storeID,
-		Date:    today,
-	}
-
-	switch event {
-	case "store_view":
-		storeAssignments["store_views"] = gorm.Expr("store_daily_analytics.store_views + 1")
-		initialStore.StoreViews = 1
-		_ = db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
-	case "direct_wa_click":
-		storeAssignments["direct_wa_clicks"] = gorm.Expr("store_daily_analytics.direct_wa_clicks + 1")
-		storeAssignments["wa_clicks"] = gorm.Expr("store_daily_analytics.wa_clicks + 1")
-		storeAssignments["total_actions"] = gorm.Expr("store_daily_analytics.total_actions + 1")
-		initialStore.DirectWaClicks = 1
-		initialStore.WaClicks = 1
-		initialStore.TotalActions = 1
-		_ = db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("total_actions_count", gorm.Expr("total_actions_count + 1")).Error
-	case "marketplace_clicks", "marketplace_click":
-		event = "marketplace_click"
-		storeAssignments["marketplace_clicks"] = gorm.Expr("store_daily_analytics.marketplace_clicks + 1")
-		storeAssignments["total_actions"] = gorm.Expr("store_daily_analytics.total_actions + 1")
-		initialStore.MarketplaceClicks = 1
-		initialStore.TotalActions = 1
-		_ = db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("total_actions_count", gorm.Expr("total_actions_count + 1")).Error
-	case "rekber_clicks", "rekber_click":
-		event = "rekber_click"
-		storeAssignments["rekber_clicks"] = gorm.Expr("store_daily_analytics.rekber_clicks + 1")
-		storeAssignments["total_actions"] = gorm.Expr("store_daily_analytics.total_actions + 1")
-		initialStore.RekberClicks = 1
-		initialStore.TotalActions = 1
-		_ = db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("total_actions_count", gorm.Expr("total_actions_count + 1")).Error
-	case "video_view", "video_views":
-		event = "video_view"
-		storeAssignments["video_views"] = gorm.Expr("store_daily_analytics.video_views + 1")
-		storeAssignments["total_actions"] = gorm.Expr("store_daily_analytics.total_actions + 1")
-		initialStore.VideoViews = 1
-		initialStore.TotalActions = 1
-		_ = db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumn("total_actions_count", gorm.Expr("total_actions_count + 1")).Error
-	}
-
-	_ = db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "store_id"}, {Name: "date"}},
-		DoUpdates: clause.Assignments(storeAssignments),
-	}).Create(&initialStore).Error
-
-	// 5. Process product-level analytics if product_id is provided
-	if req.ProductID > 0 {
-		var product models.Product
-		if err := db.Select("id, store_id, product_type").
-			Where("id = ? AND store_id = ?", req.ProductID, storeID).
-			First(&product).Error; err == nil {
-
-			pType := product.ProductType
-			if pType == "" {
-				pType = "physical"
-			}
-
-			prodAssignments := map[string]interface{}{
-				"updated_at": time.Now(),
-			}
-			initialProd := models.ProductDailyAnalytics{
-				StoreID:     storeID,
-				ProductID:   req.ProductID,
-				ProductType: pType,
-				Date:        today,
-			}
-
-			switch event {
-			case "product_view", "store_view":
-				prodAssignments["views"] = gorm.Expr("product_daily_analytics.views + 1")
-				initialProd.Views = 1
-				_ = db.Model(&models.Product{}).
-					Where("id = ?", req.ProductID).
-					UpdateColumns(map[string]interface{}{
-						"view_count":       gorm.Expr("view_count + 1"),
-						"popularity_score": gorm.Expr("popularity_score + 1"),
-					}).Error
-
-			case "direct_wa_click":
-				prodAssignments["direct_wa_clicks"] = gorm.Expr("product_daily_analytics.direct_wa_clicks + 1")
-				prodAssignments["wa_clicks"] = gorm.Expr("product_daily_analytics.wa_clicks + 1")
-				prodAssignments["total_actions"] = gorm.Expr("product_daily_analytics.total_actions + 1")
-				initialProd.DirectWaClicks = 1
-				initialProd.WaClicks = 1
-				initialProd.TotalActions = 1
-				_ = db.Model(&models.Product{}).
-					Where("id = ?", req.ProductID).
-					UpdateColumns(map[string]interface{}{
-						"wa_clicks_count":  gorm.Expr("wa_clicks_count + 1"),
-						"popularity_score": gorm.Expr("popularity_score + 3"),
-					}).Error
-
-			case "marketplace_click":
-				prodAssignments["marketplace_clicks"] = gorm.Expr("product_daily_analytics.marketplace_clicks + 1")
-				prodAssignments["total_actions"] = gorm.Expr("product_daily_analytics.total_actions + 1")
-				initialProd.MarketplaceClicks = 1
-				initialProd.TotalActions = 1
-				_ = db.Model(&models.Product{}).
-					Where("id = ?", req.ProductID).
-					UpdateColumns(map[string]interface{}{
-						"marketplace_clicks_count": gorm.Expr("marketplace_clicks_count + 1"),
-						"popularity_score":         gorm.Expr("popularity_score + 2"),
-					}).Error
-
-			case "rekber_click":
-				prodAssignments["rekber_clicks"] = gorm.Expr("product_daily_analytics.rekber_clicks + 1")
-				prodAssignments["total_actions"] = gorm.Expr("product_daily_analytics.total_actions + 1")
-				initialProd.RekberClicks = 1
-				initialProd.TotalActions = 1
-				_ = db.Model(&models.Product{}).
-					Where("id = ?", req.ProductID).
-					UpdateColumns(map[string]interface{}{
-						"rekber_clicks_count": gorm.Expr("rekber_clicks_count + 1"),
-						"popularity_score":    gorm.Expr("popularity_score + 5"),
-					}).Error
-
-			case "video_view":
-				prodAssignments["video_views"] = gorm.Expr("product_daily_analytics.video_views + 1")
-				prodAssignments["total_actions"] = gorm.Expr("product_daily_analytics.total_actions + 1")
-				initialProd.VideoViews = 1
-				initialProd.TotalActions = 1
-				_ = db.Model(&models.Product{}).
-					Where("id = ?", req.ProductID).
-					UpdateColumns(map[string]interface{}{
-						"video_views_count": gorm.Expr("video_views_count + 1"),
-						"popularity_score":  gorm.Expr("popularity_score + 1"),
-					}).Error
-			}
-
-			_ = db.Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "product_id"}, {Name: "date"}},
-				DoUpdates: clause.Assignments(prodAssignments),
-			}).Create(&initialProd).Error
-		}
-	}
-
-	return c.JSON(fiber.Map{
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
 		"success": true,
 		"message": "Event tercatat.",
 	})
@@ -443,12 +311,160 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 type DailyMetricPoint struct {
 	Date              string `json:"date"`
 	StoreViews        int    `json:"store_views"`
+	UniqueVisitors    int    `json:"unique_visitors"`
+	ProductViews      int    `json:"product_views"`
+	Bounces           int    `json:"bounces"`
 	WaClicks          int    `json:"wa_clicks"`
 	DirectWaClicks    int    `json:"direct_wa_clicks"`
 	MarketplaceClicks int    `json:"marketplace_clicks"`
 	RekberClicks      int    `json:"rekber_clicks"`
 	VideoViews        int    `json:"video_views"`
 	TotalActions      int    `json:"total_actions"`
+}
+
+type AudienceDimensionSummary struct {
+	DimensionValue        string  `json:"dimension_value"`
+	Name                  string  `json:"name"`
+	Views                 int     `json:"views"`
+	UniqueVisitors        int     `json:"unique_visitors"`
+	TotalActions          int     `json:"total_actions"`
+	Percentage            float64 `json:"percentage"`
+	ConversionRatePercent float64 `json:"conversion_rate_percent"`
+}
+
+type HourlyTrafficPoint struct {
+	Hour  string `json:"hour"` // "00" through "23"
+	Views int    `json:"views"`
+}
+
+func fetchAudienceDimensions(db *gorm.DB, storeID uint, startDate string) (
+	devices []AudienceDimensionSummary,
+	operatingSystems []AudienceDimensionSummary,
+	browsers []AudienceDimensionSummary,
+	locations []AudienceDimensionSummary,
+	hourlyHeatmap []HourlyTrafficPoint,
+	campaigns []AudienceDimensionSummary,
+) {
+	type dimRow struct {
+		DimensionType  string `gorm:"column:dimension_type"`
+		DimensionValue string `gorm:"column:dimension_value"`
+		Views          int    `gorm:"column:views"`
+		UniqueVisitors int    `gorm:"column:unique_visitors"`
+		TotalActions   int    `gorm:"column:total_actions"`
+	}
+
+	var rows []dimRow
+	_ = db.Model(&models.StoreDailyAudienceMetric{}).
+		Select("dimension_type, dimension_value, SUM(views) as views, SUM(unique_visitors) as unique_visitors, SUM(total_actions) as total_actions").
+		Where("store_id = ? AND date >= ?", storeID, startDate).
+		Group("dimension_type, dimension_value").
+		Order("views DESC").
+		Find(&rows).Error
+
+	devMap := make(map[string]AudienceDimensionSummary)
+	osMap := make(map[string]AudienceDimensionSummary)
+	browserMap := make(map[string]AudienceDimensionSummary)
+	cityMap := make(map[string]AudienceDimensionSummary)
+	hourMap := make(map[string]int)
+	campMap := make(map[string]AudienceDimensionSummary)
+
+	totalDevViews := 0
+	totalOsViews := 0
+	totalBrowserViews := 0
+	totalCityViews := 0
+	totalCampViews := 0
+
+	for _, r := range rows {
+		val := strings.TrimSpace(r.DimensionValue)
+		if val == "" {
+			continue
+		}
+		switch r.DimensionType {
+		case "device":
+			name := strings.Title(val)
+			devMap[val] = AudienceDimensionSummary{
+				DimensionValue: val,
+				Name:           name,
+				Views:          r.Views,
+				UniqueVisitors: r.UniqueVisitors,
+				TotalActions:   r.TotalActions,
+			}
+			totalDevViews += r.Views
+		case "os":
+			osMap[val] = AudienceDimensionSummary{
+				DimensionValue: val,
+				Name:           val,
+				Views:          r.Views,
+				UniqueVisitors: r.UniqueVisitors,
+				TotalActions:   r.TotalActions,
+			}
+			totalOsViews += r.Views
+		case "browser":
+			browserMap[val] = AudienceDimensionSummary{
+				DimensionValue: val,
+				Name:           val,
+				Views:          r.Views,
+				UniqueVisitors: r.UniqueVisitors,
+				TotalActions:   r.TotalActions,
+			}
+			totalBrowserViews += r.Views
+		case "city":
+			cityMap[val] = AudienceDimensionSummary{
+				DimensionValue: val,
+				Name:           val,
+				Views:          r.Views,
+				UniqueVisitors: r.UniqueVisitors,
+				TotalActions:   r.TotalActions,
+			}
+			totalCityViews += r.Views
+		case "hour":
+			hourMap[val] = r.Views
+		case "campaign":
+			campMap[val] = AudienceDimensionSummary{
+				DimensionValue: val,
+				Name:           val,
+				Views:          r.Views,
+				UniqueVisitors: r.UniqueVisitors,
+				TotalActions:   r.TotalActions,
+			}
+			totalCampViews += r.Views
+		}
+	}
+
+	calcPercentAndCTR := func(items map[string]AudienceDimensionSummary, total int) []AudienceDimensionSummary {
+		res := make([]AudienceDimensionSummary, 0, len(items))
+		for _, item := range items {
+			if total > 0 {
+				item.Percentage = (float64(item.Views) / float64(total)) * 100.0
+			}
+			if item.Views > 0 {
+				item.ConversionRatePercent = (float64(item.TotalActions) / float64(item.Views)) * 100.0
+				if item.ConversionRatePercent > 100.0 {
+					item.ConversionRatePercent = 100.0
+				}
+			}
+			res = append(res, item)
+		}
+		return res
+	}
+
+	devices = calcPercentAndCTR(devMap, totalDevViews)
+	operatingSystems = calcPercentAndCTR(osMap, totalOsViews)
+	browsers = calcPercentAndCTR(browserMap, totalBrowserViews)
+	locations = calcPercentAndCTR(cityMap, totalCityViews)
+	campaigns = calcPercentAndCTR(campMap, totalCampViews)
+
+	hourlyHeatmap = make([]HourlyTrafficPoint, 24)
+	for h := 0; h < 24; h++ {
+		hStr := fmt.Sprintf("%02d", h)
+		v := hourMap[hStr]
+		hourlyHeatmap[h] = HourlyTrafficPoint{
+			Hour:  hStr,
+			Views: v,
+		}
+	}
+
+	return
 }
 
 type TopProductSummary struct {
@@ -577,6 +593,8 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	// Build map for quick lookup
 	recordMap := make(map[string]models.StoreDailyAnalytics)
 	totalStoreViews := 0
+	totalUniqueVisitors := 0
+	totalBounces := 0
 	totalDirectWa := 0
 	totalMarketplace := 0
 	totalRekber := 0
@@ -586,6 +604,8 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	for _, r := range dailyRecords {
 		recordMap[r.Date] = r
 		totalStoreViews += r.StoreViews
+		totalUniqueVisitors += r.UniqueVisitors
+		totalBounces += r.Bounces
 		directWa := r.DirectWaClicks
 		if directWa == 0 && r.WaClicks > 0 {
 			directWa = r.WaClicks
@@ -622,6 +642,9 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 			trends = append(trends, DailyMetricPoint{
 				Date:              dt,
 				StoreViews:        rec.StoreViews,
+				UniqueVisitors:    rec.UniqueVisitors,
+				ProductViews:      rec.ProductViews,
+				Bounces:           rec.Bounces,
 				WaClicks:          rec.WaClicks,
 				DirectWaClicks:    directWa,
 				MarketplaceClicks: rec.MarketplaceClicks,
@@ -637,6 +660,9 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 			trends = append(trends, DailyMetricPoint{
 				Date:              dt,
 				StoreViews:        0,
+				UniqueVisitors:    0,
+				ProductViews:      0,
+				Bounces:           0,
 				WaClicks:          0,
 				DirectWaClicks:    0,
 				MarketplaceClicks: 0,
@@ -945,13 +971,31 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		OverallConversionRate: overallConversionRate,
 	}
 
+	bounceRatePercent := 0.0
+	if totalStoreViews > 0 {
+		bounceRatePercent = (float64(totalBounces) / float64(totalStoreViews)) * 100.0
+		if bounceRatePercent > 100.0 {
+			bounceRatePercent = 100.0
+		}
+	}
+
+	devices, operatingSystems, browsers, locations, hourlyHeatmap, campaigns := fetchAudienceDimensions(db, store.ID, startDate)
+	telemetrySvc := services.GetStoreTelemetryService()
+	var recentVisitors []services.RecentVisitorDTO
+	if telemetrySvc != nil {
+		recentVisitors = telemetrySvc.GetRecentVisitors(store.ID, 30)
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data": fiber.Map{
 			"period":                   period,
 			"days":                     days,
 			"total_store_views":        totalStoreViews,
+			"total_unique_visitors":    totalUniqueVisitors,
 			"total_product_views":      totalProductViews,
+			"total_bounces":            totalBounces,
+			"bounce_rate_percent":      bounceRatePercent,
 			"total_wa_clicks":          totalDirectWa, // backward compatibility
 			"total_direct_wa":          totalDirectWa,
 			"total_marketplace_clicks": totalMarketplace,
@@ -969,6 +1013,13 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 			"insights":                 insights,
 			"growth":                   growthData,
 			"traffic_sources":          trafficSources,
+			"devices":                  devices,
+			"operating_systems":        operatingSystems,
+			"browsers":                 browsers,
+			"locations":                locations,
+			"hourly_heatmap":           hourlyHeatmap,
+			"campaigns":                campaigns,
+			"recent_visitors":          recentVisitors,
 			"funnel":                   funnelData,
 			"bot_defense_active":       true,
 		},
@@ -1172,6 +1223,176 @@ func (h *AnalyticsHandler) GetStoreAnalyticsProducts(c *fiber.Ctx) error {
 			"sort":         sortOption,
 			"product_type": productType,
 			"search":       search,
+		},
+	})
+}
+
+// GetGlobalAnalyticsOverview returns platform-wide aggregated metrics, top stores, audience breakdown, and live activity feed for superadmin.
+func (h *AnalyticsHandler) GetGlobalAnalyticsOverview(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+
+	user, _ := c.Locals("user").(*models.User)
+	if user == nil || !user.IsPlatformStaff() {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses khusus platform staff / superadmin.",
+		})
+	}
+
+	period := strings.ToLower(strings.TrimSpace(c.Query("period", "7d")))
+	days := 7
+	if period == "30d" {
+		days = 30
+	} else if period == "90d" {
+		days = 90
+	} else {
+		period = "7d"
+	}
+
+	startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
+	db := h.db
+
+	// 1. Total Platform Telemetry Aggregates
+	type aggResult struct {
+		TotalViews          int64 `gorm:"column:total_views"`
+		TotalUniqueVisitors int64 `gorm:"column:total_unique_visitors"`
+		TotalProductViews   int64 `gorm:"column:total_product_views"`
+		TotalBounces        int64 `gorm:"column:total_bounces"`
+		TotalDirectWa       int64 `gorm:"column:total_direct_wa"`
+		TotalMarketplace    int64 `gorm:"column:total_marketplace"`
+		TotalRekber         int64 `gorm:"column:total_rekber"`
+		TotalVideo          int64 `gorm:"column:total_video"`
+		TotalActions        int64 `gorm:"column:total_actions"`
+	}
+	var agg aggResult
+	_ = db.Model(&models.StoreDailyAnalytics{}).
+		Where("date >= ?", startDate).
+		Select(`
+			COALESCE(SUM(store_views), 0) as total_views,
+			COALESCE(SUM(unique_visitors), 0) as total_unique_visitors,
+			COALESCE(SUM(product_views), 0) as total_product_views,
+			COALESCE(SUM(bounces), 0) as total_bounces,
+			COALESCE(SUM(direct_wa_clicks), 0) as total_direct_wa,
+			COALESCE(SUM(marketplace_clicks), 0) as total_marketplace,
+			COALESCE(SUM(rekber_clicks), 0) as total_rekber,
+			COALESCE(SUM(video_views), 0) as total_video,
+			COALESCE(SUM(total_actions), 0) as total_actions
+		`).Scan(&agg).Error
+
+	// Daily trends platform-wide
+	type dailyTrendRow struct {
+		Date           string `gorm:"column:date"`
+		StoreViews     int    `gorm:"column:store_views"`
+		UniqueVisitors int    `gorm:"column:unique_visitors"`
+		TotalActions   int    `gorm:"column:total_actions"`
+	}
+	var trendRows []dailyTrendRow
+	_ = db.Model(&models.StoreDailyAnalytics{}).
+		Where("date >= ?", startDate).
+		Select("date, COALESCE(SUM(store_views), 0) as store_views, COALESCE(SUM(unique_visitors), 0) as unique_visitors, COALESCE(SUM(total_actions), 0) as total_actions").
+		Group("date").
+		Order("date ASC").
+		Find(&trendRows).Error
+
+	trendMap := make(map[string]dailyTrendRow)
+	for _, tr := range trendRows {
+		trendMap[tr.Date] = tr
+	}
+	trends := make([]fiber.Map, 0, days)
+	for i := days - 1; i >= 0; i-- {
+		dt := time.Now().AddDate(0, 0, -i).Format("2006-01-02")
+		if rec, exists := trendMap[dt]; exists {
+			trends = append(trends, fiber.Map{
+				"date":            dt,
+				"store_views":     rec.StoreViews,
+				"unique_visitors": rec.UniqueVisitors,
+				"total_actions":   rec.TotalActions,
+			})
+		} else {
+			trends = append(trends, fiber.Map{
+				"date":            dt,
+				"store_views":     0,
+				"unique_visitors": 0,
+				"total_actions":   0,
+			})
+		}
+	}
+
+	// 2. Top Performing Stores by Traffic
+	type topStoreRow struct {
+		StoreID      uint   `gorm:"column:store_id" json:"store_id"`
+		StoreSlug    string `gorm:"column:slug" json:"slug"`
+		StoreTitle   string `gorm:"column:store_title" json:"store_title"`
+		Views        int64  `gorm:"column:views" json:"views"`
+		TotalActions int64  `gorm:"column:total_actions" json:"total_actions"`
+	}
+	var topStores []topStoreRow
+	_ = db.Table("store_daily_analytics").
+		Select("store_daily_analytics.store_id, stores.slug, stores.store_title, SUM(store_daily_analytics.store_views) as views, SUM(store_daily_analytics.total_actions) as total_actions").
+		Joins("JOIN stores ON stores.id = store_daily_analytics.store_id").
+		Where("store_daily_analytics.date >= ?", startDate).
+		Group("store_daily_analytics.store_id, stores.slug, stores.store_title").
+		Order("views DESC").
+		Limit(10).
+		Find(&topStores).Error
+
+	// 3. Global Audience Dimensions (store_id = 0)
+	devices, osList, browsers, locations, hourlyHeatmap, campaigns := fetchAudienceDimensions(db, 0, startDate)
+
+	// 4. Real-time Live Global Visitors
+	telemetrySvc := services.GetStoreTelemetryService()
+	var recentVisitors []services.RecentVisitorDTO
+	if telemetrySvc != nil {
+		recentVisitors = telemetrySvc.GetGlobalRecentVisitors(50)
+	}
+
+	bounceRate := 0.0
+	if agg.TotalViews > 0 {
+		bounceRate = (float64(agg.TotalBounces) / float64(agg.TotalViews)) * 100.0
+		if bounceRate > 100.0 {
+			bounceRate = 100.0
+		}
+	}
+	conversionRate := 0.0
+	if agg.TotalViews > 0 {
+		conversionRate = (float64(agg.TotalActions) / float64(agg.TotalViews)) * 100.0
+		if conversionRate > 100.0 {
+			conversionRate = 100.0
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data": fiber.Map{
+			"period":                 period,
+			"days":                   days,
+			"total_views":            agg.TotalViews,
+			"total_unique_visitors":  agg.TotalUniqueVisitors,
+			"total_product_views":    agg.TotalProductViews,
+			"total_bounces":          agg.TotalBounces,
+			"bounce_rate_percent":    bounceRate,
+			"total_actions":          agg.TotalActions,
+			"conversion_rate":        conversionRate,
+			"channels": fiber.Map{
+				"direct_wa":   agg.TotalDirectWa,
+				"marketplace": agg.TotalMarketplace,
+				"rekber":      agg.TotalRekber,
+				"video":       agg.TotalVideo,
+			},
+			"trends":            trends,
+			"top_stores":        topStores,
+			"devices":           devices,
+			"operating_systems": osList,
+			"browsers":          browsers,
+			"locations":         locations,
+			"hourly_heatmap":    hourlyHeatmap,
+			"campaigns":         campaigns,
+			"recent_visitors":   recentVisitors,
 		},
 	})
 }

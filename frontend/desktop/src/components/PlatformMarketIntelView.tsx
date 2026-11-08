@@ -18,8 +18,88 @@ import {
   BarChart3,
   CheckCircle2,
   Lock,
-  Clock
+  Clock,
+  Users,
+  Activity,
+  Smartphone,
+  Compass,
+  Radio,
+  Store
 } from 'lucide-react';
+
+export interface GlobalAnalyticsOverview {
+  period: string;
+  days: number;
+  total_views: number;
+  total_unique_visitors: number;
+  total_product_views: number;
+  total_bounces: number;
+  bounce_rate_percent: number;
+  total_actions: number;
+  conversion_rate: number;
+  channels: {
+    direct_wa: number;
+    marketplace: number;
+    rekber: number;
+    video: number;
+  };
+  trends: Array<{
+    date: string;
+    store_views: number;
+    unique_visitors: number;
+    total_actions: number;
+  }>;
+  top_stores: Array<{
+    store_id: number;
+    slug: string;
+    store_title: string;
+    views: number;
+    total_actions: number;
+  }>;
+  devices: Array<{
+    dimension_value: string;
+    name: string;
+    views: number;
+    percentage: number;
+    conversion_rate_percent: number;
+  }>;
+  operating_systems: Array<{
+    dimension_value: string;
+    name: string;
+    views: number;
+    percentage: number;
+  }>;
+  browsers: Array<{
+    dimension_value: string;
+    name: string;
+    views: number;
+    percentage: number;
+    conversion_rate_percent: number;
+  }>;
+  locations: Array<{
+    dimension_value: string;
+    name: string;
+    views: number;
+    percentage: number;
+  }>;
+  hourly_heatmap: Array<{
+    hour: string;
+    views: number;
+  }>;
+  recent_visitors: Array<{
+    id: number;
+    store_id: number;
+    store_slug: string;
+    event: string;
+    product_name?: string;
+    source: string;
+    device_type: string;
+    browser: string;
+    os: string;
+    city: string;
+    time_ago: string;
+  }>;
+}
 
 export interface TrendingKeywordItem {
   keyword: string;
@@ -102,6 +182,27 @@ export const PlatformMarketIntelView: React.FC<PlatformMarketIntelViewProps> = (
   const [isTriggeringBot, setIsTriggeringBot] = useState<boolean>(false);
   const [lastAggregatedAt, setLastAggregatedAt] = useState<string>('');
 
+  const [activeSection, setActiveSection] = useState<'market_intel' | 'global_telemetry'>('market_intel');
+  const [telemetryPeriod, setTelemetryPeriod] = useState<'7d' | '30d' | '90d'>('7d');
+  const [telemetryData, setTelemetryData] = useState<GlobalAnalyticsOverview | null>(null);
+  const [telemetryLoading, setTelemetryLoading] = useState<boolean>(false);
+
+  const fetchGlobalTelemetry = async (p: '7d' | '30d' | '90d' = telemetryPeriod) => {
+    setTelemetryLoading(true);
+    try {
+      const headers: Record<string, string> = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`/api/admin/analytics/overview?period=${p}`, { headers });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setTelemetryData(json.data);
+      }
+    } catch {
+    } finally {
+      setTelemetryLoading(false);
+    }
+  };
+
   const fetchMarketIntel = async () => {
     setLoading(true);
     setError(null);
@@ -158,7 +259,8 @@ export const PlatformMarketIntelView: React.FC<PlatformMarketIntelViewProps> = (
 
   useEffect(() => {
     fetchMarketIntel();
-  }, [token]);
+    fetchGlobalTelemetry(telemetryPeriod);
+  }, [token, telemetryPeriod]);
 
   const handleDownloadCsv = async () => {
     setIsExportingCsv(true);
@@ -342,8 +444,388 @@ export const PlatformMarketIntelView: React.FC<PlatformMarketIntelViewProps> = (
         </div>
       </div>
 
-      {/* Main Content Area */}
-      {loading ? (
+      {/* Platform Console Navigation Segment Tabs */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div style={{ display: 'inline-flex', padding: '0.25rem', borderRadius: '0.65rem', backgroundColor: isDark ? 'rgba(15, 23, 42, 0.7)' : '#e2e8f0', border: `1px solid ${theme.border}` }}>
+          <button
+            type="button"
+            onClick={() => setActiveSection('market_intel')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.45rem 1rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              backgroundColor: activeSection === 'market_intel' ? '#10b981' : 'transparent',
+              color: activeSection === 'market_intel' ? '#ffffff' : theme.textSecondary,
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <TrendingUp size={15} />
+            <span>Riset Pasar &amp; Demand Gap B2B</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSection('global_telemetry');
+              if (!telemetryData) fetchGlobalTelemetry(telemetryPeriod);
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.45rem 1rem',
+              borderRadius: '0.5rem',
+              border: 'none',
+              backgroundColor: activeSection === 'global_telemetry' ? '#3b82f6' : 'transparent',
+              color: activeSection === 'global_telemetry' ? '#ffffff' : theme.textSecondary,
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Radio size={15} />
+            <span>Pusat Telemetri &amp; Audiens Global</span>
+          </button>
+        </div>
+
+        {activeSection === 'global_telemetry' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ display: 'inline-flex', padding: '0.2rem', borderRadius: '0.5rem', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.8)' : '#f1f5f9', border: `1px solid ${theme.border}` }}>
+              {(['7d', '30d', '90d'] as const).map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => {
+                    setTelemetryPeriod(p);
+                    fetchGlobalTelemetry(p);
+                  }}
+                  style={{
+                    padding: '0.3rem 0.65rem',
+                    borderRadius: '0.4rem',
+                    border: 'none',
+                    backgroundColor: telemetryPeriod === p ? '#3b82f6' : 'transparent',
+                    color: telemetryPeriod === p ? '#ffffff' : theme.textSecondary,
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {p === '7d' ? '7 Hari' : p === '30d' ? '30 Hari' : '90 Hari'}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => fetchGlobalTelemetry(telemetryPeriod)}
+              disabled={telemetryLoading}
+              style={{
+                padding: '0.4rem 0.75rem',
+                borderRadius: '0.5rem',
+                border: `1px solid ${theme.border}`,
+                backgroundColor: isDark ? 'rgba(30, 41, 59, 0.8)' : '#ffffff',
+                color: theme.textPrimary,
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <RefreshCw size={12} className={telemetryLoading ? 'animate-spin' : ''} />
+              <span>Segarkan</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {activeSection === 'global_telemetry' ? (
+        /* Global Telemetry & Audience Command Center */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Top 4 KPI Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+            {/* Total Global Views */}
+            <div style={{ padding: '1.15rem 1.35rem', borderRadius: '0.85rem', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.55)' : '#ffffff', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary }}>Total Tayangan Platform</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '0.5rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Globe size={16} />
+                </div>
+              </div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 900, color: theme.textPrimary, letterSpacing: '-0.02em' }}>
+                {(telemetryData?.total_views || 0).toLocaleString('id-ID')}
+              </div>
+              <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                {(telemetryData?.total_product_views || 0).toLocaleString('id-ID')} tayangan item spesifik
+              </span>
+            </div>
+
+            {/* Total Unique Visitors */}
+            <div style={{ padding: '1.15rem 1.35rem', borderRadius: '0.85rem', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.55)' : '#ffffff', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary }}>Pengunjung Unik Global</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '0.5rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Users size={16} />
+                </div>
+              </div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#10b981', letterSpacing: '-0.02em' }}>
+                {(telemetryData?.total_unique_visitors || 0).toLocaleString('id-ID')}
+              </div>
+              <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                Perangkat terverifikasi harian (HMAC Zero-PII)
+              </span>
+            </div>
+
+            {/* Global Bounce Rate */}
+            <div style={{ padding: '1.15rem 1.35rem', borderRadius: '0.85rem', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.55)' : '#ffffff', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary }}>Rasio Pentalan (Bounce Rate)</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '0.5rem', backgroundColor: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Activity size={16} />
+                </div>
+              </div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 900, color: (telemetryData?.bounce_rate_percent || 0) > 50 ? '#f59e0b' : '#10b981', letterSpacing: '-0.02em' }}>
+                {(telemetryData?.bounce_rate_percent || 0).toFixed(1)}%
+              </div>
+              <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                {(telemetryData?.total_bounces || 0).toLocaleString('id-ID')} sesi langsung keluar
+              </span>
+            </div>
+
+            {/* Total Leads / Actions */}
+            <div style={{ padding: '1.15rem 1.35rem', borderRadius: '0.85rem', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.55)' : '#ffffff', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textSecondary }}>Total Tindakan / Leads</span>
+                <div style={{ width: '32px', height: '32px', borderRadius: '0.5rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Zap size={16} />
+                </div>
+              </div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 900, color: theme.textPrimary, letterSpacing: '-0.02em' }}>
+                {(telemetryData?.total_actions || 0).toLocaleString('id-ID')}
+              </div>
+              <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700 }}>
+                {((telemetryData?.conversion_rate || 0) * 100).toFixed(1)}% Rasio Konversi Platform
+              </span>
+            </div>
+          </div>
+
+          {/* Top 10 Stores by Traffic Leaderboard */}
+          <div style={{ padding: '1.35rem 1.65rem', borderRadius: '0.85rem', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.55)' : '#ffffff', border: `1px solid ${theme.border}` }}>
+            <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary, margin: '0 0 0.85rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Store size={17} style={{ color: '#3b82f6' }} />
+              <span>10 Toko Terpopuler Berdasarkan Lalu Lintas Kunjungan</span>
+            </h4>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${theme.border}`, color: theme.textSecondary, textAlign: 'left' }}>
+                    <th style={{ padding: '0.65rem 0.85rem' }}>Nama Toko / Katalog</th>
+                    <th style={{ padding: '0.65rem 0.85rem' }}>Slug Toko</th>
+                    <th style={{ padding: '0.65rem 0.85rem' }}>Total Kunjungan</th>
+                    <th style={{ padding: '0.65rem 0.85rem' }}>Total Aksi Pembeli</th>
+                    <th style={{ padding: '0.65rem 0.85rem' }}>Rasio Konversi CTR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(telemetryData?.top_stores && telemetryData.top_stores.length > 0) ? (
+                    telemetryData.top_stores.map(st => {
+                      const ctr = st.views > 0 ? (st.total_actions / st.views) * 100 : 0;
+                      return (
+                        <tr key={st.store_id} style={{ borderBottom: `1px dashed ${theme.border}` }}>
+                          <td style={{ padding: '0.75rem 0.85rem', fontWeight: 700, color: theme.textPrimary }}>
+                            {st.store_title || st.slug}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem', color: theme.textSecondary }}>
+                            <code>/{st.slug}</code>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem', fontWeight: 800, color: '#3b82f6' }}>
+                            {st.views.toLocaleString('id-ID')}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem', fontWeight: 800, color: '#10b981' }}>
+                            {st.total_actions.toLocaleString('id-ID')}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem', fontWeight: 700, color: ctr > 0 ? '#10b981' : theme.textSecondary }}>
+                            {ctr.toFixed(1)}%
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={5} style={{ padding: '1.5rem', textAlign: 'center', color: theme.textMuted }}>
+                        Belum ada aktivitas toko terdaftar dalam periode ini.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 4-Card Global Audience Dimensions */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+            {/* Devices & OS */}
+            <div style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.55)' : '#ffffff', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Smartphone size={15} style={{ color: '#3b82f6' }} />
+                  <span>Sebaran Perangkat Platform</span>
+                </span>
+                <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                  {(telemetryData?.devices || []).length} tipe
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                {(telemetryData?.devices || []).map(dev => (
+                  <div key={dev.dimension_value} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span style={{ color: theme.textPrimary, fontWeight: 600 }}>{dev.name}</span>
+                      <span style={{ color: theme.textSecondary }}>{dev.views.toLocaleString('id-ID')} ({dev.percentage.toFixed(0)}%)</span>
+                    </div>
+                    <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0', overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.max(4, Math.min(100, dev.percentage))}%`, height: '100%', backgroundColor: '#3b82f6', borderRadius: '3px' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Browsers & Social In-App */}
+            <div style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.55)' : '#ffffff', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Globe size={15} style={{ color: '#10b981' }} />
+                  <span>Peramban &amp; Webview In-App Sosial</span>
+                </span>
+                <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>Instagram / TikTok</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                {(telemetryData?.browsers || []).slice(0, 5).map(br => (
+                  <div key={br.dimension_value} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span style={{ color: theme.textPrimary, fontWeight: 600 }}>{br.name}</span>
+                      <span style={{ color: theme.textSecondary }}>{br.views.toLocaleString('id-ID')} ({br.percentage.toFixed(0)}%)</span>
+                    </div>
+                    <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0', overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.max(4, Math.min(100, br.percentage))}%`, height: '100%', backgroundColor: br.name.toLowerCase().includes('in-app') ? '#ec4899' : '#10b981', borderRadius: '3px' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Top Cities */}
+            <div style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.55)' : '#ffffff', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Compass size={15} style={{ color: '#f59e0b' }} />
+                  <span>Sebaran Kota Konsumen</span>
+                </span>
+                <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>Coarse Geo Zero-PII</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                {(telemetryData?.locations || []).slice(0, 5).map(loc => (
+                  <div key={loc.dimension_value} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                      <span style={{ color: theme.textPrimary, fontWeight: 600 }}>{loc.name}</span>
+                      <span style={{ color: theme.textSecondary }}>{loc.views.toLocaleString('id-ID')} ({loc.percentage.toFixed(0)}%)</span>
+                    </div>
+                    <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0', overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.max(4, Math.min(100, loc.percentage))}%`, height: '100%', backgroundColor: '#f59e0b', borderRadius: '3px' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 24-Hour Peak Heatmap */}
+            <div style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.55)' : '#ffffff', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Clock size={15} style={{ color: '#8b5cf6' }} />
+                  <span>Puncak Beban Server 24-Jam</span>
+                </span>
+                <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>Waktu Indonesia Barat</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '60px', paddingTop: '0.4rem' }}>
+                {(telemetryData?.hourly_heatmap && telemetryData.hourly_heatmap.length === 24
+                  ? telemetryData.hourly_heatmap
+                  : Array.from({ length: 24 }, (_, i) => ({ hour: String(i).padStart(2, '0'), views: 0 }))
+                ).map(hPoint => {
+                  const maxHViews = Math.max(1, ...(telemetryData?.hourly_heatmap || []).map(p => p.views));
+                  const heightPercent = Math.max(8, Math.min(100, (hPoint.views / maxHViews) * 100));
+                  return (
+                    <div
+                      key={hPoint.hour}
+                      title={`Jam ${hPoint.hour}:00 - ${hPoint.views} tayangan`}
+                      style={{
+                        flex: 1,
+                        height: `${heightPercent}%`,
+                        backgroundColor: hPoint.views === maxHViews && hPoint.views > 0 ? '#8b5cf6' : hPoint.views > 0 ? 'rgba(139, 92, 246, 0.45)' : isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0',
+                        borderRadius: '3px 3px 0 0'
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: theme.textSecondary }}>
+                <span>00:00</span>
+                <span>06:00</span>
+                <span>12:00</span>
+                <span>18:00</span>
+                <span>23:00</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Real-time Global Live Visitors Feed */}
+          {telemetryData?.recent_visitors && telemetryData.recent_visitors.length > 0 && (
+            <div style={{ padding: '1.25rem 1.5rem', borderRadius: '0.85rem', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.55)' : '#ffffff', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Radio size={16} style={{ color: '#10b981' }} />
+                  <span>Aktivitas Pengunjung Platform Terkini (Real-Time Live Feed)</span>
+                </span>
+                <span style={{ fontSize: '0.68rem', padding: '0.15rem 0.5rem', borderRadius: '10px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: 700 }}>
+                  Live 50 In-Memory Ring Buffer
+                </span>
+              </div>
+
+              <div className="catavor-custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '280px', overflowY: 'auto', paddingRight: '0.3rem' }}>
+                {telemetryData.recent_visitors.map(rv => (
+                  <div key={rv.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.85rem', borderRadius: '0.55rem', backgroundColor: isDark ? 'rgba(15, 23, 42, 0.65)' : '#f8fafc', border: `1px solid ${theme.border}`, fontSize: '0.78rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: rv.event.includes('click') ? '#10b981' : '#3b82f6', flexShrink: 0 }} />
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ color: theme.textPrimary, fontWeight: 700 }}>
+                          [{rv.store_slug}] {rv.event === 'store_view' ? 'Melihat Beranda Katalog' :
+                           rv.event === 'product_view' ? `Melihat Item ${rv.product_name || ''}` :
+                           rv.event === 'direct_wa_click' ? `Klik Chat WhatsApp ${rv.product_name ? `(${rv.product_name})` : ''}` :
+                           rv.event === 'rekber_click' ? `Klik Rekber Syariah ${rv.product_name ? `(${rv.product_name})` : ''}` :
+                           rv.event === 'marketplace_click' ? `Klik Marketplace ${rv.product_name ? `(${rv.product_name})` : ''}` :
+                           rv.event === 'video_view' ? `Menonton Video Demo` : rv.event}
+                        </span>
+                        <span style={{ fontSize: '0.68rem', color: theme.textSecondary, display: 'block' }}>
+                          {rv.device_type} • {rv.browser || rv.os} • {rv.city} • via {rv.source}
+                        </span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.7rem', color: theme.textSecondary, fontWeight: 600, whiteSpace: 'nowrap', marginLeft: '1rem' }}>
+                      {rv.time_ago}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : loading ? (
         <div style={{ textAlign: 'center', padding: '4rem 1rem', color: theme.textSecondary }}>
           <RefreshCw size={32} className="animate-spin" style={{ color: '#10b981', margin: '0 auto 1rem' }} />
           <p style={{ fontSize: '0.92rem', fontWeight: 600 }}>Mengompilasi dataset intelijen pasar nasional...</p>

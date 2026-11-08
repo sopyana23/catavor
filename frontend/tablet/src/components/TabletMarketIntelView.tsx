@@ -11,8 +11,91 @@ import {
   AlertCircle,
   Search,
   ArrowUpRight,
-  BarChart3
+  BarChart3,
+  Users,
+  Activity,
+  Radio,
+  Smartphone,
+  Compass,
+  Clock,
+  CheckCircle2,
+  Store,
+  Lock
 } from 'lucide-react';
+
+export interface GlobalAnalyticsOverview {
+  period: string;
+  days: number;
+  total_views: number;
+  total_unique_visitors: number;
+  total_product_views: number;
+  total_bounces: number;
+  bounce_rate_percent: number;
+  total_actions: number;
+  conversion_rate: number;
+  channels: {
+    direct_wa: number;
+    marketplace: number;
+    rekber: number;
+    video: number;
+  };
+  trends: Array<{
+    date: string;
+    store_views: number;
+    unique_visitors: number;
+    total_actions: number;
+  }>;
+  top_stores: Array<{
+    store_id: number;
+    slug: string;
+    store_title: string;
+    views: number;
+    total_actions: number;
+  }>;
+  devices: Array<{
+    dimension_value: string;
+    name: string;
+    views: number;
+    percentage: number;
+    conversion_rate_percent: number;
+  }>;
+  operating_systems: Array<{
+    dimension_value: string;
+    name: string;
+    views: number;
+    percentage: number;
+  }>;
+  browsers: Array<{
+    dimension_value: string;
+    name: string;
+    views: number;
+    percentage: number;
+    conversion_rate_percent: number;
+  }>;
+  locations: Array<{
+    dimension_value: string;
+    name: string;
+    views: number;
+    percentage: number;
+  }>;
+  hourly_heatmap: Array<{
+    hour: string;
+    views: number;
+  }>;
+  recent_visitors: Array<{
+    id: number;
+    store_id: number;
+    store_slug: string;
+    event: string;
+    product_name?: string;
+    source: string;
+    device_type: string;
+    browser: string;
+    os: string;
+    city: string;
+    time_ago: string;
+  }>;
+}
 
 export interface TrendingKeywordItem {
   keyword: string;
@@ -89,7 +172,29 @@ export const TabletMarketIntelView: React.FC<TabletMarketIntelViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isExportingCsv, setIsExportingCsv] = useState<boolean>(false);
   const [isTriggeringBot, setIsTriggeringBot] = useState<boolean>(false);
-  const [activeSegment, setActiveSegment] = useState<'overview' | 'demand_gap' | 'benchmarks'>('overview');
+  const [activeSegment, setActiveSegment] = useState<'overview' | 'demand_gap' | 'benchmarks' | 'telemetry'>('overview');
+
+  // Global Telemetry State
+  const [telemetryData, setTelemetryData] = useState<GlobalAnalyticsOverview | null>(null);
+  const [telemetryLoading, setTelemetryLoading] = useState<boolean>(false);
+  const [telemetryPeriod, setTelemetryPeriod] = useState<'7d' | '30d' | '90d'>('7d');
+
+  const fetchGlobalTelemetry = async (period: '7d' | '30d' | '90d' = telemetryPeriod) => {
+    setTelemetryLoading(true);
+    try {
+      const headers: Record<string, string> = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`/api/admin/analytics/overview?period=${period}`, { headers });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setTelemetryData(json.data);
+      }
+    } catch (err: any) {
+      console.error('Failed to load global telemetry:', err);
+    } finally {
+      setTelemetryLoading(false);
+    }
+  };
 
   const fetchMarketIntel = async () => {
     setLoading(true);
@@ -298,7 +403,7 @@ export const TabletMarketIntelView: React.FC<TabletMarketIntelViewProps> = ({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: 'repeat(4, 1fr)',
           gap: '0.35rem',
           padding: '0.3rem',
           borderRadius: '0.75rem',
@@ -358,9 +463,436 @@ export const TabletMarketIntelView: React.FC<TabletMarketIntelViewProps> = ({
         >
           Harga Pasar
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveSegment('telemetry');
+            if (!telemetryData) fetchGlobalTelemetry(telemetryPeriod);
+          }}
+          style={{
+            minHeight: '42px',
+            borderRadius: '0.55rem',
+            border: 'none',
+            backgroundColor: activeSegment === 'telemetry' ? 'var(--bg-card)' : 'transparent',
+            color: activeSegment === 'telemetry' ? '#3b82f6' : 'var(--text-secondary)',
+            fontWeight: 800,
+            fontSize: '0.78rem',
+            cursor: 'pointer',
+            boxShadow: activeSegment === 'telemetry' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.35rem'
+          }}
+        >
+          <Radio size={14} style={{ color: activeSegment === 'telemetry' ? '#3b82f6' : 'inherit' }} />
+          <span>Telemetri Audiens</span>
+        </button>
       </div>
 
-      {loading ? (
+      {activeSegment === 'telemetry' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {/* Telemetry Control Bar */}
+          <div
+            style={{
+              padding: '1rem 1.25rem',
+              borderRadius: '0.85rem',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '0.6rem',
+                  backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                  color: '#3b82f6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Radio size={20} />
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Pusat Telemetri Audiens Global
+                </h4>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                  Pemantauan real-time agregat platform &bull; Zero-PII UU PDP Legal
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  padding: '0.2rem',
+                  borderRadius: '0.55rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)'
+                }}
+              >
+                {(['7d', '30d', '90d'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      setTelemetryPeriod(p);
+                      fetchGlobalTelemetry(p);
+                    }}
+                    style={{
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '0.45rem',
+                      border: 'none',
+                      backgroundColor: telemetryPeriod === p ? '#3b82f6' : 'transparent',
+                      color: telemetryPeriod === p ? '#ffffff' : 'var(--text-secondary)',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {p === '7d' ? '7 Hari' : p === '30d' ? '30 Hari' : '90 Hari'}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchGlobalTelemetry(telemetryPeriod)}
+                disabled={telemetryLoading}
+                style={{
+                  minHeight: '40px',
+                  padding: '0 0.85rem',
+                  borderRadius: '0.55rem',
+                  backgroundColor: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+              >
+                <RefreshCw size={14} className={telemetryLoading ? 'animate-spin' : ''} />
+                <span>Segarkan</span>
+              </button>
+            </div>
+          </div>
+
+          {telemetryLoading && !telemetryData ? (
+            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-secondary)' }}>
+              <RefreshCw size={28} className="animate-spin" style={{ color: '#3b82f6', margin: '0 auto 0.75rem' }} />
+              <p style={{ fontSize: '0.85rem', fontWeight: 600 }}>Memuat telemetri audiens global...</p>
+            </div>
+          ) : telemetryData ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* 4 KPI Cards for Tablet */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700 }}>Total Kunjungan Platform</span>
+                    <Activity size={16} style={{ color: '#3b82f6' }} />
+                  </div>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 900, color: 'var(--text-primary)', marginTop: '0.3rem' }}>
+                    {telemetryData.total_views.toLocaleString('id-ID')}
+                  </div>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                    {telemetryData.total_product_views.toLocaleString('id-ID')} tayangan produk katalog
+                  </span>
+                </div>
+
+                <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700 }}>Pengunjung Unik Terverifikasi</span>
+                    <Users size={16} style={{ color: '#10b981' }} />
+                  </div>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#10b981', marginTop: '0.3rem' }}>
+                    {telemetryData.total_unique_visitors.toLocaleString('id-ID')}
+                  </div>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                    Zero-PII Hashing harian &bull; Anonim murni
+                  </span>
+                </div>
+
+                <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700 }}>Rasio Pantulan (Bounce Rate)</span>
+                    <TrendingUp size={16} style={{ color: '#f59e0b' }} />
+                  </div>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#f59e0b', marginTop: '0.3rem' }}>
+                    {telemetryData.bounce_rate_percent}%
+                  </div>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                    {telemetryData.total_bounces.toLocaleString('id-ID')} sesi kunjungan 1 halaman
+                  </span>
+                </div>
+
+                <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 700 }}>Tindakan &amp; Konversi</span>
+                    <CheckCircle2 size={16} style={{ color: '#8b5cf6' }} />
+                  </div>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#8b5cf6', marginTop: '0.3rem' }}>
+                    {telemetryData.total_actions.toLocaleString('id-ID')}
+                  </div>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                    Rasio konversi {telemetryData.conversion_rate}% (WA/Rekber/MP)
+                  </span>
+                </div>
+              </div>
+
+              {/* Top 10 Toko Terpopuler */}
+              <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                <h4 style={{ fontSize: '0.88rem', fontWeight: 800, margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Store size={15} style={{ color: '#3b82f6' }} />
+                  10 Toko Terpopuler Nasional
+                </h4>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-light)', color: 'var(--text-secondary)', textAlign: 'left' }}>
+                        <th style={{ padding: '0.5rem 0.65rem' }}>Peringkat</th>
+                        <th style={{ padding: '0.5rem 0.65rem' }}>Nama Toko &amp; Slug</th>
+                        <th style={{ padding: '0.5rem 0.65rem', textAlign: 'right' }}>Total Kunjungan</th>
+                        <th style={{ padding: '0.5rem 0.65rem', textAlign: 'right' }}>Aksi Pembeli</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {telemetryData.top_stores && telemetryData.top_stores.length > 0 ? (
+                        telemetryData.top_stores.map((st, idx) => (
+                          <tr key={st.store_id || idx} style={{ borderBottom: '1px dashed var(--border-light)' }}>
+                            <td style={{ padding: '0.55rem 0.65rem', fontWeight: 800, color: idx < 3 ? '#10b981' : 'var(--text-secondary)' }}>
+                              #{idx + 1}
+                            </td>
+                            <td style={{ padding: '0.55rem 0.65rem' }}>
+                              <span style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>{st.store_title}</span>
+                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>/{st.slug}</span>
+                            </td>
+                            <td style={{ padding: '0.55rem 0.65rem', textAlign: 'right', fontWeight: 800, color: '#3b82f6' }}>
+                              {st.views.toLocaleString('id-ID')}
+                            </td>
+                            <td style={{ padding: '0.55rem 0.65rem', textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
+                              {st.total_actions.toLocaleString('id-ID')}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                            Belum ada riwayat aktivitas toko pada periode ini.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 2-Column Grid: Devices & Browsers */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                {/* Perangkat & OS */}
+                <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: '0 0 0.65rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Smartphone size={15} style={{ color: '#10b981' }} />
+                    Distribusi Perangkat
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {telemetryData.devices && telemetryData.devices.map((d, idx) => (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+                          <span style={{ fontWeight: 600 }}>{d.name}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{d.percentage}% ({d.views})</span>
+                        </div>
+                        <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: 'var(--bg-deep)', overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(100, d.percentage)}%`, height: '100%', backgroundColor: '#10b981', borderRadius: '3px' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <h5 style={{ fontSize: '0.78rem', fontWeight: 800, margin: '0.85rem 0 0.5rem 0', color: 'var(--text-secondary)' }}>
+                    Sistem Operasi
+                  </h5>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                    {telemetryData.operating_systems && telemetryData.operating_systems.map((os, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: '0.4rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-primary)'
+                        }}
+                      >
+                        {os.name}: {os.percentage}%
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Browser & In-App Social */}
+                <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: '0 0 0.65rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Compass size={15} style={{ color: '#3b82f6' }} />
+                    Browser &amp; In-App Social
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {telemetryData.browsers && telemetryData.browsers.map((b, idx) => (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+                          <span style={{ fontWeight: 600 }}>{b.name}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{b.percentage}% ({b.views})</span>
+                        </div>
+                        <div style={{ width: '100%', height: '5px', borderRadius: '3px', backgroundColor: 'var(--bg-deep)', overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(100, b.percentage)}%`, height: '100%', backgroundColor: '#3b82f6', borderRadius: '3px' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <h5 style={{ fontSize: '0.78rem', fontWeight: 800, margin: '0.85rem 0 0.5rem 0', color: 'var(--text-secondary)' }}>
+                    Kota Pengunjung Teratas
+                  </h5>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                    {telemetryData.locations && telemetryData.locations.slice(0, 6).map((loc, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: '0.4rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-primary)'
+                        }}
+                      >
+                        {loc.name}: {loc.views}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 24-Hour Peak Activity Heatmap */}
+              <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Clock size={15} style={{ color: '#f59e0b' }} />
+                  Kurva Jam Sibuk Pengunjung (24 Jam)
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '0.35rem', alignItems: 'end', minHeight: '90px', paddingBottom: '0.5rem' }}>
+                  {telemetryData.hourly_heatmap && telemetryData.hourly_heatmap.map((h, idx) => {
+                    const maxViews = Math.max(...telemetryData.hourly_heatmap.map((item) => item.views), 1);
+                    const heightPercent = Math.max(12, Math.round((h.views / maxViews) * 100));
+                    return (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', height: '100%', justifyContent: 'flex-end' }}>
+                        <span style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{h.views}</span>
+                        <div
+                          title={`Pukul ${h.hour}:00 - ${h.views} tayangan`}
+                          style={{
+                            width: '100%',
+                            height: `${heightPercent}%`,
+                            maxHeight: '65px',
+                            borderRadius: '3px',
+                            backgroundColor: h.views > 0 ? '#f59e0b' : 'var(--bg-deep)',
+                            transition: 'height 0.2s ease'
+                          }}
+                        />
+                        <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{h.hour}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Real-Time Live Feed */}
+              <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Activity size={15} style={{ color: '#10b981' }} />
+                    Live Stream Telemetri Real-Time (50 Event Terakhir)
+                  </h4>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                    AKTIF
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '320px', overflowY: 'auto' }}>
+                  {telemetryData.recent_visitors && telemetryData.recent_visitors.length > 0 ? (
+                    telemetryData.recent_visitors.map((ev, idx) => (
+                      <div
+                        key={ev.id || idx}
+                        style={{
+                          padding: '0.55rem 0.75rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.5rem',
+                          fontSize: '0.74rem'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                          <span
+                            style={{
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '0.35rem',
+                              backgroundColor: ev.event === 'action_wa' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                              color: ev.event === 'action_wa' ? '#10b981' : '#3b82f6',
+                              fontWeight: 800,
+                              fontSize: '0.65rem',
+                              flexShrink: 0
+                            }}
+                          >
+                            {ev.event === 'store_view' ? 'TOKO' : ev.event === 'product_view' ? 'PRODUK' : ev.event.toUpperCase()}
+                          </span>
+                          <span style={{ fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {ev.product_name ? `${ev.product_name} (${ev.store_slug})` : `/${ev.store_slug}`}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0, fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                          <span>{ev.device_type} &bull; {ev.browser}</span>
+                          <span>&bull; {ev.city}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--text-muted)' }}>{ev.time_ago}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
+                      Belum ada aliran event real-time yang tercatat dalam ring buffer memori.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* PDP Notice */}
+              <div style={{ padding: '0.75rem 1rem', borderRadius: '0.65rem', backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ShieldCheck size={18} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                  Kepatuhan UU PDP No. 27/2022: Sistem telemetri menggunakan zero-PII daily rotating HMAC salt. IP dan data identitas pribadi tidak disimpan ke database permanen.
+                </span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : loading ? (
         <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-secondary)' }}>
           <RefreshCw size={28} className="animate-spin" style={{ color: 'var(--primary)', margin: '0 auto 0.75rem' }} />
           <p style={{ fontSize: '0.85rem', fontWeight: 600 }}>Memuat intelijen pasar tablet...</p>

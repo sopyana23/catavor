@@ -7157,7 +7157,7 @@ Terima kasih.`;
     }
   };
 
-  const trackAnalytics = async (
+  const trackAnalytics = (
     eventType: 'store_view' | 'product_view' | 'direct_wa_click' | 'marketplace_click' | 'rekber_click' | 'video_view' | 'wa_click' | 'product_wa_click',
     productId?: number,
     productType?: string,
@@ -7165,32 +7165,44 @@ Terima kasih.`;
   ) => {
     const currentSlug = storeSlug || getStoreSlug();
     if (!currentSlug) return;
+    if (isStoreOwner) return;
     const sid = getAnonymousSessionId();
     const attr = getTrafficAttribution();
     try {
-      await fetch(`${API_BASE}/analytics/track`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          store_slug: currentSlug,
-          event: eventType,
-          product_id: productId || 0,
-          product_type: productType,
-          session_id: sid,
-          source: attr.source,
-          medium: attr.medium,
-          campaign: attr.campaign,
-          metadata: {
-            ...metadata,
-            referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
-            utm_source: attr.source,
-            utm_medium: attr.medium,
-            utm_campaign: attr.campaign
-          }
-        })
-      });
+      const payload = {
+        store_slug: currentSlug,
+        event: eventType,
+        product_id: productId || 0,
+        product_type: productType,
+        session_id: sid,
+        source: attr.source,
+        medium: attr.medium,
+        campaign: attr.campaign,
+        metadata: {
+          ...metadata,
+          referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
+          timezone: typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '',
+          screen_width: typeof window !== 'undefined' ? window.screen?.width : 0,
+          utm_source: attr.source,
+          utm_medium: attr.medium,
+          utm_campaign: attr.campaign
+        }
+      };
+
+      const jsonStr = JSON.stringify(payload);
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        navigator.sendBeacon(`${API_BASE}/analytics/track`, blob);
+      } else {
+        fetch(`${API_BASE}/analytics/track`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: jsonStr,
+          keepalive: true
+        }).catch(() => { });
+      }
     } catch (err) {
       // Telemetry should be non-blocking
     }

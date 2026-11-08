@@ -163,6 +163,8 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.StoreDailyAnalytics{},
 		&models.ProductDailyAnalytics{},
 		&models.StoreDailyTrafficSource{},
+		&models.StoreDailyAudienceMetric{},
+		&models.RecentVisitorEvent{},
 		&models.SearchAnalytics{},
 		&models.SearchDailyRollup{},
 		&models.MarketDailyRollup{},

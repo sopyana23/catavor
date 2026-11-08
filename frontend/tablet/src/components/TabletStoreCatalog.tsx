@@ -427,6 +427,67 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     }
   }, []);
 
+  // Telemetry & Visitor Tracking
+  const trackAnalytics = useCallback((
+    event: 'store_view' | 'product_view' | 'direct_wa_click' | 'marketplace_click' | 'rekber_click' | 'video_view',
+    productId?: number,
+    productType?: string
+  ) => {
+    if (!slug) return;
+    try {
+      let sid = sessionStorage.getItem('ctv_sid');
+      if (!sid) {
+        sid = 'tab_' + Math.random().toString(36).substring(2, 12);
+        sessionStorage.setItem('ctv_sid', sid);
+      }
+      const params = new URLSearchParams(window.location.search);
+      const src = params.get('utm_source') || (document.referrer.includes('instagram') ? 'instagram' : document.referrer.includes('tiktok') ? 'tiktok' : document.referrer.includes('wa.me') ? 'whatsapp' : 'direct');
+      const med = params.get('utm_medium') || 'referral';
+      const cmp = params.get('utm_campaign') || '';
+
+      const payload = {
+        store_slug: slug,
+        event,
+        product_id: productId || 0,
+        product_type: productType || 'physical',
+        session_id: sid,
+        source: src,
+        medium: med,
+        campaign: cmp,
+        metadata: {
+          referrer: document.referrer || '',
+          screen_width: window.innerWidth,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        }
+      };
+
+      const jsonStr = JSON.stringify(payload);
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        navigator.sendBeacon('/api/analytics/track', blob);
+      } else {
+        fetch('/api/analytics/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: jsonStr,
+          keepalive: true
+        }).catch(() => {});
+      }
+    } catch {}
+  }, [slug]);
+
+  useEffect(() => {
+    if (slug) {
+      trackAnalytics('store_view');
+    }
+  }, [slug, trackAnalytics]);
+
+  useEffect(() => {
+    if (selectedFauna?.id) {
+      trackAnalytics('product_view', selectedFauna.id, selectedFauna.product_type);
+    }
+  }, [selectedFauna, trackAnalytics]);
+
   // Global external link warning prompt listener
   useEffect(() => {
     const handleGlobalExternalPrompt = (e: any) => {
