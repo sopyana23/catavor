@@ -119,6 +119,12 @@ import {
   formatPhoneNumber,
   type ItemTypeConfig
 } from '../utils/catalogConfig';
+import {
+  createInitialTypeDrafts,
+  snapshotTypeDraft,
+  restoreTypeDraft,
+  type MultiTypeDraftBuffer
+} from '../utils/catalogDraftBuffer';
 import { VideoPreviewInput } from './VideoEmbed';
 
 export type ItemCategoryType = 'physical' | 'food' | 'service' | 'digital' | 'fauna' | 'property' | 'plant';
@@ -1291,6 +1297,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     };
   });
 
+  // Scoped Multi-Type Draft Buffer: preserves canonical item inputs & isolates per-type attributes across switches
+  const typeDraftsRef = useRef<MultiTypeDraftBuffer>(createInitialTypeDrafts('physical'));
+
   const storeWAContacts = useMemo(() => {
     return parseWAContacts(storeSettings.whatsapp_number);
   }, [storeSettings.whatsapp_number]);
@@ -1504,6 +1513,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       gallery_images: [],
       attributes: defaultAttrs
     });
+
+    typeDraftsRef.current = createInitialTypeDrafts(
+      (chosenType || 'physical') as ItemCategoryType,
+      initialClass,
+      defaultAttrs,
+      typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
+      getAvailabilityStatusOptions((chosenType || 'physical') as ItemCategoryType)[0].value
+    );
 
     setIsSelectingProductType(!isValidType);
   }, [getDefaultCategoryForType]);
@@ -1744,11 +1761,20 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         storage_temp: rawAttrs.storage_temp === 'Suhu Ruang (Kering & Sejuk)' ? 'Suhu Ruang' : (rawAttrs.storage_temp === 'Hangat / Siap Santap' ? 'Hangat' : (rawAttrs.storage_temp || 'Suhu Ruang'))
       }
     });
+
+    typeDraftsRef.current = createInitialTypeDrafts(
+      editProdType as ItemCategoryType,
+      resolvedClass,
+      rawAttrs,
+      prod.detailed_info?.shipping_coverage || (prod.is_shipping_available ? (typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia') : 'Ambil Sendiri di Toko (No Shipping)'),
+      prod.conservation_status || prod.attributes?.conservation_status || rawAttrs.conservation_status || getAvailabilityStatusOptions(editProdType as ItemCategoryType)[0].value
+    );
   };
 
   const handleSelectProductType = (typeId: string) => {
+    const targetType = typeId as ItemCategoryType;
     const typeDef = CATALOG_TYPE_OPTIONS.find(t => t.id === typeId);
-    const typeConfig = getItemTypeFormConfig(typeId as ItemCategoryType);
+    const typeConfig = getItemTypeFormConfig(targetType);
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', 'items');
@@ -1756,70 +1782,53 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       url.searchParams.set('type', typeId);
       window.history.replaceState({ tab: 'items', action: 'new', type: typeId }, '', url.toString());
     } catch {}
+
+    const targetDraft = restoreTypeDraft(targetType, typeDraftsRef.current);
+    const statusOpts = getAvailabilityStatusOptions(targetType);
+
     setProductForm(prev => {
-      const defaultAttrs: Record<string, any> = { ...(prev.attributes || {}) };
-      const statusOpts = getAvailabilityStatusOptions(typeId as ItemCategoryType);
-      defaultAttrs.conservation_status = statusOpts[0].value;
-
-      if (typeId === 'physical') {
-        if (!defaultAttrs.condition) defaultAttrs.condition = 'Baru';
-        if (defaultAttrs.weight === undefined) defaultAttrs.weight = 100;
-      }
-      if (typeId === 'food') {
-        if (!defaultAttrs.halal_status) defaultAttrs.halal_status = 'Bersertifikat Halal Resmi (BPJPH / MUI)';
-        if (!defaultAttrs.storage_temp) defaultAttrs.storage_temp = 'Suhu Ruang';
-      }
-      if (typeId === 'digital') {
-        if (!defaultAttrs.file_format) defaultAttrs.file_format = 'PDF';
-        if (!defaultAttrs.file_size) defaultAttrs.file_size = '10 MB';
-        if (!defaultAttrs.license_type) defaultAttrs.license_type = 'Lisensi Personal';
-      }
-      if (typeId === 'service') {
-        if (!defaultAttrs.duration) defaultAttrs.duration = '1 Sesi / 1 Jam';
-        if (!defaultAttrs.service_location) defaultAttrs.service_location = 'Datang ke Toko';
-        if (!defaultAttrs.service_area) defaultAttrs.service_area = 'Jabodetabek';
-      }
-      if (typeId === 'plant') {
-        if (!defaultAttrs.sunlight) defaultAttrs.sunlight = 'Partial Sun (Teduh Terang)';
-        if (!defaultAttrs.watering) defaultAttrs.watering = 'Sedang (2-3 Hari Sekali)';
-        if (!defaultAttrs.protection_status) defaultAttrs.protection_status = 'Non-Dilindungi (Aman Diperjualbelikan)';
-        if (!defaultAttrs.delivery_condition) defaultAttrs.delivery_condition = 'Kirim Bersama Pot & Media Tanam';
-      }
-      if (typeId === 'fauna') {
-        if (!defaultAttrs.habitat) defaultAttrs.habitat = 'General';
-      }
-      if (typeId === 'property') {
-        if (!defaultAttrs.transaction_type) defaultAttrs.transaction_type = 'Dijual';
-        if (!defaultAttrs.certificate) defaultAttrs.certificate = 'SHM (Sertifikat Hak Milik)';
-        if (!defaultAttrs.furnishing) defaultAttrs.furnishing = 'Semi-Furnished';
-        if (!defaultAttrs.facing) defaultAttrs.facing = 'Timur';
-      }
-
       const isDefaultUnit = !prev.unit || prev.unit === 'Pcs' || CATALOG_TYPE_OPTIONS.some(o => o.defaultUnit === prev.unit);
       const shouldUpdateUnit = prev.id === 0 && isDefaultUnit;
-
-      const validCategories = getCategoryOptionsForType(typeId);
-      const isFromOtherTypeDefault = (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[])
-        .some(otherType => otherType !== typeId && DEFAULT_MASTER_CATEGORIES[otherType].includes(prev.class));
-      const nextClass = (prev.class && validCategories.includes(prev.class) && !isFromOtherTypeDefault)
-        ? prev.class
-        : (validCategories[0] || 'Lainnya');
 
       return {
         ...prev,
         product_type: typeId,
-        conservation_status: statusOpts[0].value,
-        class: nextClass,
+        conservation_status: targetDraft.conservation_status || statusOpts[0].value,
+        class: targetDraft.class || (typeConfig.categoryOptions[0] || 'Lainnya'),
         unit: shouldUpdateUnit ? (typeDef?.defaultUnit || 'Pcs') : prev.unit,
-        shipping_coverage: prev.shipping_coverage || typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
+        shipping_coverage: targetDraft.shipping_coverage || typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
         enable_wa_rekber: typeId === 'property' ? false : (prev.enable_wa_rekber !== undefined ? prev.enable_wa_rekber : true),
-        attributes: defaultAttrs
+        attributes: {
+          ...prev.attributes,
+          ...targetDraft.attributes
+        }
       };
     });
+
+    if (targetDraft.customClass) {
+      setCustomClass(targetDraft.customClass);
+      setShowCustomClassInput(true);
+    } else {
+      setCustomClass('');
+      setShowCustomClassInput(false);
+    }
+
     setIsSelectingProductType(false);
+    showToast(`Format katalog beralih ke ${typeDef?.name || typeId}. Data umum & foto dipertahankan.`, 'success');
   };
 
   const handleBackToTypeSelection = useCallback(() => {
+    if (productForm.product_type) {
+      typeDraftsRef.current = snapshotTypeDraft(
+        productForm.product_type as ItemCategoryType,
+        showCustomClassInput ? customClass.trim() : productForm.class,
+        productForm.shipping_coverage,
+        productForm.conservation_status,
+        productForm.attributes,
+        showCustomClassInput ? customClass.trim() : '',
+        typeDraftsRef.current
+      );
+    }
     setIsSelectingProductType(true);
     setProductForm(prev => ({ ...prev, product_type: '' }));
     try {
@@ -1828,7 +1837,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       url.searchParams.delete('catalog_type');
       window.history.replaceState({ tab: 'items', action: 'new' }, '', url.toString());
     } catch {}
-  }, []);
+  }, [productForm, showCustomClassInput, customClass]);
 
   // Sub-workflow Back Interceptor 1 (Step 2 -> Step 1):
   // When merchant is in Step 2 (Product Input Form) during new product creation,

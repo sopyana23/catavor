@@ -192,6 +192,12 @@ import {
   hasValidSessionToken,
   clearRegistrationDrafts
 } from './utils/authSync'
+import {
+  createInitialTypeDrafts,
+  snapshotTypeDraft,
+  restoreTypeDraft,
+  type MultiTypeDraftBuffer
+} from './utils/catalogDraftBuffer'
 
 export interface UserStoreSummary {
   id: number;
@@ -9140,6 +9146,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
     return getInitialCrudForm(initialType);
   });
 
+  // Scoped Multi-Type Draft Buffer: preserves canonical item inputs & isolates per-type attributes across switches
+  const typeDraftsRef = useRef<MultiTypeDraftBuffer>(createInitialTypeDrafts('physical'));
+
   // Multi-image management states (Deferred Upload Architecture)
   const [crudImages, setCrudImages] = useState<string[]>([''])
   const [crudImageFiles, setCrudImageFiles] = useState<(File | null)[]>([null])
@@ -9247,7 +9256,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
       });
     }
-    setCrudForm(getInitialCrudForm(type));
+    const initialForm = getInitialCrudForm(type);
+    typeDraftsRef.current = createInitialTypeDrafts(
+      type,
+      initialForm.class,
+      initialForm.attributes,
+      initialForm.shipping_coverage,
+      initialForm.conservation_status
+    );
+    setCrudForm(initialForm);
     setCrudImages(['']);
     setCrudImageFiles([null]);
     setUploadProgressText(null);
@@ -13970,6 +13987,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
         delivery_condition: item.attributes?.delivery_condition ?? 'Tanaman + Pot Asli & Media'
       }
     })
+    typeDraftsRef.current = createInitialTypeDrafts(
+      itemType,
+      item.class || typeConfig.defaultCategory,
+      item.attributes,
+      item.detailed_info?.shipping_coverage || (item.is_shipping_available ? 'Bisa Kirim se-Indonesia' : 'Ambil Sendiri di Toko (No Shipping)'),
+      item.conservation_status || getAvailabilityStatusOptions(itemType)[0].value
+    );
     setCustomClass('')
     setShowCustomClassInput(false)
     setCustomHabitat('')
@@ -29785,20 +29809,48 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           key={cat.id}
                           type="button"
                           onClick={() => {
-                            const newConfig = getItemTypeFormConfig(cat.id as ItemCategoryType);
-                            const validCategories = getCategoryOptionsForType(cat.id as ItemCategoryType);
-                            const isFromOtherTypeDefault = (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[])
-                              .some(otherType => otherType !== cat.id && DEFAULT_MASTER_CATEGORIES[otherType].includes(crudForm.class));
-                            const nextClass = (crudForm.class && validCategories.includes(crudForm.class) && !isFromOtherTypeDefault)
-                              ? crudForm.class
-                              : newConfig.defaultCategory;
+                            if (crudForm.product_type === cat.id) return;
+                            const targetType = cat.id as ItemCategoryType;
+                            
+                            // 1. Snapshot current type-specific inputs into buffer
+                            typeDraftsRef.current = snapshotTypeDraft(
+                              crudForm.product_type,
+                              showCustomClassInput ? customClass.trim() : crudForm.class,
+                              showCustomShippingCoverageInput ? customShippingCoverage.trim() : crudForm.shipping_coverage,
+                              showCustomConservationStatusInput ? customConservationStatus.trim() : crudForm.conservation_status,
+                              crudForm.attributes,
+                              showCustomClassInput ? customClass.trim() : '',
+                              typeDraftsRef.current
+                            );
 
+                            // 2. Restore target type-specific inputs from buffer
+                            const targetDraft = restoreTypeDraft(targetType, typeDraftsRef.current);
+                            const targetConfig = getItemTypeFormConfig(targetType);
+
+                            // 3. Update form state: canonical common data (name, price, images, desc) is preserved 100%
                             setCrudForm(prev => ({
                               ...prev,
-                              product_type: cat.id as ItemCategoryType,
-                              class: nextClass,
-                              shipping_coverage: prev.shipping_coverage === typeConfig.deliveryOptions[0] ? newConfig.deliveryOptions[0] : prev.shipping_coverage
+                              product_type: targetType,
+                              class: targetDraft.class || targetConfig.defaultCategory,
+                              shipping_coverage: targetDraft.shipping_coverage || targetConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
+                              conservation_status: targetDraft.conservation_status || getAvailabilityStatusOptions(targetType)[0].value,
+                              attributes: {
+                                ...prev.attributes,
+                                ...targetDraft.attributes
+                              }
                             }));
+
+                            // 4. Restore custom category input state if previously used for this type
+                            if (targetDraft.customClass) {
+                              setCustomClass(targetDraft.customClass);
+                              setShowCustomClassInput(true);
+                            } else {
+                              setCustomClass('');
+                              setShowCustomClassInput(false);
+                            }
+
+                            // 5. Tactile micro-feedback toast
+                            showToast(`Format beralih ke ${cat.name}. Data umum & foto dipertahankan.`, 'info');
                           }}
                           style={{
                             display: 'flex',

@@ -175,6 +175,12 @@ import {
   appendViewParam,
   clearRegistrationDrafts
 } from './utils/authSync'
+import {
+  createInitialTypeDrafts,
+  snapshotTypeDraft,
+  restoreTypeDraft,
+  type MultiTypeDraftBuffer
+} from './utils/catalogDraftBuffer'
 
 export interface UserStoreSummary {
   id: number;
@@ -9197,6 +9203,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
     return getInitialCrudForm(initialType);
   });
 
+  // Scoped Multi-Type Draft Buffer: preserves canonical item inputs & isolates per-type attributes across switches
+  const typeDraftsRef = useRef<MultiTypeDraftBuffer>(createInitialTypeDrafts('physical'));
+
   const resetCrudState = (type: ItemCategoryType = 'physical') => {
     // Revoke any pending ObjectURLs to prevent browser memory leaks
     if (crudImages && Array.isArray(crudImages)) {
@@ -9206,7 +9215,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
       });
     }
-    setCrudForm(getInitialCrudForm(type));
+    const initialForm = getInitialCrudForm(type);
+    typeDraftsRef.current = createInitialTypeDrafts(
+      type,
+      initialForm.class,
+      initialForm.attributes,
+      initialForm.shipping_coverage,
+      initialForm.conservation_status
+    );
+    setCrudForm(initialForm);
     setCrudImages(['']);
     setCrudImageFiles([null]);
     setUploadProgressText(null);
@@ -14208,23 +14225,32 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
     // If changing type from within an active form session, adapt type & defaults while preserving user input
     if (isChangingTypeInEditor) {
+      const targetDraft = restoreTypeDraft(type, typeDraftsRef.current);
       setCrudForm(prev => {
-        const validCategories = getCategoryOptionsForType(type);
-        const isFromOtherTypeDefault = (Object.keys(DEFAULT_MASTER_CATEGORIES) as ItemCategoryType[])
-          .some(otherType => otherType !== type && DEFAULT_MASTER_CATEGORIES[otherType].includes(prev.class));
-        const nextClass = (prev.class && validCategories.includes(prev.class) && !isFromOtherTypeDefault)
-          ? prev.class
-          : typeConfig.defaultCategory;
-
         return {
           ...prev,
           product_type: type,
-          class: nextClass,
-          shipping_coverage: prev.shipping_coverage === 'Bisa Kirim se-Indonesia' ? (foodPreset ? foodPreset.defaultShipping : typeConfig.deliveryOptions[0]) : prev.shipping_coverage
+          class: targetDraft.class || typeConfig.defaultCategory,
+          shipping_coverage: targetDraft.shipping_coverage || typeConfig.deliveryOptions[0] || 'Bisa Kirim se-Indonesia',
+          conservation_status: targetDraft.conservation_status || getAvailabilityStatusOptions(type)[0].value,
+          attributes: {
+            ...prev.attributes,
+            ...targetDraft.attributes
+          }
         };
       });
+
+      if (targetDraft.customClass) {
+        setCustomClass(targetDraft.customClass);
+        setShowCustomClassInput(true);
+      } else {
+        setCustomClass('');
+        setShowCustomClassInput(false);
+      }
+
       setIsChangingTypeInEditor(false);
       setView('fauna-editor');
+      showToast(`Format katalog beralih ke ${typeConfig.typeName}. Data umum & foto dipertahankan.`, 'info');
       return;
     }
 
@@ -14399,6 +14425,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         delivery_condition: item.attributes?.delivery_condition || 'Kirim Bersama Pot & Media Tanam'
       }
     })
+    typeDraftsRef.current = createInitialTypeDrafts(
+      itemType,
+      item.class || typeConfig.defaultCategory,
+      item.attributes,
+      item.detailed_info?.shipping_coverage || (item.is_shipping_available ? typeConfig.deliveryOptions[0] : 'Ambil Sendiri di Toko (No Shipping)'),
+      item.conservation_status || getAvailabilityStatusOptions(itemType)[0].value
+    );
     setCustomClass('')
     setShowCustomClassInput(false)
     setCustomHabitat('')
@@ -21015,6 +21048,15 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 <button
                   type="button"
                   onClick={() => {
+                    typeDraftsRef.current = snapshotTypeDraft(
+                      crudForm.product_type,
+                      showCustomClassInput ? customClass.trim() : crudForm.class,
+                      showCustomShippingCoverageInput ? customShippingCoverage.trim() : crudForm.shipping_coverage,
+                      showCustomConservationStatusInput ? customConservationStatus.trim() : crudForm.conservation_status,
+                      crudForm.attributes,
+                      showCustomClassInput ? customClass.trim() : '',
+                      typeDraftsRef.current
+                    );
                     setIsChangingTypeInEditor(true);
                     setShowProductTypeSelector(true);
                     setView('product-type-selector');
