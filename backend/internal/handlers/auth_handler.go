@@ -942,13 +942,17 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 
 		if paymentSystemMode == "gateway_aulaa" && finalAmount > 0 {
+			subOrder.PaymentMode = "gateway_aulaa"
 			subOrder.GatewayProvider = "aulaa"
 			aulaaCfg := services.GetAulaaConfig(h.db)
 			if aulaaCfg.APIKey != "" && !strings.Contains(aulaaCfg.APIKey, "xxxxxxxx") {
-				redirectURL := fmt.Sprintf("/%s/admin?payment=success&order_number=%s", newStore.Slug, orderNumber)
-				if h.cfg != nil && h.cfg.AppURL != "" {
-					redirectURL = fmt.Sprintf("%s/%s/admin?payment=success&order_number=%s", strings.TrimRight(h.cfg.AppURL, "/"), newStore.Slug, orderNumber)
+				baseOrigin := ""
+				if h.cfg != nil && strings.TrimSpace(h.cfg.AppURL) != "" {
+					baseOrigin = strings.TrimRight(h.cfg.AppURL, "/")
+				} else {
+					baseOrigin = strings.TrimRight(c.BaseURL(), "/")
 				}
+				redirectURL := fmt.Sprintf("%s/%s/admin?payment=success&order_number=%s", baseOrigin, newStore.Slug, orderNumber)
 				aulaaResp, aErr := services.CreateAulaaPayment(aulaaCfg, services.AulaaCreatePaymentRequest{
 					OrderID:       orderNumber,
 					Amount:        finalAmount,

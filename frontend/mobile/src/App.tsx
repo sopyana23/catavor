@@ -4736,6 +4736,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
   const mobileHandleStoreBannedEvictionRef = useRef<((bannedSlug?: string, customMessage?: string) => void) | null>(null);
   // checkTokenValidity dideklarasikan setelah effect resync, jadi aksesnya via ref
   const mobileCheckTokenValidityRef = useRef<((force?: boolean) => void) | null>(null);
+  const mobileFetchMyQuotaRef = useRef<((force?: boolean) => void) | null>(null);
   const mobileVerifiedTokenRef = useRef<string | null>(null);
   const mobileLastTokenCheckTimeRef = useRef<number>(0);
   const mobileLastQuotaFetchTimeRef = useRef<number>(0);
@@ -6207,7 +6208,7 @@ Terima kasih.`;
     }
   }, [storeSlug])
 
-  // Check 1-Click Reactivation URL Parameter (?reactivated=true)
+  // Check 1-Click Reactivation URL Parameter (?reactivated=true) & Gateway Return (?payment=success)
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search)
@@ -6221,6 +6222,35 @@ Terima kasih.`;
           dormancy_status: 'active',
           last_activity_at: new Date().toISOString()
         }))
+      }
+
+      if (params.get('payment') === 'success') {
+        const ord = params.get('order_number')
+        showToast(ord ? `Pembayaran Anda (${ord}) berhasil diverifikasi! Paket toko telah aktif.` : 'Pembayaran Anda berhasil diverifikasi! Paket toko telah aktif.', 'success')
+        if (ord) {
+          const liveToken = localStorage.getItem('catavor_token') || localStorage.getItem('token') || token
+          fetch(`/api/subscription/orders/${encodeURIComponent(ord)}/sync`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              ...(liveToken ? { 'Authorization': `Bearer ${liveToken}` } : {})
+            }
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.quota) {
+                setStoreQuota(data.quota)
+              }
+              if (mobileFetchMyQuotaRef.current) {
+                mobileFetchMyQuotaRef.current(true)
+              }
+            })
+            .catch(() => {})
+        }
+        params.delete('payment')
+        params.delete('order_number')
+        const newQuery = params.toString() ? `?${params.toString()}` : ''
+        window.history.replaceState({}, '', `${window.location.pathname}${newQuery}`)
       }
     } catch {}
   }, [])
@@ -11187,6 +11217,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       console.warn('Failed to fetch quota data:', err);
     }
   };
+  mobileFetchMyQuotaRef.current = fetchMyQuota;
 
   const fetchSubscriptionPlans = async (forceFresh: boolean = false) => {
     try {
@@ -13044,13 +13075,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setToken(data.token);
         setAdminUser(data.user);
         setIsPasswordChanged(true);
+        if (data.user?.store_slug) {
+          saveUserActiveSlug(data.user.id, data.user.store_slug);
+          localStorage.setItem('catavor_active_slug', data.user.store_slug);
+        }
         if (data.payment_url) {
           window.location.href = data.payment_url;
           return;
         }
         if (data.user?.store_slug) {
-          saveUserActiveSlug(data.user.id, data.user.store_slug);
-          localStorage.setItem('catavor_active_slug', data.user.store_slug);
           window.location.href = `/${data.user.store_slug}/admin`;
           return;
         }

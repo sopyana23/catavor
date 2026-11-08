@@ -696,7 +696,25 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		if aulaaCfg.APIKey != "" && !strings.Contains(aulaaCfg.APIKey, "xxxxxxxx") {
 			redirectURL := strings.TrimSpace(req.RedirectURL)
 			if redirectURL == "" {
-				redirectURL = fmt.Sprintf("/admin/subscription?order_number=%s", orderNumber)
+				redirectURL = fmt.Sprintf("/admin/subscription?payment=success&order_number=%s", orderNumber)
+			} else {
+				if parsed, err := url.Parse(redirectURL); err == nil {
+					q := parsed.Query()
+					if q.Get("payment") == "" {
+						q.Set("payment", "success")
+					}
+					if q.Get("order_number") == "" {
+						q.Set("order_number", orderNumber)
+					}
+					parsed.RawQuery = q.Encode()
+					redirectURL = parsed.String()
+				} else {
+					separator := "?"
+					if strings.Contains(redirectURL, "?") {
+						separator = "&"
+					}
+					redirectURL = fmt.Sprintf("%s%spayment=success&order_number=%s", redirectURL, separator, orderNumber)
+				}
 			}
 			aulaaResp, err := CreateAulaaPayment(aulaaCfg, AulaaCreatePaymentRequest{
 				OrderID:       orderNumber,

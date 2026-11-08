@@ -4692,6 +4692,26 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       if (params.get('payment') === 'success') {
         const ord = params.get('order_number');
         showToast(ord ? `Pembayaran Anda (${ord}) berhasil diverifikasi! Paket toko telah aktif.` : 'Pembayaran Anda berhasil diverifikasi! Paket toko telah aktif.', 'success');
+        if (ord) {
+          const liveToken = localStorage.getItem('catavor_token') || localStorage.getItem('token') || token;
+          fetch(`/api/subscription/orders/${encodeURIComponent(ord)}/sync`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              ...(liveToken ? { 'Authorization': `Bearer ${liveToken}` } : {})
+            }
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.quota) {
+                setStoreQuota(data.quota);
+              }
+              if (desktopFetchMyQuotaRef.current) {
+                desktopFetchMyQuotaRef.current();
+              }
+            })
+            .catch(() => {});
+        }
         params.delete('payment');
         params.delete('order_number');
         const newQuery = params.toString() ? `?${params.toString()}` : '';
@@ -4700,6 +4720,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     } catch {}
   }, []);
 
+  const desktopFetchMyQuotaRef = useRef<(() => void) | null>(null);
   const desktopActiveTicketRef = useRef<string | number | null>(null);
   const desktopFetchTicketDetailsRef = useRef<((id: string | number) => void) | null>(null);
   const desktopFetchSupportTicketsRef = useRef<((silent?: boolean, page?: number) => void) | null>(null);
@@ -10725,6 +10746,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       console.warn('Failed to fetch quota data:', err);
     }
   };
+  desktopFetchMyQuotaRef.current = fetchMyQuota;
 
   const fetchSubscriptionPlans = async (forceFresh: boolean = false) => {
     try {
@@ -12651,6 +12673,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       if (res.ok && data.success) {
         localStorage.setItem('catavor_token', data.token);
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
+        if (data.stores && Array.isArray(data.stores)) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+        }
+        if (data.user?.store_slug) {
+          localStorage.setItem('catavor_active_slug', data.user.store_slug);
+        }
         localStorage.setItem('catavor_password_changed', 'true');
 
         const initialTheme = data.user?.store_theme || 'navy';

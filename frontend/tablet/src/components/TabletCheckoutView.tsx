@@ -458,6 +458,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
         billing_cycle: registerBillingCycle,
         coupon_code: appliedCoupon?.code || '',
         payment_method: effectivePaymentMethod,
+        payment_mode: isFreeBypass ? 'free' : (isAulaa ? 'gateway_aulaa' : (paymentMethod === 'qris' ? 'manual_qris' : 'manual_bank')),
         payment_status: isFreeBypass ? 'approved' : 'pending_approval',
         payment_proof_url: isFreeBypass ? null : paymentProofPreview,
         payment_note: paymentProofNote ? paymentProofNote.trim() : undefined,
@@ -492,6 +493,13 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
           setCreatedUserData(data.user);
         }
+        if (data.stores && Array.isArray(data.stores)) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+        }
+        if (data.user?.store_slug) {
+          localStorage.setItem('catavor_active_slug', data.user.store_slug);
+        }
+        localStorage.setItem('catavor_password_changed', 'true');
 
         if (data.payment_url) {
           window.location.href = data.payment_url;

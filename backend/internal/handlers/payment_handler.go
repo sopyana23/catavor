@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,17 +38,22 @@ func (h *PaymentHandler) HandleAulaaWebhook(c *fiber.Ctx) error {
 	sigHeader := c.Get("X-Webhook-Signature")
 
 	aulaaCfg := services.GetAulaaConfig(h.db)
-	if aulaaCfg.WebhookSecret != "" {
-		if !services.VerifyAulaaSignature(rawBody, sigHeader, aulaaCfg.WebhookSecret) {
-			log.Warn().
-				Str("received_sig", sigHeader).
-				Str("ip", c.IP()).
-				Msg("payment_webhook: invalid Aulaa HMAC signature rejected")
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"success": false,
-				"message": "Signature webhook tidak valid.",
-			})
-		}
+	if strings.TrimSpace(aulaaCfg.WebhookSecret) == "" {
+		log.Error().Msg("payment_webhook: aulaa_webhook_secret belum dikonfigurasi di pengaturan platform")
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Webhook secret gateway belum dikonfigurasi pada sistem.",
+		})
+	}
+	if strings.TrimSpace(sigHeader) == "" || !services.VerifyAulaaSignature(rawBody, sigHeader, aulaaCfg.WebhookSecret) {
+		log.Warn().
+			Str("received_sig", sigHeader).
+			Str("ip", c.IP()).
+			Msg("payment_webhook: invalid or missing Aulaa HMAC signature rejected")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Signature webhook tidak valid atau tidak disertakan.",
+		})
 	}
 
 	var payload services.AulaaWebhookPayload
@@ -89,6 +95,20 @@ func (h *PaymentHandler) HandleAulaaWebhook(c *fiber.Ctx) error {
 
 		cleanStatus := strings.ToLower(strings.TrimSpace(payload.Status))
 		if cleanStatus == "paid" {
+			// Validasi nominal pembayaran untuk mencegah manipulasi underpayment
+			if payload.Amount > 0 && payload.Amount < order.FinalAmount {
+				tx.Rollback()
+				log.Warn().
+					Float64("payload_amount", payload.Amount).
+					Float64("order_amount", order.FinalAmount).
+					Str("order_number", order.OrderNumber).
+					Msg("payment_webhook: nominal pembayaran lebih kecil dari tagihan (underpayment)")
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"success": false,
+					"message": "Nominal pembayaran tidak mencukupi nilai tagihan.",
+				})
+			}
+
 			now := time.Now().UTC()
 			order.PaymentStatus = "paid"
 			order.PaidAt = &now
@@ -177,6 +197,20 @@ func (h *PaymentHandler) HandleAulaaWebhook(c *fiber.Ctx) error {
 
 	cleanStatus := strings.ToLower(strings.TrimSpace(payload.Status))
 	if cleanStatus == "paid" {
+		// Validasi nominal pembayaran iklan
+		if payload.Amount > 0 && payload.Amount < adOrder.FinalAmount {
+			tx.Rollback()
+			log.Warn().
+				Float64("payload_amount", payload.Amount).
+				Float64("order_amount", adOrder.FinalAmount).
+				Str("order_number", adOrder.OrderNumber).
+				Msg("payment_webhook: nominal pembayaran sewa iklan lebih kecil dari tagihan")
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Nominal pembayaran sewa iklan tidak mencukupi nilai tagihan.",
+			})
+		}
+
 		now := time.Now().UTC()
 		adOrder.PaymentStatus = "paid"
 		adOrder.PaidAt = &now
@@ -255,35 +289,50 @@ func (h *PaymentHandler) SyncOrderStatus(c *fiber.Ctx) error {
 		})
 	}
 
-	orderIDVal, err := c.ParamsInt("id")
-	if err != nil || orderIDVal <= 0 {
+	idOrNumber := strings.TrimSpace(c.Params("id"))
+	if idOrNumber == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": "ID pesanan tidak valid.",
+			"message": "ID atau nomor pesanan tidak valid.",
 		})
 	}
 
 	var order models.SubscriptionOrder
-	if err := h.db.First(&order, uint(orderIDVal)).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"success": false,
-			"message": "Pesanan tidak ditemukan.",
-		})
+	if numID, err := strconv.Atoi(idOrNumber); err == nil && numID > 0 {
+		if err := h.db.First(&order, uint(numID)).Error; err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"message": "Pesanan tidak ditemukan.",
+			})
+		}
+	} else {
+		if err := h.db.Where("order_number = ?", idOrNumber).First(&order).Error; err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Pesanan '%s' tidak ditemukan.", idOrNumber),
+			})
+		}
 	}
 
 	if order.PaymentStatus == "paid" {
+		quota, _ := services.GetStoreQuotaInfo(h.db, order.StoreID)
 		return c.JSON(fiber.Map{
 			"success": true,
 			"message": "Pesanan sudah berstatus lunas.",
 			"data":    order,
+			"order":   order,
+			"quota":   quota,
 		})
 	}
 
 	if order.GatewayReference == "" || order.GatewayProvider != "aulaa" {
+		quota, _ := services.GetStoreQuotaInfo(h.db, order.StoreID)
 		return c.JSON(fiber.Map{
 			"success": true,
 			"message": "Pesanan ini menggunakan verifikasi manual atau belum terhubung gateway.",
 			"data":    order,
+			"order":   order,
+			"quota":   quota,
 		})
 	}
 
