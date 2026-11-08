@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/sha256"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -67,6 +68,7 @@ type TrackEventRequest struct {
 	StoreSlug   string                 `json:"store_slug"`
 	Event       string                 `json:"event"`        // store_view | product_view | direct_wa_click | marketplace_click | rekber_click | video_view
 	ProductID   uint                   `json:"product_id"`   // optional product ID
+	ProductName string                 `json:"product_name"` // optional product name for live activity feed
 	ProductType string                 `json:"product_type"` // optional product type
 	SessionID   string                 `json:"session_id"`   // Anonymous session token (CGNAT resilience)
 	Source      string                 `json:"source"`       // instagram, tiktok, whatsapp, facebook, google, marketplace, direct, other
@@ -256,27 +258,64 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 		cleanSource = ref
 	}
 
-	// Extract optional city / country if provided by CDN / headers or client metadata
+	// Extract optional city / country / product_name if provided by CDN / headers or client metadata
 	city := ""
 	country := ""
+	productName := strings.TrimSpace(req.ProductName)
+	tz := ""
 	if req.Metadata != nil {
 		if ct, ok := req.Metadata["city"].(string); ok {
-			city = ct
+			city = strings.TrimSpace(ct)
 		}
 		if cy, ok := req.Metadata["country"].(string); ok {
-			country = cy
+			country = strings.TrimSpace(cy)
+		}
+		if productName == "" {
+			if pn, ok := req.Metadata["product_name"].(string); ok {
+				productName = strings.TrimSpace(pn)
+			}
+		}
+		if tzVal, ok := req.Metadata["timezone"].(string); ok {
+			tz = strings.TrimSpace(tzVal)
 		}
 	}
 	if city == "" {
-		if cHeader := c.Get("CF-IPCity"); cHeader != "" {
-			city = cHeader
-		} else if cHeader := c.Get("X-City"); cHeader != "" {
-			city = cHeader
+		for _, hdr := range []string{"CF-IPCity", "X-Vercel-IP-City", "X-AppEngine-City", "CloudFront-Viewer-City", "X-Geo-City", "X-City"} {
+			if val := strings.TrimSpace(c.Get(hdr)); val != "" {
+				city = val
+				break
+			}
+		}
+	}
+	if city == "" && tz != "" {
+		// Intelligent timezone-based regional fallback when reverse-proxy GeoIP headers are absent
+		switch strings.ToLower(tz) {
+		case "asia/jakarta":
+			city = "Indonesia (WIB)"
+		case "asia/pontianak":
+			city = "Kalimantan Barat (WIB)"
+		case "asia/makassar", "asia/ujung_pandang":
+			city = "Indonesia Tengah (WITA)"
+		case "asia/jayapura":
+			city = "Indonesia Timur (WIT)"
+		case "asia/singapore":
+			city = "Singapura"
+		case "asia/kuala_lumpur", "asia/kuching":
+			city = "Malaysia"
+		case "asia/bangkok":
+			city = "Bangkok"
+		case "asia/tokyo":
+			city = "Tokyo"
+		case "australia/sydney", "australia/melbourne", "australia/perth":
+			city = "Australia"
 		}
 	}
 	if country == "" {
-		if cHeader := c.Get("CF-IPCountry"); cHeader != "" {
-			country = cHeader
+		for _, hdr := range []string{"CF-IPCountry", "X-Vercel-IP-Country", "CloudFront-Viewer-Country", "X-Country"} {
+			if val := strings.TrimSpace(c.Get(hdr)); val != "" {
+				country = val
+				break
+			}
 		}
 	}
 
@@ -288,6 +327,7 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 			StoreSlug:   slug,
 			Event:       event,
 			ProductID:   req.ProductID,
+			ProductName: productName,
 			ProductType: req.ProductType,
 			ClientIP:    clientIP,
 			SessionID:   sessionToken,
@@ -445,6 +485,15 @@ func fetchAudienceDimensions(db *gorm.DB, storeID uint, startDate string) (
 			}
 			res = append(res, item)
 		}
+		sort.Slice(res, func(i, j int) bool {
+			if res[i].Views != res[j].Views {
+				return res[i].Views > res[j].Views
+			}
+			if res[i].TotalActions != res[j].TotalActions {
+				return res[i].TotalActions > res[j].TotalActions
+			}
+			return res[i].Name < res[j].Name
+		})
 		return res
 	}
 
@@ -579,6 +628,12 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
 	db := h.db
 
+	// Flush any pending in-memory telemetry buffers before querying SQL for 100% read-after-write consistency
+	telemetrySvc := services.GetStoreTelemetryService()
+	if telemetrySvc != nil {
+		telemetrySvc.FlushNow()
+	}
+
 	// Query daily analytics for store
 	var dailyRecords []models.StoreDailyAnalytics
 	if err := db.Where("store_id = ? AND date >= ?", store.ID, startDate).
@@ -594,6 +649,7 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	recordMap := make(map[string]models.StoreDailyAnalytics)
 	totalStoreViews := 0
 	totalUniqueVisitors := 0
+	totalPeriodProductViews := 0
 	totalBounces := 0
 	totalDirectWa := 0
 	totalMarketplace := 0
@@ -605,6 +661,7 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		recordMap[r.Date] = r
 		totalStoreViews += r.StoreViews
 		totalUniqueVisitors += r.UniqueVisitors
+		totalPeriodProductViews += r.ProductViews
 		totalBounces += r.Bounces
 		directWa := r.DirectWaClicks
 		if directWa == 0 && r.WaClicks > 0 {
@@ -792,11 +849,29 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 			prodTypeSummaries = append(prodTypeSummaries, *pt)
 		}
 	}
+	sort.Slice(prodTypeSummaries, func(i, j int) bool {
+		if prodTypeSummaries[i].Views != prodTypeSummaries[j].Views {
+			return prodTypeSummaries[i].Views > prodTypeSummaries[j].Views
+		}
+		if prodTypeSummaries[i].TotalActions != prodTypeSummaries[j].TotalActions {
+			return prodTypeSummaries[i].TotalActions > prodTypeSummaries[j].TotalActions
+		}
+		return prodTypeSummaries[i].TypeName < prodTypeSummaries[j].TypeName
+	})
 
 	categories := make([]CategoryMetricSummary, 0, len(categoryMap))
 	for _, cSummary := range categoryMap {
 		categories = append(categories, *cSummary)
 	}
+	sort.Slice(categories, func(i, j int) bool {
+		if categories[i].Views != categories[j].Views {
+			return categories[i].Views > categories[j].Views
+		}
+		if categories[i].TotalActions != categories[j].TotalActions {
+			return categories[i].TotalActions > categories[j].TotalActions
+		}
+		return categories[i].Category < categories[j].Category
+	})
 
 	// Channel distribution breakdown
 	channelDist := fiber.Map{
@@ -946,25 +1021,38 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		}
 		trafficSources = append(trafficSources, *sm)
 	}
+	sort.Slice(trafficSources, func(i, j int) bool {
+		if trafficSources[i].Views != trafficSources[j].Views {
+			return trafficSources[i].Views > trafficSources[j].Views
+		}
+		if trafficSources[i].TotalActions != trafficSources[j].TotalActions {
+			return trafficSources[i].TotalActions > trafficSources[j].TotalActions
+		}
+		return trafficSources[i].Name < trafficSources[j].Name
+	})
 
-	// Conversion Funnel metrics
+	// Conversion Funnel metrics (Prefer period-scoped product views; fallback to active product total for legacy data)
+	funnelProductViews := totalPeriodProductViews
+	if funnelProductViews <= 0 && totalProductViews > 0 {
+		funnelProductViews = int(totalProductViews)
+	}
 	viewToProdRate := 0.0
 	if totalStoreViews > 0 {
-		viewToProdRate = (float64(totalProductViews) / float64(totalStoreViews)) * 100.0
+		viewToProdRate = (float64(funnelProductViews) / float64(totalStoreViews)) * 100.0
 		if viewToProdRate > 100.0 {
 			viewToProdRate = 100.0
 		}
 	}
 	prodToActionRate := 0.0
-	if totalProductViews > 0 {
-		prodToActionRate = (float64(totalActions) / float64(totalProductViews)) * 100.0
+	if funnelProductViews > 0 {
+		prodToActionRate = (float64(totalActions) / float64(funnelProductViews)) * 100.0
 		if prodToActionRate > 100.0 {
 			prodToActionRate = 100.0
 		}
 	}
 	funnelData := ConversionFunnelSummary{
 		StoreViews:            totalStoreViews,
-		ProductViews:          int(totalProductViews),
+		ProductViews:          funnelProductViews,
 		TotalActions:          totalActions,
 		ViewToProductRate:     viewToProdRate,
 		ProductToActionRate:   prodToActionRate,
@@ -980,7 +1068,6 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	}
 
 	devices, operatingSystems, browsers, locations, hourlyHeatmap, campaigns := fetchAudienceDimensions(db, store.ID, startDate)
-	telemetrySvc := services.GetStoreTelemetryService()
 	var recentVisitors []services.RecentVisitorDTO
 	if telemetrySvc != nil {
 		recentVisitors = telemetrySvc.GetRecentVisitors(store.ID, 30)
@@ -1256,6 +1343,10 @@ func (h *AnalyticsHandler) GetGlobalAnalyticsOverview(c *fiber.Ctx) error {
 
 	startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
 	db := h.db
+
+	if telemetrySvc := services.GetStoreTelemetryService(); telemetrySvc != nil {
+		telemetrySvc.FlushNow()
+	}
 
 	// 1. Total Platform Telemetry Aggregates
 	type aggResult struct {

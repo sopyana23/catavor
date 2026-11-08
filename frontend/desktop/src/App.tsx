@@ -7169,10 +7169,12 @@ Terima kasih.`;
     const sid = getAnonymousSessionId();
     const attr = getTrafficAttribution();
     try {
+      const resolvedProductName = metadata?.product_name || (productId && selectedFauna?.id === productId ? selectedFauna?.name : '') || '';
       const payload = {
         store_slug: currentSlug,
         event: eventType,
         product_id: productId || 0,
+        product_name: resolvedProductName,
         product_type: productType,
         session_id: sid,
         source: attr.source,
@@ -7180,6 +7182,7 @@ Terima kasih.`;
         campaign: attr.campaign,
         metadata: {
           ...metadata,
+          product_name: resolvedProductName,
           referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
           timezone: typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '',
           screen_width: typeof window !== 'undefined' ? window.screen?.width : 0,
@@ -18822,6 +18825,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         if (itemWA.cleanNumber) {
                           if (isStoreOwner) {
                             showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
+                          } else {
+                            trackAnalytics('direct_wa_click', selectedFauna.id, selectedFauna.product_type, { product_name: selectedFauna.name });
                           }
                           const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n*${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon informasi detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
                           window.open(buildWALink(itemWA.cleanNumber, message), '_blank', 'noopener,noreferrer');
@@ -32563,6 +32568,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                 href={link.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={() => {
+                                  if (!isStoreOwner) {
+                                    trackAnalytics('marketplace_click', selectedFauna.id, selectedFauna.product_type, { product_name: selectedFauna.name, platform: link.platform });
+                                  }
+                                }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
                               >
                                 <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -32593,6 +32603,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                 href={normalizedLinks[0].url}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={() => {
+                                  if (!isStoreOwner) {
+                                    trackAnalytics('marketplace_click', selectedFauna.id, selectedFauna.product_type, { product_name: selectedFauna.name, platform: normalizedLinks[0].platform });
+                                  }
+                                }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1.15rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
                               >
                                 <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

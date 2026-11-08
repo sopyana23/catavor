@@ -6893,11 +6893,13 @@ Terima kasih.`;
 
       const sid = getMobileAnonymousSessionId();
       const attr = getMobileTrafficAttribution();
+      const resolvedProductName = metadata?.product_name || (productId && selectedFauna?.id === productId ? selectedFauna.name : undefined) || (productId ? faunas.find(f => f.id === productId)?.name : undefined) || '';
 
       const payload = {
         store_slug: slug,
         event,
         product_id: productId,
+        product_name: resolvedProductName,
         product_type: productType,
         session_id: sid,
         source: attr.source,
@@ -6905,6 +6907,7 @@ Terima kasih.`;
         campaign: attr.campaign,
         metadata: {
           ...metadata,
+          product_name: resolvedProductName,
           referrer: typeof document !== 'undefined' ? document.referrer || '' : '',
           timezone: typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '',
           screen_width: typeof window !== 'undefined' ? window.screen?.width : 0,
@@ -19893,6 +19896,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           if (itemWA.cleanNumber) {
                             if (isStoreOwner) {
                               showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
+                            } else {
+                              trackAnalytics('direct_wa_click', selectedFauna.id, selectedFauna.product_type, { product_name: selectedFauna.name });
                             }
                             const message = `Halo *${settings.store_title || 'Catavor'}*, saya tertarik dengan listing properti berikut:\n*${selectedFauna.name}* (${selectedFauna.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(selectedFauna.price)})\n\nMohon info detail mengenai kelengkapan dokumen/legalitas serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
                             window.open(buildWALink(itemWA.cleanNumber, message), '_blank', 'noopener,noreferrer');
@@ -20102,6 +20107,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       href={link.url}
                                       target="_blank"
                                       rel="noopener noreferrer"
+                                      onClick={() => {
+                                        if (!isStoreOwner) {
+                                          trackAnalytics('marketplace_click', selectedFauna.id, selectedFauna.product_type, { platform: link.platform, product_name: selectedFauna.name });
+                                        }
+                                      }}
                                       style={{
                                         display: 'flex',
                                         alignItems: 'center',
@@ -20144,6 +20154,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       href={normalizedLinks[0].url}
                                       target="_blank"
                                       rel="noopener noreferrer"
+                                      onClick={() => {
+                                        if (!isStoreOwner) {
+                                          trackAnalytics('marketplace_click', selectedFauna.id, selectedFauna.product_type, { platform: normalizedLinks[0].platform, product_name: selectedFauna.name });
+                                        }
+                                      }}
                                       style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
                                     >
                                       <div style={{ width: '36px', height: '36px', borderRadius: '0.5rem', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -20190,7 +20205,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         if (isStoreOwner) {
                                           showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
                                         } else {
-                                          trackAnalytics('rekber_click', selectedFauna.id, selectedFauna.product_type);
+                                          trackAnalytics('rekber_click', selectedFauna.id, selectedFauna.product_type, { product_name: selectedFauna.name });
                                         }
                                       }}
                                       style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
@@ -20253,6 +20268,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       onClick={() => {
                                         if (isStoreOwner) {
                                           showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
+                                        } else {
+                                          trackAnalytics('direct_wa_click', selectedFauna.id, selectedFauna.product_type, { product_name: selectedFauna.name });
                                         }
                                       }}
                                       style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.85rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card-hover)', color: 'var(--text-primary)', textDecoration: 'none', transition: 'var(--transition-smooth)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}

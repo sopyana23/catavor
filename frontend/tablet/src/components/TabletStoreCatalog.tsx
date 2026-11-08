@@ -431,10 +431,25 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   const trackAnalytics = useCallback((
     event: 'store_view' | 'product_view' | 'direct_wa_click' | 'marketplace_click' | 'rekber_click' | 'video_view',
     productId?: number,
-    productType?: string
+    productType?: string,
+    productName?: string
   ) => {
     if (!slug) return;
     try {
+      // Do not track store owner's own preview activity
+      const token = localStorage.getItem('catavor_token');
+      if (token) {
+        const activeSlug = localStorage.getItem('catavor_active_slug');
+        if (activeSlug && activeSlug.toLowerCase() === slug.toLowerCase()) return;
+        const rawStores = localStorage.getItem('catavor_stores');
+        if (rawStores) {
+          const parsedStores = JSON.parse(rawStores);
+          if (Array.isArray(parsedStores) && parsedStores.some((s: any) => s?.slug?.toLowerCase() === slug.toLowerCase())) {
+            return;
+          }
+        }
+      }
+
       let sid = sessionStorage.getItem('ctv_sid');
       if (!sid) {
         sid = 'tab_' + Math.random().toString(36).substring(2, 12);
@@ -449,12 +464,14 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
         store_slug: slug,
         event,
         product_id: productId || 0,
+        product_name: productName || '',
         product_type: productType || 'physical',
         session_id: sid,
         source: src,
         medium: med,
         campaign: cmp,
         metadata: {
+          product_name: productName || '',
           referrer: document.referrer || '',
           screen_width: window.innerWidth,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -484,7 +501,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
 
   useEffect(() => {
     if (selectedFauna?.id) {
-      trackAnalytics('product_view', selectedFauna.id, selectedFauna.product_type);
+      trackAnalytics('product_view', selectedFauna.id, selectedFauna.product_type, selectedFauna.name);
     }
   }, [selectedFauna, trackAnalytics]);
 
@@ -885,6 +902,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
       `Tautan: ${window.location.origin}/${slug}?item=${item.id}\n\n` +
       `Apakah pesanan ini dapat diproses? Terima kasih!`;
 
+    trackAnalytics('direct_wa_click', item.id, item.product_type, item.name);
     window.open(buildWALink(itemWA.cleanNumber, message), '_blank', 'noopener,noreferrer');
   };
 

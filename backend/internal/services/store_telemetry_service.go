@@ -144,9 +144,14 @@ type StoreTelemetryService struct {
 	storeRings  map[uint][]RecentVisitorDTO // last 50 per store
 	globalRing  []RecentVisitorDTO          // last 100 global
 
-	// Daily Visitor Deduplication (HMAC-SHA256 with rotating salt)
+	// Daily Visitor Deduplication & Bounce Engagement Tracking (HMAC-SHA256 with rotating salt)
 	dedupMu    sync.RWMutex
 	visitorSet map[string]int64 // hash -> timestamp unix seconds
+	engagedSet map[string]int64 // hash -> timestamp unix seconds (visitors who viewed product or took action)
+
+	// Product Name Cache for Live Visitor Feed enrichment
+	prodNameMu    sync.RWMutex
+	prodNameCache map[uint]string
 }
 
 type storeCountDelta struct {
@@ -175,6 +180,8 @@ func InitStoreTelemetryService(db *gorm.DB) *StoreTelemetryService {
 			storeRings:     make(map[uint][]RecentVisitorDTO),
 			globalRing:     make([]RecentVisitorDTO, 0, 100),
 			visitorSet:     make(map[string]int64),
+			engagedSet:     make(map[string]int64),
+			prodNameCache:  make(map[uint]string),
 		}
 
 		// Preload initial recent visitors from database if available
@@ -242,8 +249,8 @@ func (s *StoreTelemetryService) computeVisitorHash(clientIP, sessionID, ua strin
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// checkAndMarkUnique checks if visitor is new for (store, date). Thread-safe.
-func (s *StoreTelemetryService) checkAndMarkUnique(hash string) bool {
+// checkVisitorAndEngagement checks if visitor is new for (store, date) and tracks bounce engagement. Thread-safe.
+func (s *StoreTelemetryService) checkVisitorAndEngagement(hash string, event string) (isUnique bool, bounceDelta int) {
 	now := time.Now().Unix()
 	s.dedupMu.Lock()
 	defer s.dedupMu.Unlock()
@@ -254,15 +261,59 @@ func (s *StoreTelemetryService) checkAndMarkUnique(hash string) bool {
 		for k, ts := range s.visitorSet {
 			if ts < cutoff {
 				delete(s.visitorSet, k)
+				delete(s.engagedSet, k)
 			}
 		}
 	}
 
-	if _, exists := s.visitorSet[hash]; exists {
-		return false
+	if _, exists := s.visitorSet[hash]; !exists {
+		s.visitorSet[hash] = now
+		if event == "store_view" {
+			// Visitor starts as a single-page session (bounce) until they view a product or trigger an action
+			return true, 1
+		}
+		// Visitor entered directly into a deep interaction (product view or action click)
+		s.engagedSet[hash] = now
+		return true, 0
 	}
-	s.visitorSet[hash] = now
-	return true
+
+	// Visitor already seen today; if they now perform a deeper interaction for the first time, un-bounce them
+	if event != "store_view" {
+		if _, engaged := s.engagedSet[hash]; !engaged {
+			s.engagedSet[hash] = now
+			return false, -1
+		}
+	}
+
+	return false, 0
+}
+
+// resolveProductName looks up a product's name by ID with an in-memory cache so Live Feed always displays item names.
+func (s *StoreTelemetryService) resolveProductName(productID uint) string {
+	if productID == 0 || s.db == nil {
+		return ""
+	}
+	s.prodNameMu.RLock()
+	if name, ok := s.prodNameCache[productID]; ok {
+		s.prodNameMu.RUnlock()
+		return name
+	}
+	s.prodNameMu.RUnlock()
+
+	var prod models.Product
+	if err := s.db.Select("name").Where("id = ?", productID).First(&prod).Error; err != nil {
+		return ""
+	}
+	clean := strings.TrimSpace(prod.Name)
+	if clean != "" {
+		s.prodNameMu.Lock()
+		if len(s.prodNameCache) > 5000 {
+			s.prodNameCache = make(map[uint]string)
+		}
+		s.prodNameCache[productID] = clean
+		s.prodNameMu.Unlock()
+	}
+	return clean
 }
 
 func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
@@ -272,9 +323,14 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 	date := ev.Timestamp.Format("2006-01-02")
 	hourStr := ev.Timestamp.Format("15") // "00" .. "23"
 
-	// 1. Calculate Unique Visitor Flag
+	// 1. Calculate Unique Visitor Flag & Bounce Engagement Delta
 	visitorHash := s.computeVisitorHash(ev.ClientIP, ev.SessionID, ev.UserAgent, ev.StoreID, date)
-	isUnique := s.checkAndMarkUnique(visitorHash)
+	isUnique, bounceDelta := s.checkVisitorAndEngagement(visitorHash, ev.Event)
+
+	// 1b. Enrich ProductName if ProductID is provided without ProductName
+	if ev.ProductID > 0 && strings.TrimSpace(ev.ProductName) == "" {
+		ev.ProductName = s.resolveProductName(ev.ProductID)
+	}
 
 	// 2. Resolve Device, OS, Browser
 	devInfo := utils.ParseUserAgent(ev.UserAgent)
@@ -331,6 +387,7 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 	}
 
 	isAction := (ev.Event != "store_view" && ev.Event != "product_view")
+	isStoreEntryView := (ev.Event == "store_view" || (ev.Event == "product_view" && isUnique))
 	actionWeight := 0
 	if isAction {
 		actionWeight = 1
@@ -352,6 +409,7 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 		s.storeBuffer[sKey] = sAcc
 	}
 	sAcc.UniqueVisitors += uniqueIncrement
+	sAcc.Bounces += bounceDelta
 
 	cDelta, cExists := s.storeCountDiff[ev.StoreID]
 	if !cExists {
@@ -365,6 +423,10 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 		cDelta.ViewsDelta++
 	case "product_view":
 		sAcc.ProductViews++
+		if isUnique {
+			// Ensure direct deep-link to a product also registers a store session view
+			sAcc.StoreViews++
+		}
 		cDelta.ViewsDelta++
 	case "direct_wa_click":
 		sAcc.DirectWaClicks++
@@ -385,21 +447,21 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 		cDelta.ActionsDelta++
 	}
 
-	// B. Traffic Source Metrics
+	// B. Traffic Source Metrics (Reconciled 1:1 with StoreViews & Actions)
 	tKey := trafficSourceKey{StoreID: ev.StoreID, Date: date, Source: normSource}
 	tAcc, tExists := s.trafficBuffer[tKey]
 	if !tExists {
 		tAcc = &trafficMetricsAcc{}
 		s.trafficBuffer[tKey] = tAcc
 	}
-	if !isAction {
+	if isStoreEntryView {
 		tAcc.Views++
-	} else {
+	} else if isAction {
 		tAcc.TotalActions++
 	}
 	tAcc.UniqueVisitors += uniqueIncrement
 
-	// C. Audience Dimension Metrics (store-level and global aggregate store_id=0)
+	// C. Audience Dimension Metrics (store-level and global aggregate store_id=0, reconciled 1:1 with StoreViews)
 	recordAudience := func(stID uint, dimType, dimVal string) {
 		if strings.TrimSpace(dimVal) == "" {
 			return
@@ -415,9 +477,9 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 			aAcc = &audienceMetricsAcc{}
 			s.audienceBuffer[aKey] = aAcc
 		}
-		if !isAction {
+		if isStoreEntryView {
 			aAcc.Views++
-		} else {
+		} else if isAction {
 			aAcc.TotalActions++
 		}
 		aAcc.UniqueVisitors += uniqueIncrement
@@ -549,6 +611,23 @@ func (s *StoreTelemetryService) startFlusher() {
 	}
 }
 
+// FlushNow drains any pending events in the channel and flushes the in-memory buffers to DB immediately.
+// Used when the merchant or admin opens the analytics dashboard to guarantee 100% read-after-write consistency.
+func (s *StoreTelemetryService) FlushNow() {
+	if s == nil {
+		return
+	}
+	for {
+		select {
+		case ev := <-s.eventChan:
+			s.processEvent(ev)
+		default:
+			s.flushBatch()
+			return
+		}
+	}
+}
+
 // flushBatch swaps the in-memory buffer (< 0.1ms) and writes to PostgreSQL in background.
 func (s *StoreTelemetryService) flushBatch() {
 	if s.db == nil {
@@ -605,8 +684,8 @@ func (s *StoreTelemetryService) flushBatch() {
 		if m.ProductViews > 0 {
 			assignments["product_views"] = gorm.Expr("store_daily_analytics.product_views + ?", m.ProductViews)
 		}
-		if m.Bounces > 0 {
-			assignments["bounces"] = gorm.Expr("store_daily_analytics.bounces + ?", m.Bounces)
+		if m.Bounces != 0 {
+			assignments["bounces"] = gorm.Expr("CASE WHEN store_daily_analytics.bounces + ? < 0 THEN 0 ELSE store_daily_analytics.bounces + ? END", m.Bounces, m.Bounces)
 		}
 		if m.DirectWaClicks > 0 {
 			assignments["direct_wa_clicks"] = gorm.Expr("store_daily_analytics.direct_wa_clicks + ?", m.DirectWaClicks)
@@ -625,13 +704,18 @@ func (s *StoreTelemetryService) flushBatch() {
 			assignments["total_actions"] = gorm.Expr("store_daily_analytics.total_actions + ?", m.TotalActions)
 		}
 
+		initBounces := m.Bounces
+		if initBounces < 0 {
+			initBounces = 0
+		}
+
 		initStore := models.StoreDailyAnalytics{
 			StoreID:           k.StoreID,
 			Date:              k.Date,
 			StoreViews:        m.StoreViews,
 			UniqueVisitors:    m.UniqueVisitors,
 			ProductViews:      m.ProductViews,
-			Bounces:           m.Bounces,
+			Bounces:           initBounces,
 			DirectWaClicks:    m.DirectWaClicks,
 			WaClicks:          m.DirectWaClicks,
 			MarketplaceClicks: m.MarketplaceClicks,
