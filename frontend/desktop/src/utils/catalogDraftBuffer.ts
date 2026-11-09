@@ -200,3 +200,4 @@ export function restoreTypeDraft(
     attributes: getDefaultAttributesForType(targetType)
   };
 }
+
