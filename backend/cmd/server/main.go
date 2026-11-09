@@ -550,11 +550,11 @@ func main() {
 
 		// Catalog Data Portability & Export
 		// 1. Dedicated Catalog Items Export (Products only: CSV Excel & JSON Items)
-		guarded.Get("/products/export", catalogExportHandler.ExportProducts)
-		guarded.Get("/admin/products/export", catalogExportHandler.ExportProducts)
+		guarded.Get("/products/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportProducts)
+		guarded.Get("/admin/products/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportProducts)
 		// 2. Full Store Backup (Danger Zone & Store Profile Backup: CSV & JSON Store Dump)
-		guarded.Get("/catalog/export", catalogExportHandler.ExportCatalog)
-		guarded.Get("/admin/catalog/export", catalogExportHandler.ExportCatalog)
+		guarded.Get("/catalog/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportCatalog)
+		guarded.Get("/admin/catalog/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportCatalog)
 
 		// Support Tickets & Live Chat Conversations (with normalized attachments)
 		guarded.Get("/support/tickets", supportHandler.ListMyTickets)
@@ -610,8 +610,8 @@ func main() {
 		guarded.Get("/analytics/products", analyticsHandler.GetStoreAnalyticsProducts)
 		guarded.Get("/admin/analytics", analyticsHandler.GetStoreAnalytics)
 		guarded.Get("/analytics", analyticsHandler.GetStoreAnalytics)
-		guarded.Get("/admin/analytics/export", analyticsHandler.ExportStoreAnalytics)
-		guarded.Get("/analytics/export", analyticsHandler.ExportStoreAnalytics)
+		guarded.Get("/admin/analytics/export", middleware.ExportRateLimiter(), analyticsHandler.ExportStoreAnalytics)
+		guarded.Get("/analytics/export", middleware.ExportRateLimiter(), analyticsHandler.ExportStoreAnalytics)
 		// Settings & Policies
 		// SECURITY (N-18): menulis pengaturan platform adalah wewenang "system",
 		// bukan merchant. Sebelumnya hanya dijaga StoreOwnerRequired sehingga

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"fmt"
 	"sort"
@@ -1832,8 +1833,8 @@ func (h *AnalyticsHandler) GetCategoryPriceBenchmarks(c *fiber.Ctx) error {
 	})
 }
 
-// ExportStoreAnalytics streams a clean, Excel-compatible CSV export of the store's performance metrics.
-// Supports periods ('7d', '30d', '90d', 'all') and report types ('daily', 'products', 'full').
+// ExportStoreAnalytics streams modular, Excel-compatible CSV reports or a full ZIP package of the store's performance metrics.
+// Supports periods ('7d', '30d', '90d', 'all') and report types ('daily', 'products', 'traffic_sources', 'audience', 'hourly', 'package').
 func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -1855,234 +1856,89 @@ func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 		})
 	}
 
+	user, _ := c.Locals("user").(*models.User)
+	isStaff := user != nil && user.IsPlatformStaff()
+	if !isStaff && (store.DormancyStatus == "suspended" || store.IsSuspended || store.DormancyStatus == "banned" || store.IsBlacklisted) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "STORE_SUSPENDED",
+			"message": "Ekspor analitik dinonaktifkan sementara karena operasional profil katalog sedang dibekukan.",
+		})
+	}
+
+	// 1. Flush any pending in-memory telemetry buffers to guarantee zero data drift
+	telemetrySvc := services.GetStoreTelemetryService()
+	if telemetrySvc != nil {
+		telemetrySvc.FlushNow()
+	}
+
 	period := strings.ToLower(strings.TrimSpace(c.Query("period", "30d")))
-	reportType := strings.ToLower(strings.TrimSpace(c.Query("type", "full")))
-	if reportType == "" {
-		reportType = "full"
+	reportType := strings.ToLower(strings.TrimSpace(c.Query("type", "package")))
+	if reportType == "" || reportType == "full" {
+		reportType = "package"
 	}
 
-	days := 30
-	periodLabel := "30 Hari Terakhir"
-	isAllTime := false
-
-	if period == "7d" {
-		days = 7
-		periodLabel = "7 Hari Terakhir"
-	} else if period == "90d" {
-		days = 90
-		periodLabel = "90 Hari Terakhir"
-	} else if period == "all" || period == "all-time" || period == "alltime" {
-		isAllTime = true
-		period = "all"
-		periodLabel = "Sepanjang Waktu (Semua Riwayat)"
-	} else {
-		period = "30d"
+	filter := services.ProductExportFilter{
+		ProductType: strings.TrimSpace(strings.ToLower(c.Query("product_type", c.Query("type_filter", "")))),
+		Search:      strings.TrimSpace(c.Query("search", c.Query("q", ""))),
+		Sort:        strings.TrimSpace(strings.ToLower(c.Query("sort", "views"))),
 	}
 
-	db := h.db
+	filename, contentType := services.GetAnalyticsExportMetadata(store, reportType, period)
 
-	// CSV formatting & security helpers
-	escapeCSV := func(s string) string {
-		clean := strings.TrimSpace(s)
-		// Security: Prevent CSV formula injection in Microsoft Excel / LibreOffice
-		if len(clean) > 0 && (clean[0] == '=' || clean[0] == '+' || clean[0] == '-' || clean[0] == '@') {
-			clean = "'" + clean
+	// 2. Log audit activity asynchronously (Zero impact on request latency)
+	if user != nil {
+		actorRole := "merchant"
+		if user.IsPlatformStaff() {
+			actorRole = string(user.PlatformRole)
 		}
-		if strings.ContainsAny(clean, ",\"\n\r") {
-			clean = `"` + strings.ReplaceAll(clean, `"`, `""`) + `"`
-		}
-		return clean
+		sID := store.ID
+		uID := user.ID
+		uName := user.Name
+		uEmail := user.Email
+		ip := c.IP()
+		ua := c.Get("User-Agent")
+		repTypeCopy := reportType
+		periodCopy := period
+		go func() {
+			services.RecordActivity(services.RecordActivityParams{
+				DB:          h.db,
+				StoreID:     &sID,
+				UserID:      &uID,
+				ActorRole:   actorRole,
+				ActorName:   uName,
+				ActorEmail:  uEmail,
+				Action:      "analytics.export_data",
+				Category:    "analytics",
+				EntityType:  "store",
+				EntityID:    &sID,
+				Description: fmt.Sprintf("Mengekspor data analitika tipe '%s' periode '%s'", repTypeCopy, periodCopy),
+				IPAddress:   ip,
+				UserAgent:   ua,
+			})
+		}()
 	}
 
-	formatProductType := func(pType string) string {
-		switch strings.ToLower(pType) {
-		case "service":
-			return "Layanan / Jasa"
-		case "digital":
-			return "Produk Digital"
-		case "food":
-			return "Kuliner & FnB"
-		case "property":
-			return "Properti & Listing"
-		case "fauna":
-			return "Satwa & Fauna"
-		case "plant":
-			return "Tanaman & Flora"
-		default:
-			return "Produk Fisik"
-		}
-	}
-
-	var sb strings.Builder
-	// 1. Mandatory UTF-8 Byte Order Mark (BOM) for 100% Microsoft Excel Windows/Mac compatibility
-	sb.WriteString("\xEF\xBB\xBF")
-
-	// 2. Fetch daily records if needed
-	var dailyRecords []models.StoreDailyAnalytics
-	if reportType == "daily" || reportType == "full" {
-		query := db.Where("store_id = ?", store.ID)
-		if !isAllTime {
-			startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
-			query = query.Where("date >= ?", startDate)
-		}
-		_ = query.Order("date DESC").Find(&dailyRecords).Error
-	}
-
-	// 3. Fetch product records if needed
-	var products []models.Product
-	if reportType == "products" || reportType == "full" {
-		_ = db.Preload("Category").
-			Where("store_id = ? AND is_active = ?", store.ID, true).
-			Order("view_count DESC, wa_clicks_count DESC, id DESC").
-			Find(&products).Error
-	}
-
-	switch reportType {
-	case "products":
-		// Header row
-		sb.WriteString("ID Item,Nama Produk,Tipe Katalog,Kategori/Kelas,Harga (Rp),Tayangan (Views),Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi Peminat,Rasio Konversi CTR (%)\n")
-		for _, p := range products {
-			totalAct := p.WaClicksCount + p.MarketplaceClicksCount + p.RekberClicksCount + p.VideoViewsCount
-			ctr := 0.0
-			if p.ViewCount > 0 {
-				ctr = (float64(totalAct) / float64(p.ViewCount)) * 100
-				if ctr > 100 {
-					ctr = 100
-				}
-			}
-			catName := p.GetEffectiveCategory()
-			if catName == "" {
-				catName = "Umum"
-			}
-			sb.WriteString(fmt.Sprintf("%d,%s,%s,%s,%.0f,%d,%d,%d,%d,%d,%d,%.2f%%\n",
-				p.ID,
-				escapeCSV(p.Name),
-				escapeCSV(formatProductType(p.ProductType)),
-				escapeCSV(catName),
-				p.Price,
-				p.ViewCount,
-				p.WaClicksCount,
-				p.MarketplaceClicksCount,
-				p.RekberClicksCount,
-				p.VideoViewsCount,
-				totalAct,
-				ctr,
-			))
-		}
-
-	case "daily":
-		// Header row
-		sb.WriteString("Tanggal,Tayangan Toko,Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi,Tingkat Konversi (%)\n")
-		for _, r := range dailyRecords {
-			directWa := r.DirectWaClicks
-			if directWa == 0 && r.WaClicks > 0 {
-				directWa = r.WaClicks
-			}
-			act := r.TotalActions
-			if act == 0 {
-				act = directWa + r.MarketplaceClicks + r.RekberClicks + r.VideoViews
-			}
-			cr := 0.0
-			if r.StoreViews > 0 {
-				cr = (float64(act) / float64(r.StoreViews)) * 100
-				if cr > 100 {
-					cr = 100
-				}
-			}
-			sb.WriteString(fmt.Sprintf("%s,%d,%d,%d,%d,%d,%d,%.2f%%\n",
-				r.Date, r.StoreViews, directWa, r.MarketplaceClicks, r.RekberClicks, r.VideoViews, act, cr))
-		}
-
-	default: // "full"
-		// Executive Summary Metadata
-		totalStoreViews := 0
-		totalActions := 0
-		for _, r := range dailyRecords {
-			totalStoreViews += r.StoreViews
-			act := r.TotalActions
-			if act == 0 {
-				directWa := r.DirectWaClicks
-				if directWa == 0 && r.WaClicks > 0 {
-					directWa = r.WaClicks
-				}
-				act = directWa + r.MarketplaceClicks + r.RekberClicks + r.VideoViews
-			}
-			totalActions += act
-		}
-		overallCR := 0.0
-		if totalStoreViews > 0 {
-			overallCR = (float64(totalActions) / float64(totalStoreViews)) * 100
-			if overallCR > 100 {
-				overallCR = 100
-			}
-		}
-
-		storeName := store.StoreTitle
-		if storeName == "" {
-			storeName = store.Slug
-		}
-		sb.WriteString(fmt.Sprintf("# LAPORAN ANALITIK RESMI KATALOG CATAVOR - %s\n", escapeCSV(storeName)))
-		sb.WriteString(fmt.Sprintf("# Periode Laporan: %s | Tanggal Cetak: %s\n", periodLabel, time.Now().Format("2006-01-02 15:04:05")))
-		sb.WriteString(fmt.Sprintf("# Total Kunjungan Toko: %d | Total Aksi Peminat: %d | Rata-rata Konversi: %.2f%%\n\n", totalStoreViews, totalActions, overallCR))
-
-		// Section 1: Daily Timeline
-		sb.WriteString("=== BAGIAN 1: REKAPITULASI TREN HARIAN TOKO ===\n")
-		sb.WriteString("Tanggal,Tayangan Toko,Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi,Tingkat Konversi (%)\n")
-		for _, r := range dailyRecords {
-			directWa := r.DirectWaClicks
-			if directWa == 0 && r.WaClicks > 0 {
-				directWa = r.WaClicks
-			}
-			act := r.TotalActions
-			if act == 0 {
-				act = directWa + r.MarketplaceClicks + r.RekberClicks + r.VideoViews
-			}
-			cr := 0.0
-			if r.StoreViews > 0 {
-				cr = (float64(act) / float64(r.StoreViews)) * 100
-				if cr > 100 {
-					cr = 100
-				}
-			}
-			sb.WriteString(fmt.Sprintf("%s,%d,%d,%d,%d,%d,%d,%.2f%%\n",
-				r.Date, r.StoreViews, directWa, r.MarketplaceClicks, r.RekberClicks, r.VideoViews, act, cr))
-		}
-
-		// Section 2: Product Breakdown
-		sb.WriteString("\n=== BAGIAN 2: RINCIAN PERFORMA KATALOG ITEM ===\n")
-		sb.WriteString("ID Item,Nama Produk,Tipe Katalog,Kategori/Kelas,Harga (Rp),Tayangan (Views),Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi Peminat,Rasio Konversi CTR (%)\n")
-		for _, p := range products {
-			totalAct := p.WaClicksCount + p.MarketplaceClicksCount + p.RekberClicksCount + p.VideoViewsCount
-			ctr := 0.0
-			if p.ViewCount > 0 {
-				ctr = (float64(totalAct) / float64(p.ViewCount)) * 100
-				if ctr > 100 {
-					ctr = 100
-				}
-			}
-			catName := p.GetEffectiveCategory()
-			if catName == "" {
-				catName = "Umum"
-			}
-			sb.WriteString(fmt.Sprintf("%d,%s,%s,%s,%.0f,%d,%d,%d,%d,%d,%d,%.2f%%\n",
-				p.ID,
-				escapeCSV(p.Name),
-				escapeCSV(formatProductType(p.ProductType)),
-				escapeCSV(catName),
-				p.Price,
-				p.ViewCount,
-				p.WaClicksCount,
-				p.MarketplaceClicksCount,
-				p.RekberClicksCount,
-				p.VideoViewsCount,
-				totalAct,
-				ctr,
-			))
-		}
-	}
-
-	filename := fmt.Sprintf("catavor-analytics-%s-%s-%s-%s.csv", store.Slug, reportType, period, time.Now().Format("20060102"))
-	c.Set("Content-Type", "text/csv; charset=utf-8")
+	// 3. Set streaming headers
+	c.Set("Content-Type", contentType)
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
-	return c.Send([]byte(sb.String()))
+	c.Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	c.Set("Pragma", "no-cache")
+
+	// 4. Stream response via Fiber SetBodyStreamWriter (Constant O(1) Memory, Anti-OOM)
+	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error().Interface("recover", r).Msg("Recovered from analytics export stream panic")
+			}
+		}()
+
+		_, _, err := services.ExecuteAnalyticsExport(w, store, reportType, period, filter, h.db)
+		if err != nil {
+			log.Error().Err(err).Uint("store_id", store.ID).Str("type", reportType).Msg("Error streaming analytics export")
+		}
+		_ = w.Flush()
+	})
+
+	return nil
 }
