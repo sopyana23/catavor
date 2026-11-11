@@ -56,6 +56,65 @@ func (c *dedupCache) isDuplicate(key string, ttlSeconds int64) bool {
 	return false
 }
 
+// In-memory session search attribution cache (3 minutes TTL) for server-side search-to-click tracking
+type sessionSearchEntry struct {
+	keyword     string
+	productType string
+	timestamp   int64
+}
+
+type sessionSearchCache struct {
+	mu      sync.RWMutex
+	entries map[string]sessionSearchEntry
+}
+
+var globalSessionSearchCache = &sessionSearchCache{
+	entries: make(map[string]sessionSearchEntry),
+}
+
+func (c *sessionSearchCache) put(ip, sessionID, kw, pType string) {
+	key := fmt.Sprintf("%s:%s", ip, sessionID)
+	now := time.Now().Unix()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.entries) > 5000 {
+		for k, v := range c.entries {
+			if now-v.timestamp > 300 {
+				delete(c.entries, k)
+			}
+		}
+	}
+	c.entries[key] = sessionSearchEntry{
+		keyword:     kw,
+		productType: pType,
+		timestamp:   now,
+	}
+}
+
+func (c *sessionSearchCache) pop(ip, sessionID string) (sessionSearchEntry, bool) {
+	key := fmt.Sprintf("%s:%s", ip, sessionID)
+	now := time.Now().Unix()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if entry, exists := c.entries[key]; exists {
+		delete(c.entries, key)
+		if now-entry.timestamp <= 180 { // 3-minute attribution window
+			return entry, true
+		}
+	}
+	// Fallback to IP-level search key when search beacon was sent without session_id
+	if sessionID != "" {
+		ipKey := fmt.Sprintf("%s:", ip)
+		if entry, exists := c.entries[ipKey]; exists {
+			delete(c.entries, ipKey)
+			if now-entry.timestamp <= 180 {
+				return entry, true
+			}
+		}
+	}
+	return sessionSearchEntry{}, false
+}
+
 type AnalyticsHandler struct {
 	cfg *config.Config
 	db  *gorm.DB
@@ -320,26 +379,58 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 		}
 	}
 
+	// Extract optional price and search_keyword from request metadata or session search cache
+	var searchKw string
+	var itemPrice float64
+	if req.Metadata != nil {
+		if skw, ok := req.Metadata["search_keyword"].(string); ok {
+			searchKw = strings.TrimSpace(skw)
+		} else if skw2, ok := req.Metadata["search_kw"].(string); ok {
+			searchKw = strings.TrimSpace(skw2)
+		}
+		if pr, ok := req.Metadata["price"].(float64); ok {
+			itemPrice = pr
+		} else if prStr, ok := req.Metadata["price"].(string); ok {
+			if parsed, err := strconv.ParseFloat(prStr, 64); err == nil {
+				itemPrice = parsed
+			}
+		}
+	}
+	// Server-side session search attribution: if user performed a search within the last 3 minutes
+	if searchKw == "" && (event == "product_view" || event == "store_view") {
+		if entry, found := globalSessionSearchCache.pop(clientIP, sessionToken); found {
+			searchKw = entry.keyword
+		}
+	}
+	if searchKw != "" {
+		searchSvc := services.GetSearchTelemetryService()
+		if searchSvc != nil {
+			searchSvc.RecordSearchClick(searchKw, req.ProductType)
+		}
+	}
+
 	// Enqueue to high-performance non-blocking telemetry service (0 DB queries in request path)
 	svc := services.GetStoreTelemetryService()
 	if svc != nil {
 		svc.EnqueueEvent(services.StoreTelemetryEvent{
-			StoreID:     storeID,
-			StoreSlug:   slug,
-			Event:       event,
-			ProductID:   req.ProductID,
-			ProductName: productName,
-			ProductType: req.ProductType,
-			ClientIP:    clientIP,
-			SessionID:   sessionToken,
-			UserAgent:   ua,
-			Source:      cleanSource,
-			Medium:      req.Medium,
-			Campaign:    req.Campaign,
-			Referrer:    ref,
-			City:        city,
-			Country:     country,
-			Timestamp:   time.Now().UTC(),
+			StoreID:       storeID,
+			StoreSlug:     slug,
+			Event:         event,
+			ProductID:     req.ProductID,
+			ProductName:   productName,
+			ProductType:   req.ProductType,
+			Price:         itemPrice,
+			SearchKeyword: searchKw,
+			ClientIP:      clientIP,
+			SessionID:     sessionToken,
+			UserAgent:     ua,
+			Source:        cleanSource,
+			Medium:        req.Medium,
+			Campaign:      req.Campaign,
+			Referrer:      ref,
+			City:          city,
+			Country:       country,
+			Timestamp:     time.Now().UTC(),
 		})
 	}
 
@@ -1585,6 +1676,7 @@ type TrackSearchRequest struct {
 	ResultCount  int    `json:"result_count"`
 	IsZeroResult bool   `json:"is_zero_result"`
 	City         string `json:"city"`
+	SessionID    string `json:"session_id"`
 	HpCheck      string `json:"_hp_check"`
 }
 
@@ -1614,6 +1706,13 @@ func (h *AnalyticsHandler) TrackSearchEvent(c *fiber.Ctx) error {
 	if cleanKw == "" {
 		return c.JSON(fiber.Map{"success": true, "message": "Search diabaikan."})
 	}
+
+	// Cache session search intent for server-side search-to-click attribution
+	sessID := strings.TrimSpace(req.SessionID)
+	if sessID == "" {
+		sessID = c.Get("X-Session-ID")
+	}
+	globalSessionSearchCache.put(c.IP(), sessID, cleanKw, req.ProductType)
 
 	// Sliding-window keyword deduplication per IP + Store + Keyword (TTL 60s)
 	// Prevents repeated enter-pressing / bot looping from inflating search analytics
@@ -1718,13 +1817,13 @@ func (h *AnalyticsHandler) GetTrendingKeywords(c *fiber.Ctx) error {
 	_ = h.db.Raw(`
 		SELECT 
 			keyword,
-			COALESCE(product_type, 'all') as product_type,
+			COALESCE(NULLIF(product_type, ''), 'all') as product_type,
 			SUM(search_volume) as search_volume,
 			SUM(zero_result_count) as zero_count,
-			COALESCE(AVG(ctr_percentage), 0) as ctr
+			CASE WHEN SUM(search_volume) > 0 THEN ROUND(LEAST(100.0, (SUM(clicked_product_count)::numeric / SUM(search_volume)::numeric) * 100), 2) ELSE 0 END as ctr
 		FROM search_daily_rollups
 		WHERE date >= ?
-		GROUP BY keyword, product_type
+		GROUP BY keyword, COALESCE(NULLIF(product_type, ''), 'all')
 		ORDER BY search_volume DESC
 		LIMIT 25
 	`, startDate).Scan(&results).Error
@@ -1789,12 +1888,13 @@ func (h *AnalyticsHandler) GetDemandGaps(c *fiber.Ctx) error {
 	_ = h.db.Raw(`
 		SELECT 
 			clean_keyword as keyword,
-			product_type,
-			COUNT(*) as zero_result_count,
+			COALESCE(NULLIF(product_type, ''), 'all') as product_type,
+			SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) as zero_result_count,
 			COUNT(*) as total_searches
 		FROM search_analytics
-		WHERE is_zero_result = true AND date >= ?
-		GROUP BY clean_keyword, product_type
+		WHERE date >= ?
+		GROUP BY clean_keyword, COALESCE(NULLIF(product_type, ''), 'all')
+		HAVING SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) > 0
 		ORDER BY zero_result_count DESC
 		LIMIT 20
 	`, startDate).Scan(&gaps).Error

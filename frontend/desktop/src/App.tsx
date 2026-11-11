@@ -6441,8 +6441,9 @@ Terima kasih.`;
 
           // Anonymous Search Telemetry & Demand Gap Ingestion (Zero PII & Honeypot Trap)
           const totalFound = json.pagination?.total_items ?? json.data.length;
-          if (debouncedSearch.trim().length >= 3 && !append) {
+          if (debouncedSearch.trim().length >= 2 && !append) {
             try {
+              const sid = sessionStorage.getItem('catavor_sid') || '';
               fetch('/api/telemetry/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -6452,6 +6453,7 @@ Terima kasih.`;
                   product_type: productTypeFilter,
                   result_count: totalFound,
                   is_zero_result: totalFound === 0,
+                  session_id: sid,
                   _hp_check: ''
                 }),
                 keepalive: true
@@ -24321,14 +24323,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           type="button"
                           onClick={() => setProfileSubTab('info')}
                           style={{
+                            minHeight: '38px',
                             padding: '0.5rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
                             cursor: 'pointer',
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: '0.45rem',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                             border: profileSubTab === 'info' ? '1px solid var(--primary)' : '1px solid transparent',
                             backgroundColor: profileSubTab === 'info' ? 'var(--primary)' : 'transparent',
                             color: profileSubTab === 'info' ? '#ffffff' : 'var(--text-secondary)',
@@ -24344,14 +24350,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           type="button"
                           onClick={() => setProfileSubTab('security')}
                           style={{
+                            minHeight: '38px',
                             padding: '0.5rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
                             cursor: 'pointer',
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: '0.45rem',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                             border: profileSubTab === 'security' ? '1px solid var(--primary)' : '1px solid transparent',
                             backgroundColor: profileSubTab === 'security' ? 'var(--primary)' : 'transparent',
                             color: profileSubTab === 'security' ? '#ffffff' : 'var(--text-secondary)',
@@ -24370,14 +24380,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             fetchActivityLogs(1, false);
                           }}
                           style={{
+                            minHeight: '38px',
                             padding: '0.5rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
                             cursor: 'pointer',
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: '0.45rem',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                             border: profileSubTab === 'logs' ? '1px solid var(--primary)' : '1px solid transparent',
                             backgroundColor: profileSubTab === 'logs' ? 'var(--primary)' : 'transparent',
                             color: profileSubTab === 'logs' ? '#ffffff' : 'var(--text-secondary)',
@@ -24393,18 +24407,22 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           type="button"
                           onClick={() => setProfileSubTab('danger')}
                           style={{
+                            minHeight: '38px',
                             padding: '0.5rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
                             cursor: 'pointer',
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: '0.45rem',
-                            border: profileSubTab === 'danger' ? '1px solid var(--border-light)' : '1px solid transparent',
-                            backgroundColor: profileSubTab === 'danger' ? 'var(--bg-card, rgba(255,255,255,0.06))' : 'transparent',
-                            color: profileSubTab === 'danger' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                            boxShadow: profileSubTab === 'danger' ? 'var(--shadow-sm)' : 'none',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                            border: profileSubTab === 'danger' ? '1px solid var(--primary)' : '1px solid transparent',
+                            backgroundColor: profileSubTab === 'danger' ? 'var(--primary)' : 'transparent',
+                            color: profileSubTab === 'danger' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: profileSubTab === 'danger' ? '0 2px 8px var(--primary-glow)' : 'none',
                             transition: 'all 0.2s ease'
                           }}
                         >
