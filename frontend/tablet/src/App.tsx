@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { TabletPublicLanding } from './components/TabletPublicLanding';
 import { TabletStoreCatalog } from './components/TabletStoreCatalog';
-import { TabletMerchantAdmin } from './components/TabletMerchantAdmin';
+import { TabletMerchantAdmin, resolveProofImageUrl } from './components/TabletMerchantAdmin';
 import { TabletPlatformConsole } from './components/TabletPlatformConsole';
 import { TabletCheckoutView } from './components/TabletCheckoutView';
 import { TabletRegisterView } from './components/TabletRegisterView';
@@ -85,6 +85,118 @@ export const TabletGlobalSecurityModal: React.FC = () => {
   return <ExternalLinkWarningModal url={url} onClose={() => setUrl(null)} />;
 };
 
+const getThemeGateStyles = (themeName?: string, isPortalMode: boolean = false) => {
+  if (isPortalMode || themeName === 'portal') {
+    return {
+      bg: '#f8fafc',
+      bgGradient: 'radial-gradient(circle at 50% 35%, #eff6ff 0%, #f8fafc 70%)',
+      cardBg: '#ffffff',
+      logoBoxBg: '#ffffff',
+      logoBoxBorder: '1px solid #e2e8f0',
+      logoBoxShadow: '0 10px 30px rgba(37, 99, 235, 0.08)',
+      titleColor: '#0f172a',
+      subtitleColor: '#475569',
+      trackBg: 'rgba(37, 99, 235, 0.15)',
+      accent: '#2563eb'
+    };
+  }
+  const theme = (themeName || 'navy').toLowerCase();
+  switch (theme) {
+    case 'nordic':
+      return {
+        bg: '#0f141a',
+        bgGradient: 'radial-gradient(circle at 50% 35%, rgba(91, 124, 153, 0.22) 0%, rgba(15, 20, 26, 0.98) 70%)',
+        cardBg: '#17202a',
+        logoBoxBg: '#ffffff',
+        logoBoxBorder: '1px solid rgba(142, 176, 204, 0.35)',
+        logoBoxShadow: '0 10px 30px rgba(91, 124, 153, 0.25)',
+        titleColor: '#f8fafc',
+        subtitleColor: '#cbd5e1',
+        trackBg: 'rgba(91, 124, 153, 0.18)',
+        accent: '#5b7c99'
+      };
+    case 'cyberpunk':
+      return {
+        bg: '#0b0716',
+        bgGradient: 'radial-gradient(circle at 50% 35%, rgba(168, 85, 247, 0.22) 0%, rgba(11, 7, 22, 0.98) 70%)',
+        cardBg: '#150d2a',
+        logoBoxBg: '#ffffff',
+        logoBoxBorder: '1px solid rgba(168, 85, 247, 0.35)',
+        logoBoxShadow: '0 10px 30px rgba(168, 85, 247, 0.25)',
+        titleColor: '#ffffff',
+        subtitleColor: '#e9d5ff',
+        trackBg: 'rgba(168, 85, 247, 0.18)',
+        accent: '#a855f7'
+      };
+    case 'ocean':
+      return {
+        bg: '#081021',
+        bgGradient: 'radial-gradient(circle at 50% 35%, rgba(59, 130, 246, 0.22) 0%, rgba(8, 16, 33, 0.98) 70%)',
+        cardBg: '#0f1c38',
+        logoBoxBg: '#ffffff',
+        logoBoxBorder: '1px solid rgba(59, 130, 246, 0.35)',
+        logoBoxShadow: '0 10px 30px rgba(59, 130, 246, 0.25)',
+        titleColor: '#ffffff',
+        subtitleColor: '#bfdbfe',
+        trackBg: 'rgba(59, 130, 246, 0.18)',
+        accent: '#3b82f6'
+      };
+    case 'pastel':
+      return {
+        bg: '#f8fafc',
+        bgGradient: 'radial-gradient(circle at 50% 35%, rgba(225, 29, 72, 0.12) 0%, #f8fafc 70%)',
+        cardBg: '#ffffff',
+        logoBoxBg: '#ffffff',
+        logoBoxBorder: '1px solid rgba(225, 29, 72, 0.28)',
+        logoBoxShadow: '0 10px 30px rgba(225, 29, 72, 0.15)',
+        titleColor: '#0f172a',
+        subtitleColor: '#475569',
+        trackBg: 'rgba(225, 29, 72, 0.15)',
+        accent: '#e11d48'
+      };
+    case 'sage':
+      return {
+        bg: '#f4f0e8',
+        bgGradient: 'radial-gradient(circle at 50% 35%, rgba(82, 120, 99, 0.14) 0%, #f4f0e8 70%)',
+        cardBg: '#ffffff',
+        logoBoxBg: '#ffffff',
+        logoBoxBorder: '1px solid rgba(82, 120, 99, 0.28)',
+        logoBoxShadow: '0 10px 30px rgba(82, 120, 99, 0.15)',
+        titleColor: '#1e2922',
+        subtitleColor: '#4a5b50',
+        trackBg: 'rgba(82, 120, 99, 0.15)',
+        accent: '#527863'
+      };
+    case 'emerald':
+      return {
+        bg: '#080c14',
+        bgGradient: 'radial-gradient(circle at 50% 35%, rgba(16, 185, 129, 0.22) 0%, rgba(8, 12, 20, 0.98) 70%)',
+        cardBg: '#0f172a',
+        logoBoxBg: '#ffffff',
+        logoBoxBorder: '1px solid rgba(16, 185, 129, 0.35)',
+        logoBoxShadow: '0 10px 30px rgba(16, 185, 129, 0.25)',
+        titleColor: '#ffffff',
+        subtitleColor: '#cbd5e1',
+        trackBg: 'rgba(16, 185, 129, 0.18)',
+        accent: '#10b981'
+      };
+    case 'navy':
+    default:
+      return {
+        bg: '#f8fafc',
+        bgGradient: 'radial-gradient(circle at 50% 35%, rgba(30, 58, 138, 0.12) 0%, #f8fafc 70%)',
+        cardBg: '#ffffff',
+        logoBoxBg: '#ffffff',
+        logoBoxBorder: '1px solid rgba(30, 58, 138, 0.28)',
+        logoBoxShadow: '0 10px 30px rgba(30, 58, 138, 0.15)',
+        titleColor: '#0f172a',
+        subtitleColor: '#334155',
+        trackBg: 'rgba(30, 58, 138, 0.14)',
+        accent: '#1e3a8a'
+      };
+  }
+};
+
 export const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('catavor_token') || localStorage.getItem('token') || '');
   const [currentUser, setCurrentUser] = useState<UserRBACInfo | null>(() => {
@@ -99,6 +211,10 @@ export const App: React.FC = () => {
   const [storeTheme, setStoreTheme] = useState<string>(() => {
     return localStorage.getItem('catavor_theme') || 'navy';
   });
+
+  const [isAppInitializing, setIsAppInitializing] = useState<boolean>(true);
+  const [initialProofUrl, setInitialProofUrl] = useState<string | null>(null);
+  const [initialSubscriptionOrders, setInitialSubscriptionOrders] = useState<any[]>([]);
 
   // Routing State
   const [currentPath, setCurrentPath] = useState<string>(() => {
@@ -142,6 +258,61 @@ export const App: React.FC = () => {
         }
       }
     } catch {}
+  }, []);
+
+  // Preload and hydrate proof photo on reload (?order=...&proof=1) and manage App Readiness Gate
+  useEffect(() => {
+    let isMounted = true;
+    const initApp = async () => {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderParam = urlParams.get('order');
+        const proofParam = urlParams.get('proof');
+        if (orderParam && proofParam) {
+          try {
+            const effectiveToken = token || localStorage.getItem('catavor_token') || localStorage.getItem('token');
+            const res = await fetch('/api/subscription/orders', {
+              headers: {
+                'Accept': 'application/json',
+                ...(effectiveToken ? { 'Authorization': `Bearer ${effectiveToken}` } : {})
+              }
+            });
+            const data = await res.json();
+            if (res.ok && data.success && isMounted) {
+              const orderList = data.data || data.orders || [];
+              setInitialSubscriptionOrders(orderList);
+              const matched = orderList.find((o: any) =>
+                String(o.order_number).toLowerCase() === orderParam.toLowerCase() ||
+                String(o.id) === orderParam
+              );
+              if (matched) {
+                const rawUrl = resolveProofImageUrl(matched, effectiveToken);
+                if (rawUrl) {
+                  setInitialProofUrl(rawUrl);
+                  // Preload the image into browser cache so it paints on frame 0
+                  await new Promise<void>((resolve) => {
+                    const img = new window.Image();
+                    img.src = rawUrl;
+                    img.onload = () => resolve();
+                    img.onerror = () => resolve();
+                    setTimeout(resolve, 3500);
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Failed to preload tablet subscription proof image:', err);
+          }
+        }
+      }
+      if (isMounted) {
+        setTimeout(() => setIsAppInitializing(false), 150);
+      }
+    };
+    initApp();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Dynamic Theme Sync (navy, emerald, cyberpunk, ocean, pastel, sage, nordic, cream)
@@ -1609,6 +1780,8 @@ export const App: React.FC = () => {
         onUnauthorized={(msg) => handleUnauthorized(msg, '/login')}
         onViewPublicCatalog={() => navigateTo(activeSlug ? `/${activeSlug}` : '/')}
         onThemeChange={handleThemeChange}
+        initialProofUrl={initialProofUrl}
+        initialOrders={initialSubscriptionOrders}
       />
     );
   }
@@ -2115,6 +2288,120 @@ export const App: React.FC = () => {
     />
   );
   };
+
+  if (isAppInitializing) {
+    const isPortalLanding = !activeSlug;
+    const themeStyles = getThemeGateStyles(storeTheme, isPortalLanding);
+    const displayTitle = (storeInfo?.title && storeInfo.title !== 'Catavor')
+      ? storeInfo.title
+      : (activeSlug ? activeSlug.charAt(0).toUpperCase() + activeSlug.slice(1) : 'Catavor');
+    const displaySubtitle = isPortalLanding
+      ? 'Platform Katalog Digital & Biolink Usaha'
+      : 'Mempersiapkan Halaman...';
+
+    return (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 99999,
+        backgroundColor: themeStyles.bg,
+        backgroundImage: themeStyles.bgGradient,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem',
+        color: themeStyles.titleColor,
+        fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
+      }}>
+        <style>{`
+          @keyframes loaderSlide {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(300%); }
+          }
+        `}</style>
+
+        {isPortalLanding ? (
+          <div style={{
+            width: '74px',
+            height: '74px',
+            borderRadius: '1.25rem',
+            background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#ffffff',
+            boxShadow: '0 12px 30px rgba(37, 99, 235, 0.28)',
+            marginBottom: '1.25rem'
+          }}>
+            <Store size={36} />
+          </div>
+        ) : (
+          <div style={{
+            width: '84px',
+            height: '84px',
+            borderRadius: '1.25rem',
+            backgroundColor: themeStyles.logoBoxBg,
+            border: themeStyles.logoBoxBorder,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0.75rem',
+            boxShadow: themeStyles.logoBoxShadow,
+            marginBottom: '1.35rem'
+          }}>
+            {storeInfo?.logo_url ? (
+              <img
+                src={storeInfo.logo_url}
+                alt={displayTitle}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: '0.25rem' }}
+              />
+            ) : (
+              <Store size={38} color={themeStyles.accent} />
+            )}
+          </div>
+        )}
+
+        <h3 style={{
+          margin: '0 0 0.35rem 0',
+          fontSize: '1.35rem',
+          fontWeight: 800,
+          color: themeStyles.titleColor,
+          letterSpacing: '-0.02em'
+        }}>
+          {displayTitle}
+        </h3>
+
+        <p style={{
+          margin: 0,
+          fontSize: '0.84rem',
+          color: themeStyles.subtitleColor,
+          fontWeight: 500,
+          letterSpacing: '0.01em'
+        }}>
+          {displaySubtitle}
+        </p>
+
+        <div style={{
+          width: '140px',
+          height: '3px',
+          backgroundColor: themeStyles.trackBg,
+          borderRadius: '2px',
+          marginTop: '1.35rem',
+          overflow: 'hidden',
+          position: 'relative'
+        }}>
+          <div style={{
+            width: '40%',
+            height: '100%',
+            backgroundColor: themeStyles.accent,
+            borderRadius: '2px',
+            animation: 'loaderSlide 1.1s infinite ease-in-out'
+          }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

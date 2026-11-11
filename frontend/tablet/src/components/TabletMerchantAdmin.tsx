@@ -306,6 +306,8 @@ export interface TabletMerchantAdminProps {
   onUnauthorized?: (msg?: string) => void;
   onViewPublicCatalog: () => void;
   onThemeChange?: (newTheme: string) => void;
+  initialProofUrl?: string | null;
+  initialOrders?: any[];
 }
 
 export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
@@ -316,7 +318,9 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   onLogout,
   onUnauthorized,
   onViewPublicCatalog,
-  onThemeChange
+  onThemeChange,
+  initialProofUrl = null,
+  initialOrders = []
 }) => {
   // Resolve actual store slug defensively to avoid sending invalid fallback 'my-store' to backend
   const storeSlug = useMemo(() => {
@@ -2812,11 +2816,19 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   // 5. SUBSCRIPTIONS & QUOTA STATE
   // =========================================================================
   const [quota, setQuota] = useState<StoreQuotaData | null>(null);
-  const [subscriptionOrders, setSubscriptionOrders] = useState<any[]>([]);
+  const [subscriptionOrders, setSubscriptionOrders] = useState<any[]>(() => initialOrders || []);
   const [isSubModalOpen, setIsSubModalOpen] = useState<boolean>(false);
   const [selectedTabletOrder, setSelectedTabletOrder] = useState<any | null>(null);
   const [copiedTabletRefToast, setCopiedTabletRefToast] = useState(false);
-  const [previewTabletProofImg, setPreviewTabletProofImg] = useState<string | null>(null);
+  const [previewTabletProofImg, setPreviewTabletProofImg] = useState<string | null>(() => initialProofUrl || null);
+  const [isHydratingProof, setIsHydratingProof] = useState<boolean>(() => {
+    if (initialProofUrl) return false;
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return Boolean(params.get('order') && params.get('proof') && !initialProofUrl);
+    }
+    return false;
+  });
 
   // Clean standalone ?order= param on reload/mount if not viewing proof,
   // and eagerly preload image if viewing proof
@@ -2856,13 +2868,22 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 if (rawUrl) {
                   const img = new window.Image();
                   img.src = rawUrl;
-                  img.onload = () => setPreviewTabletProofImg(rawUrl);
-                  img.onerror = () => setPreviewTabletProofImg(rawUrl);
+                  img.onload = () => {
+                    setPreviewTabletProofImg(rawUrl);
+                    setIsHydratingProof(false);
+                  };
+                  img.onerror = () => {
+                    setPreviewTabletProofImg(rawUrl);
+                    setIsHydratingProof(false);
+                  };
+                  return;
                 }
               }
             }
           } catch (err) {
             console.error('Tablet proof preload failed:', err);
+          } finally {
+            setIsHydratingProof(false);
           }
         })();
       }
@@ -2874,6 +2895,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', 'subscription');
+      url.searchParams.set('view', 'orders');
       url.searchParams.delete('order');
       url.searchParams.delete('proof');
       window.history.pushState({ subView: 'order_detail', orderId: ord.order_number || ord.id }, '', url.toString());
@@ -2903,6 +2925,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.set('tab', 'subscription');
+      url.searchParams.set('view', 'orders');
       if (targetOrd) {
         url.searchParams.set('order', String(targetOrd.order_number || targetOrd.id));
       }
@@ -3802,6 +3825,40 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       backgroundColor: 'var(--bg-deep)',
       color: 'var(--text-primary)'
     }}>
+      {/* Proof Lightbox Hydration Overlay (Zero-Flicker Gate) */}
+      {isHydratingProof && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 999999,
+          backgroundColor: '#050811',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '1rem',
+          color: '#f8fafc',
+          fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
+        }}>
+          <div style={{
+            width: '54px',
+            height: '54px',
+            borderRadius: '1rem',
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(56, 189, 248, 0.16) 100%)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
+          }}>
+            <Receipt size={26} className="animate-pulse" style={{ color: '#10b981' }} />
+          </div>
+          <span style={{ fontSize: '0.88rem', fontWeight: 600, letterSpacing: '0.02em', color: '#94a3b8' }}>
+            Mempersiapkan bukti transaksi...
+          </span>
+        </div>
+      )}
+
       {/* Toast Alert */}
       {toast && (
         <div style={{
@@ -9399,7 +9456,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     const isExpired = st === 'expired';
                     const statusBg = isPaid ? 'rgba(16, 185, 129, 0.12)' : isPending ? 'rgba(245, 158, 11, 0.12)' : isPendingVerification ? 'rgba(59, 130, 246, 0.12)' : isRejected ? 'rgba(239, 68, 68, 0.12)' : 'rgba(100, 116, 139, 0.12)';
                     const statusColor = isPaid ? '#10b981' : isPending ? '#f59e0b' : isPendingVerification ? '#3b82f6' : isRejected ? '#ef4444' : '#64748b';
-                    const statusLabel = isPaid ? 'Lunas / Aktif' : isPending ? 'Menunggu Pembayaran' : isPendingVerification ? 'Verifikasi Admin' : isRejected ? 'Ditolak' : isExpired ? 'Kedaluwarsa' : st || 'Selesai';
+                    const statusLabel = isPaid ? 'Lunas' : isPending ? 'Menunggu Pembayaran' : isPendingVerification ? 'Verifikasi Admin' : isRejected ? 'Ditolak' : isExpired ? 'Kedaluwarsa' : st || 'Selesai';
                     return (
                       <div
                         key={order.id}
