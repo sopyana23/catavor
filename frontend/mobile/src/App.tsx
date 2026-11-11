@@ -142,7 +142,7 @@ import logoHeaderImg from './assets/logo-header.png'
 import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
 import { VideoPlayerEmbed, VideoPreviewInput } from './components/VideoEmbed'
-import { SubscriptionPage, SubscriptionModal, MobileQuotaWidget, type StoreQuotaData, type SubscriptionPlanData } from './components/SubscriptionModal'
+import { SubscriptionPage, SubscriptionModal, MobileQuotaWidget, resolveProofImageUrl, type StoreQuotaData, type SubscriptionPlanData } from './components/SubscriptionModal'
 import { AnalyticsPage, type DetailedAnalyticsData } from './components/AnalyticsPage'
 import { AdSenseUnit } from './components/AdSenseUnit'
 import { AdminRBACManagement } from './components/AdminRBACManagement'
@@ -6007,7 +6007,17 @@ Terima kasih.`;
       if (path.includes('/admin/policies') || ['policies', 'kebijakan'].includes(rawTabParam) || ['policies', 'kebijakan'].includes(rawSubParam)) {
         return 'policies';
       }
-      if (path.includes('/admin/subscription') || ['subscription', 'langganan', 'paket'].includes(rawTabParam) || ['subscription', 'langganan', 'paket'].includes(rawSubParam)) {
+      if (
+        path.includes('/admin/subscription') ||
+        ['subscription', 'langganan', 'paket'].includes(rawTabParam) ||
+        ['subscription', 'langganan', 'paket'].includes(rawSubParam) ||
+        ['orders', 'riwayat', 'tagihan', 'billing'].includes(rawTabParam) ||
+        ['orders', 'riwayat', 'tagihan', 'billing'].includes(rawSubParam) ||
+        urlParams.get('view') === 'orders' ||
+        urlParams.get('view') === 'riwayat' ||
+        urlParams.has('order') ||
+        urlParams.has('proof')
+      ) {
         return 'subscription';
       }
       if (path.includes('/admin/audit-logs') || ['audit_logs', 'audit'].includes(rawTabParam) || ['audit_logs', 'audit'].includes(rawSubParam)) {
@@ -6727,7 +6737,29 @@ Terima kasih.`;
   const [storeQuota, setStoreQuota] = useState<StoreQuotaData | null>(null)
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlanData[]>([])
   const [showSubscriptionModal, setShowSubscriptionModal] = useState<boolean>(false)
-  const [mobileSubPageView, setMobileSubPageView] = useState<'plans' | 'checkout' | 'downgrade_confirm' | 'orders'>('plans')
+  const [initialSubscriptionOrders, setInitialSubscriptionOrders] = useState<any[] | null>(null);
+  const [initialProofOrder, setInitialProofOrder] = useState<any | null>(null);
+  const [initialProofUrl, setInitialProofUrl] = useState<string | null>(null);
+  const [mobileSubPageView, setMobileSubPageView] = useState<'plans' | 'checkout' | 'downgrade_confirm' | 'orders'>(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const rawView = (urlParams.get('view') || urlParams.get('sub') || '').toLowerCase();
+      if (['orders', 'riwayat', 'tagihan', 'billing'].includes(rawView) || urlParams.has('order') || urlParams.has('proof')) {
+        return 'orders';
+      }
+      if (['checkout', 'bayar'].includes(rawView)) {
+        return 'checkout';
+      }
+      if (['downgrade', 'downgrade_confirm'].includes(rawView)) {
+        return 'downgrade_confirm';
+      }
+      const path = window.location.pathname.toLowerCase();
+      if (path.includes('/admin/subscription/orders') || path.includes('/subscription/orders') || path.includes('/orders')) {
+        return 'orders';
+      }
+    }
+    return 'plans';
+  })
 
   // Available categories for admin inventory scoped to active product type
   const availableAdminCategories = useMemo(() => {
@@ -10251,7 +10283,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setActiveTab('admin');
           const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
           const isSupportQuery = ['support', 'help', 'bantuan', 'tickets', 'chat'].includes(rawTabParam) || Boolean(urlParams.get('ticket'));
-          const pageSub = parts[2] || urlParams.get('sub') || (isSupportQuery ? 'help' : null) || urlParams.get('tab');
+          const isSubQuery = ['subscription', 'langganan', 'paket', 'orders', 'riwayat', 'tagihan', 'billing'].includes(rawTabParam) || urlParams.get('view') === 'orders' || urlParams.has('order') || urlParams.has('proof');
+          const pageSub = parts[2] || urlParams.get('sub') || (isSupportQuery ? 'help' : null) || (isSubQuery ? 'subscription' : null) || urlParams.get('tab');
           const subSub = parts[3];
           const paramId = parts[4];
 
@@ -10327,9 +10360,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
           } else if (pageSub === 'notifications') {
             setAdminSubTab('notifications');
             setView('tabs');
-          } else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') {
+          } else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket' || pageSub === 'orders' || pageSub === 'riwayat' || pageSub === 'tagihan') {
             setAdminSubTab('subscription');
             setView('tabs');
+            const viewParam = (urlParams.get('view') || urlParams.get('sub') || (subSub ? subSub.toLowerCase() : null) || '').toLowerCase();
+            if (viewParam === 'checkout') {
+              setMobileSubPageView('checkout');
+            } else if (viewParam === 'downgrade' || viewParam === 'downgrade_confirm') {
+              setMobileSubPageView('downgrade_confirm');
+            } else if (['orders', 'history', 'tagihan', 'riwayat', 'billing'].includes(viewParam) || ['orders', 'riwayat', 'tagihan'].includes(pageSub) || urlParams.has('order') || urlParams.has('proof')) {
+              setMobileSubPageView('orders');
+            } else {
+              setMobileSubPageView('plans');
+            }
           } else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support') {
             setAdminSubTab('help');
             setView('tabs');
@@ -10412,7 +10455,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
           } else if (pageSub === 'profile') setAdminSubTab('profile');
           else if (pageSub === 'policies') setAdminSubTab('policies');
           else if (pageSub === 'notifications') setAdminSubTab('notifications');
-          else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') setAdminSubTab('subscription');
+          else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket' || pageSub === 'orders' || pageSub === 'riwayat' || pageSub === 'tagihan') {
+            setAdminSubTab('subscription');
+            const viewParam = (urlParams.get('view') || urlParams.get('action') || '').toLowerCase();
+            if (viewParam === 'checkout') {
+              setMobileSubPageView('checkout');
+            } else if (viewParam === 'downgrade' || viewParam === 'downgrade_confirm') {
+              setMobileSubPageView('downgrade_confirm');
+            } else if (['orders', 'history', 'tagihan', 'riwayat', 'billing'].includes(viewParam) || ['orders', 'riwayat', 'tagihan'].includes(pageSub || '')) {
+              setMobileSubPageView('orders');
+            } else {
+              setMobileSubPageView('plans');
+            }
+          }
           else if (pageSub === 'help') {
             setAdminSubTab('help');
             if (urlParams.get('action') === 'new' || urlParams.get('ticket') === 'new') {
@@ -10704,10 +10759,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 const found = notifications.find(n => String(n.id) === String(notifId));
                 if (found) setSelectedNotification(found);
               }
-            } else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') {
+            } else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket' || pageSub === 'orders' || pageSub === 'riwayat' || pageSub === 'tagihan') {
               setAdminSubTab('subscription');
               setView('tabs');
-              setMobileSubPageView('plans');
+              const viewParam = (urlParams.get('view') || urlParams.get('sub') || (subSub ? subSub.toLowerCase() : null) || '').toLowerCase();
+              if (viewParam === 'checkout') {
+                setMobileSubPageView('checkout');
+              } else if (viewParam === 'downgrade' || viewParam === 'downgrade_confirm') {
+                setMobileSubPageView('downgrade_confirm');
+              } else if (['orders', 'history', 'tagihan', 'riwayat', 'billing'].includes(viewParam) || ['orders', 'riwayat', 'tagihan'].includes(pageSub)) {
+                setMobileSubPageView('orders');
+              } else {
+                setMobileSubPageView('plans');
+              }
             } else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support' || pageSub === 'appeal' || pageSub === 'banding') {
               setAdminSubTab('help');
               setView('tabs');
@@ -12107,6 +12171,51 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setError('Koneksi terputus. Pastikan server backend aktif.');
       }
     } finally {
+      // If hydrating proof photo on reload (?order=...&proof=1), do NOT dismiss the initial gate
+      // until the order data is fetched AND the proof image is completely preloaded into browser memory!
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderParam = urlParams.get('order');
+        const proofParam = urlParams.get('proof');
+        if (orderParam && proofParam) {
+          try {
+            const effectiveToken = token || localStorage.getItem('catavor_token') || localStorage.getItem('token');
+            const res = await fetch(`${API_BASE}/subscription/orders`, {
+              headers: {
+                'Accept': 'application/json',
+                ...(effectiveToken ? { 'Authorization': `Bearer ${effectiveToken}` } : {})
+              }
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+              const orderList = data.data || data.orders || [];
+              setInitialSubscriptionOrders(orderList);
+              const matched = orderList.find((o: any) =>
+                String(o.order_number).toLowerCase() === orderParam.toLowerCase() ||
+                String(o.id) === orderParam
+              );
+              if (matched) {
+                setInitialProofOrder(matched);
+                const rawUrl = resolveProofImageUrl(matched, effectiveToken);
+                if (rawUrl) {
+                  setInitialProofUrl(rawUrl);
+                  // Preload the image into browser cache so it paints on frame 0
+                  await new Promise<void>((resolve) => {
+                    const img = new window.Image();
+                    img.src = rawUrl;
+                    img.onload = () => resolve();
+                    img.onerror = () => resolve();
+                    setTimeout(resolve, 3500);
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Failed to preload subscription proof image:', err);
+          }
+        }
+      }
+
       setLoading(false);
       setTimeout(() => setIsAppInitializing(false), 200);
     }
@@ -12238,6 +12347,22 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
       } else if (adminSubTab === 'subscription') {
         targetPath += `/admin/subscription`;
+        const curQ = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const curView = (curQ?.get('view') || curQ?.get('sub') || '').toLowerCase();
+        const curOrder = curQ?.get('order');
+        const curProof = curQ?.get('proof');
+        if (mobileSubPageView === 'orders' || ['orders', 'riwayat', 'tagihan', 'billing'].includes(curView) || curOrder || curProof) {
+          params.set('view', 'orders');
+          if (curOrder) params.set('order', curOrder);
+          if (curProof) params.set('proof', curProof);
+        } else if (mobileSubPageView === 'checkout' || ['checkout', 'bayar'].includes(curView)) {
+          params.set('view', 'checkout');
+          if (curQ?.get('plan')) params.set('plan', curQ.get('plan')!);
+          if (curQ?.get('type')) params.set('type', curQ.get('type')!);
+        } else if (mobileSubPageView === 'downgrade_confirm' || ['downgrade', 'downgrade_confirm'].includes(curView)) {
+          params.set('view', 'downgrade');
+          if (curQ?.get('plan')) params.set('plan', curQ.get('plan')!);
+        }
       } else if (adminSubTab === 'help') {
         if (isCreatingTicket) {
           targetPath += `/admin/help/new`;
@@ -12305,7 +12430,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       isInitialLoadRef.current = false;
     }
     isUserNavRef.current = false;
-  }, [activeTab, aboutSubView, isSuspendedAccountState, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, isDetailActive, selectedFauna, selectedTicket, selectedNotification, storeSlug, error, showStoreSwitcherModal]);
+  }, [activeTab, aboutSubView, isSuspendedAccountState, adminSubTab, isCreatingTicket, mobileSettingsTab, crudMode, editId, view, isDetailActive, selectedFauna, selectedTicket, selectedNotification, storeSlug, error, showStoreSwitcherModal, mobileSubPageView]);
 
   // Auto-redirect or recovery if authenticated user lands on /login (Mobile)
   useEffect(() => {
@@ -23675,6 +23800,29 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 type="button"
                                 onClick={() => {
                                   const slug = storeSlug || getStoreSlug() || resolveActiveStoreSlug();
+
+                                  // Dedicated Smart Back navigation for mobile Subscription feature
+                                  if (adminSubTab === 'subscription') {
+                                    if (mobileSubPageView !== 'plans') {
+                                      if (typeof window !== 'undefined' && window.history.state?.subView) {
+                                        window.history.back();
+                                      } else {
+                                        setMobileSubPageView('plans');
+                                        if (slug) {
+                                          window.history.replaceState({}, '', `/${slug}/admin/subscription`);
+                                        }
+                                      }
+                                      return;
+                                    }
+                                    smartBack(() => {
+                                      setAdminSubTab('menu');
+                                      if (slug) {
+                                        window.history.replaceState({}, '', `/${slug}/admin`);
+                                      }
+                                    });
+                                    return;
+                                  }
+
                                   smartBack(() => {
                                     if (adminSubTab === 'help') {
                                       const isStoreSuspended = settings.dormancy_status === 'suspended' || settings.is_suspended;
@@ -23710,15 +23858,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                           sessionStorage.removeItem('catavor_merchant_active_ticket_data');
                                         } catch { }
                                         setIsCreatingTicket(false);
-                                        if (slug) {
-                                          window.history.replaceState({}, '', `/${slug}/admin`);
-                                        }
-                                      }
-                                    } else if (adminSubTab === 'subscription') {
-                                      if (mobileSubPageView !== 'plans') {
-                                        setMobileSubPageView('plans');
-                                      } else {
-                                        setAdminSubTab('menu');
                                         if (slug) {
                                           window.history.replaceState({}, '', `/${slug}/admin`);
                                         }
@@ -32716,6 +32855,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     settings={settings}
                                     activeView={mobileSubPageView}
                                     onViewChange={(v) => setMobileSubPageView(v)}
+                                    initialOrders={initialSubscriptionOrders || undefined}
+                                    initialSelectedOrder={initialProofOrder || undefined}
+                                    initialProofUrl={initialProofUrl || undefined}
                                     onSuccessUpgrade={() => {
                                       fetchMyQuota();
                                       loadData();
@@ -32724,9 +32866,19 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     apiBase={API_BASE}
                                     token={token}
                                     onBack={() => {
-                                      setAdminSubTab('menu');
-                                      const slug = getStoreSlug();
-                                      if (slug) window.history.pushState({}, '', `/${slug}/admin`);
+                                      if (mobileSubPageView !== 'plans') {
+                                        if (typeof window !== 'undefined' && window.history.state?.subView) {
+                                          window.history.back();
+                                        } else {
+                                          setMobileSubPageView('plans');
+                                          const slug = getStoreSlug();
+                                          if (slug) window.history.replaceState({}, '', `/${slug}/admin/subscription`);
+                                        }
+                                      } else {
+                                        setAdminSubTab('menu');
+                                        const slug = getStoreSlug();
+                                        if (slug) window.history.pushState({}, '', `/${slug}/admin`);
+                                      }
                                     }}
                                   />
                                 </div>

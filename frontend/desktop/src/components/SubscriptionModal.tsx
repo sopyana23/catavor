@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Check, 
   X, 
@@ -32,9 +33,34 @@ import {
   ShieldAlert,
   ExternalLink,
   RefreshCw,
-  Settings2
+  Settings2,
+  Tag,
+  Building2,
+  Eye,
+  AlertCircle,
+  XCircle
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
+import { ProofLightbox } from './ProofLightbox';
+import { useModalBackHandler } from '../utils/navigation';
+
+export const resolveProofImageUrl = (order: any, token?: string | null): string => {
+  if (!order) return '';
+  const raw = order.payment_proof_url || order.proof_url || '';
+  if (raw && (raw.startsWith('data:') || raw.startsWith('blob:'))) {
+    return raw;
+  }
+  if (raw && (raw.startsWith('http://') || raw.startsWith('https://'))) {
+    return raw;
+  }
+  const identifier = order.id || order.order_number;
+  if (identifier) {
+    const t = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `/api/subscription/orders/${encodeURIComponent(String(identifier))}/proof${t}`;
+  }
+  if (!raw) return '';
+  return raw.startsWith('/') ? raw : `/storage/${raw}`;
+};
 
 export interface SubscriptionPlanData {
   id: number;
@@ -100,6 +126,9 @@ export interface SubscriptionModalProps {
   apiBase?: string;
   token?: string | null;
   isLoading?: boolean;
+  initialOrders?: any[];
+  initialSelectedOrder?: any;
+  initialProofUrl?: string | null;
 }
 
 export const getPlanLevel = (code?: string): number => {
@@ -123,10 +152,22 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   onSuccessUpgrade,
   apiBase = 'http://localhost:8000/api',
   token,
-  isLoading = false
+  isLoading = false,
+  initialOrders,
+  initialSelectedOrder,
+  initialProofUrl
 }) => {
   const effectiveQuota = currentQuota || quota;
-  const [modalView, setModalView] = useState<'plans' | 'checkout' | 'downgrade_confirm' | 'orders'>('plans');
+  const [modalView, setModalView] = useState<'plans' | 'checkout' | 'downgrade_confirm' | 'orders'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const v = (params.get('view') || params.get('sub') || '').toLowerCase();
+      if (['orders', 'riwayat', 'tagihan', 'billing'].includes(v) || params.get('order') || params.get('proof')) {
+        return 'orders';
+      }
+    }
+    return 'plans';
+  });
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [selectedTargetPlan, setSelectedTargetPlan] = useState<SubscriptionPlanData | null>(null);
   const [checkoutType, setCheckoutType] = useState<'upgrade' | 'renewal'>('upgrade');
@@ -145,9 +186,37 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   const [copiedAccountToast, setCopiedAccountToast] = useState(false);
 
   // Invoices / Orders State
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>(() => initialOrders || []);
+  const ordersRef = useRef<any[]>([]);
+  ordersRef.current = orders;
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
+  const [selectedDesktopOrder, setSelectedDesktopOrder] = useState<any | null>(() => {
+    // Only initialize if explicitly provided and NOT viewing proof on reload
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('proof')) return null;
+    }
+    return initialSelectedOrder || null;
+  });
+  const [copiedDesktopRefToast, setCopiedDesktopRefToast] = useState(false);
+  const [previewDesktopProofImg, setPreviewDesktopProofImg] = useState<string | null>(() => initialProofUrl || null);
+
+  // Clean standalone ?order= param on reload/mount if not viewing proof
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('order') && !params.has('proof')) {
+        params.delete('order');
+        const q = params.toString();
+        window.history.replaceState(
+          { ...window.history.state, subView: 'orders', orderId: undefined },
+          '',
+          `${window.location.pathname}${q ? '?' + q : ''}`
+        );
+      }
+    }
+  }, []);
 
   // Action Feedback
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -237,7 +306,12 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setModalView('plans');
+      const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const v = (params?.get('view') || params?.get('sub') || '').toLowerCase();
+      const isOrdersUrl = ['orders', 'riwayat', 'tagihan', 'billing'].includes(v) || Boolean(params?.get('order')) || Boolean(params?.get('proof'));
+      if (!isOrdersUrl) {
+        setModalView('plans');
+      }
       setActionSuccess(null);
       setActionError(null);
       setAppliedCoupon(null);
@@ -304,6 +378,136 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     setActionSuccess(null);
     setActionError(null);
   };
+
+  const changeView = (nextView: 'plans' | 'checkout' | 'downgrade_confirm' | 'orders') => {
+    setModalView(nextView);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (nextView === 'orders') {
+        url.searchParams.set('view', 'orders');
+        const parts = url.pathname.split('/').filter(Boolean);
+        if (parts.length >= 2 && parts[1] === 'admin') {
+          url.pathname = `/${parts[0]}/admin/subscription`;
+        }
+      } else {
+        url.searchParams.delete('view');
+        url.searchParams.delete('order');
+        url.searchParams.delete('proof');
+      }
+      window.history.pushState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+    }
+  };
+
+  const handleOpenDesktopOrder = (ord: any) => {
+    setSelectedDesktopOrder(ord);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'orders');
+      url.searchParams.delete('order');
+      url.searchParams.delete('proof');
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts.length >= 2 && parts[1] === 'admin') {
+        url.pathname = `/${parts[0]}/admin/subscription`;
+      }
+      window.history.pushState(
+        { subView: 'order_detail', orderId: ord.order_number || ord.id },
+        '',
+        url.pathname + (url.search ? url.search : '') + url.hash
+      );
+    }
+  };
+
+  const handleCloseDesktopOrder = () => {
+    setSelectedDesktopOrder(null);
+    setPreviewDesktopProofImg(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('order');
+      url.searchParams.delete('proof');
+      if (window.history.state?.subView === 'order_detail' && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+      window.history.pushState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+    }
+  };
+
+  const handleOpenDesktopProof = (rawUrl?: string, ord?: any) => {
+    const targetOrd = ord || selectedDesktopOrder;
+    const finalUrl = resolveProofImageUrl(targetOrd, token) || rawUrl || '';
+    if (!finalUrl) return;
+
+    setPreviewDesktopProofImg(finalUrl);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'orders');
+      if (targetOrd) {
+        url.searchParams.set('order', String(targetOrd.order_number || targetOrd.id));
+      }
+      url.searchParams.set('proof', '1');
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts.length >= 2 && parts[1] === 'admin') {
+        url.pathname = `/${parts[0]}/admin/subscription`;
+      }
+      window.history.pushState(
+        { subView: 'order_proof', orderId: targetOrd?.order_number || targetOrd?.id },
+        '',
+        url.pathname + (url.search ? url.search : '') + url.hash
+      );
+    }
+  };
+
+  const handleCloseDesktopProof = () => {
+    setPreviewDesktopProofImg(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (window.history.state?.subView === 'order_proof' && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+      url.searchParams.delete('proof');
+      url.searchParams.delete('order');
+      window.history.pushState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+    }
+  };
+
+  useModalBackHandler({
+    isOpen: previewDesktopProofImg !== null,
+    onClose: handleCloseDesktopProof,
+    modalId: 'desktop_subscription_proof_lightbox'
+  });
+
+  useModalBackHandler({
+    isOpen: selectedDesktopOrder !== null,
+    onClose: handleCloseDesktopOrder,
+    modalId: 'desktop_subscription_order_detail'
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
+      const params = new URLSearchParams(window.location.search);
+      const v = (params.get('view') || params.get('sub') || '').toLowerCase();
+      const isOrdersUrl = ['orders', 'riwayat', 'tagihan', 'billing'].includes(v) || Boolean(params.get('order')) || Boolean(params.get('proof'));
+      if (isOrdersUrl) {
+        setModalView('orders');
+        const orderParam = params.get('order');
+        const proofParam = params.get('proof');
+        if (!proofParam) {
+          setPreviewDesktopProofImg(null);
+        }
+        if (window.history.state?.subView !== 'order_detail' && !proofParam) {
+          setSelectedDesktopOrder(null);
+        }
+      } else if (modalView === 'orders') {
+        setModalView('plans');
+        setSelectedDesktopOrder(null);
+        setPreviewDesktopProofImg(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [modalView]);
 
   const handleApplyCoupon = async () => {
     if (!couponInput.trim()) return;
@@ -555,7 +759,25 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setOrders(data.data || data.orders || []);
+        const orderList = data.data || data.orders || [];
+        setOrders(orderList);
+
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const orderParam = params.get('order');
+          const proofParam = params.get('proof');
+          if (orderParam && orderList.length > 0) {
+            const matched = orderList.find((o: any) => 
+              String(o.order_number).toLowerCase() === orderParam.toLowerCase() || 
+              String(o.id) === orderParam
+            );
+            if (matched) {
+              if (proofParam) {
+                setPreviewDesktopProofImg(resolveProofImageUrl(matched, token));
+              }
+            }
+          }
+        }
       }
     } catch (err) {
       console.error('Failed fetching subscription orders:', err);
@@ -563,6 +785,12 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       setLoadingOrders(false);
     }
   };
+
+  useEffect(() => {
+    if (modalView === 'orders') {
+      fetchOrders();
+    }
+  }, [modalView]);
 
   const handleConfirmDowngrade = async () => {
     if (!selectedTargetPlan) return;
@@ -683,7 +911,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           {modalView !== 'plans' && (
             <button
               type="button"
-              onClick={() => setModalView('plans')}
+              onClick={() => changeView('plans')}
               style={{
                 background: 'var(--btn-secondary-bg)',
                 border: '1px solid var(--btn-secondary-border)',
@@ -728,7 +956,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               type="button"
               onClick={() => {
                 fetchOrders();
-                setModalView('orders');
+                changeView('orders');
               }}
               style={{
                 background: 'var(--btn-secondary-bg)',
@@ -746,6 +974,29 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             >
               <Receipt size={15} />
               <span>Riwayat Tagihan</span>
+            </button>
+          )}
+
+          {modalView === 'orders' && (
+            <button
+              type="button"
+              onClick={() => changeView('plans')}
+              style={{
+                background: 'var(--btn-secondary-bg)',
+                border: '1px solid var(--btn-secondary-border)',
+                color: 'var(--btn-secondary-text)',
+                borderRadius: '0.55rem',
+                padding: '0.45rem 0.85rem',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer'
+              }}
+            >
+              <Crown size={15} />
+              <span>Pilihan Paket</span>
             </button>
           )}
 
@@ -2049,7 +2300,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             <div style={{ display: 'flex', gap: '0.85rem' }}>
               <button
                 type="button"
-                onClick={() => setModalView('plans')}
+                onClick={() => changeView('plans')}
                 className="btn-secondary"
                 style={{ flex: 1, padding: '0.75rem', borderRadius: '0.55rem', fontWeight: 700, fontSize: '0.86rem', cursor: 'pointer' }}
               >
@@ -2081,11 +2332,12 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
           <div style={{ padding: '1.5rem 2rem 2.5rem' }}>
             {loadingOrders ? (
               <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)', fontSize: '0.86rem' }}>
+                <RefreshCw size={22} className="animate-spin" style={{ margin: '0 auto 0.6rem', display: 'block', opacity: 0.7 }} />
                 Memuat riwayat transaksi langganan...
               </div>
             ) : orders.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '3rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem' }}>
-                <Receipt size={36} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
+                <Receipt size={38} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
                 <strong style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>Belum Ada Riwayat Transaksi</strong>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
                   Transaksi invoice dan bukti pembayaran langganan Anda akan tercatat di sini.
@@ -2096,38 +2348,56 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                 {orders.map((ord: any) => {
                   const status = ord.payment_status || ord.status || 'pending';
                   const isPaid = status === 'paid';
-                  const isPendingVerification = status === 'pending_verification';
                   const isPending = status === 'pending';
+                  const isPendingVerification = status === 'pending_verification';
                   const isRejected = status === 'rejected';
                   const isExpired = status === 'expired';
 
-                  let badgeColor = '#f59e0b';
-                  let badgeBg = 'rgba(245, 158, 11, 0.15)';
-                  let badgeLabel = 'MENUNGGU PEMBAYARAN';
+                  const statusBg = isPaid ? 'rgba(16, 185, 129, 0.12)' : isPending ? 'rgba(245, 158, 11, 0.12)' : isPendingVerification ? 'rgba(59, 130, 246, 0.12)' : isRejected ? 'rgba(239, 68, 68, 0.12)' : 'rgba(100, 116, 139, 0.12)';
+                  const statusColor = isPaid ? '#10b981' : isPending ? '#f59e0b' : isPendingVerification ? '#3b82f6' : isRejected ? '#ef4444' : '#64748b';
+                  const statusLabel = isPaid ? 'Lunas / Aktif' : isPending ? 'Menunggu Pembayaran' : isPendingVerification ? 'Verifikasi Admin' : isRejected ? 'Ditolak' : isExpired ? 'Kedaluwarsa' : status;
 
-                  if (isPaid) {
-                    badgeColor = '#10b981';
-                    badgeBg = 'rgba(16, 185, 129, 0.15)';
-                    badgeLabel = 'LUNAS / AKTIF';
-                  } else if (isPendingVerification) {
-                    badgeColor = '#3b82f6';
-                    badgeBg = 'rgba(59, 130, 246, 0.15)';
-                    badgeLabel = 'VERIFIKASI ADMIN';
-                  } else if (isRejected) {
-                    badgeColor = '#ef4444';
-                    badgeBg = 'rgba(239, 68, 68, 0.15)';
-                    badgeLabel = 'DITOLAK';
-                  } else if (isExpired) {
-                    badgeColor = '#64748b';
-                    badgeBg = 'rgba(100, 116, 139, 0.15)';
-                    badgeLabel = 'KEDALUWARSA';
+                  const mode = ord.payment_mode || (ord.final_amount === 0 ? 'coupon_free' : 'gateway_aulaa');
+                  const isCoupon = mode === 'coupon_free' || ord.final_amount === 0;
+                  const isGateway = mode === 'gateway_aulaa';
+                  const isManualBank = mode === 'manual_bank' || ord.payment_method === 'bank';
+
+                  let modeLabel = 'Manual QRIS';
+                  let ModeIcon = QrCode;
+                  let modeColor = '#10b981';
+                  let modeBg = 'rgba(16, 185, 129, 0.12)';
+
+                  if (isCoupon) {
+                    modeLabel = 'Kupon Promo';
+                    ModeIcon = Tag;
+                    modeColor = '#a855f7';
+                    modeBg = 'rgba(168, 85, 247, 0.12)';
+                  } else if (isGateway) {
+                    modeLabel = 'Gateway Aulaa';
+                    ModeIcon = Zap;
+                    modeColor = '#0284c7';
+                    modeBg = 'rgba(14, 165, 233, 0.12)';
+                  } else if (isManualBank) {
+                    modeLabel = 'Transfer Bank';
+                    ModeIcon = Building2;
+                    modeColor = '#64748b';
+                    modeBg = 'rgba(100, 116, 139, 0.12)';
                   }
+
+                  const planName = (() => {
+                    switch (ord.plan_code) {
+                      case 'free': return 'Gratis Terbatas';
+                      case 'pro_starter': return 'Pro Starter';
+                      case 'pro_business': return 'Pro Bisnis';
+                      default: return ord.plan_code || 'Paket Langganan';
+                    }
+                  })();
 
                   return (
                     <div
                       key={ord.id || ord.order_number}
                       style={{
-                        padding: '1.15rem 1.25rem',
+                        padding: '1.15rem 1.35rem',
                         borderRadius: '0.85rem',
                         background: 'rgba(255, 255, 255, 0.02)',
                         border: '1px solid var(--border-light)',
@@ -2135,93 +2405,144 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         flexWrap: 'wrap',
-                        gap: '1rem'
+                        gap: '1.25rem'
                       }}
                     >
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                          <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>{ord.order_number}</strong>
-                          <span style={{
-                            fontSize: '0.65rem',
-                            fontWeight: 800,
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            background: badgeBg,
-                            color: badgeColor,
-                            border: `1px solid ${badgeColor}`
-                          }}>
-                            {badgeLabel}
-                          </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '0.6rem',
+                          background: modeBg,
+                          color: modeColor,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <ModeIcon size={20} />
                         </div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          Paket: <strong style={{ color: 'var(--text-primary)' }}>{ord.plan_code}</strong> ({ord.billing_cycle}) • Tanggal: {new Date(ord.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+                            <strong style={{ fontSize: '0.94rem', color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                              {ord.order_number}
+                            </strong>
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 800,
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              background: statusBg,
+                              color: statusColor,
+                              border: `1px solid ${statusColor}`,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}>
+                              {isPaid && <CheckCircle2 size={11} />}
+                              {isPendingVerification && <Clock size={11} />}
+                              {isPending && <AlertCircle size={11} />}
+                              {isRejected && <XCircle size={11} />}
+                              <span>{statusLabel}</span>
+                            </span>
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: '4px',
+                              background: modeBg,
+                              color: modeColor,
+                              border: `1px solid ${modeColor}`
+                            }}>
+                              {modeLabel}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            Paket: <strong style={{ color: 'var(--text-primary)' }}>{planName}</strong> ({ord.billing_cycle === 'annual' ? 'Tahunan' : 'Bulanan'}) • Dipesan: {new Date(ord.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </div>
+                          {isRejected && ord.rejection_reason && (
+                            <div style={{ fontSize: '0.74rem', color: '#ef4444', marginTop: '0.25rem', fontWeight: 700 }}>
+                              Alasan Penolakan: {ord.rejection_reason}
+                            </div>
+                          )}
                         </div>
-                        {ord.unique_code > 0 && (
-                          <div style={{ fontSize: '0.72rem', color: 'var(--primary)', marginTop: '0.2rem', fontWeight: 700 }}>
-                            Termasuk kode unik verifikasi: +Rp {ord.unique_code}
-                          </div>
-                        )}
-                        {isRejected && ord.rejection_reason && (
-                          <div style={{ fontSize: '0.74rem', color: '#ef4444', marginTop: '0.25rem', fontWeight: 700 }}>
-                            Alasan Penolakan: {ord.rejection_reason}
-                          </div>
-                        )}
                       </div>
 
-                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.45rem' }}>
                         <div>
-                          <div style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--text-primary)' }}>
-                            Rp {ord.final_amount?.toLocaleString('id-ID')}
-                          </div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                            Metode: {ord.payment_method?.toUpperCase()}
+                          <div style={{ fontSize: '1.08rem', fontWeight: 900, color: 'var(--text-primary)' }}>
+                            {ord.final_amount === 0 ? 'Rp 0 (Gratis)' : `Rp ${ord.final_amount?.toLocaleString('id-ID')}`}
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '0.4rem' }}>
-                          {isPending && ord.gateway_payment_link && (
+                        <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDesktopOrder(ord)}
+                            style={{
+                              minHeight: '34px',
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '0.45rem',
+                              background: 'rgba(255,255,255,0.06)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem'
+                            }}
+                          >
+                            <FileText size={13} />
+                            <span>Rincian Transaksi</span>
+                          </button>
+
+                          {isPending && isGateway && ord.gateway_payment_link && (
                             <a
                               href={ord.gateway_payment_link}
                               target="_blank"
                               rel="noreferrer"
                               style={{
-                                padding: '0.35rem 0.65rem',
-                                borderRadius: '0.4rem',
+                                minHeight: '34px',
+                                padding: '0.35rem 0.75rem',
+                                borderRadius: '0.45rem',
                                 background: 'var(--primary)',
                                 color: '#ffffff',
-                                fontSize: '0.72rem',
+                                fontSize: '0.74rem',
                                 fontWeight: 800,
                                 textDecoration: 'none',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '0.3rem'
+                                gap: '0.35rem'
                               }}
                             >
-                              <ExternalLink size={12} />
+                              <ExternalLink size={13} />
                               <span>Bayar Online</span>
                             </a>
                           )}
 
-                          {(isPending || isPendingVerification) && (
+                          {isPending && isGateway && ord.gateway_reference && (
                             <button
                               type="button"
                               disabled={syncingOrderId === ord.id}
                               onClick={() => handleSyncOrder(ord.id)}
                               style={{
-                                padding: '0.35rem 0.65rem',
-                                borderRadius: '0.4rem',
+                                minHeight: '34px',
+                                padding: '0.35rem 0.75rem',
+                                borderRadius: '0.45rem',
                                 background: 'var(--btn-secondary-bg)',
                                 border: '1px solid var(--btn-secondary-border)',
                                 color: 'var(--btn-secondary-text)',
-                                fontSize: '0.72rem',
+                                fontSize: '0.74rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '0.3rem'
+                                gap: '0.35rem'
                               }}
                             >
-                              <RefreshCw size={12} className={syncingOrderId === ord.id ? 'animate-spin' : ''} />
+                              <RefreshCw size={13} className={syncingOrderId === ord.id ? 'animate-spin' : ''} />
                               <span>{syncingOrderId === ord.id ? 'Sinkron...' : 'Cek Status'}</span>
                             </button>
                           )}
@@ -2231,6 +2552,584 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                   );
                 })}
               </div>
+            )}
+
+            {/* DESKTOP DETAIL INSPECTOR MODAL */}
+            {selectedDesktopOrder && !previewDesktopProofImg && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                  backdropFilter: 'blur(5px)',
+                  zIndex: 999999,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '2rem',
+                  animation: 'fadeIn 0.2s ease'
+                }}
+                onClick={handleCloseDesktopOrder}
+              >
+                <div
+                  style={{
+                    width: '100%',
+                    maxWidth: '680px',
+                    maxHeight: '90vh',
+                    backgroundColor: 'var(--bg-card, #1e293b)',
+                    borderRadius: '1rem',
+                    border: '1px solid var(--border-light, #334155)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+                    overflow: 'hidden'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* MODAL HEADER */}
+                  <div style={{
+                    padding: '1.25rem 1.5rem',
+                    borderBottom: '1px solid var(--border-light, #334155)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '0.5rem',
+                        background: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary, #10b981)'
+                      }}>
+                        <Receipt size={22} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                          Rincian Transaksi Langganan
+                        </h4>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                          #{selectedDesktopOrder.order_number}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCloseDesktopOrder}
+                      style={{
+                        padding: '0.4rem',
+                        borderRadius: '0.4rem',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  {/* MODAL BODY */}
+                  <div style={{
+                    padding: '1.35rem 1.5rem',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1.1rem'
+                  }}>
+                    {selectedDesktopOrder._isHydrating ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.5rem 0' }}>
+                        <div style={{ height: '90px', borderRadius: '0.75rem', background: 'rgba(255,255,255,0.05)', animation: 'pulse 1.5s infinite' }} />
+                        <div style={{ height: '120px', borderRadius: '0.75rem', background: 'rgba(255,255,255,0.05)', animation: 'pulse 1.5s infinite' }} />
+                        <div style={{ height: '150px', borderRadius: '0.75rem', background: 'rgba(255,255,255,0.05)', animation: 'pulse 1.5s infinite' }} />
+                      </div>
+                    ) : (
+                      <>
+                        {/* FINANCIAL SUMMARY */}
+                    <div style={{
+                      padding: '1.1rem',
+                      borderRadius: '0.75rem',
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid var(--border-light, #334155)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.6rem'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Paket Langganan</span>
+                        <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                          {(() => {
+                            switch (selectedDesktopOrder.plan_code) {
+                              case 'free': return 'Gratis Terbatas';
+                              case 'pro_starter': return 'Pro Starter';
+                              case 'pro_business': return 'Pro Bisnis';
+                              default: return selectedDesktopOrder.plan_code || 'Paket Langganan';
+                            }
+                          })()}
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Siklus Penagihan</span>
+                        <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
+                          {selectedDesktopOrder.billing_cycle === 'annual' ? 'Tahunan (12 Bulan)' : 'Bulanan (1 Bulan)'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Waktu Pemesanan</span>
+                        <span style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
+                          {new Date(selectedDesktopOrder.created_at).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                      {selectedDesktopOrder.paid_at && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Waktu Lunas</span>
+                          <span style={{ fontSize: '0.84rem', color: '#10b981', fontWeight: 700 }}>
+                            {new Date(selectedDesktopOrder.paid_at).toLocaleDateString('id-ID', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      )}
+                      <div style={{ height: '1px', backgroundColor: 'var(--border-light, #334155)', margin: '0.25rem 0' }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Harga Paket Asli</span>
+                        <span style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+                          Rp {Number(selectedDesktopOrder.original_amount || selectedDesktopOrder.final_amount || 0).toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                      {selectedDesktopOrder.discount_amount > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.82rem', color: '#a855f7' }}>Potongan Diskon Kupon</span>
+                          <span style={{ fontSize: '0.86rem', color: '#a855f7', fontWeight: 700 }}>
+                            -Rp {Number(selectedDesktopOrder.discount_amount).toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                      )}
+                      {selectedDesktopOrder.unique_code > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--primary)' }}>Kode Unik Transfer</span>
+                          <span style={{ fontSize: '0.86rem', color: 'var(--primary)', fontWeight: 700 }}>
+                            +Rp {selectedDesktopOrder.unique_code}
+                          </span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem' }}>
+                        <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>Total Pembayaran</strong>
+                        <strong style={{ fontSize: '1.15rem', color: 'var(--primary)', fontWeight: 900 }}>
+                          {selectedDesktopOrder.final_amount === 0 ? 'Rp 0' : `Rp ${Number(selectedDesktopOrder.final_amount || 0).toLocaleString('id-ID')}`}
+                        </strong>
+                      </div>
+                    </div>
+
+                    {/* CONTEXTUAL BLOCK */}
+                    {(() => {
+                      const mode = selectedDesktopOrder.payment_mode || (selectedDesktopOrder.final_amount === 0 ? 'coupon_free' : 'gateway_aulaa');
+                      const isGateway = mode === 'gateway_aulaa';
+                      const isCoupon = mode === 'coupon_free' || selectedDesktopOrder.final_amount === 0;
+                      const isManual = !isGateway && !isCoupon;
+
+                      const st = selectedDesktopOrder.payment_status || selectedDesktopOrder.status;
+                      const isPending = st === 'pending';
+                      const isPaid = st === 'paid';
+                      const isPendingVerif = st === 'pending_verification';
+                      const isRejected = st === 'rejected';
+
+                      if (isGateway) {
+                        return (
+                          <div style={{
+                            padding: '1.1rem',
+                            borderRadius: '0.75rem',
+                            background: 'rgba(14, 165, 233, 0.04)',
+                            border: '1px solid rgba(14, 165, 233, 0.2)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.85rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <Zap size={18} color="#0284c7" />
+                              <strong style={{ fontSize: '0.88rem', color: '#0284c7' }}>
+                                Saluran Gateway: Aulaa.co Payment Gateway
+                              </strong>
+                            </div>
+
+                            {selectedDesktopOrder.gateway_reference && (
+                              <div style={{
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(0,0,0,0.25)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between'
+                              }}>
+                                <div>
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>ID Transaksi Gateway Aulaa</div>
+                                  <div style={{ fontSize: '0.86rem', color: 'var(--text-primary)', fontFamily: 'monospace', fontWeight: 700 }}>
+                                    {selectedDesktopOrder.gateway_reference}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (navigator.clipboard) {
+                                      navigator.clipboard.writeText(selectedDesktopOrder.gateway_reference);
+                                      setCopiedDesktopRefToast(true);
+                                      setTimeout(() => setCopiedDesktopRefToast(false), 2000);
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '0.4rem 0.8rem',
+                                    borderRadius: '0.45rem',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    background: 'rgba(255,255,255,0.06)',
+                                    color: copiedDesktopRefToast ? '#10b981' : 'var(--text-primary)',
+                                    fontSize: '0.76rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem'
+                                  }}
+                                >
+                                  {copiedDesktopRefToast ? <Check size={13} /> : <Copy size={13} />}
+                                  <span>{copiedDesktopRefToast ? 'Tersalin' : 'Salin ID'}</span>
+                                </button>
+                              </div>
+                            )}
+
+                            {isPending && (
+                              <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.2rem' }}>
+                                {selectedDesktopOrder.gateway_payment_link && (
+                                  <a
+                                    href={selectedDesktopOrder.gateway_payment_link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                      flex: 1,
+                                      minHeight: '42px',
+                                      padding: '0.5rem 1rem',
+                                      borderRadius: '0.5rem',
+                                      background: 'var(--primary)',
+                                      color: '#ffffff',
+                                      fontSize: '0.84rem',
+                                      fontWeight: 800,
+                                      textDecoration: 'none',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '0.4rem'
+                                    }}
+                                  >
+                                    <ExternalLink size={15} />
+                                    <span>Buka Halaman Pembayaran Aulaa</span>
+                                  </a>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={syncingOrderId === selectedDesktopOrder.id}
+                                  onClick={() => handleSyncOrder(selectedDesktopOrder.id)}
+                                  style={{
+                                    minHeight: '42px',
+                                    padding: '0.5rem 1.25rem',
+                                    borderRadius: '0.5rem',
+                                    background: 'rgba(255,255,255,0.08)',
+                                    border: '1px solid rgba(255,255,255,0.15)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem'
+                                  }}
+                                >
+                                  <RefreshCw size={14} className={syncingOrderId === selectedDesktopOrder.id ? 'animate-spin' : ''} />
+                                  <span>{syncingOrderId === selectedDesktopOrder.id ? 'Menyinkronkan...' : 'Sinkronkan Status Gateway'}</span>
+                                </button>
+                              </div>
+                            )}
+
+                            {isPaid && (
+                              <div style={{
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(16, 185, 129, 0.1)',
+                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                color: '#10b981',
+                                fontSize: '0.82rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.45rem'
+                              }}>
+                                <CheckCircle2 size={16} />
+                                <span>Pembayaran telah berhasil diverifikasi oleh sistem gateway Aulaa.</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      if (isManual) {
+                        const isBank = mode === 'manual_bank' || selectedDesktopOrder.payment_method === 'bank';
+                        return (
+                          <div style={{
+                            padding: '1.1rem',
+                            borderRadius: '0.75rem',
+                            background: 'rgba(16, 185, 129, 0.04)',
+                            border: '1px solid rgba(16, 185, 129, 0.2)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.85rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              {isBank ? <Building2 size={18} color="var(--primary)" /> : <QrCode size={18} color="var(--primary)" />}
+                              <strong style={{ fontSize: '0.88rem', color: 'var(--primary)' }}>
+                                Metode: {isBank ? 'Transfer Bank' : 'Manual QRIS'} (Verifikasi Tim Catavor)
+                              </strong>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.82rem' }}>
+                              <div>
+                                <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.76rem' }}>Nama Pemilik Rekening / Akun:</span>
+                                <strong style={{ color: 'var(--text-primary)' }}>{selectedDesktopOrder.sender_account_name || '-'}</strong>
+                              </div>
+                              <div>
+                                <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.76rem' }}>No. WhatsApp / Kontak:</span>
+                                <span style={{ color: 'var(--text-primary)' }}>{selectedDesktopOrder.sender_phone || '-'}</span>
+                              </div>
+                            </div>
+
+                            {/* PROOF PREVIEW */}
+                            {(() => {
+                              const resolvedProof = resolveProofImageUrl(selectedDesktopOrder, token);
+                              return (
+                                <div>
+                                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.45rem' }}>
+                                    Foto Bukti Pembayaran:
+                                  </span>
+                                  {resolvedProof ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                      <div
+                                        onClick={() => handleOpenDesktopProof(resolvedProof)}
+                                        style={{
+                                          width: '90px',
+                                          height: '90px',
+                                          borderRadius: '0.5rem',
+                                          overflow: 'hidden',
+                                          border: '1px solid var(--border-light, #334155)',
+                                          cursor: 'pointer',
+                                          backgroundColor: '#000000',
+                                          position: 'relative'
+                                        }}
+                                      >
+                                        <SafeImage
+                                          src={resolvedProof}
+                                          alt="Bukti Transfer"
+                                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        />
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                          Bukti Transfer Tersimpan
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenDesktopProof(resolvedProof)}
+                                          style={{
+                                            minHeight: '34px',
+                                            padding: '0.35rem 0.85rem',
+                                            borderRadius: '0.45rem',
+                                            background: 'rgba(255,255,255,0.06)',
+                                            border: '1px solid var(--border-light, #334155)',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '0.76rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem'
+                                          }}
+                                        >
+                                          <Eye size={13} />
+                                          <span>Perbesar Foto Bukti</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div style={{
+                                      padding: '0.75rem',
+                                      borderRadius: '0.5rem',
+                                      background: 'rgba(245, 158, 11, 0.08)',
+                                      border: '1px dashed rgba(245, 158, 11, 0.3)',
+                                      color: '#f59e0b',
+                                      fontSize: '0.78rem'
+                                    }}>
+                                      Belum ada foto bukti pembayaran yang diunggah.
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+
+                            {/* STATUS CALLOUTS */}
+                            {isPendingVerif && (
+                              <div style={{
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                border: '1px solid rgba(59, 130, 246, 0.25)',
+                                color: '#3b82f6',
+                                fontSize: '0.8rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.45rem'
+                              }}>
+                                <Clock size={16} />
+                                <span>Bukti transfer sedang dalam antrean verifikasi staf keuangan Catavor (1x24 jam kerja).</span>
+                              </div>
+                            )}
+
+                            {isRejected && (
+                              <div style={{
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: '#ef4444',
+                                fontSize: '0.8rem',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.25rem'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 800 }}>
+                                  <XCircle size={16} />
+                                  <span>Pembayaran Ditolak Admin</span>
+                                </div>
+                                <div style={{ fontSize: '0.76rem', marginTop: '0.2rem' }}>
+                                  Alasan: <strong>{selectedDesktopOrder.rejection_reason || 'Bukti transfer tidak valid atau dana belum masuk mutasi.'}</strong>
+                                </div>
+                              </div>
+                            )}
+
+                            {isPaid && (
+                              <div style={{
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(16, 185, 129, 0.1)',
+                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                color: '#10b981',
+                                fontSize: '0.8rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.45rem'
+                              }}>
+                                <CheckCircle2 size={16} />
+                                <span>Pembayaran telah diverifikasi sah oleh admin dan paket toko aktif.</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      if (isCoupon) {
+                        return (
+                          <div style={{
+                            padding: '1.1rem',
+                            borderRadius: '0.75rem',
+                            background: 'rgba(168, 85, 247, 0.05)',
+                            border: '1px solid rgba(168, 85, 247, 0.2)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.7rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <Tag size={18} color="#a855f7" />
+                              <strong style={{ fontSize: '0.88rem', color: '#a855f7' }}>
+                                Promosi Kupon Diskon 100%
+                              </strong>
+                            </div>
+                            <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                              Kode Voucher: <strong style={{ color: '#a855f7' }}>{selectedDesktopOrder.coupon_code || 'PROMO100'}</strong>
+                            </div>
+                            <div style={{
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              background: 'rgba(16, 185, 129, 0.1)',
+                              color: '#10b981',
+                              fontSize: '0.78rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem'
+                            }}>
+                              <CheckCircle2 size={15} />
+                              <span>Paket langganan aktif seketika tanpa pembayaran tunai.</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return null;
+                    })()}
+                    </>
+                  )}
+                  </div>
+
+                  {/* MODAL FOOTER */}
+                  <div style={{
+                    padding: '1rem 1.5rem',
+                    borderTop: '1px solid var(--border-light, #334155)',
+                    backgroundColor: 'var(--bg-deep, #0f172a)',
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '0.75rem'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={handleCloseDesktopOrder}
+                      style={{
+                        minHeight: '40px',
+                        padding: '0.5rem 1.85rem',
+                        borderRadius: '0.55rem',
+                        background: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        color: '#0f172a',
+                        fontSize: '0.86rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* INTERACTIVE LIGHTBOX MODAL WITH ZOOM / PAN */}
+            {previewDesktopProofImg && createPortal(
+              <ProofLightbox
+                imageUrl={previewDesktopProofImg}
+                onClose={handleCloseDesktopProof}
+                isMobile={false}
+              />,
+              document.body
             )}
           </div>
         )}

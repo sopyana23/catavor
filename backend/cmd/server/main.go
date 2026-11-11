@@ -84,7 +84,7 @@ func main() {
 	// Muat cache master categories dari DB (single source of truth).
 	handlers.LoadMasterCategoryCache(database.DB)
 	handlers.LoadMasterPresetCache(database.DB)
-	subscriptionHandler := handlers.NewSubscriptionHandler(database.DB)
+	subscriptionHandler := handlers.NewSubscriptionHandler(database.DB, cfg, storageService)
 	paymentHandler := handlers.NewPaymentHandler(database.DB)
 	productHandler := handlers.NewProductHandler(cfg, database.DB, storageService)
 	categoryHandler := handlers.NewCategoryHandler(database.DB)
@@ -422,6 +422,7 @@ func main() {
 
 	// Public Subscription Plans & Payment Webhooks
 	api.Get("/subscription/plans", subscriptionHandler.GetPlans)
+	api.Get("/subscription/orders/:id/proof", subscriptionHandler.GetOrderProof)
 	api.Post("/subscription/verify-coupon", subscriptionHandler.VerifyCoupon)
 	api.Post("/auth/verify-coupon", subscriptionHandler.VerifyCoupon)
 	api.Post("/webhooks/payment/aulaa", paymentHandler.HandleAulaaWebhook)
@@ -597,6 +598,7 @@ func main() {
 		guardedMutations.Post("/subscription/verify-coupon", subscriptionHandler.VerifyCoupon)
 		guardedMutations.Post("/subscription/orders/:id/sync", paymentHandler.SyncOrderStatus)
 		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
+		guarded.Get("/subscription/orders/:id/proof", subscriptionHandler.GetOrderProof)
 
 		// Merchant Sponsored Ad Campaign Management (Zero-Trust Anti-IDOR)
 		guarded.Get("/ads/slots", adHandler.GetAvailableSlots)
@@ -742,6 +744,7 @@ func main() {
 
 		// Finance & Billing
 		adminApi.Get("/subscription/orders", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.AdminListOrders)
+		adminApi.Get("/subscription/orders/:id/proof", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.GetOrderProof)
 		adminApi.Post("/subscription/orders/:id/approve", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.ApproveOrder)
 		adminApi.Post("/subscription/orders/:id/reject", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.RejectOrder)
 		adminApi.Post("/subscription/orders/:id/sync", middleware.RequireAnyPermission(cfg, "finance:orders:read", "finance:orders:manage"), paymentHandler.SyncOrderStatus)

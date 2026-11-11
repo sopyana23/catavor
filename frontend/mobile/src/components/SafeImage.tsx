@@ -110,6 +110,7 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   const finalErrorLabel = errorLabel || errorTextProp || 'Gambar Rusak';
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const [measuredDim, setMeasuredDim] = useState<{ width: number; height: number } | null>(null);
 
   const validInitialSrc = cleanImageSrc(src) || cleanImageSrc(fallbackSrc);
@@ -120,6 +121,13 @@ export const SafeImage: React.FC<SafeImageProps> = ({
   const [status, setStatus] = useState<'empty' | 'loading' | 'loaded' | 'error'>(() => {
     return !validInitialSrc ? 'empty' : 'loading';
   });
+
+  // Fast-track browser-cached images to 'loaded' status
+  useEffect(() => {
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setStatus('loaded');
+    }
+  }, [currentSrc, retryKey]);
 
   // Dynamic dimension observer: mendeteksi ukuran kontainer induk secara akurat
   // agar skala ikon proporsional dan teks tidak pernah merusak kontainer kecil
@@ -388,6 +396,7 @@ export const SafeImage: React.FC<SafeImageProps> = ({
       )}
       <img
         {...restProps}
+        ref={imgRef}
         src={resolvedSrc}
         alt={alt}
         onLoad={handleImageLoad}

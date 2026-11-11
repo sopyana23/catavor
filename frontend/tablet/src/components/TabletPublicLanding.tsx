@@ -601,14 +601,14 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.5rem',
-                    minHeight: '44px',
-                    padding: isCompact ? '0.5rem 0.95rem' : '0.55rem 1.25rem',
+                    minHeight: isMiniTablet ? '44px' : '48px',
+                    padding: isCompact ? '0.5rem 0.95rem' : '0.6rem 1.35rem',
                     borderRadius: '999px',
                     backgroundColor: isActive ? '#2563eb' : '#ffffff',
                     color: isActive ? '#ffffff' : '#334155',
                     border: isActive ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
                     textDecoration: 'none',
-                    fontSize: isMiniTablet ? '0.78rem' : '0.88rem',
+                    fontSize: isMiniTablet ? '0.8rem' : '0.9rem',
                     fontWeight: 700,
                     whiteSpace: 'nowrap',
                     cursor: 'pointer',
@@ -619,7 +619,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                   }}
                 >
                   <Icon
-                    size={isMiniTablet ? 15 : 17}
+                    size={isMiniTablet ? 16 : 19}
                     color={isActive ? '#ffffff' : '#2563eb'}
                     style={{ transition: 'color 0.25s ease' }}
                   />

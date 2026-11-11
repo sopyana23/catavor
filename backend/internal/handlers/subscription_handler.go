@@ -1,25 +1,46 @@
 package handlers
 
 import (
+	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	"catavor-backend/internal/config"
+	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
+	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
 type SubscriptionHandler struct {
-	db *gorm.DB
+	cfg     *config.Config
+	db      *gorm.DB
+	storage storage.StorageService
 }
 
-func NewSubscriptionHandler(db *gorm.DB) *SubscriptionHandler {
-	return &SubscriptionHandler{db: db}
+func NewSubscriptionHandler(db *gorm.DB, opts ...interface{}) *SubscriptionHandler {
+	h := &SubscriptionHandler{db: db}
+	for _, opt := range opts {
+		switch v := opt.(type) {
+		case *config.Config:
+			h.cfg = v
+		case storage.StorageService:
+			h.storage = v
+		}
+	}
+	return h
 }
 
 // GetPlans returns all active subscription tiers (Free, Pro Starter, Pro Bisnis)
@@ -416,6 +437,225 @@ func (h *SubscriptionHandler) GetOrders(c *fiber.Ctx) error {
 		"success": true,
 		"data":    orders,
 	})
+}
+
+// GetOrderProof securely serves a subscription order's payment proof image with strict authorization.
+func (h *SubscriptionHandler) GetOrderProof(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+
+	idParam := strings.TrimSpace(c.Params("id"))
+	if idParam == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Parameter ID atau nomor pesanan tidak valid.",
+		})
+	}
+
+	var order models.SubscriptionOrder
+	query := h.db.Model(&models.SubscriptionOrder{})
+	if num, err := strconv.ParseUint(idParam, 10, 64); err == nil && num > 0 {
+		query = query.Where("id = ? OR LOWER(order_number) = LOWER(?)", num, idParam)
+	} else {
+		query = query.Where("LOWER(order_number) = LOWER(?)", idParam)
+	}
+
+	if err := query.First(&order).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Pesanan langganan tidak ditemukan.",
+		})
+	}
+
+	proofURL := strings.TrimSpace(order.PaymentProofURL)
+	if proofURL == "" {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Bukti pembayaran belum diunggah untuk pesanan ini.",
+		})
+	}
+
+	// 1. Resolve User and Authenticate
+	user, _ := c.Locals("user").(*models.User)
+	if user == nil && h.cfg != nil {
+		// Try cookie, authorization header, or ?token= query param
+		claims := middleware.ExtractOptionalClaims(c, h.cfg)
+		if claims == nil {
+			if tokenParam := strings.TrimSpace(c.Query("token")); tokenParam != "" {
+				parsedClaims := &middleware.JWTClaims{}
+				token, err := jwt.ParseWithClaims(tokenParam, parsedClaims, func(t *jwt.Token) (interface{}, error) {
+					if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+						return nil, errors.New("unexpected signing algorithm")
+					}
+					return []byte(h.cfg.JWTSecret), nil
+				},
+					jwt.WithValidMethods([]string{"HS256"}),
+					jwt.WithIssuer(middleware.JWTIssuer),
+					jwt.WithAudience(middleware.JWTAudience),
+				)
+				if err == nil && token.Valid {
+					claims = parsedClaims
+				}
+			}
+		}
+
+		if claims != nil && claims.UserID > 0 {
+			var u models.User
+			if err := h.db.First(&u, claims.UserID).Error; err == nil {
+				user = &u
+			}
+		}
+	}
+
+	if user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan untuk melihat bukti transfer langganan.",
+		})
+	}
+
+	// 2. Strict RBAC / Ownership Authorization Check
+	isStaff := user.IsPlatformStaff()
+	isOwner := user.ID == order.UserID
+
+	if !isOwner && order.StoreID > 0 {
+		if store, ok := c.Locals("store").(*models.Store); ok && store != nil && store.ID == order.StoreID {
+			isOwner = true
+		} else {
+			var count int64
+			h.db.Model(&models.Store{}).Where("id = ? AND user_id = ?", order.StoreID, user.ID).Count(&count)
+			if count > 0 {
+				isOwner = true
+			}
+		}
+	}
+
+	if !isStaff && !isOwner {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses ditolak: Anda tidak memiliki izin untuk melihat bukti transfer pesanan ini.",
+		})
+	}
+
+	// 3. Handle base64 Data URLs
+	if strings.HasPrefix(proofURL, "data:") {
+		parts := strings.SplitN(proofURL, ",", 2)
+		if len(parts) == 2 {
+			mimeType := "image/jpeg"
+			meta := parts[0]
+			if strings.Contains(meta, ":") && strings.Contains(meta, ";") {
+				mimeType = meta[strings.Index(meta, ":")+1 : strings.Index(meta, ";")]
+			}
+			data, err := base64.StdEncoding.DecodeString(parts[1])
+			if err == nil && len(data) > 0 {
+				c.Set("Content-Type", mimeType)
+				c.Set("Cache-Control", "private, max-age=3600")
+				c.Set("X-Content-Type-Options", "nosniff")
+				return c.Send(data)
+			}
+		}
+	}
+
+	// 4. Handle External URLs
+	if strings.HasPrefix(proofURL, "http://") || strings.HasPrefix(proofURL, "https://") {
+		return c.Redirect(proofURL, fiber.StatusFound)
+	}
+
+	// 5. Clean up Storage Key and prepare candidate paths
+	cleanKey := strings.TrimLeft(filepath.ToSlash(proofURL), "/")
+	cleanKey = strings.TrimPrefix(cleanKey, "storage/")
+	cleanKey = strings.TrimLeft(cleanKey, "/")
+
+	candidateKeys := make([]string, 0, 4)
+	if cleanKey != "" {
+		candidateKeys = append(candidateKeys, cleanKey)
+		if strings.HasPrefix(cleanKey, storage.PrivateKeyPrefix) {
+			candidateKeys = append(candidateKeys, strings.TrimPrefix(cleanKey, storage.PrivateKeyPrefix))
+		} else {
+			candidateKeys = append(candidateKeys, storage.PrivateKeyPrefix+cleanKey)
+		}
+	}
+
+	// Try retrieval from configured storage service (Cloudflare R2 / S3 / MinIO / Local)
+	if h.storage != nil {
+		for _, key := range candidateKeys {
+			if strings.Contains(key, "..") || filepath.IsAbs(key) || strings.Contains(key, ":") {
+				continue
+			}
+			rc, cType, _, err := h.storage.Get(c.Context(), key)
+			if err == nil && rc != nil {
+				data, readErr := io.ReadAll(rc)
+				_ = rc.Close()
+				if readErr == nil && len(data) > 0 {
+					if cType == "" {
+						cType = detectOrderProofContentType(key)
+					}
+					c.Set("Content-Type", cType)
+					c.Set("Cache-Control", "private, max-age=3600")
+					c.Set("X-Content-Type-Options", "nosniff")
+					return c.Send(data)
+				}
+			}
+		}
+	}
+
+	// Fallback to local filesystem paths
+	localCandidates := make([]string, 0, 8)
+	if h.cfg != nil {
+		for _, key := range candidateKeys {
+			rel := filepath.FromSlash(key)
+			if h.cfg.StoragePrivateRoot != "" {
+				localCandidates = append(localCandidates, filepath.Join(h.cfg.StoragePrivateRoot, rel))
+				localCandidates = append(localCandidates, filepath.Join(h.cfg.StoragePrivateRoot, strings.TrimPrefix(rel, "private"+string(os.PathSeparator))))
+			}
+			if h.cfg.StorageLocalRoot != "" {
+				localCandidates = append(localCandidates, filepath.Join(h.cfg.StorageLocalRoot, rel))
+				localCandidates = append(localCandidates, filepath.Join(h.cfg.StorageLocalRoot, strings.TrimPrefix(rel, "private"+string(os.PathSeparator))))
+			}
+		}
+	}
+	// Common relative paths in repo
+	for _, key := range candidateKeys {
+		rel := filepath.FromSlash(key)
+		localCandidates = append(localCandidates, filepath.Join("storage", "private", strings.TrimPrefix(rel, "private"+string(os.PathSeparator))))
+		localCandidates = append(localCandidates, filepath.Join("public", "storage", rel))
+	}
+
+	for _, cand := range localCandidates {
+		if fi, err := os.Stat(cand); err == nil && !fi.IsDir() {
+			cType := detectOrderProofContentType(cand)
+			c.Set("Content-Type", cType)
+			c.Set("Cache-Control", "private, max-age=3600")
+			c.Set("X-Content-Type-Options", "nosniff")
+			return c.SendFile(cand)
+		}
+	}
+
+	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+		"success": false,
+		"message": "File fisik bukti pembayaran tidak ditemukan di penyimpanan server.",
+	})
+}
+
+func detectOrderProofContentType(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	case ".svg":
+		return "image/svg+xml"
+	case ".pdf":
+		return "application/pdf"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	}
+	return "image/jpeg"
 }
 
 // CancelDowngrade cancels any scheduled downgrade for the authenticated store

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Crown, 
   Globe, 
@@ -29,9 +30,38 @@ import {
   ExternalLink,
   RefreshCw,
   Calendar,
-  Settings2
+  Settings2,
+  Tag,
+  Building2,
+  FileText,
+  AlertCircle,
+  XCircle,
+  Eye
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
+import { ProofLightbox } from './ProofLightbox';
+
+export const resolveProofImageUrl = (order: any, token?: string | null): string => {
+  if (!order) return '';
+  const raw = order.payment_proof_url || order.proof_url || '';
+  if (raw && (raw.startsWith('data:') || raw.startsWith('blob:'))) {
+    return raw;
+  }
+  if (raw && (raw.startsWith('http://') || raw.startsWith('https://'))) {
+    return raw;
+  }
+  // Only route to authenticated proof streaming endpoint if proof exists or if hydrating from URL
+  if (raw || order._isHydrating) {
+    const identifier = order.id || order.order_number;
+    if (identifier) {
+      const effectiveToken = token || (typeof window !== 'undefined' ? (localStorage.getItem('catavor_token') || localStorage.getItem('token')) : null);
+      const t = effectiveToken ? `?token=${encodeURIComponent(effectiveToken)}` : '';
+      return `/api/subscription/orders/${encodeURIComponent(String(identifier))}/proof${t}`;
+    }
+  }
+  if (!raw) return '';
+  return raw.startsWith('/') ? raw : `/storage/${raw}`;
+};
 
 export interface SubscriptionPlanData {
   id: number;
@@ -96,6 +126,9 @@ export interface SubscriptionPageProps {
   apiBase?: string;
   token?: string | null;
   isLoading?: boolean;
+  initialOrders?: any[];
+  initialSelectedOrder?: any;
+  initialProofUrl?: string | null;
 }
 
 export interface SubscriptionModalProps extends SubscriptionPageProps {
@@ -123,13 +156,63 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
   onViewChange,
   apiBase = 'http://localhost:8000/api',
   token,
-  isLoading = false
+  isLoading = false,
+  initialOrders,
+  initialSelectedOrder,
+  initialProofUrl
 }) => {
   const effectiveQuota = currentQuota || quota;
-  const [modalView, setModalView] = useState<'plans' | 'checkout' | 'downgrade_confirm' | 'orders'>(activeView || 'plans');
+  const [modalView, setModalView] = useState<'plans' | 'checkout' | 'downgrade_confirm' | 'orders'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const v = (params.get('view') || params.get('sub') || '').toLowerCase();
+      if (['orders', 'riwayat', 'tagihan', 'billing'].includes(v) || params.has('order') || params.has('proof')) return 'orders';
+      if (['checkout', 'bayar'].includes(v)) return 'checkout';
+      if (['downgrade', 'downgrade_confirm'].includes(v)) return 'downgrade_confirm';
+    }
+    return activeView || 'plans';
+  });
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [selectedTargetPlan, setSelectedTargetPlan] = useState<SubscriptionPlanData | null>(null);
   const [checkoutType, setCheckoutType] = useState<'upgrade' | 'renewal'>('upgrade');
+
+  // Invoices / Orders State
+  const [orders, setOrders] = useState<any[]>(() => initialOrders || []);
+  const ordersRef = useRef<any[]>([]);
+  ordersRef.current = orders;
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
+
+  // Detail Inspector & LightBox State (Mobile Order History)
+  const [selectedDetailOrder, setSelectedDetailOrder] = useState<any | null>(() => initialSelectedOrder || null);
+  const [copiedRefToast, setCopiedRefToast] = useState(false);
+  const [previewProofImg, setPreviewProofImg] = useState<string | null>(() => initialProofUrl || null);
+  const [isHydratingInitialOrder, setIsHydratingInitialOrder] = useState<boolean>(() => {
+    if (initialProofUrl) return false;
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return Boolean(params.get('order') && params.get('proof') && !initialProofUrl);
+    }
+    return false;
+  });
+
+  // Clean standalone ?order= param on reload/mount if not viewing proof
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('order') && !params.has('proof')) {
+        params.delete('order');
+        const q = params.toString();
+        window.history.replaceState(
+          { ...window.history.state, subView: 'orders', orderId: undefined },
+          '',
+          `${window.location.pathname}${q ? '?' + q : ''}`
+        );
+      }
+    }
+  }, []);
+
+  const fetchOrdersRef = useRef<() => void>(() => {});
 
   // Sync external activeView changes
   useEffect(() => {
@@ -138,12 +221,128 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
     }
   }, [activeView]);
 
-  const changeView = (nextView: 'plans' | 'checkout' | 'downgrade_confirm' | 'orders') => {
+  const changeView = (
+    nextView: 'plans' | 'checkout' | 'downgrade_confirm' | 'orders',
+    targetPlan?: SubscriptionPlanData | null,
+    checkoutMode?: 'upgrade' | 'renewal'
+  ) => {
     setModalView(nextView);
     if (onViewChange) {
       onViewChange(nextView);
     }
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (nextView === 'plans') {
+        params.delete('view');
+        params.delete('plan');
+        params.delete('type');
+        params.delete('order');
+        params.delete('proof');
+        const q = params.toString();
+        const targetUrl = `${window.location.pathname}${q ? '?' + q : ''}`;
+        if (window.history.state?.subView) {
+          window.history.replaceState({ ...window.history.state, subView: null }, '', targetUrl);
+        }
+      } else {
+        params.set('view', nextView === 'downgrade_confirm' ? 'downgrade' : nextView);
+        if (nextView !== 'orders') {
+          params.delete('order');
+          params.delete('proof');
+        }
+        const activePlan = targetPlan || selectedTargetPlan;
+        if (activePlan?.code) {
+          params.set('plan', activePlan.code);
+        }
+        if (checkoutMode) {
+          params.set('type', checkoutMode);
+        } else if (nextView === 'checkout' && checkoutType) {
+          params.set('type', checkoutType);
+        }
+        const q = params.toString();
+        const targetUrl = `${window.location.pathname}?${q}`;
+        window.history.pushState(
+          {
+            subView: nextView,
+            plan: activePlan?.code,
+            type: checkoutMode || checkoutType
+          },
+          '',
+          targetUrl
+        );
+      }
+    }
   };
+
+  const handleBackToPlans = () => {
+    if (typeof window !== 'undefined' && window.history.state?.subView) {
+      window.history.back();
+    } else {
+      changeView('plans');
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        params.delete('view');
+        params.delete('plan');
+        params.delete('type');
+        params.delete('order');
+        params.delete('proof');
+        const q = params.toString();
+        const targetUrl = `${window.location.pathname}${q ? '?' + q : ''}`;
+        window.history.replaceState({}, '', targetUrl);
+      }
+    }
+  };
+
+  // Real-time synchronization on browser Back / gesture navigation
+  useEffect(() => {
+    const handleSubPopState = () => {
+      if (typeof window === 'undefined') return;
+      const params = new URLSearchParams(window.location.search);
+      const viewParam = params.get('view');
+      const planParam = params.get('plan');
+      const typeParam = params.get('type') as 'upgrade' | 'renewal' | null;
+      const orderParam = params.get('order');
+      const proofParam = params.get('proof');
+
+      if (viewParam === 'checkout') {
+        setModalView('checkout');
+        if (onViewChange) onViewChange('checkout');
+        if (planParam && plans && plans.length > 0) {
+          const matched = plans.find(p => p.code?.toLowerCase() === planParam.toLowerCase());
+          if (matched) setSelectedTargetPlan(matched);
+        }
+        if (typeParam) setCheckoutType(typeParam);
+      } else if (viewParam === 'downgrade' || viewParam === 'downgrade_confirm') {
+        setModalView('downgrade_confirm');
+        if (onViewChange) onViewChange('downgrade_confirm');
+        if (planParam && plans && plans.length > 0) {
+          const matched = plans.find(p => p.code?.toLowerCase() === planParam.toLowerCase());
+          if (matched) setSelectedTargetPlan(matched);
+        }
+      } else if (viewParam === 'orders') {
+        setModalView('orders');
+        if (onViewChange) onViewChange('orders');
+        if (!proofParam) {
+          setPreviewProofImg(null);
+        }
+        if (window.history.state?.subView !== 'order_detail' && !proofParam) {
+          setSelectedDetailOrder(null);
+        }
+        if (orders.length === 0) {
+          fetchOrdersRef.current();
+        }
+      } else {
+        setModalView('plans');
+        if (onViewChange) onViewChange('plans');
+        setSelectedDetailOrder(null);
+        setPreviewProofImg(null);
+        setActionError(null);
+      }
+    };
+
+    window.addEventListener('popstate', handleSubPopState);
+    return () => window.removeEventListener('popstate', handleSubPopState);
+  }, [plans, onViewChange, orders.length]);
 
   // Checkout Form State
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'qris'>('qris');
@@ -158,10 +357,137 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
   const [isUploadingProof, setIsUploadingProof] = useState(false);
   const [copiedAccountToast, setCopiedAccountToast] = useState(false);
 
-  // Invoices / Orders State
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loadingOrders, setLoadingOrders] = useState(false);
-  const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
+  // Lock body scroll when overlay/modal is open
+  useEffect(() => {
+    if (previewProofImg !== null || selectedDetailOrder !== null || isHydratingInitialOrder) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  }, [previewProofImg, selectedDetailOrder, isHydratingInitialOrder]);
+
+  // Gesture physics for Apple-Style Bottom Sheet Detail
+  const [detailSheetDragY, setDetailSheetDragY] = useState(0);
+  const [isDetailSheetDragging, setIsDetailSheetDragging] = useState(false);
+  const detailDragStartYRef = useRef(0);
+
+  // URL State Synced Modal & LightBox Navigation Handlers
+  const handleOpenOrderDetail = (ord: any) => {
+    setSelectedDetailOrder(ord);
+    setDetailSheetDragY(0);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      params.set('view', 'orders');
+      params.delete('order');
+      params.delete('proof');
+      const q = params.toString();
+      window.history.pushState(
+        { subView: 'order_detail', orderId: ord.order_number || ord.id },
+        '',
+        `${window.location.pathname}?${q}`
+      );
+    }
+  };
+
+  const handleCloseOrderDetail = () => {
+    setSelectedDetailOrder(null);
+    setPreviewProofImg(null);
+    setDetailSheetDragY(0);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (window.history.state?.subView === 'order_detail' && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+      if (params.has('order') || params.has('proof')) {
+        params.delete('order');
+        params.delete('proof');
+        const q = params.toString();
+        window.history.replaceState(
+          { ...window.history.state, subView: 'orders' },
+          '',
+          `${window.location.pathname}${q ? '?' + q : ''}`
+        );
+      }
+    }
+  };
+
+  const handleOpenProofLightbox = (rawUrl?: string, ord?: any) => {
+    const targetOrd = ord || selectedDetailOrder;
+    const finalUrl = resolveProofImageUrl(targetOrd, token) || rawUrl || '';
+    if (!finalUrl) return;
+
+    setPreviewProofImg(finalUrl);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      params.set('view', 'orders');
+      if (targetOrd) {
+        params.set('order', targetOrd.order_number || String(targetOrd.id));
+      }
+      params.set('proof', '1');
+      const q = params.toString();
+      window.history.pushState(
+        { subView: 'order_proof', orderId: targetOrd?.order_number || targetOrd?.id },
+        '',
+        `${window.location.pathname}?${q}`
+      );
+    }
+  };
+
+  const handleCloseProofLightbox = () => {
+    setPreviewProofImg(null);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (window.history.state?.subView === 'order_proof' && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+      params.delete('proof');
+      params.delete('order');
+      const q = params.toString();
+      window.history.replaceState(
+        { ...window.history.state, subView: 'orders' },
+        '',
+        `${window.location.pathname}${q ? '?' + q : ''}`
+      );
+      setSelectedDetailOrder(null);
+    }
+  };
+
+  const handleDetailTouchStart = (e: React.TouchEvent) => {
+    detailDragStartYRef.current = e.touches[0].clientY;
+    setIsDetailSheetDragging(true);
+  };
+
+  const handleDetailTouchMove = (e: React.TouchEvent) => {
+    if (!isDetailSheetDragging) return;
+    const currentY = e.touches[0].clientY;
+    const delta = currentY - detailDragStartYRef.current;
+    if (delta > 0) {
+      setDetailSheetDragY(delta);
+    } else {
+      setDetailSheetDragY(delta * 0.18);
+    }
+  };
+
+  const handleDetailTouchEnd = () => {
+    setIsDetailSheetDragging(false);
+    if (detailSheetDragY >= 70) {
+      handleCloseOrderDetail();
+    } else {
+      setDetailSheetDragY(0);
+    }
+  };
+
+  const handleCopyGatewayRef = (refId: string) => {
+    if (!refId) return;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(refId);
+      setCopiedRefToast(true);
+      setTimeout(() => setCopiedRefToast(false), 2000);
+    }
+  };
 
   // Action Feedback
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -324,14 +650,56 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setOrders(data.data || data.orders || []);
+        const orderList = data.data || data.orders || [];
+        setOrders(orderList);
+
+        // Re-hydrate proof lightbox on load / refresh ONLY if viewing proof detail
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const orderParam = params.get('order');
+          const proofParam = params.get('proof');
+          if (orderParam && proofParam && orderList.length > 0) {
+            const matched = orderList.find((o: any) =>
+              String(o.order_number).toLowerCase() === orderParam.toLowerCase() ||
+              String(o.id) === orderParam
+            );
+            if (matched) {
+              setSelectedDetailOrder(matched);
+              setPreviewProofImg(resolveProofImageUrl(matched, token));
+            } else {
+              setSelectedDetailOrder(null);
+              setPreviewProofImg(null);
+            }
+          } else if (orderParam && !proofParam) {
+            params.delete('order');
+            const q = params.toString();
+            window.history.replaceState(
+              { ...window.history.state, subView: 'orders' },
+              '',
+              `${window.location.pathname}${q ? '?' + q : ''}`
+            );
+            setSelectedDetailOrder(null);
+            setPreviewProofImg(null);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to fetch subscription orders', err);
     } finally {
       setLoadingOrders(false);
+      setIsHydratingInitialOrder(false);
     }
   };
+  fetchOrdersRef.current = fetchOrders;
+
+  // Auto-fetch orders on mount or when switching to 'orders' view or when hydrating from URL
+  useEffect(() => {
+    if (modalView === 'orders' || activeView === 'orders' || isHydratingInitialOrder) {
+      if (ordersRef.current.length === 0) {
+        fetchOrders();
+      }
+    }
+  }, [modalView, activeView]);
 
   const handleProofUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -683,6 +1051,69 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
     }
   };
 
+  if (isHydratingInitialOrder) {
+    return (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 99999,
+        backgroundColor: '#0f172a',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '1rem',
+        color: '#f8fafc',
+        fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif"
+      }}>
+        <div style={{
+          width: '54px',
+          height: '54px',
+          borderRadius: '1rem',
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(56, 189, 248, 0.16) 100%)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
+        }}>
+          <Receipt size={26} className="animate-pulse" style={{ color: '#10b981' }} />
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: '0 0 0.3rem 0', color: '#f8fafc' }}>
+            Memuat Bukti Pembayaran...
+          </h3>
+          <p style={{ fontSize: '0.76rem', color: '#94a3b8', margin: 0 }}>
+            Menyiapkan informasi bukti transfer transaksi
+          </p>
+        </div>
+        <div style={{
+          width: '160px',
+          height: '3px',
+          borderRadius: '999px',
+          backgroundColor: 'rgba(255,255,255,0.08)',
+          overflow: 'hidden',
+          position: 'relative'
+        }}>
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            width: '40%',
+            borderRadius: '999px',
+            background: 'linear-gradient(90deg, #10b981, #38bdf8)',
+            animation: 'loaderSlide 1.2s infinite ease-in-out'
+          }} />
+        </div>
+        <style>{`
+          @keyframes loaderSlide {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(350%); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
     <div 
       className="subscription-page-container animate-fade-in"
@@ -710,7 +1141,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
         >
           <button
             type="button"
-            onClick={() => setModalView('plans')}
+            onClick={() => changeView('plans')}
             style={{
               padding: '0.55rem 0.75rem',
               borderRadius: '0.65rem',
@@ -735,7 +1166,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
             type="button"
             onClick={() => {
               fetchOrders();
-              setModalView('orders');
+              changeView('orders');
             }}
             style={{
               padding: '0.55rem 0.75rem',
@@ -2043,7 +2474,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                     if (isPaid) {
                       badgeColor = '#10b981';
                       badgeBg = 'rgba(16, 185, 129, 0.15)';
-                      badgeLabel = 'LUNAS';
+                      badgeLabel = 'Lunas';
                     } else if (isPendingVerification) {
                       badgeColor = '#3b82f6';
                       badgeBg = 'rgba(59, 130, 246, 0.15)';
@@ -2110,6 +2541,28 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                         )}
 
                         <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', marginTop: '0.2rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenOrderDetail(ord)}
+                            style={{
+                              minHeight: '34px',
+                              padding: '0.25rem 0.65rem',
+                              borderRadius: '0.4rem',
+                              background: 'rgba(255,255,255,0.06)',
+                              border: '1px solid var(--border-light)',
+                              color: 'var(--text-primary)',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem'
+                            }}
+                          >
+                            <Receipt size={12} />
+                            <span>Rincian</span>
+                          </button>
+
                           {isPending && ord.gateway_payment_link && (
                             <a
                               href={ord.gateway_payment_link}
@@ -2165,6 +2618,642 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                 </div>
               )}
             </div>
+          )}
+
+          {/* MOBILE ORDER DETAIL BOTTOM SHEET (Zero 'X' in Header, High Contrast Footer, Apple-style Drag Physics) */}
+          {selectedDetailOrder && !previewProofImg && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 999998,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+                backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                backdropFilter: 'blur(4px)',
+                touchAction: 'none'
+              }}
+              onClick={handleCloseOrderDetail}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: '100%',
+                  maxHeight: '90vh',
+                  backgroundColor: 'var(--bg-card, #0f172a)',
+                  borderTopLeftRadius: '1.25rem',
+                  borderTopRightRadius: '1.25rem',
+                  borderTop: '1px solid var(--border-light, #334155)',
+                  boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.5)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  transform: `translateY(${Math.max(0, detailSheetDragY)}px)`,
+                  transition: isDetailSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
+              >
+                {/* DRAG HANDLE BAR */}
+                <div
+                  onTouchStart={handleDetailTouchStart}
+                  onTouchMove={handleDetailTouchMove}
+                  onTouchEnd={handleDetailTouchEnd}
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0 0.25rem',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    touchAction: 'none',
+                    cursor: 'grab'
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '42px',
+                      height: '4px',
+                      borderRadius: '999px',
+                      backgroundColor: 'rgba(255,255,255,0.25)'
+                    }}
+                  />
+                </div>
+
+                {/* HEADER (CLEAN, NO 'X' BUTTON) */}
+                <div
+                  onTouchStart={handleDetailTouchStart}
+                  onTouchMove={handleDetailTouchMove}
+                  onTouchEnd={handleDetailTouchEnd}
+                  style={{
+                    padding: '0.2rem 1.25rem 0.85rem',
+                    borderBottom: '1px solid var(--border-light, #334155)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    touchAction: 'none'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '0.5rem',
+                      background: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--primary, #10b981)'
+                    }}>
+                      <Receipt size={18} />
+                    </div>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>
+                        Rincian Transaksi
+                      </h4>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)', fontFamily: 'monospace' }}>
+                        {selectedDetailOrder.order_number}
+                      </span>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const status = selectedDetailOrder.payment_status || selectedDetailOrder.status || 'pending';
+                    const isPaid = status === 'paid';
+                    const isPendingVerif = status === 'pending_verification';
+                    const isPending = status === 'pending';
+                    const isRejected = status === 'rejected';
+
+                    if (isPaid) {
+                      return (
+                        <span style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: '999px',
+                          background: 'rgba(16, 185, 129, 0.15)',
+                          color: '#10b981',
+                          border: '1px solid #10b981'
+                        }}>
+                          Lunas
+                        </span>
+                      );
+                    }
+                    if (isPendingVerif) {
+                      return (
+                        <span style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: '999px',
+                          background: 'rgba(59, 130, 246, 0.15)',
+                          color: '#3b82f6',
+                          border: '1px solid #3b82f6'
+                        }}>
+                          Verifikasi
+                        </span>
+                      );
+                    }
+                    if (isRejected) {
+                      return (
+                        <span style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: '999px',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          color: '#ef4444',
+                          border: '1px solid #ef4444'
+                        }}>
+                          Ditolak
+                        </span>
+                      );
+                    }
+                    return (
+                      <span style={{
+                        fontSize: '0.65rem',
+                        fontWeight: 800,
+                        padding: '3px 8px',
+                        borderRadius: '999px',
+                        background: 'rgba(245, 158, 11, 0.15)',
+                        color: '#f59e0b',
+                        border: '1px solid #f59e0b'
+                      }}>
+                        Menunggu
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                {/* SCROLLABLE BODY */}
+                <div style={{
+                  padding: '1rem 1.25rem',
+                  overflowY: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  overscrollBehavior: 'contain',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem',
+                  flex: 1
+                }}>
+                  {/* FINANCIAL BREAKDOWN */}
+                  <div style={{
+                    padding: '0.9rem 1rem',
+                    borderRadius: '0.75rem',
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid var(--border-light, #334155)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.55rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.76rem', color: 'var(--text-muted, #94a3b8)' }}>Paket Langganan</span>
+                      <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary, #f8fafc)' }}>
+                        {(() => {
+                          switch (selectedDetailOrder.plan_code) {
+                            case 'free': return 'Gratis Terbatas';
+                            case 'pro_starter': return 'Pro Starter';
+                            case 'pro_business': return 'Pro Bisnis';
+                            default: return selectedDetailOrder.plan_code || 'Paket Langganan';
+                          }
+                        })()}
+                      </strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.76rem', color: 'var(--text-muted, #94a3b8)' }}>Siklus Penagihan</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #cbd5e1)' }}>
+                        {selectedDetailOrder.billing_cycle === 'annual' ? 'Tahunan (12 Bulan)' : 'Bulanan (1 Bulan)'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.76rem', color: 'var(--text-muted, #94a3b8)' }}>Waktu Pemesanan</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary, #cbd5e1)' }}>
+                        {selectedDetailOrder.created_at ? new Date(selectedDetailOrder.created_at).toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : '-'}
+                      </span>
+                    </div>
+                    {selectedDetailOrder.paid_at && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.76rem', color: 'var(--text-muted, #94a3b8)' }}>Waktu Pelunasan</span>
+                        <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 700 }}>
+                          {new Date(selectedDetailOrder.paid_at).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                    )}
+                    <div style={{
+                      height: '1px',
+                      backgroundColor: 'var(--border-light, #334155)',
+                      margin: '0.2rem 0'
+                    }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.76rem', color: 'var(--text-muted, #94a3b8)' }}>Harga Paket</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #cbd5e1)' }}>
+                        Rp {Number(selectedDetailOrder.original_amount || selectedDetailOrder.final_amount || 0).toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                    {selectedDetailOrder.discount_amount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.76rem', color: '#a855f7' }}>Potongan Diskon Kupon</span>
+                        <span style={{ fontSize: '0.8rem', color: '#a855f7', fontWeight: 700 }}>
+                          -Rp {Number(selectedDetailOrder.discount_amount).toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                    )}
+                    {selectedDetailOrder.unique_code > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.76rem', color: 'var(--primary, #10b981)' }}>Kode Unik Transfer</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--primary, #10b981)', fontWeight: 700 }}>
+                          +Rp {selectedDetailOrder.unique_code}
+                        </span>
+                      </div>
+                    )}
+                    <div style={{
+                      height: '1px',
+                      backgroundColor: 'var(--border-light, #334155)',
+                      margin: '0.2rem 0'
+                    }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary, #f8fafc)' }}>Total Tagihan</strong>
+                      <strong style={{ fontSize: '1rem', color: 'var(--primary, #10b981)' }}>
+                        Rp {Number(selectedDetailOrder.final_amount || 0).toLocaleString('id-ID')}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* CONTEXTUAL PAYMENT MODE BLOCK */}
+                  {(() => {
+                    const mode = selectedDetailOrder.payment_mode || (selectedDetailOrder.final_amount === 0 ? 'coupon_free' : 'gateway_aulaa');
+                    const isAulaa = mode === 'gateway_aulaa' || mode === 'aulaa';
+                    const isManual = mode === 'manual_qris' || mode === 'manual_bank';
+                    const isCoupon = mode === 'coupon_free' || selectedDetailOrder.final_amount === 0;
+                    const st = selectedDetailOrder.payment_status || selectedDetailOrder.status;
+                    const isPending = st === 'pending';
+                    const isPaid = st === 'paid';
+                    const isPendingVerif = st === 'pending_verification';
+
+                    if (isAulaa) {
+                      return (
+                        <div style={{
+                          padding: '0.85rem 1rem',
+                          borderRadius: '0.75rem',
+                          background: 'rgba(56, 189, 248, 0.04)',
+                          border: '1px solid rgba(56, 189, 248, 0.2)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.65rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <CreditCard size={16} color="#38bdf8" />
+                            <strong style={{ fontSize: '0.82rem', color: '#38bdf8' }}>
+                              Metode: Pembayaran Online Aulaa ({selectedDetailOrder.payment_method?.toUpperCase() || 'QRIS / VA'})
+                            </strong>
+                          </div>
+
+                          {selectedDetailOrder.gateway_reference && (
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: 'rgba(0,0,0,0.25)',
+                              padding: '0.45rem 0.65rem',
+                              borderRadius: '0.45rem',
+                              border: '1px solid rgba(255,255,255,0.06)'
+                            }}>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
+                                Ref Gateway: <strong style={{ color: '#38bdf8', fontFamily: 'monospace' }}>{selectedDetailOrder.gateway_reference}</strong>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyGatewayRef(selectedDetailOrder.gateway_reference)}
+                                style={{
+                                  padding: '0.35rem 0.6rem',
+                                  borderRadius: '0.4rem',
+                                  border: '1px solid rgba(255,255,255,0.1)',
+                                  background: 'rgba(255,255,255,0.06)',
+                                  color: copiedRefToast ? '#10b981' : 'var(--text-primary, #f8fafc)',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                  minHeight: '34px'
+                                }}
+                              >
+                                {copiedRefToast ? <Check size={12} /> : <Copy size={12} />}
+                                <span>{copiedRefToast ? 'Tersalin' : 'Salin'}</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {isPending && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.2rem' }}>
+                              {selectedDetailOrder.gateway_payment_link && (
+                                <a
+                                  href={selectedDetailOrder.gateway_payment_link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{
+                                    minHeight: '44px',
+                                    padding: '0.5rem 1rem',
+                                    borderRadius: '0.5rem',
+                                    background: 'var(--primary, #10b981)',
+                                    color: '#ffffff',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 800,
+                                    textDecoration: 'none',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.4rem'
+                                  }}
+                                >
+                                  <ExternalLink size={15} />
+                                  <span>Buka Pembayaran Online Aulaa</span>
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                disabled={syncingOrderId === selectedDetailOrder.id}
+                                onClick={() => handleSyncOrder(selectedDetailOrder.id)}
+                                style={{
+                                  minHeight: '44px',
+                                  padding: '0.5rem 1rem',
+                                  borderRadius: '0.5rem',
+                                  background: 'var(--btn-secondary-bg, rgba(255,255,255,0.08))',
+                                  border: '1px solid var(--btn-secondary-border, rgba(255,255,255,0.15))',
+                                  color: 'var(--btn-secondary-text, var(--text-primary))',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.4rem'
+                                }}
+                              >
+                                <RefreshCw size={14} className={syncingOrderId === selectedDetailOrder.id ? 'animate-spin' : ''} />
+                                <span>{syncingOrderId === selectedDetailOrder.id ? 'Menyinkronkan...' : 'Sinkronkan / Periksa Status Gateway'}</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {isPaid && (
+                            <div style={{
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              background: 'rgba(16, 185, 129, 0.1)',
+                              border: '1px solid rgba(16, 185, 129, 0.25)',
+                              color: '#10b981',
+                              fontSize: '0.76rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem'
+                            }}>
+                              <CheckCircle2 size={15} />
+                              <span>Pembayaran terverifikasi otomatis oleh gateway Aulaa dan paket telah aktif.</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    if (isManual) {
+                      const isBank = mode === 'manual_bank' || selectedDetailOrder.payment_method === 'bank';
+                      return (
+                        <div style={{
+                          padding: '0.85rem 1rem',
+                          borderRadius: '0.75rem',
+                          background: 'rgba(16, 185, 129, 0.04)',
+                          border: '1px solid rgba(16, 185, 129, 0.2)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.75rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            {isBank ? <Building2 size={16} color="var(--primary)" /> : <QrCode size={16} color="var(--primary)" />}
+                            <strong style={{ fontSize: '0.82rem', color: 'var(--primary)' }}>
+                              Metode: {isBank ? 'Transfer Bank' : 'Manual QRIS'} (Verifikasi Tim Catavor)
+                            </strong>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.78rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Nama Pengirim / Pemilik:</span>
+                              <strong style={{ color: 'var(--text-primary, #f8fafc)' }}>
+                                {selectedDetailOrder.sender_account_name || '-'}
+                              </strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>No. WhatsApp / HP:</span>
+                              <span style={{ color: 'var(--text-primary, #f8fafc)' }}>
+                                {selectedDetailOrder.sender_phone || '-'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* PROOF THUMBNAIL */}
+                          {(() => {
+                            const resolvedProof = resolveProofImageUrl(selectedDetailOrder, token);
+                            return (
+                              <div>
+                                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)', display: 'block', marginBottom: '0.4rem' }}>
+                                  Bukti Pembayaran:
+                                </span>
+                                {resolvedProof ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <div
+                                      onClick={() => handleOpenProofLightbox(resolvedProof, selectedDetailOrder)}
+                                      style={{
+                                        width: '74px',
+                                        height: '74px',
+                                        borderRadius: '0.5rem',
+                                        overflow: 'hidden',
+                                        border: '1px solid var(--border-light, #334155)',
+                                        cursor: 'pointer',
+                                        backgroundColor: '#000000',
+                                        flexShrink: 0
+                                      }}
+                                    >
+                                      <SafeImage
+                                        src={resolvedProof}
+                                        alt="Bukti Transfer"
+                                        isDark={true}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                      />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                      <span style={{ fontSize: '0.76rem', color: 'var(--text-primary, #f8fafc)', fontWeight: 600 }}>
+                                        Foto Bukti Transfer
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenProofLightbox(resolvedProof, selectedDetailOrder)}
+                                        style={{
+                                          minHeight: '34px',
+                                          padding: '0.3rem 0.65rem',
+                                          borderRadius: '0.4rem',
+                                          background: 'rgba(255,255,255,0.06)',
+                                          border: '1px solid var(--border-light, #334155)',
+                                          color: 'var(--text-primary, #f8fafc)',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.3rem'
+                                        }}
+                                      >
+                                        <Eye size={12} />
+                                        <span>Perbesar Foto</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div style={{
+                                    padding: '0.65rem',
+                                    borderRadius: '0.5rem',
+                                    background: 'rgba(245, 158, 11, 0.08)',
+                                    border: '1px dashed rgba(245, 158, 11, 0.3)',
+                                    color: '#f59e0b',
+                                    fontSize: '0.74rem'
+                                  }}>
+                                    Belum ada foto bukti pembayaran yang diunggah.
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* VERIFICATION STATUS CALLOUT */}
+                          {isPendingVerif && (
+                            <div style={{
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              background: 'rgba(59, 130, 246, 0.1)',
+                              border: '1px solid rgba(59, 130, 246, 0.25)',
+                              color: '#3b82f6',
+                              fontSize: '0.74rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem'
+                            }}>
+                              <Clock size={15} />
+                              <span>Bukti transfer sedang diverifikasi oleh tim Catavor (estimasi 10–30 menit kerja).</span>
+                            </div>
+                          )}
+
+                          {isPaid && (
+                            <div style={{
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              background: 'rgba(16, 185, 129, 0.1)',
+                              border: '1px solid rgba(16, 185, 129, 0.25)',
+                              color: '#10b981',
+                              fontSize: '0.74rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.4rem'
+                            }}>
+                              <CheckCircle2 size={15} />
+                              <span>Pembayaran telah disetujui sah oleh staf platform dan paket toko aktif.</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    if (isCoupon) {
+                      return (
+                        <div style={{
+                          padding: '0.85rem 1rem',
+                          borderRadius: '0.75rem',
+                          background: 'rgba(168, 85, 247, 0.05)',
+                          border: '1px solid rgba(168, 85, 247, 0.2)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.6rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Tag size={16} color="#a855f7" />
+                            <strong style={{ fontSize: '0.82rem', color: '#a855f7' }}>
+                              Aktivasi Kupon Promosi 100%
+                            </strong>
+                          </div>
+                          <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary, #cbd5e1)' }}>
+                            Kode Kupon: <strong style={{ color: '#a855f7' }}>{selectedDetailOrder.coupon_code || 'PROMO100'}</strong>
+                          </div>
+                          <div style={{
+                            padding: '0.55rem 0.75rem',
+                            borderRadius: '0.5rem',
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            border: '1px solid rgba(16, 185, 129, 0.25)',
+                            color: '#10b981',
+                            fontSize: '0.74rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.4rem'
+                          }}>
+                            <CheckCircle2 size={15} />
+                            <span>Paket aktif tanpa tagihan tunai melalui kupon diskon 100%.</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return null;
+                  })()}
+                </div>
+
+                {/* FOOTER (NO 'X' IN HEADER, HIGH CONTRAST BUTTON IN FOOTER) */}
+                <div style={{
+                  padding: '0.85rem 1.25rem 1.15rem',
+                  borderTop: '1px solid var(--border-light, #334155)',
+                  backgroundColor: 'var(--bg-deep, #0f172a)'
+                }}>
+                  <button
+                    type="button"
+                    onClick={handleCloseOrderDetail}
+                    style={{
+                      width: '100%',
+                      minHeight: '46px',
+                      borderRadius: '0.65rem',
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      color: '#0f172a',
+                      fontSize: '0.88rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    <span>Tutup Rincian</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* LIGHTBOX FOR TRANSFER PROOF */}
+          {previewProofImg && createPortal(
+            <ProofLightbox
+              imageUrl={previewProofImg}
+              onClose={handleCloseProofLightbox}
+              isMobile={true}
+            />,
+            document.body
           )}
         </div>
     </div>

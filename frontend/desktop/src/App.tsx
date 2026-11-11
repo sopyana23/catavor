@@ -145,7 +145,7 @@ import logoHeaderImg from './assets/logo-header.png'
 import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
 import { VideoPlayerEmbed, VideoPreviewInput, parseVideoUrl } from './components/VideoEmbed'
-import { SubscriptionModal, SubscriptionPage, QuotaDashboardWidget, type StoreQuotaData, type SubscriptionPlanData } from './components/SubscriptionModal'
+import { SubscriptionModal, SubscriptionPage, QuotaDashboardWidget, resolveProofImageUrl, type StoreQuotaData, type SubscriptionPlanData } from './components/SubscriptionModal'
 export interface CatalogMetricsData {
   total_items: number;
   active_items: number;
@@ -5841,6 +5841,15 @@ Terima kasih.`;
         return 'help';
       }
       if (
+        path.includes('/admin/subscription') ||
+        ['subscription', 'langganan', 'paket', 'orders', 'riwayat', 'tagihan', 'billing'].includes(rawTabParam) ||
+        urlParams.get('view') === 'orders' ||
+        Boolean(urlParams.get('order')) ||
+        Boolean(urlParams.get('proof'))
+      ) {
+        return 'subscription';
+      }
+      if (
         path.includes('/admin/notifications') ||
         ['notifications', 'notifikasi'].includes(rawTabParam) ||
         urlParams.get('id') ||
@@ -6602,6 +6611,9 @@ Terima kasih.`;
   const [storeQuota, setStoreQuota] = useState<StoreQuotaData | null>(null)
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlanData[]>([])
   const [showSubscriptionModal, setShowSubscriptionModal] = useState<boolean>(false)
+  const [initialSubscriptionOrders, setInitialSubscriptionOrders] = useState<any[] | null>(null);
+  const [initialProofOrder, setInitialProofOrder] = useState<any | null>(null);
+  const [initialProofUrl, setInitialProofUrl] = useState<string | null>(null);
 
   // Desktop Detail Action Popover Menu State
   const [showDetailActionDropdown, setShowDetailActionDropdown] = useState<boolean>(false)
@@ -9944,7 +9956,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setView('admin');
           const rawTabParam = (urlParams.get('tab') || '').toLowerCase();
           const isSupportQuery = ['support', 'help', 'bantuan', 'tickets', 'chat'].includes(rawTabParam) || Boolean(urlParams.get('ticket'));
-          const pageSub = parts[2] || urlParams.get('sub') || (isSupportQuery ? 'help' : null) || urlParams.get('tab');
+          const isSubQuery = ['subscription', 'langganan', 'paket', 'orders', 'riwayat', 'tagihan', 'billing'].includes(rawTabParam) || urlParams.get('view') === 'orders' || Boolean(urlParams.get('order')) || Boolean(urlParams.get('proof'));
+          const pageSub = parts[2] || urlParams.get('sub') || (isSupportQuery ? 'help' : null) || (isSubQuery ? 'subscription' : null) || urlParams.get('tab');
           const subSub = parts[3];
           const paramId = parts[4];
 
@@ -10001,7 +10014,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             setAdminTab('analytics');
             fetchAnalytics(analyticsPeriod);
           }
-          else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') setAdminTab('subscription');
+          else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket' || pageSub === 'orders' || pageSub === 'riwayat' || pageSub === 'tagihan') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support') {
             setAdminTab('help');
             const ticketParam = urlParams.get('ticket');
@@ -10084,7 +10097,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             setAdminTab('analytics');
             fetchAnalytics(analyticsPeriod);
           }
-          else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') setAdminTab('subscription');
+          else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket' || pageSub === 'orders' || pageSub === 'riwayat' || pageSub === 'tagihan') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan') {
             setAdminTab('help');
             const ticketParam = urlParams.get('ticket');
@@ -11560,6 +11573,51 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setError('Koneksi terputus. Pastikan server backend Catavor berjalan di http://localhost:8000.');
       }
     } finally {
+      // If hydrating proof photo on reload (?order=...&proof=1), do NOT dismiss the initial gate
+      // until the order data is fetched AND the proof image is completely preloaded into browser memory!
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderParam = urlParams.get('order');
+        const proofParam = urlParams.get('proof');
+        if (orderParam && proofParam) {
+          try {
+            const effectiveToken = token || localStorage.getItem('catavor_token') || localStorage.getItem('token');
+            const res = await fetch(`${API_BASE}/subscription/orders`, {
+              headers: {
+                'Accept': 'application/json',
+                ...(effectiveToken ? { 'Authorization': `Bearer ${effectiveToken}` } : {})
+              }
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+              const orderList = data.data || data.orders || [];
+              setInitialSubscriptionOrders(orderList);
+              const matched = orderList.find((o: any) =>
+                String(o.order_number).toLowerCase() === orderParam.toLowerCase() ||
+                String(o.id) === orderParam
+              );
+              if (matched) {
+                setInitialProofOrder(matched);
+                const rawUrl = resolveProofImageUrl(matched, effectiveToken);
+                if (rawUrl) {
+                  setInitialProofUrl(rawUrl);
+                  // Preload the image into browser cache so it paints on frame 0
+                  await new Promise<void>((resolve) => {
+                    const img = new window.Image();
+                    img.src = rawUrl;
+                    img.onload = () => resolve();
+                    img.onerror = () => resolve();
+                    setTimeout(resolve, 3500);
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Failed to preload subscription proof image:', err);
+          }
+        }
+      }
+
       setLoading(false);
       setTimeout(() => setIsAppInitializing(false), 200);
     }
@@ -11683,6 +11741,22 @@ Terima kasih atas perhatian dan kerja samanya.`;
         targetPath += `/admin/analytics`;
       } else if (adminTab === 'subscription') {
         targetPath += `/admin/subscription`;
+        const curQ = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const curV = (curQ?.get('view') || curQ?.get('sub') || '').toLowerCase();
+        const curOrder = curQ?.get('order');
+        const curProof = curQ?.get('proof');
+        if (curV === 'orders' || curOrder || curProof) {
+          params.set('view', 'orders');
+          if (curOrder) params.set('order', curOrder);
+          if (curProof) params.set('proof', curProof);
+        } else if (curV === 'checkout') {
+          params.set('view', 'checkout');
+          if (curQ?.get('plan')) params.set('plan', curQ.get('plan')!);
+          if (curQ?.get('type')) params.set('type', curQ.get('type')!);
+        } else if (curV === 'downgrade' || curV === 'downgrade_confirm') {
+          params.set('view', 'downgrade');
+          if (curQ?.get('plan')) params.set('plan', curQ.get('plan')!);
+        }
       } else if (adminTab === 'help') {
         targetPath += `/admin/help`;
         const activeTicketId = selectedTicket?.id ?? sessionStorage.getItem('catavor_merchant_active_ticket_id') ?? new URLSearchParams(window.location.search).get('ticket');
@@ -29281,6 +29355,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     currentQuota={storeQuota}
                     plans={subscriptionPlans}
                     settings={{ ...settings, ...platformSettings }}
+                    initialOrders={initialSubscriptionOrders || undefined}
+                    initialSelectedOrder={initialProofOrder || undefined}
+                    initialProofUrl={initialProofUrl || undefined}
                     onSuccessUpgrade={() => {
                       fetchMyQuota();
                       loadData();
@@ -34355,6 +34432,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
           currentQuota={storeQuota}
           plans={subscriptionPlans}
           settings={{ ...settings, ...platformSettings }}
+          initialOrders={initialSubscriptionOrders || undefined}
+          initialSelectedOrder={initialProofOrder || undefined}
+          initialProofUrl={initialProofUrl || undefined}
           onSuccessUpgrade={() => {
             fetchMyQuota();
             loadData();

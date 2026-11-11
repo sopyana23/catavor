@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Store as StoreIcon,
   Package,
@@ -68,6 +69,7 @@ import {
   RotateCcw,
   Edit3,
   X,
+  XCircle,
   Info,
   CheckCheck,
   ArrowRight,
@@ -100,7 +102,27 @@ import { TabletProductFilterSheet, type TabletProductFilterValues } from './Tabl
 import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollableFilterTags';
 import { TabletCustomSelect } from './TabletCustomSelect';
 import { TabletImageLightbox } from './TabletImageLightbox';
+import { SafeImage } from './SafeImage';
+import { ProofLightbox } from './ProofLightbox';
 import { RichTextarea, FormattedText } from './RichTextarea';
+
+export const resolveProofImageUrl = (order: any, token?: string | null): string => {
+  if (!order) return '';
+  const raw = order.payment_proof_url || order.proof_url || '';
+  if (raw && (raw.startsWith('data:') || raw.startsWith('blob:'))) {
+    return raw;
+  }
+  if (raw && (raw.startsWith('http://') || raw.startsWith('https://'))) {
+    return raw;
+  }
+  const identifier = order.id || order.order_number;
+  if (identifier) {
+    const t = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `/api/subscription/orders/${encodeURIComponent(String(identifier))}/proof${t}`;
+  }
+  if (!raw) return '';
+  return raw.startsWith('/') ? raw : `/storage/${raw}`;
+};
 import { TabletStoreSettingsView } from './TabletStoreSettingsView';
 import { TabletShareCatalogView } from './TabletShareCatalogView';
 import { StoreChooserModal, type CatalogStoreItem } from './StoreChooserModal';
@@ -357,6 +379,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       const tabParam = params.get('tab') as TabletMerchantTab;
       if (tabParam === 'audit_logs') {
         return 'profile';
+      }
+      const v = (params.get('view') || params.get('sub') || '').toLowerCase();
+      if (['orders', 'riwayat', 'tagihan', 'billing'].includes(v) || params.get('order') || params.get('proof')) {
+        return 'subscription';
       }
       const validTabs: TabletMerchantTab[] = [
         'items', 'categories', 'analytics', 'subscription', 'settings',
@@ -1949,12 +1975,27 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         tabParam = 'profile';
         setProfileSubTabState('audit_logs');
       }
+      const v = (params.get('view') || params.get('sub') || '').toLowerCase();
+      if (['orders', 'riwayat', 'tagihan', 'billing'].includes(v) || params.get('order') || params.get('proof')) {
+        tabParam = 'subscription';
+      }
       const validTabs: TabletMerchantTab[] = [
         'items', 'categories', 'analytics', 'subscription', 'settings',
         'profile', 'notifications', 'help', 'policies', 'share'
       ];
       const activeT = (tabParam && validTabs.includes(tabParam)) ? tabParam : 'items';
       setActiveTabState(activeT);
+
+      if (activeT === 'subscription') {
+        const orderParam = params.get('order');
+        const proofParam = params.get('proof');
+        if (!orderParam) {
+          setSelectedTabletOrder(null);
+          setPreviewTabletProofImg(null);
+        } else if (!proofParam) {
+          setPreviewTabletProofImg(null);
+        }
+      }
 
       if (activeT === 'items') {
         const actionParam = params.get('action');
@@ -2773,6 +2814,128 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [quota, setQuota] = useState<StoreQuotaData | null>(null);
   const [subscriptionOrders, setSubscriptionOrders] = useState<any[]>([]);
   const [isSubModalOpen, setIsSubModalOpen] = useState<boolean>(false);
+  const [selectedTabletOrder, setSelectedTabletOrder] = useState<any | null>(null);
+  const [copiedTabletRefToast, setCopiedTabletRefToast] = useState(false);
+  const [previewTabletProofImg, setPreviewTabletProofImg] = useState<string | null>(null);
+
+  // Clean standalone ?order= param on reload/mount if not viewing proof,
+  // and eagerly preload image if viewing proof
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const orderParam = params.get('order');
+      const proofParam = params.get('proof');
+      if (orderParam && !proofParam) {
+        params.delete('order');
+        const q = params.toString();
+        window.history.replaceState(
+          { ...window.history.state, subView: 'subscription' },
+          '',
+          `${window.location.pathname}${q ? '?' + q : ''}`
+        );
+      } else if (orderParam && proofParam) {
+        (async () => {
+          try {
+            const effectiveToken = token || localStorage.getItem('catavor_token') || localStorage.getItem('token');
+            const res = await fetch('/api/subscription/orders', {
+              headers: {
+                'Accept': 'application/json',
+                ...(effectiveToken ? { 'Authorization': `Bearer ${effectiveToken}` } : {})
+              }
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+              const list = data.data || data.orders || [];
+              setSubscriptionOrders(list);
+              const matched = list.find((o: any) =>
+                String(o.order_number).toLowerCase() === orderParam.toLowerCase() ||
+                String(o.id) === orderParam
+              );
+              if (matched) {
+                const rawUrl = resolveProofImageUrl(matched, effectiveToken);
+                if (rawUrl) {
+                  const img = new window.Image();
+                  img.src = rawUrl;
+                  img.onload = () => setPreviewTabletProofImg(rawUrl);
+                  img.onerror = () => setPreviewTabletProofImg(rawUrl);
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Tablet proof preload failed:', err);
+          }
+        })();
+      }
+    }
+  }, [token]);
+
+  const handleOpenTabletOrder = useCallback((ord: any) => {
+    setSelectedTabletOrder(ord);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'subscription');
+      url.searchParams.delete('order');
+      url.searchParams.delete('proof');
+      window.history.pushState({ subView: 'order_detail', orderId: ord.order_number || ord.id }, '', url.toString());
+    }
+  }, []);
+
+  const handleCloseTabletOrder = useCallback(() => {
+    setSelectedTabletOrder(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('order');
+      url.searchParams.delete('proof');
+      if (window.history.state?.subView === 'order_detail' && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+      window.history.pushState({}, '', url.toString());
+    }
+  }, []);
+
+  const handleOpenTabletProof = useCallback((rawUrl?: string, order?: any) => {
+    const targetOrd = order || selectedTabletOrder;
+    const finalUrl = resolveProofImageUrl(targetOrd, token) || rawUrl || '';
+    if (!finalUrl) return;
+
+    setPreviewTabletProofImg(finalUrl);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'subscription');
+      if (targetOrd) {
+        url.searchParams.set('order', String(targetOrd.order_number || targetOrd.id));
+      }
+      url.searchParams.set('proof', '1');
+      window.history.pushState({ subView: 'order_proof', orderId: targetOrd?.order_number || targetOrd?.id }, '', url.toString());
+    }
+  }, [selectedTabletOrder, token]);
+
+  const handleCloseTabletProof = useCallback(() => {
+    setPreviewTabletProofImg(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (window.history.state?.subView === 'order_proof' && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+      url.searchParams.delete('proof');
+      url.searchParams.delete('order');
+      window.history.pushState({}, '', url.toString());
+    }
+  }, []);
+
+  useEffect(() => {
+    if (previewTabletProofImg) {
+      return setupModalBackInterceptor(() => handleCloseTabletProof());
+    }
+  }, [previewTabletProofImg, handleCloseTabletProof]);
+
+  useEffect(() => {
+    if (selectedTabletOrder && !previewTabletProofImg) {
+      return setupModalBackInterceptor(() => handleCloseTabletOrder());
+    }
+  }, [selectedTabletOrder, previewTabletProofImg, handleCloseTabletOrder]);
 
   const fetchQuota = useCallback(async () => {
     if (!token || isPlatformAdmin(currentUser)) return;
@@ -2804,7 +2967,24 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-          setSubscriptionOrders(json.data);
+          const list = json.data;
+          setSubscriptionOrders(list);
+          if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const orderParam = params.get('order');
+            const proofParam = params.get('proof');
+            if (orderParam && list.length > 0) {
+              const matched = list.find((o: any) =>
+                String(o.order_number).toLowerCase() === orderParam.toLowerCase() ||
+                String(o.id) === orderParam
+              );
+              if (matched) {
+                if (proofParam) {
+                  setPreviewTabletProofImg(resolveProofImageUrl(matched, token));
+                }
+              }
+            }
+          }
         }
       }
     } catch {}
@@ -9263,27 +9443,73 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                             {statusLabel}
                           </span>
 
-                          <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem' }}>
+                          <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.25rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenTabletOrder(order)}
+                              style={{
+                                minHeight: !isNarrowScreen ? '38px' : '34px',
+                                padding: !isNarrowScreen ? '0.4rem 0.85rem' : '0.3rem 0.65rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(255, 255, 255, 0.08)',
+                                border: '1px solid var(--border-light, #334155)',
+                                color: 'var(--text-primary, #f8fafc)',
+                                fontSize: !isNarrowScreen ? '0.8rem' : '0.74rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <FileText size={!isNarrowScreen ? 16 : 14} />
+                              <span>Rincian</span>
+                            </button>
+
+                            {(order.payment_proof_url || order.proof_url) && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenTabletProof(resolveProofImageUrl(order, token), order)}
+                                style={{
+                                  minHeight: !isNarrowScreen ? '38px' : '34px',
+                                  padding: !isNarrowScreen ? '0.4rem 0.85rem' : '0.3rem 0.65rem',
+                                  borderRadius: '0.5rem',
+                                  background: 'rgba(59, 130, 246, 0.12)',
+                                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                                  color: '#60a5fa',
+                                  fontSize: !isNarrowScreen ? '0.8rem' : '0.74rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem'
+                                }}
+                              >
+                                <Eye size={!isNarrowScreen ? 16 : 14} />
+                                <span>Bukti Bayar</span>
+                              </button>
+                            )}
+
                             {isPending && order.gateway_payment_link && (
                               <a
                                 href={order.gateway_payment_link}
                                 target="_blank"
                                 rel="noreferrer"
                                 style={{
-                                  minHeight: '34px',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '0.45rem',
+                                  minHeight: !isNarrowScreen ? '38px' : '34px',
+                                  padding: !isNarrowScreen ? '0.4rem 0.85rem' : '0.3rem 0.65rem',
+                                  borderRadius: '0.5rem',
                                   background: 'var(--primary)',
                                   color: '#ffffff',
-                                  fontSize: '0.74rem',
+                                  fontSize: !isNarrowScreen ? '0.8rem' : '0.74rem',
                                   fontWeight: 800,
                                   textDecoration: 'none',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '0.3rem'
+                                  gap: '0.35rem'
                                 }}
                               >
-                                <ExternalLink size={13} />
+                                <ExternalLink size={!isNarrowScreen ? 16 : 14} />
                                 <span>Bayar Online</span>
                               </a>
                             )}
@@ -9294,21 +9520,21 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 disabled={syncingOrderId === order.id}
                                 onClick={() => handleSyncOrder(order.id)}
                                 style={{
-                                  minHeight: '34px',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '0.45rem',
+                                  minHeight: !isNarrowScreen ? '38px' : '34px',
+                                  padding: !isNarrowScreen ? '0.4rem 0.85rem' : '0.3rem 0.65rem',
+                                  borderRadius: '0.5rem',
                                   background: 'var(--btn-secondary-bg, rgba(255,255,255,0.08))',
                                   border: '1px solid var(--btn-secondary-border, var(--border-light))',
                                   color: 'var(--btn-secondary-text, var(--text-primary))',
-                                  fontSize: '0.74rem',
+                                  fontSize: !isNarrowScreen ? '0.8rem' : '0.74rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '0.3rem'
+                                  gap: '0.35rem'
                                 }}
                               >
-                                <RefreshCw size={13} className={syncingOrderId === order.id ? 'animate-spin' : ''} />
+                                <RefreshCw size={!isNarrowScreen ? 16 : 14} className={syncingOrderId === order.id ? 'animate-spin' : ''} />
                                 <span>{syncingOrderId === order.id ? 'Sinkron...' : 'Cek Status'}</span>
                               </button>
                             )}
@@ -9321,6 +9547,587 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               )}
             </div>
 
+            {/* ==========================================================
+                TABLET ORDER DETAIL MODAL (CENTERED MEDIUM PANEL)
+                ========================================================== */}
+            {selectedTabletOrder && !previewTabletProofImg && (
+              <div
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                  backdropFilter: 'blur(4px)',
+                  zIndex: 9998,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: isNarrowScreen ? '1rem' : '1.5rem',
+                  animation: 'fadeIn 0.2s ease'
+                }}
+                onClick={handleCloseTabletOrder}
+              >
+                <div
+                  style={{
+                    width: '100%',
+                    maxWidth: isNarrowScreen ? '620px' : '720px',
+                    maxHeight: '88vh',
+                    backgroundColor: 'var(--bg-card, #1e293b)',
+                    borderRadius: '1rem',
+                    border: '1px solid var(--border-light, #334155)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: 'var(--shadow-premium, 0 24px 48px rgba(0,0,0,0.45))',
+                    overflow: 'hidden'
+                  }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  {/* MODAL HEADER */}
+                  <div style={{
+                    padding: '1.15rem 1.4rem',
+                    borderBottom: '1px solid var(--border-light, #334155)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: 'var(--bg-card)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '0.5rem',
+                        background: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary, #10b981)'
+                      }}>
+                        <Receipt size={20} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                          Rincian Transaksi Langganan
+                        </h4>
+                        <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                          #{selectedTabletOrder.order_number}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      {(() => {
+                        if (selectedTabletOrder._isHydrating) {
+                          return (
+                            <span style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              padding: '3px 8px',
+                              borderRadius: '999px',
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              color: '#94a3b8',
+                              border: '1px solid rgba(255, 255, 255, 0.15)'
+                            }}>
+                              MEMUAT...
+                            </span>
+                          );
+                        }
+                        const st = selectedTabletOrder.payment_status || selectedTabletOrder.status;
+                        let badgeBg = 'rgba(245, 158, 11, 0.12)';
+                        let badgeColor = '#f59e0b';
+                        let badgeLabel = 'MENUNGGU';
+                        let IconComp = AlertCircle;
+
+                        if (st === 'paid') {
+                          badgeBg = 'rgba(16, 185, 129, 0.12)';
+                          badgeColor = '#10b981';
+                          badgeLabel = 'LUNAS';
+                          IconComp = null as any;
+                        } else if (st === 'pending_verification') {
+                          badgeBg = 'rgba(59, 130, 246, 0.12)';
+                          badgeColor = '#3b82f6';
+                          badgeLabel = 'VERIFIKASI';
+                          IconComp = Clock;
+                        } else if (st === 'rejected') {
+                          badgeBg = 'rgba(239, 68, 68, 0.12)';
+                          badgeColor = '#ef4444';
+                          badgeLabel = 'DITOLAK';
+                          IconComp = XCircle;
+                        } else if (st === 'expired') {
+                          badgeBg = 'rgba(100, 116, 139, 0.12)';
+                          badgeColor = '#64748b';
+                          badgeLabel = 'KEDALUWARSA';
+                          IconComp = Clock;
+                        }
+
+                        return (
+                          <span style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            padding: '3px 9px',
+                            borderRadius: '999px',
+                            background: badgeBg,
+                            color: badgeColor,
+                            border: `1px solid ${badgeColor}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}>
+                            {IconComp && <IconComp size={12} />}
+                            <span>{badgeLabel}</span>
+                          </span>
+                        );
+                      })()}
+
+                      <button
+                        type="button"
+                        onClick={handleCloseTabletOrder}
+                        style={{
+                          padding: '0.4rem',
+                          borderRadius: '0.4rem',
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* MODAL BODY */}
+                  <div style={{
+                    padding: '1.25rem 1.4rem',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem',
+                    flex: 1
+                  }}>
+                    {selectedTabletOrder._isHydrating ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', padding: '0.5rem 0' }}>
+                        <div style={{ height: '80px', borderRadius: '0.65rem', background: 'rgba(255,255,255,0.06)', animation: 'pulse 1.5s infinite' }} />
+                        <div style={{ height: '100px', borderRadius: '0.65rem', background: 'rgba(255,255,255,0.06)', animation: 'pulse 1.5s infinite' }} />
+                        <div style={{ height: '140px', borderRadius: '0.65rem', background: 'rgba(255,255,255,0.06)', animation: 'pulse 1.5s infinite' }} />
+                      </div>
+                    ) : (
+                      <>
+                        {/* FINANCIAL & PLAN SUMMARY */}
+                        <div style={{
+                          padding: '1rem',
+                          borderRadius: '0.75rem',
+                          background: 'rgba(255,255,255,0.02)',
+                          border: '1px solid var(--border-light, #334155)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.55rem'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Paket Langganan</span>
+                            <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+                              {(() => {
+                                switch (selectedTabletOrder.plan_code) {
+                                  case 'free': return 'Gratis Terbatas';
+                                  case 'pro_starter': return 'Pro Starter';
+                                  case 'pro_business': return 'Pro Bisnis';
+                                  default: return selectedTabletOrder.plan_code || 'Paket Langganan';
+                                }
+                              })()}
+                            </strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Siklus Penagihan</span>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                              {selectedTabletOrder.billing_cycle === 'annual' ? 'Tahunan (Hemat 20%)' : 'Bulanan'}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Durasi Paket</span>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                              {selectedTabletOrder.duration_months ? `${selectedTabletOrder.duration_months} Bulan` : '1 Bulan'}
+                            </span>
+                          </div>
+                          <div style={{ height: '1px', backgroundColor: 'var(--border-light, #334155)', margin: '0.2rem 0' }} />
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Subtotal Paket</span>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                              Rp {Number(selectedTabletOrder.original_amount || selectedTabletOrder.amount || 0).toLocaleString('id-ID')}
+                            </span>
+                          </div>
+                          {selectedTabletOrder.discount_amount > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
+                              <span style={{ fontSize: '0.8rem' }}>
+                                Diskon Kupon {selectedTabletOrder.coupon_code ? `(${selectedTabletOrder.coupon_code})` : ''}
+                              </span>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>
+                                -Rp {Number(selectedTabletOrder.discount_amount).toLocaleString('id-ID')}
+                              </span>
+                            </div>
+                          )}
+                          {selectedTabletOrder.unique_code > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--primary)' }}>
+                              <span style={{ fontSize: '0.8rem' }}>Kode Unik Transfer</span>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>
+                                +Rp {selectedTabletOrder.unique_code}
+                              </span>
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.3rem', paddingTop: '0.4rem', borderTop: '1px solid var(--border-light, #334155)' }}>
+                            <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>Total Tagihan</strong>
+                            <strong style={{ fontSize: '1.08rem', color: 'var(--primary)', fontWeight: 900 }}>
+                              {selectedTabletOrder.final_amount === 0 ? 'Rp 0 (Gratis Kupon)' : `Rp ${Number(selectedTabletOrder.final_amount || 0).toLocaleString('id-ID')}`}
+                            </strong>
+                          </div>
+                        </div>
+
+                        {/* CONTEXTUAL BLOCK: PAYMENT METHOD */}
+                        {(() => {
+                          const mode = selectedTabletOrder.payment_mode || (selectedTabletOrder.final_amount === 0 ? 'coupon_free' : 'gateway_aulaa');
+                          const isGateway = mode === 'gateway_aulaa';
+                          const isCoupon = mode === 'coupon_free' || selectedTabletOrder.final_amount === 0;
+                          const isManual = !isGateway && !isCoupon;
+
+                          const st = selectedTabletOrder.payment_status || selectedTabletOrder.status;
+                          const isPending = st === 'pending';
+                          const isPaid = st === 'paid';
+                          const isPendingVerif = st === 'pending_verification';
+                          const isRejected = st === 'rejected';
+
+                          if (isGateway) {
+                            return (
+                              <div style={{
+                                padding: '1rem',
+                                borderRadius: '0.75rem',
+                                background: 'rgba(14, 165, 233, 0.04)',
+                                border: '1px solid rgba(14, 165, 233, 0.25)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.75rem'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <Zap size={18} color="#0284c7" />
+                                  <strong style={{ fontSize: '0.86rem', color: '#0284c7' }}>
+                                    Metode Pembayaran: Gateway Aulaa.co (Otomatis &amp; Real-time)
+                                  </strong>
+                                </div>
+
+                                {selectedTabletOrder.gateway_reference && (
+                                  <div style={{
+                                    padding: '0.65rem 0.85rem',
+                                    borderRadius: '0.5rem',
+                                    background: 'rgba(0,0,0,0.2)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.5rem'
+                                  }}>
+                                    <div>
+                                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ID Transaksi Gateway</div>
+                                      <div style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontFamily: 'monospace', fontWeight: 700 }}>
+                                        {selectedTabletOrder.gateway_reference}
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(selectedTabletOrder.gateway_reference);
+                                        setCopiedTabletRefToast(true);
+                                        setTimeout(() => setCopiedTabletRefToast(false), 2000);
+                                      }}
+                                      style={{
+                                        padding: '0.35rem 0.75rem',
+                                        borderRadius: '0.4rem',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        background: 'rgba(255,255,255,0.06)',
+                                        color: copiedTabletRefToast ? '#10b981' : 'var(--text-primary)',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.35rem'
+                                      }}
+                                    >
+                                      {copiedTabletRefToast ? <Check size={13} /> : <Copy size={13} />}
+                                      <span>{copiedTabletRefToast ? 'Tersalin' : 'Salin Ref'}</span>
+                                    </button>
+                                  </div>
+                                )}
+
+                                {isPending && selectedTabletOrder.gateway_payment_link && (
+                                  <a
+                                    href={selectedTabletOrder.gateway_payment_link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                      padding: '0.75rem 1rem',
+                                      borderRadius: '0.6rem',
+                                      background: 'var(--primary)',
+                                      color: '#ffffff',
+                                      fontWeight: 800,
+                                      fontSize: '0.84rem',
+                                      textAlign: 'center',
+                                      textDecoration: 'none',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '0.45rem',
+                                      boxShadow: '0 4px 12px var(--primary-glow)'
+                                    }}
+                                  >
+                                    <ExternalLink size={16} />
+                                    <span>Lanjutkan Pembayaran di Aulaa.co</span>
+                                  </a>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          if (isManual) {
+                            const isBank = selectedTabletOrder.payment_method === 'bank';
+                            const resolvedProof = resolveProofImageUrl(selectedTabletOrder, token);
+
+                            return (
+                              <div style={{
+                                padding: '1rem',
+                                borderRadius: '0.75rem',
+                                background: 'rgba(16, 185, 129, 0.04)',
+                                border: '1px solid rgba(16, 185, 129, 0.2)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.75rem'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  {isBank ? <Building2 size={18} color="var(--primary)" /> : <QrCode size={18} color="var(--primary)" />}
+                                  <strong style={{ fontSize: '0.86rem', color: 'var(--primary)' }}>
+                                    Metode Pembayaran: {isBank ? 'Transfer Bank' : 'Manual QRIS'} (Verifikasi Tim Catavor)
+                                  </strong>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.8rem' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Nama Pengirim / Pemilik Rekening:</span>
+                                    <strong style={{ color: 'var(--text-primary)' }}>
+                                      {selectedTabletOrder.sender_account_name || '-'}
+                                    </strong>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>No. WhatsApp / HP:</span>
+                                    <span style={{ color: 'var(--text-primary)' }}>
+                                      {selectedTabletOrder.sender_phone || '-'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* PROOF THUMBNAIL */}
+                                <div>
+                                  <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.45rem' }}>
+                                    Foto Bukti Pembayaran:
+                                  </span>
+                                  {resolvedProof ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+                                      <div
+                                        onClick={() => handleOpenTabletProof(resolvedProof, selectedTabletOrder)}
+                                        style={{
+                                          width: '84px',
+                                          height: '84px',
+                                          borderRadius: '0.5rem',
+                                          overflow: 'hidden',
+                                          border: '1px solid var(--border-light, #334155)',
+                                          cursor: 'pointer',
+                                          backgroundColor: '#000000',
+                                          position: 'relative'
+                                        }}
+                                      >
+                                        <SafeImage
+                                          src={resolvedProof}
+                                          alt="Bukti Transfer"
+                                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        />
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                          Foto Bukti Transfer
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenTabletProof(resolvedProof, selectedTabletOrder)}
+                                          style={{
+                                            minHeight: '36px',
+                                            padding: '0.35rem 0.85rem',
+                                            borderRadius: '0.45rem',
+                                            background: 'rgba(255,255,255,0.06)',
+                                            border: '1px solid var(--border-light, #334155)',
+                                            color: 'var(--text-primary)',
+                                            fontSize: '0.76rem',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.35rem'
+                                          }}
+                                        >
+                                          <Eye size={13} />
+                                          <span>Perbesar Foto Bukti</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div style={{
+                                      padding: '0.7rem',
+                                      borderRadius: '0.5rem',
+                                      background: 'rgba(245, 158, 11, 0.08)',
+                                      border: '1px dashed rgba(245, 158, 11, 0.3)',
+                                      color: '#f59e0b',
+                                      fontSize: '0.76rem'
+                                    }}>
+                                      Belum ada foto bukti pembayaran yang diunggah.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (isCoupon) {
+                            return (
+                              <div style={{
+                                padding: '1rem',
+                                borderRadius: '0.75rem',
+                                background: 'rgba(16, 185, 129, 0.06)',
+                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.65rem'
+                              }}>
+                                <CheckCircle2 size={18} color="#10b981" />
+                                <div>
+                                  <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#10b981' }}>
+                                    Aktivasi Bebas Biaya (Kupon 100% / Gratis)
+                                  </div>
+                                  <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                                    Paket langganan aktif tanpa tagihan tunai. Kupon: <strong>{selectedTabletOrder.coupon_code || 'BEBAS BIAYA'}</strong>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        })()}
+
+                        {/* STATUS CALLOUTS */}
+                        {(() => {
+                          const st = selectedTabletOrder.payment_status || selectedTabletOrder.status;
+                          if (st === 'pending_verification') {
+                            return (
+                              <div style={{
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                border: '1px solid rgba(59, 130, 246, 0.25)',
+                                color: '#3b82f6',
+                                fontSize: '0.78rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.45rem'
+                              }}>
+                                <Clock size={16} />
+                                <span>Bukti transfer sedang dalam antrean verifikasi staf keuangan Catavor (1x24 jam kerja).</span>
+                              </div>
+                            );
+                          }
+                          if (st === 'rejected') {
+                            return (
+                              <div style={{
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: '#ef4444',
+                                fontSize: '0.78rem',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.2rem'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 800 }}>
+                                  <XCircle size={16} />
+                                  <span>Pembayaran Ditolak Verifikator</span>
+                                </div>
+                                <div style={{ fontSize: '0.74rem' }}>
+                                  Alasan: <strong>{selectedTabletOrder.rejection_reason || 'Bukti transfer tidak valid atau dana belum terverifikasi di mutasi.'}</strong>
+                                </div>
+                              </div>
+                            );
+                          }
+                          if (st === 'paid') {
+                            return (
+                              <div style={{
+                                padding: '0.75rem 1rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(16, 185, 129, 0.1)',
+                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                color: '#10b981',
+                                fontSize: '0.78rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.45rem'
+                              }}>
+                                <CheckCircle2 size={16} />
+                                <span>Pembayaran telah lunas dan paket langganan telah aktif.</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </>
+                    )}
+                  </div>
+
+                  {/* MODAL FOOTER */}
+                  <div style={{
+                    padding: '0.9rem 1.4rem',
+                    borderTop: '1px solid var(--border-light, #334155)',
+                    backgroundColor: 'var(--bg-deep, #0f172a)',
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '0.75rem'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={handleCloseTabletOrder}
+                      style={{
+                        minHeight: '42px',
+                        padding: '0.5rem 1.75rem',
+                        borderRadius: '0.55rem',
+                        background: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        color: '#0f172a',
+                        fontSize: '0.86rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PROOF LIGHTBOX (TABLET NATIVE ZOOM & PAN) */}
+            {previewTabletProofImg && createPortal(
+              <ProofLightbox
+                imageUrl={previewTabletProofImg}
+                onClose={handleCloseTabletProof}
+                isMobile={false}
+              />,
+              document.body
+            )}
           </div>
         )}
 
