@@ -620,6 +620,8 @@ func main() {
 			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
 		guardedMutations.Post("/settings/policies",
 			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.UpdatePolicy)
+		guardedMutations.Post("/settings/policies/reset-defaults",
+			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetDefaultPolicies)
 		// SECURITY (N-43): policy-audit-logs memuat AdminEmail dan AdminIP internal
 		// sehingga hanya boleh diakses oleh staf dengan izin system:settings:manage.
 		guarded.Get("/settings/policy-audit-logs",
@@ -722,6 +724,10 @@ func main() {
 		// kredensial partner) -> wajib izin khusus, bukan sekadar staf platform.
 		adminApi.Get("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Index)
 		adminApi.Post("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
+		adminApi.Get("/settings/policies", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.GetPolicies)
+		adminApi.Post("/settings/policies", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.UpdatePolicy)
+		adminApi.Post("/settings/policies/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetDefaultPolicies)
+		adminApi.Get("/settings/policy-audit-logs", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.GetPolicyAuditLogs)
 		adminApi.Post("/settings/rekber/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetRekberDefaults)
 		adminApi.Post("/payments/aulaa/test-connection", middleware.RequirePermission(cfg, "system:settings:manage"), paymentHandler.TestAulaaConnection)
 

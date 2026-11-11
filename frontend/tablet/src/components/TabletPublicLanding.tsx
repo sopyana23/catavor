@@ -32,7 +32,7 @@ import {
   Calendar
 } from 'lucide-react';
 
-import { TabletPoliciesView } from './TabletPoliciesView';
+import { TabletPoliciesView, type PolicyKey } from './TabletPoliciesView';
 
 export const CATALOG_TYPES_INFO = [
   {
@@ -157,6 +157,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
 }) => {
   const [selectedCatalogFormat, setSelectedCatalogFormat] = useState<string>('physical');
   const [showPolicyModal, setShowPolicyModal] = useState<boolean>(false);
+  const [policyModalInitialKey, setPolicyModalInitialKey] = useState<PolicyKey>('terms');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [selectedPlanTab, setSelectedPlanTab] = useState<'free' | 'pro_starter' | 'pro_business'>('pro_starter');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
@@ -2335,7 +2336,10 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', fontSize: '0.8rem', color: '#64748b' }}>
             <button
               type="button"
-              onClick={() => setShowPolicyModal(true)}
+              onClick={() => {
+                setPolicyModalInitialKey('terms');
+                setShowPolicyModal(true);
+              }}
               style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
             >
               Syarat &amp; Ketentuan
@@ -2343,7 +2347,10 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             <span>&bull;</span>
             <button
               type="button"
-              onClick={() => setShowPolicyModal(true)}
+              onClick={() => {
+                setPolicyModalInitialKey('privacy');
+                setShowPolicyModal(true);
+              }}
               style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
             >
               Kebijakan Privasi
@@ -2351,7 +2358,10 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             <span>&bull;</span>
             <button
               type="button"
-              onClick={() => setShowPolicyModal(true)}
+              onClick={() => {
+                setPolicyModalInitialKey('prohibited');
+                setShowPolicyModal(true);
+              }}
               style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
             >
               Ketentuan Penggunaan
@@ -2423,7 +2433,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               </button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-              <TabletPoliciesView />
+              <TabletPoliciesView initialKey={policyModalInitialKey} />
             </div>
           </div>
         </div>

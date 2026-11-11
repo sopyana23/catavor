@@ -927,58 +927,11 @@ func seedDefaultSafeDomains(db *gorm.DB) {
 }
 
 func seedDefaultPolicies(db *gorm.DB) {
-	var count int64
-	db.Model(&models.PolicyVersion{}).Count(&count)
-	if count > 0 {
+	if err := SeedPlatformPolicies(db, false); err != nil {
+		log.Error().Err(err).Msg("Failed to seed default platform policies")
 		return
 	}
-
-	now := time.Now().UTC()
-	defaultPolicies := []models.PolicyVersion{
-		{
-			Type:               "terms",
-			Title:              "Syarat dan Ketentuan Layanan Catavor",
-			Version:            "v2.1.0",
-			Content:            "### 1. Ketentuan Umum Layanan\nPengguna platform Catavor wajib mematuhi seluruh hukum yang berlaku di Republik Indonesia. Setiap pengelola profil katalog bertanggung jawab penuh atas keabsahan, keaslian, dan legalitas produk/jasa yang ditampilkan.\n\n### 2. Transaksi & Keamanan\nPlatform memfasilitasi komunikasi katalog langsung ke saluran WhatsApp merchant dan penyedia rekening bersama. Pengguna dihimbau selalu memverifikasi toko resmi berstatus Pro Plan.",
-			SummaryOfChanges:   "Pembaruan klausul Zero-Trust Tenant Isolation dan verifikasi pembayaran instan.",
-			ChangeType:         "major",
-			EffectiveDate:      now.AddDate(0, -1, 0),
-			IsActive:           true,
-			RequiresAcceptance: true,
-			CreatedBy:          1,
-		},
-		{
-			Type:               "privacy",
-			Title:              "Kebijakan Privasi & Perlindungan Data",
-			Version:            "v2.0.0",
-			Content:            "### 1. Pengumpulan Data\nKami mengumpulkan data yang diperlukan untuk pembuatan akun, toko digital, dan personalisasi tema visual. Seluruh password dienkripsi dengan standar Bcrypt Cost 12.\n\n### 2. Penggunaan Data\nData tidak akan pernah diperjualbelikan kepada pihak ketiga. Gambar produk dioptimasi dan dibersihkan dari metadata EXIF sensitif.",
-			SummaryOfChanges:   "Penyesuaian standar UU Perlindungan Data Pribadi (UU PDP).",
-			ChangeType:         "minor",
-			EffectiveDate:      now.AddDate(0, -2, 0),
-			IsActive:           true,
-			RequiresAcceptance: false,
-			CreatedBy:          1,
-		},
-		{
-			Type:               "acceptable_use",
-			Title:              "Panduan Konten & Penggunaan yang Diperbolehkan",
-			Version:            "v1.5.0",
-			Content:            "### 1. Larangan Produk\nDilarang mengunggah satwa liar dilindungi tanpa izin BKSDA resmi, barang bajakan/ilegal, senjata, atau materi yang melanggar norma hukum.\n\n### 2. Sanksi Pelanggaran\nPelanggaran akan dikenakan sanksi mulai dari penutupan katalog, pemblokiran akun, hingga pelaporan ke pihak berwajib.",
-			SummaryOfChanges:   "Penambahan panduan untuk kategori Properti, Jasa, dan Produk Kuliner.",
-			ChangeType:         "minor",
-			EffectiveDate:      now.AddDate(0, -3, 0),
-			IsActive:           true,
-			RequiresAcceptance: false,
-			CreatedBy:          1,
-		},
-	}
-
-	for _, p := range defaultPolicies {
-		p.CreatedAt = now
-		p.UpdatedAt = now
-		db.Create(&p)
-	}
-	log.Info().Msg("Default legal policies (Terms, Privacy, Acceptable Use) seeded successfully")
+	log.Info().Msg("Default legal platform policies (6 Pillars) seeded/verified successfully")
 }
 
 func ensureStoreCategoriesPopulated(db *gorm.DB) {
