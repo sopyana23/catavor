@@ -867,7 +867,14 @@ export const App: React.FC = () => {
   const isLoginRoute = currentPath === '/login';
   const isCheckoutRoute = currentPath === '/checkout' || currentPath.startsWith('/checkout/');
   const isRegisterRoute = currentPath === '/register' || currentPath.startsWith('/register/');
-  const isPolicyRoute = currentPath === '/terms' || currentPath === '/syarat-ketentuan' || currentPath === '/privacy' || currentPath === '/kebijakan-privasi' || currentPath === '/acceptable-use';
+  const isPolicyRoute =
+    currentPath === '/terms' || currentPath === '/syarat-ketentuan' ||
+    currentPath === '/privacy' || currentPath === '/kebijakan-privasi' ||
+    currentPath === '/acceptable-use' || currentPath === '/acceptable_use' || currentPath === '/ketentuan-penggunaan' ||
+    currentPath === '/policies' || currentPath === '/kebijakan' || currentPath === '/legal' ||
+    currentPath === '/subscription' || currentPath === '/ketentuan-langganan' ||
+    currentPath === '/transactions' || currentPath === '/pedoman-transaksi' ||
+    currentPath === '/moderation' || currentPath === '/standar-moderasi';
   const isCatalogChooser = isCatalogChooserRoute(currentPath);
   const isStoreAdminRoute = Boolean(activeSlug) && (
     currentPath === `/${activeSlug}/admin` ||
@@ -1733,7 +1740,12 @@ export const App: React.FC = () => {
 
   // 3D. DEDICATED LEGAL & POLICY ROUTE (/terms, /privacy, /syarat-ketentuan, /kebijakan-privasi, /acceptable-use)
   if (isPolicyRoute) {
-    const policyKey = (currentPath === '/privacy' || currentPath === '/kebijakan-privasi') ? 'privacy' : 'terms';
+    const policyKey: 'terms' | 'prohibited' | 'privacy' | 'moderation' | 'transactions' | 'subscription' =
+      (currentPath === '/privacy' || currentPath === '/kebijakan-privasi') ? 'privacy' :
+      (currentPath === '/acceptable-use' || currentPath === '/acceptable_use' || currentPath === '/ketentuan-penggunaan') ? 'prohibited' :
+      (currentPath === '/subscription' || currentPath === '/ketentuan-langganan') ? 'subscription' :
+      (currentPath === '/transactions' || currentPath === '/pedoman-transaksi') ? 'transactions' :
+      (currentPath === '/moderation' || currentPath === '/standar-moderasi') ? 'moderation' : 'terms';
     const isFromRegister = typeof window !== 'undefined' && sessionStorage.getItem('catavor_policy_return_tab') === 'register';
 
     const handlePolicyBack = () => {
@@ -1796,7 +1808,11 @@ export const App: React.FC = () => {
             </button>
             <span style={{ color: 'var(--text-muted, #64748b)' }}>|</span>
             <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
-              {policyKey === 'privacy' ? 'Kebijakan Privasi' : 'Syarat & Ketentuan'}
+              {policyKey === 'privacy' ? 'Kebijakan Privasi' :
+               policyKey === 'prohibited' ? 'Komoditas Terlarang' :
+               policyKey === 'subscription' ? 'Ketentuan Langganan' :
+               policyKey === 'transactions' ? 'Pedoman Transaksi' :
+               policyKey === 'moderation' ? 'Standar Moderasi' : 'Syarat & Ketentuan'}
             </span>
           </div>
         </header>

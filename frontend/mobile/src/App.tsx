@@ -163,7 +163,7 @@ import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './util
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { OfficialContactSheet } from './components/OfficialContactSheet'
-import { MobilePoliciesView } from './components/MobilePoliciesView'
+import { MobilePoliciesView, type PolicyKey } from './components/MobilePoliciesView'
 import { normalizeNotification, getMobileNotificationDescription } from './utils/notificationHelpers'
 import {
   getSavedUserSlug,
@@ -4232,7 +4232,7 @@ function App() {
       } else if (path === '/register/step-3') {
         pathTab = isAuthenticated ? 'home' : 'register';
         pathStep = 3;
-      } else if (path === '/terms' || path === '/syarat-ketentuan') {
+      } else if (path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal') {
         pathTab = 'terms';
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         pathTab = 'privacy';
@@ -5464,38 +5464,28 @@ Terima kasih.`;
 
   // Dedicated Full-Page Legal & Policy Renderer for Mobile
   const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
-    const policy = policies[type] || {
-      title: 'Kebijakan Layanan',
-      version: 'v1.0.0',
-      content: 'Memuat kebijakan...'
+    const keyMap: Record<string, PolicyKey> = {
+      terms: 'terms',
+      privacy: 'privacy',
+      acceptable_use: 'prohibited'
     };
-
-    const effectiveDateStr = formatPolicyEffectiveDate(policy.effective_date || policy.updated_at);
+    const targetKey = keyMap[type] || 'terms';
 
     return (
-      <div style={{ maxWidth: '850px', margin: '0 auto', padding: '2rem 1.25rem 4rem 1.25rem', animation: 'fadeIn 0.3s ease-in-out' }}>
-        {/* Document Header Panel */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#2563eb', background: '#eff6ff', padding: '0.15rem 0.5rem', borderRadius: '999px', border: '1px solid #bfdbfe' }}>
-              DOKUMEN RESMI
-            </span>
-            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-              Catavor
-            </span>
-          </div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.02em', margin: '0 0 0.35rem 0' }}>
-            {policy.title}
-          </h1>
-          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
-            Terakhir diperbarui: <strong>{effectiveDateStr}</strong>
-          </p>
-        </div>
-
-        {/* Main Formatted Content Card */}
-        <div className="portal-card" style={{ padding: '1.75rem 1.35rem' }}>
-          {renderFormattedPolicyContent(policy.content)}
-        </div>
+      <div style={{ maxWidth: '850px', margin: '0 auto', padding: '1rem 0.75rem 4rem 0.75rem' }}>
+        <MobilePoliciesView
+          initialKey={targetKey}
+          onBack={() => {
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              setPortalTab('home');
+            }
+          }}
+          onOpenHelpdesk={() => {
+            setPortalTab('login');
+          }}
+        />
       </div>
     );
   };
@@ -11028,7 +11018,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
           return;
         }
-      } else if (path === '/terms' || path === '/syarat-ketentuan') {
+      } else if (path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal') {
         setPortalTab('terms');
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         setPortalTab('privacy');

@@ -481,6 +481,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({ onOpenHe
   const ActiveIcon = currentDoc.icon;
 
   const legalEntity = legalSettings.legal_entity_name || 'PT Catavor Media Digital';
+  const legalJurisdiction = legalSettings.legal_jurisdiction || 'Hukum Republik Indonesia';
   const legalWarning = legalSettings.legal_warning_banner || 'Pengelola wajib memastikan keabsahan hukum seluruh item. Dilarang keras memajang satwa dilindungi tanpa izin BKSDA, tanaman langka tanpa karantina, maupun komoditas terlarang. Pelanggaran memicu penonaktifan item (Item Locked) hingga pembekuan katalog.';
   const officialEmail = legalSettings.platform_official_email || 'support@catavor.com';
   const officialWa = legalSettings.platform_official_whatsapp || '62811220227';
@@ -537,6 +538,10 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({ onOpenHe
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
                 <Building2 size={12} />
                 {legalEntity}
+              </span>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #94a3b8)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: 'rgba(255, 255, 255, 0.04)', padding: '0.15rem 0.5rem', borderRadius: '0.35rem', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <Scale size={11} style={{ color: 'var(--primary, #10b981)' }} />
+                Yurisdiksi: {legalJurisdiction}
               </span>
               {isLoading && (
                 <span style={{ fontSize: '0.7rem', color: 'var(--primary, #10b981)' }}>
@@ -875,7 +880,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({ onOpenHe
                 Dokumen Resmi Kepatuhan Platform Catavor
               </span>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #94a3b8)' }}>
-                Dikelola oleh Divisi Kepatuhan {legalEntity} • Kontak: {officialEmail} / +{officialWa}
+                Dikelola oleh Divisi Kepatuhan {legalEntity} • Yurisdiksi: {legalJurisdiction} • Kontak: {officialEmail} / +{officialWa}
               </span>
             </div>
           </div>

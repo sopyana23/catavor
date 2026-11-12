@@ -488,6 +488,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
   const ActiveIcon = currentDoc.icon;
 
   const legalEntity = legalSettings.legal_entity_name || 'PT Catavor Media Digital';
+  const legalJurisdiction = legalSettings.legal_jurisdiction || 'Hukum Republik Indonesia';
   const legalWarning = legalSettings.legal_warning_banner || 'Sebagai pengelola katalog, Anda bertanggung jawab penuh atas keabsahan hukum dari setiap item yang dipajang. Segala bentuk peredaran satwa liar dilindungi tanpa izin BKSDA, tanaman langka tanpa karantina, komoditas ilegal, penipuan harga, atau pelanggaran hak cipta berakibat pada penindakan tegas berupa penonaktifan seketika (Item Locked) hingga pembekuan profil katalog permanen.';
   const officialEmail = legalSettings.platform_official_email || 'support@catavor.com';
   const officialWa = legalSettings.platform_official_whatsapp || '62811220227';
@@ -589,6 +590,22 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
               >
                 <Building2 size={13} />
                 {legalEntity}
+              </span>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  color: 'var(--text-muted, #94a3b8)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                  padding: '0.2rem 0.55rem',
+                  borderRadius: '0.35rem',
+                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                }}
+              >
+                <Scale size={12} style={{ color: 'var(--primary, #10b981)' }} />
+                Yurisdiksi: {legalJurisdiction}
               </span>
               {isLoading && (
                 <span style={{ fontSize: '0.72rem', color: 'var(--primary, #10b981)' }}>
@@ -1063,7 +1080,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                   Dokumen Resmi Kepatuhan Platform Catavor
                 </span>
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
-                  Dikelola dan diawasi oleh Divisi Hukum &amp; Kepatuhan {legalEntity} • Kontak: {officialEmail} / +{officialWa}
+                  Dikelola dan diawasi oleh Divisi Hukum &amp; Kepatuhan {legalEntity} • Yurisdiksi: {legalJurisdiction} • Kontak: {officialEmail} / +{officialWa}
                 </span>
               </div>
             </div>
