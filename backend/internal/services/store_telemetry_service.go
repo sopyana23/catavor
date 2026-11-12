@@ -25,22 +25,24 @@ var (
 
 // StoreTelemetryEvent represents an incoming tracking event before aggregation.
 type StoreTelemetryEvent struct {
-	StoreID     uint
-	StoreSlug   string
-	Event       string // store_view | product_view | direct_wa_click | marketplace_click | rekber_click | video_view
-	ProductID   uint
-	ProductName string
-	ProductType string
-	ClientIP    string
-	SessionID   string
-	UserAgent   string
-	Source      string
-	Medium      string
-	Campaign    string
-	Referrer    string
-	City        string
-	Country     string
-	Timestamp   time.Time
+	StoreID       uint
+	StoreSlug     string
+	Event         string // store_view | product_view | direct_wa_click | marketplace_click | rekber_click | video_view | filter_intent | search_click | share_action | gallery_swipe
+	ProductID     uint
+	ProductName   string
+	ProductType   string
+	Price         float64
+	SearchKeyword string
+	ClientIP      string
+	SessionID     string
+	UserAgent     string
+	Source        string
+	Medium        string
+	Campaign      string
+	Referrer      string
+	City          string
+	Country       string
+	Timestamp     time.Time
 }
 
 // In-Memory Aggregation Keys
@@ -149,9 +151,17 @@ type StoreTelemetryService struct {
 	visitorSet map[string]int64 // hash -> timestamp unix seconds
 	engagedSet map[string]int64 // hash -> timestamp unix seconds (visitors who viewed product or took action)
 
-	// Product Name Cache for Live Visitor Feed enrichment
-	prodNameMu    sync.RWMutex
-	prodNameCache map[uint]string
+	// Product & Store Metadata Cache for Live Visitor Feed & Price-Bracket Elasticity enrichment
+	prodMetaMu     sync.RWMutex
+	prodMetaCache  map[uint]productMetaEntry
+	storeTypeCache map[uint]string
+}
+
+type productMetaEntry struct {
+	Name        string
+	ProductType string
+	Price       float64
+	CachedAt    int64
 }
 
 type storeCountDelta struct {
@@ -181,7 +191,8 @@ func InitStoreTelemetryService(db *gorm.DB) *StoreTelemetryService {
 			globalRing:     make([]RecentVisitorDTO, 0, 100),
 			visitorSet:     make(map[string]int64),
 			engagedSet:     make(map[string]int64),
-			prodNameCache:  make(map[uint]string),
+			prodMetaCache:  make(map[uint]productMetaEntry),
+			storeTypeCache: make(map[uint]string),
 		}
 
 		// Preload initial recent visitors from database if available
@@ -288,32 +299,67 @@ func (s *StoreTelemetryService) checkVisitorAndEngagement(hash string, event str
 	return false, 0
 }
 
-// resolveProductName looks up a product's name by ID with an in-memory cache so Live Feed always displays item names.
-func (s *StoreTelemetryService) resolveProductName(productID uint) string {
+// resolveProductMeta looks up a product's name, product_type, and price by ID with an in-memory TTL cache.
+func (s *StoreTelemetryService) resolveProductMeta(productID uint) productMetaEntry {
 	if productID == 0 || s.db == nil {
-		return ""
+		return productMetaEntry{}
 	}
-	s.prodNameMu.RLock()
-	if name, ok := s.prodNameCache[productID]; ok {
-		s.prodNameMu.RUnlock()
-		return name
+	now := time.Now().Unix()
+	s.prodMetaMu.RLock()
+	if meta, ok := s.prodMetaCache[productID]; ok && (now-meta.CachedAt) < 300 {
+		s.prodMetaMu.RUnlock()
+		return meta
 	}
-	s.prodNameMu.RUnlock()
+	s.prodMetaMu.RUnlock()
 
 	var prod models.Product
-	if err := s.db.Select("name").Where("id = ?", productID).First(&prod).Error; err != nil {
+	if err := s.db.Select("name, product_type, price").Where("id = ?", productID).First(&prod).Error; err != nil {
+		return productMetaEntry{}
+	}
+	entry := productMetaEntry{
+		Name:        strings.TrimSpace(prod.Name),
+		ProductType: strings.TrimSpace(prod.ProductType),
+		Price:       prod.Price,
+		CachedAt:    now,
+	}
+	if entry.ProductType == "" {
+		entry.ProductType = "physical"
+	}
+	s.prodMetaMu.Lock()
+	if len(s.prodMetaCache) > 5000 {
+		s.prodMetaCache = make(map[uint]productMetaEntry)
+	}
+	s.prodMetaCache[productID] = entry
+	s.prodMetaMu.Unlock()
+	return entry
+}
+
+// resolveStorePrimaryType looks up a store's primary_product_type by ID with an in-memory cache.
+func (s *StoreTelemetryService) resolveStorePrimaryType(storeID uint) string {
+	if storeID == 0 || s.db == nil {
 		return ""
 	}
-	clean := strings.TrimSpace(prod.Name)
-	if clean != "" {
-		s.prodNameMu.Lock()
-		if len(s.prodNameCache) > 5000 {
-			s.prodNameCache = make(map[uint]string)
-		}
-		s.prodNameCache[productID] = clean
-		s.prodNameMu.Unlock()
+	s.prodMetaMu.RLock()
+	if pType, ok := s.storeTypeCache[storeID]; ok {
+		s.prodMetaMu.RUnlock()
+		return pType
 	}
-	return clean
+	s.prodMetaMu.RUnlock()
+
+	var st models.Store
+	if err := s.db.Select("primary_product_type").Where("id = ?", storeID).First(&st).Error; err != nil {
+		return ""
+	}
+	pType := strings.TrimSpace(st.PrimaryProductType)
+	if pType != "" {
+		s.prodMetaMu.Lock()
+		if len(s.storeTypeCache) > 2000 {
+			s.storeTypeCache = make(map[uint]string)
+		}
+		s.storeTypeCache[storeID] = pType
+		s.prodMetaMu.Unlock()
+	}
+	return pType
 }
 
 func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
@@ -323,13 +369,30 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 	date := ev.Timestamp.Format("2006-01-02")
 	hourStr := ev.Timestamp.Format("15") // "00" .. "23"
 
-	// 1. Calculate Unique Visitor Flag & Bounce Engagement Delta
-	visitorHash := s.computeVisitorHash(ev.ClientIP, ev.SessionID, ev.UserAgent, ev.StoreID, date)
-	isUnique, bounceDelta := s.checkVisitorAndEngagement(visitorHash, ev.Event)
+	isMicroEvent := (ev.Event == "filter_intent" || ev.Event == "search_click" || ev.Event == "share_action" || ev.Event == "gallery_swipe")
 
-	// 1b. Enrich ProductName if ProductID is provided without ProductName
-	if ev.ProductID > 0 && strings.TrimSpace(ev.ProductName) == "" {
-		ev.ProductName = s.resolveProductName(ev.ProductID)
+	// 1. Calculate Unique Visitor Flag & Bounce Engagement Delta (Skip for non-intrusive micro-events)
+	var isUnique bool
+	var bounceDelta int
+	if !isMicroEvent {
+		visitorHash := s.computeVisitorHash(ev.ClientIP, ev.SessionID, ev.UserAgent, ev.StoreID, date)
+		isUnique, bounceDelta = s.checkVisitorAndEngagement(visitorHash, ev.Event)
+	}
+
+	// 1b. Enrich ProductName, ProductType, and Price from product/store metadata cache if omitted by client
+	if ev.ProductID > 0 {
+		meta := s.resolveProductMeta(ev.ProductID)
+		if strings.TrimSpace(ev.ProductName) == "" {
+			ev.ProductName = meta.Name
+		}
+		if strings.TrimSpace(ev.ProductType) == "" || ev.ProductType == "all" {
+			ev.ProductType = meta.ProductType
+		}
+		if ev.Price <= 0 {
+			ev.Price = meta.Price
+		}
+	} else if strings.TrimSpace(ev.ProductType) == "" || ev.ProductType == "all" {
+		ev.ProductType = s.resolveStorePrimaryType(ev.StoreID)
 	}
 
 	// 2. Resolve Device, OS, Browser
@@ -386,80 +449,85 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 		}
 	}
 
-	isAction := (ev.Event != "store_view" && ev.Event != "product_view")
-	isStoreEntryView := (ev.Event == "store_view" || (ev.Event == "product_view" && isUnique))
+	isAction := !isMicroEvent && (ev.Event != "store_view" && ev.Event != "product_view")
+	isStoreEntryView := !isMicroEvent && (ev.Event == "store_view" || (ev.Event == "product_view" && isUnique))
+	isAnyView := !isMicroEvent && (ev.Event == "store_view" || ev.Event == "product_view")
 	actionWeight := 0
 	if isAction {
 		actionWeight = 1
 	}
 
 	uniqueIncrement := 0
-	if isUnique {
+	if isUnique && !isMicroEvent {
 		uniqueIncrement = 1
 	}
 
 	// Lock in-memory accumulation buffers
 	s.bufferMu.Lock()
 
-	// A. Store Daily Metrics
-	sKey := storeDateKey{StoreID: ev.StoreID, Date: date}
-	sAcc, exists := s.storeBuffer[sKey]
-	if !exists {
-		sAcc = &storeMetricsAcc{}
-		s.storeBuffer[sKey] = sAcc
-	}
-	sAcc.UniqueVisitors += uniqueIncrement
-	sAcc.Bounces += bounceDelta
-
-	cDelta, cExists := s.storeCountDiff[ev.StoreID]
-	if !cExists {
-		cDelta = &storeCountDelta{}
-		s.storeCountDiff[ev.StoreID] = cDelta
-	}
-
-	switch ev.Event {
-	case "store_view":
-		sAcc.StoreViews++
-		cDelta.ViewsDelta++
-	case "product_view":
-		sAcc.ProductViews++
-		if isUnique {
-			// Ensure direct deep-link to a product also registers a store session view
-			sAcc.StoreViews++
+	// A. Store Daily Metrics (Skip for non-intrusive micro events so merchant conversion metrics stay pure)
+	if !isMicroEvent {
+		sKey := storeDateKey{StoreID: ev.StoreID, Date: date}
+		sAcc, exists := s.storeBuffer[sKey]
+		if !exists {
+			sAcc = &storeMetricsAcc{}
+			s.storeBuffer[sKey] = sAcc
 		}
-		cDelta.ViewsDelta++
-	case "direct_wa_click":
-		sAcc.DirectWaClicks++
-		sAcc.WaClicks++
-		sAcc.TotalActions++
-		cDelta.ActionsDelta++
-	case "marketplace_click", "marketplace_clicks":
-		sAcc.MarketplaceClicks++
-		sAcc.TotalActions++
-		cDelta.ActionsDelta++
-	case "rekber_click", "rekber_clicks":
-		sAcc.RekberClicks++
-		sAcc.TotalActions++
-		cDelta.ActionsDelta++
-	case "video_view", "video_views":
-		sAcc.VideoViews++
-		sAcc.TotalActions++
-		cDelta.ActionsDelta++
+		sAcc.UniqueVisitors += uniqueIncrement
+		sAcc.Bounces += bounceDelta
+
+		cDelta, cExists := s.storeCountDiff[ev.StoreID]
+		if !cExists {
+			cDelta = &storeCountDelta{}
+			s.storeCountDiff[ev.StoreID] = cDelta
+		}
+
+		switch ev.Event {
+		case "store_view":
+			sAcc.StoreViews++
+			cDelta.ViewsDelta++
+		case "product_view":
+			sAcc.ProductViews++
+			if isUnique {
+				// Ensure direct deep-link to a product also registers a store session view
+				sAcc.StoreViews++
+			}
+			cDelta.ViewsDelta++
+		case "direct_wa_click":
+			sAcc.DirectWaClicks++
+			sAcc.WaClicks++
+			sAcc.TotalActions++
+			cDelta.ActionsDelta++
+		case "marketplace_click", "marketplace_clicks":
+			sAcc.MarketplaceClicks++
+			sAcc.TotalActions++
+			cDelta.ActionsDelta++
+		case "rekber_click", "rekber_clicks":
+			sAcc.RekberClicks++
+			sAcc.TotalActions++
+			cDelta.ActionsDelta++
+		case "video_view", "video_views":
+			sAcc.VideoViews++
+			sAcc.TotalActions++
+			cDelta.ActionsDelta++
+		}
 	}
 
 	// B. Traffic Source Metrics (Reconciled 1:1 with StoreViews & Actions)
-	tKey := trafficSourceKey{StoreID: ev.StoreID, Date: date, Source: normSource}
-	tAcc, tExists := s.trafficBuffer[tKey]
-	if !tExists {
-		tAcc = &trafficMetricsAcc{}
-		s.trafficBuffer[tKey] = tAcc
+	if !isMicroEvent {
+		tKey := trafficSourceKey{StoreID: ev.StoreID, Date: date, Source: normSource}
+		tAcc, tExists := s.trafficBuffer[tKey]
+		if !tExists {
+			tAcc = &trafficMetricsAcc{}
+			s.trafficBuffer[tKey] = tAcc
+		}
+		if isStoreEntryView {
+			tAcc.Views++
+		} else if isAction {
+			tAcc.TotalActions++
+		}
+		tAcc.UniqueVisitors += uniqueIncrement
 	}
-	if isStoreEntryView {
-		tAcc.Views++
-	} else if isAction {
-		tAcc.TotalActions++
-	}
-	tAcc.UniqueVisitors += uniqueIncrement
 
 	// C. Audience Dimension Metrics (store-level and global aggregate store_id=0, reconciled 1:1 with StoreViews)
 	recordAudience := func(stID uint, dimType, dimVal string) {
@@ -481,24 +549,101 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 			aAcc.Views++
 		} else if isAction {
 			aAcc.TotalActions++
+		} else if isMicroEvent {
+			aAcc.Views++
 		}
 		aAcc.UniqueVisitors += uniqueIncrement
 	}
 
-	for _, targetStoreID := range []uint{ev.StoreID, 0} {
-		recordAudience(targetStoreID, "device", deviceType)
-		recordAudience(targetStoreID, "os", osName)
-		recordAudience(targetStoreID, "browser", browserName)
-		recordAudience(targetStoreID, "city", city)
-		recordAudience(targetStoreID, "country", country)
-		recordAudience(targetStoreID, "hour", hourStr)
-		if cleanCampaign != "" {
-			recordAudience(targetStoreID, "campaign", cleanCampaign)
+	// Dedicated macro-cube recorder so every store/product view & CTA action is counted in elasticity/matrix cubes
+	recordMacroCube := func(dimType, dimVal string) {
+		if strings.TrimSpace(dimVal) == "" {
+			return
+		}
+		aKey := audienceKey{
+			StoreID:        0,
+			Date:           date,
+			DimensionType:  dimType,
+			DimensionValue: dimVal,
+		}
+		aAcc, aExists := s.audienceBuffer[aKey]
+		if !aExists {
+			aAcc = &audienceMetricsAcc{}
+			s.audienceBuffer[aKey] = aAcc
+		}
+		if isAnyView {
+			aAcc.Views++
+		} else if isAction {
+			aAcc.TotalActions++
+		}
+		aAcc.UniqueVisitors += uniqueIncrement
+	}
+
+	if !isMicroEvent {
+		for _, targetStoreID := range []uint{ev.StoreID, 0} {
+			recordAudience(targetStoreID, "device", deviceType)
+			recordAudience(targetStoreID, "os", osName)
+			recordAudience(targetStoreID, "browser", browserName)
+			recordAudience(targetStoreID, "city", city)
+			recordAudience(targetStoreID, "country", country)
+			recordAudience(targetStoreID, "hour", hourStr)
+			if cleanCampaign != "" {
+				recordAudience(targetStoreID, "campaign", cleanCampaign)
+			}
+		}
+
+		// Platform Macro Cross-Dimensional Cube (store_id = 0)
+		if ev.ProductType != "" && ev.ProductType != "all" {
+			pType := strings.ToLower(ev.ProductType)
+			recordMacroCube("geo_type", fmt.Sprintf("%s|%s", city, pType))
+			recordMacroCube("device_type", fmt.Sprintf("%s|%s", osName, pType))
+			recordMacroCube("hour_type", fmt.Sprintf("%s|%s", hourStr, pType))
+
+			// Price-Bracket Elasticity
+			if ev.Price > 0 {
+				bracket := "<50rb"
+				switch {
+				case ev.Price >= 50000000:
+					bracket = ">50jt"
+				case ev.Price >= 5000000:
+					bracket = "5jt-50jt"
+				case ev.Price >= 1000000:
+					bracket = "1jt-5jt"
+				case ev.Price >= 250000:
+					bracket = "250rb-1jt"
+				case ev.Price >= 50000:
+					bracket = "50rb-250rb"
+				}
+				recordMacroCube("price_bracket", fmt.Sprintf("%s|%s", pType, bracket))
+			}
+		}
+		if ev.SearchKeyword != "" {
+			pType := strings.ToLower(ev.ProductType)
+			if pType == "" {
+				pType = "all"
+			}
+			recordMacroCube("buyer_intent", fmt.Sprintf("search_click|%s", pType))
+		}
+	} else {
+		// Non-intrusive micro-event recording to macro audience dimensions
+		switch ev.Event {
+		case "filter_intent":
+			recordAudience(0, "buyer_intent", fmt.Sprintf("filter|%s", normSource))
+		case "search_click":
+			pType := ev.ProductType
+			if pType == "" {
+				pType = "all"
+			}
+			recordAudience(0, "buyer_intent", fmt.Sprintf("search_click|%s", pType))
+		case "share_action":
+			recordAudience(0, "micro_engage", fmt.Sprintf("share|%s", normSource))
+		case "gallery_swipe":
+			recordAudience(0, "micro_engage", "gallery|swipe")
 		}
 	}
 
-	// D. Product-Level Metrics
-	if ev.ProductID > 0 {
+	// D. Product-Level Metrics (Only for standard storefront/product interactions)
+	if !isMicroEvent && ev.ProductID > 0 {
 		pType := ev.ProductType
 		if pType == "" {
 			pType = "physical"
@@ -539,59 +684,63 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 		}
 	}
 
-	// E. Recent Visitor Item (Prepared for batch DB write)
+	// E. Recent Visitor Item (Prepared for batch DB write; skip micro-events)
 	cleanName := ev.ProductName
 	if len(cleanName) > 250 {
 		cleanName = cleanName[:250]
 	}
-	recentItem := models.RecentVisitorEvent{
-		StoreID:     ev.StoreID,
-		StoreSlug:   ev.StoreSlug,
-		Event:       ev.Event,
-		ProductID:   ev.ProductID,
-		ProductName: cleanName,
-		Source:      normSource,
-		DeviceType:  deviceType,
-		Browser:     browserName,
-		OS:          osName,
-		City:        city,
-		CreatedAt:   ev.Timestamp,
+	if !isMicroEvent {
+		recentItem := models.RecentVisitorEvent{
+			StoreID:     ev.StoreID,
+			StoreSlug:   ev.StoreSlug,
+			Event:       ev.Event,
+			ProductID:   ev.ProductID,
+			ProductName: cleanName,
+			Source:      normSource,
+			DeviceType:  deviceType,
+			Browser:     browserName,
+			OS:          osName,
+			City:        city,
+			CreatedAt:   ev.Timestamp,
+		}
+		s.recentEvents = append(s.recentEvents, recentItem)
 	}
-	s.recentEvents = append(s.recentEvents, recentItem)
 
 	s.bufferMu.Unlock()
 
-	// F. Update In-Memory Live Visitor Ring Buffer
-	dto := RecentVisitorDTO{
-		StoreID:     ev.StoreID,
-		StoreSlug:   ev.StoreSlug,
-		Event:       ev.Event,
-		ProductID:   ev.ProductID,
-		ProductName: cleanName,
-		Source:      normSource,
-		DeviceType:  deviceType,
-		Browser:     browserName,
-		OS:          osName,
-		City:        city,
-		CreatedAt:   ev.Timestamp,
-		TimeAgo:     "Baru saja",
-	}
+	// F. Update In-Memory Live Visitor Ring Buffer (skip micro-events)
+	if !isMicroEvent {
+		dto := RecentVisitorDTO{
+			StoreID:     ev.StoreID,
+			StoreSlug:   ev.StoreSlug,
+			Event:       ev.Event,
+			ProductID:   ev.ProductID,
+			ProductName: cleanName,
+			Source:      normSource,
+			DeviceType:  deviceType,
+			Browser:     browserName,
+			OS:          osName,
+			City:        city,
+			CreatedAt:   ev.Timestamp,
+			TimeAgo:     "Baru saja",
+		}
 
-	s.ringMu.Lock()
-	// Store ring (max 50)
-	stList := s.storeRings[ev.StoreID]
-	stList = append([]RecentVisitorDTO{dto}, stList...)
-	if len(stList) > 50 {
-		stList = stList[:50]
-	}
-	s.storeRings[ev.StoreID] = stList
+		s.ringMu.Lock()
+		// Store ring (max 50)
+		stList := s.storeRings[ev.StoreID]
+		stList = append([]RecentVisitorDTO{dto}, stList...)
+		if len(stList) > 50 {
+			stList = stList[:50]
+		}
+		s.storeRings[ev.StoreID] = stList
 
-	// Global ring (max 100)
-	s.globalRing = append([]RecentVisitorDTO{dto}, s.globalRing...)
-	if len(s.globalRing) > 100 {
-		s.globalRing = s.globalRing[:100]
+		// Global ring (max 100)
+		s.globalRing = append([]RecentVisitorDTO{dto}, s.globalRing...)
+		if len(s.globalRing) > 100 {
+			s.globalRing = s.globalRing[:100]
+		}
+		s.ringMu.Unlock()
 	}
-	s.ringMu.Unlock()
 	_ = actionWeight
 }
 
@@ -623,6 +772,7 @@ func (s *StoreTelemetryService) FlushNow() {
 			s.processEvent(ev)
 		default:
 			s.flushBatch()
+			InvalidateMarketIntelCache()
 			return
 		}
 	}
@@ -984,7 +1134,46 @@ func (s *StoreTelemetryService) warmupRecentVisitors() {
 	}
 }
 
-// startPeriodicCleaner prunes recent_visitor_events older than 7 days once per hour.
+// EnqueueSupplySignal buffers merchant supply-side intelligence (price changes, restocks, sold-out velocity)
+// with zero PII into the global platform dimension stream (store_id = 0).
+func (s *StoreTelemetryService) EnqueueSupplySignal(productType, signalType, signalValue string) {
+	if s == nil || strings.TrimSpace(signalValue) == "" {
+		return
+	}
+	cleanType := strings.TrimSpace(productType)
+	if cleanType == "" {
+		cleanType = "all"
+	}
+	dimType := strings.TrimSpace(signalType)
+	if dimType == "" {
+		dimType = "supply_signal"
+	}
+	dimVal := strings.TrimSpace(signalValue)
+	if len(dimVal) > 95 {
+		dimVal = dimVal[:95]
+	}
+
+	date := time.Now().UTC().Format("2006-01-02")
+	aKey := audienceKey{
+		StoreID:        0,
+		Date:           date,
+		DimensionType:  dimType,
+		DimensionValue: dimVal,
+	}
+
+	s.bufferMu.Lock()
+	aAcc, exists := s.audienceBuffer[aKey]
+	if !exists {
+		aAcc = &audienceMetricsAcc{}
+		s.audienceBuffer[aKey] = aAcc
+	}
+	aAcc.Views++
+	aAcc.TotalActions++
+	s.bufferMu.Unlock()
+}
+
+// startPeriodicCleaner prunes recent_visitor_events older than 7 days once per hour,
+// preserving anonymous co-visitation aggregates before hard deletion.
 func (s *StoreTelemetryService) startPeriodicCleaner() {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
@@ -996,6 +1185,30 @@ func (s *StoreTelemetryService) startPeriodicCleaner() {
 		case <-ticker.C:
 			if s.db != nil {
 				cutoff := time.Now().UTC().AddDate(0, 0, -7)
+				// Pre-prune aggregation to preserve anonymous device x city journey density
+				_ = s.db.Exec(`
+					INSERT INTO store_daily_audience_metrics (store_id, date, dimension_type, dimension_value, views, unique_visitors, total_actions, created_at, updated_at)
+					SELECT 
+						0 as store_id,
+						TO_CHAR(created_at, 'YYYY-MM-DD') as date,
+						'co_visit' as dimension_type,
+						SUBSTRING(CONCAT(device_type, '|', city) FROM 1 FOR 95) as dimension_value,
+						COUNT(*) as views,
+						COUNT(DISTINCT store_id) as unique_visitors,
+						SUM(CASE WHEN event NOT IN ('store_view', 'product_view') THEN 1 ELSE 0 END) as total_actions,
+						NOW(),
+						NOW()
+					FROM recent_visitor_events
+					WHERE created_at < ?
+					GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD'), device_type, city
+					ON CONFLICT (store_id, date, dimension_type, dimension_value) DO UPDATE SET
+						views = store_daily_audience_metrics.views + EXCLUDED.views,
+						unique_visitors = store_daily_audience_metrics.unique_visitors + EXCLUDED.unique_visitors,
+						total_actions = store_daily_audience_metrics.total_actions + EXCLUDED.total_actions,
+						updated_at = NOW()
+				`, cutoff).Error
+
+				// Delete raw items older than 7 days
 				_ = s.db.Where("created_at < ?", cutoff).Delete(&models.RecentVisitorEvent{}).Error
 			}
 		}

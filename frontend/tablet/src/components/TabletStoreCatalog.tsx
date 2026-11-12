@@ -678,8 +678,9 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
 
         // Anonymous Search Telemetry Beacon (Clean Public Route, Zero PII)
         const totalFound = json.pagination?.total_items ?? json.data.length;
-        if (debouncedSearch.trim().length >= 3) {
+        if (debouncedSearch.trim().length >= 2) {
           try {
+            const sid = sessionStorage.getItem('ctv_sid') || '';
             fetch('/api/telemetry/search', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -690,6 +691,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                 category_slug: classFilter !== 'all' ? classFilter : '',
                 result_count: totalFound,
                 is_zero_result: totalFound === 0,
+                session_id: sid,
                 _hp_check: ''
               }),
               keepalive: true

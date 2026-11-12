@@ -14,14 +14,14 @@ import (
 )
 
 // SanitizeCSVField prevents CSV Formula Injection (CWE-1236)
-// Prepends single quote if field starts with formula trigger characters (=, +, -, @, \t, \r)
+// Prepends single quote if field starts with formula trigger characters (=, +, -, @, \t, \r, |)
 func SanitizeCSVField(val string) string {
 	clean := strings.TrimSpace(val)
 	if len(clean) == 0 {
 		return ""
 	}
 	first := clean[0]
-	if first == '=' || first == '+' || first == '-' || first == '@' || first == '\t' || first == '\r' {
+	if first == '=' || first == '+' || first == '-' || first == '@' || first == '\t' || first == '\r' || first == '|' {
 		return "'" + clean
 	}
 	return clean

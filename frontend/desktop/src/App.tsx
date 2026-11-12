@@ -178,7 +178,7 @@ import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './util
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { OfficialContactModal } from './components/OfficialContactModal'
-import { PlatformPoliciesView } from './components/PlatformPoliciesView'
+import { PlatformPoliciesView, type PolicyKey } from './components/PlatformPoliciesView'
 import { DesktopCheckoutView } from './components/DesktopCheckoutView'
 import { normalizeNotification } from './utils/notificationHelpers'
 import { 
@@ -5643,40 +5643,28 @@ Terima kasih.`;
 
   // Dedicated Full-Page Legal & Policy Renderer for Desktop
   const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
-    const policy = policies[type] || {
-      title: 'Kebijakan Layanan',
-      version: 'v1.0.0',
-      content: 'Memuat kebijakan...'
+    const keyMap: Record<string, PolicyKey> = {
+      terms: 'terms',
+      privacy: 'privacy',
+      acceptable_use: 'prohibited'
     };
-
-    const effectiveDateStr = formatPolicyEffectiveDate(policy.effective_date || policy.updated_at);
+    const targetKey = keyMap[type] || 'terms';
 
     return (
-      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2.5rem 1.5rem 5rem 1.5rem', animation: 'fadeIn 0.3s ease-in-out' }}>
-        {/* Document Header Panel */}
-        <div style={{ marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#2563eb', background: '#eff6ff', padding: '0.2rem 0.65rem', borderRadius: '999px', border: '1px solid #bfdbfe', letterSpacing: '0.03em' }}>
-              DOKUMEN RESMI
-            </span>
-            <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
-              Catavor
-            </span>
-          </div>
-          <h1 style={{ fontSize: '2.25rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.03em', margin: '0 0 0.5rem 0' }}>
-            {policy.title}
-          </h1>
-          <p style={{ fontSize: '0.92rem', color: '#64748b', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>Terakhir diperbarui: <strong>{effectiveDateStr}</strong></span>
-            <span>•</span>
-            <span>Berlaku bagi seluruh pengguna &amp; merchant Catavor</span>
-          </p>
-        </div>
-
-        {/* Main Content Card Panel */}
-        <div className="glass-panel" style={{ padding: '2.5rem 2rem', borderRadius: '1.25rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6)' }}>
-          {renderFormattedPolicyContent(policy.content)}
-        </div>
+      <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '1.5rem 1.5rem 4rem 1.5rem' }}>
+        <PlatformPoliciesView
+          initialKey={targetKey}
+          onBack={() => {
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              setPortalTab('home');
+            }
+          }}
+          onOpenHelpdesk={() => {
+            setPortalTab('login');
+          }}
+        />
       </div>
     );
   };
@@ -6450,8 +6438,9 @@ Terima kasih.`;
 
           // Anonymous Search Telemetry & Demand Gap Ingestion (Zero PII & Honeypot Trap)
           const totalFound = json.pagination?.total_items ?? json.data.length;
-          if (debouncedSearch.trim().length >= 3 && !append) {
+          if (debouncedSearch.trim().length >= 2 && !append) {
             try {
+              const sid = sessionStorage.getItem('catavor_sid') || '';
               fetch('/api/telemetry/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -6461,6 +6450,7 @@ Terima kasih.`;
                   product_type: productTypeFilter,
                   result_count: totalFound,
                   is_zero_result: totalFound === 0,
+                  session_id: sid,
                   _hp_check: ''
                 }),
                 keepalive: true
@@ -24395,14 +24385,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           type="button"
                           onClick={() => setProfileSubTab('info')}
                           style={{
+                            minHeight: '38px',
                             padding: '0.5rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
                             cursor: 'pointer',
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: '0.45rem',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                             border: profileSubTab === 'info' ? '1px solid var(--primary)' : '1px solid transparent',
                             backgroundColor: profileSubTab === 'info' ? 'var(--primary)' : 'transparent',
                             color: profileSubTab === 'info' ? '#ffffff' : 'var(--text-secondary)',
@@ -24418,14 +24412,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           type="button"
                           onClick={() => setProfileSubTab('security')}
                           style={{
+                            minHeight: '38px',
                             padding: '0.5rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
                             cursor: 'pointer',
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: '0.45rem',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                             border: profileSubTab === 'security' ? '1px solid var(--primary)' : '1px solid transparent',
                             backgroundColor: profileSubTab === 'security' ? 'var(--primary)' : 'transparent',
                             color: profileSubTab === 'security' ? '#ffffff' : 'var(--text-secondary)',
@@ -24444,14 +24442,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             fetchActivityLogs(1, false);
                           }}
                           style={{
+                            minHeight: '38px',
                             padding: '0.5rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
                             cursor: 'pointer',
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: '0.45rem',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
                             border: profileSubTab === 'logs' ? '1px solid var(--primary)' : '1px solid transparent',
                             backgroundColor: profileSubTab === 'logs' ? 'var(--primary)' : 'transparent',
                             color: profileSubTab === 'logs' ? '#ffffff' : 'var(--text-secondary)',
@@ -24467,18 +24469,22 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           type="button"
                           onClick={() => setProfileSubTab('danger')}
                           style={{
+                            minHeight: '38px',
                             padding: '0.5rem 1.15rem',
                             borderRadius: '0.55rem',
                             fontSize: '0.8rem',
                             fontWeight: 700,
                             cursor: 'pointer',
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
+                            justifyContent: 'center',
                             gap: '0.45rem',
-                            border: profileSubTab === 'danger' ? '1px solid var(--border-light)' : '1px solid transparent',
-                            backgroundColor: profileSubTab === 'danger' ? 'var(--bg-card, rgba(255,255,255,0.06))' : 'transparent',
-                            color: profileSubTab === 'danger' ? 'var(--text-primary)' : 'var(--text-secondary)',
-                            boxShadow: profileSubTab === 'danger' ? 'var(--shadow-sm)' : 'none',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                            border: profileSubTab === 'danger' ? '1px solid var(--primary)' : '1px solid transparent',
+                            backgroundColor: profileSubTab === 'danger' ? 'var(--primary)' : 'transparent',
+                            color: profileSubTab === 'danger' ? '#ffffff' : 'var(--text-secondary)',
+                            boxShadow: profileSubTab === 'danger' ? '0 2px 8px var(--primary-glow)' : 'none',
                             transition: 'all 0.2s ease'
                           }}
                         >

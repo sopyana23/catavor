@@ -85,12 +85,41 @@ func RecordActivity(params RecordActivityParams) {
 // CleanOldActivityLogs purges stale logs based on SaaS plan tier retention:
 // - Free stores: retains 90 days of logs.
 // - Pro / System / Superadmin: retains 365 days of logs.
+// Preserves historical price change event counts into macro audience dimensions before purging.
 func CleanOldActivityLogs(db *gorm.DB) (int64, error) {
 	now := time.Now()
 	freeCutoff := now.AddDate(0, 0, -90)
 	globalCutoff := now.AddDate(0, 0, -365)
 
 	var totalDeleted int64
+
+	// 0. Pre-prune aggregation: Snapshot historical price change frequency into store_daily_audience_metrics
+	// so macro inflation & price elasticity intelligence remains permanently accessible with zero PII.
+	_ = db.Exec(`
+		INSERT INTO store_daily_audience_metrics (store_id, date, dimension_type, dimension_value, views, unique_visitors, total_actions, created_at, updated_at)
+		SELECT 
+			0 as store_id,
+			TO_CHAR(created_at, 'YYYY-MM-DD') as date,
+			'hist_price_chg' as dimension_type,
+			'catalog|price_change' as dimension_value,
+			COUNT(*) as views,
+			COUNT(DISTINCT store_id) as unique_visitors,
+			COUNT(*) as total_actions,
+			NOW(),
+			NOW()
+		FROM activity_logs
+		WHERE action = 'product.price_change' 
+		  AND (
+		      (store_id IN (SELECT id FROM stores WHERE plan = 'free' OR plan IS NULL) AND created_at < ?)
+		      OR created_at < ?
+		  )
+		GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
+		ON CONFLICT (store_id, date, dimension_type, dimension_value) DO UPDATE SET
+			views = store_daily_audience_metrics.views + EXCLUDED.views,
+			unique_visitors = store_daily_audience_metrics.unique_visitors + EXCLUDED.unique_visitors,
+			total_actions = store_daily_audience_metrics.total_actions + EXCLUDED.total_actions,
+			updated_at = NOW()
+	`, freeCutoff, globalCutoff).Error
 
 	// 1. Purge Free store logs older than 90 days
 	res1 := db.Exec(`

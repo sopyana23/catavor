@@ -95,7 +95,8 @@ import {
   Link as LinkIcon,
   Upload,
   Image as ImageIcon,
-  Server
+  Server,
+  Scale
 } from 'lucide-react';
 import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
 import { PlatformAdminShell } from './PlatformAdminShell';
@@ -105,6 +106,7 @@ import { AdminStoresManagement } from './AdminStoresManagement';
 import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
 import { DesktopCustomSelect, type SelectOption } from './DesktopCustomSelect';
 import { PlatformMarketIntelView } from './PlatformMarketIntelView';
+import { PlatformPolicyManager } from './PlatformPolicyManager';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { SafeImage } from './SafeImage';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
@@ -533,11 +535,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   // Support Division & Master Data Sub-Navigation State
   const [supportSubView, setSupportSubView] = useState<'tickets'>('tickets');
-  const [masterSubView, setMasterSubView] = useState<'menu' | 'domains' | 'templates' | 'rekber' | 'contact'>(() => {
+  const [masterSubView, setMasterSubView] = useState<'menu' | 'domains' | 'templates' | 'rekber' | 'contact' | 'policies'>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const sub = (params.get('subtab') || params.get('subview') || params.get('sub') || '').toLowerCase();
       const tab = (params.get('tab') || params.get('view') || '').toLowerCase();
+      if (['policies', 'policy', 'kebijakan', 'legal'].includes(sub) || ['policies', 'policy', 'kebijakan', 'legal'].includes(tab)) return 'policies';
       if (['contact', 'kontak', 'support_contact'].includes(sub) || ['contact', 'kontak'].includes(tab)) return 'contact';
       if (['rekber', 'rekbersyariah', 'escrow'].includes(sub) || ['rekber', 'rekbersyariah'].includes(tab)) return 'rekber';
       if (['templates', 'template', 'canned', 'canned_responses'].includes(sub) || ['templates', 'canned'].includes(tab)) return 'templates';
@@ -4141,7 +4144,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         ? 'Whitelist URL & Navigasi Ekosistem' 
         : (masterSubView === 'templates' 
           ? `${cannedTemplates.length} Template Pesan Cepat CS` 
-          : (masterSubView === 'rekber' ? 'Integrasi Rekber Syariah (rekbersyariah.com)' : 'Pusat Konfigurasi Master Data'))
+          : (masterSubView === 'rekber' 
+            ? 'Integrasi Rekber Syariah (rekbersyariah.com)' 
+            : (masterSubView === 'policies' 
+              ? 'Kebijakan, Regulasi & Ketentuan Legal Platform' 
+              : 'Pusat Konfigurasi Master Data')))
     },
     safe_domains: { title: 'Master Domain Aman', subtitle: 'Whitelist URL & Navigasi Bebas Hambatan' },
     market_intel: { title: 'Riset Pasar B2B', subtitle: 'Tren Hype, Demand Gap & Benchmark Harga' },
@@ -5295,7 +5302,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             ? 'Template Pesan Cepat CS'
                             : (activeView === 'master_data' && masterSubView === 'rekber')
                               ? 'Mitra Rekber Syariah'
-                              : (currentItem?.title || 'Panel Modul')}
+                              : (activeView === 'master_data' && masterSubView === 'policies')
+                                ? 'Kebijakan & Legalitas Platform'
+                                : (currentItem?.title || 'Panel Modul')}
               </h3>
               <span style={{
                 fontSize: '0.67rem',
@@ -5319,9 +5328,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             ? `${cannedTemplates.length} Template Respon Cepat Helpdesk`
                             : (activeView === 'master_data' && masterSubView === 'rekber')
                               ? 'Integrasi Escrow Amanah (rekbersyariah.com)'
-                              : (activeView === 'master_data' && masterSubView === 'menu')
-                                ? 'Pusat Entitas & Konfigurasi Master'
-                                : subStatusText}
+                              : (activeView === 'master_data' && masterSubView === 'policies')
+                                ? '6 Pilar Dokumen Hukum & Perlindungan Sistem'
+                                : (activeView === 'master_data' && masterSubView === 'menu')
+                                  ? 'Pusat Entitas & Konfigurasi Master'
+                                  : subStatusText}
               </span>
             </div>
 
@@ -17232,6 +17243,120 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Master Option 5: Kebijakan & Legalitas Platform */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setMasterSubView('policies');
+                    updatePlatformUrl('master_data', null, 'policies');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setMasterSubView('policies');
+                      updatePlatformUrl('master_data', null, 'policies');
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    padding: '1.1rem',
+                    borderRadius: '1rem',
+                    backgroundColor: theme.card,
+                    border: `1.5px solid ${isDark ? 'rgba(16, 185, 129, 0.35)' : 'rgba(16, 185, 129, 0.25)'}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                    boxShadow: isDark ? '0 4px 14px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.03)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#10b981';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = isDark ? 'rgba(16, 185, 129, 0.35)' : 'rgba(16, 185, 129, 0.25)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '0.85rem',
+                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.18)' : 'rgba(16, 185, 129, 0.12)',
+                        border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.4)' : 'rgba(16, 185, 129, 0.25)'}`,
+                        color: '#10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Scale size={22} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
+                            Kebijakan &amp; Legalitas Platform
+                          </h4>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 700 }}>
+                          6 Pilar Regulasi &amp; Kontrol Versi
+                        </span>
+                      </div>
+                    </div>
+
+                    <span style={{
+                      fontSize: '0.66rem',
+                      fontWeight: 700,
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '999px',
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)',
+                      color: '#10b981',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      6 Dokumen Aktif
+                    </span>
+                  </div>
+
+                  <p style={{
+                    margin: '0 0 0.95rem 0',
+                    fontSize: '0.76rem',
+                    color: theme.textSecondary,
+                    lineHeight: 1.45
+                  }}>
+                    Kelola Syarat Layanan, Komoditas Terlarang, Privasi &amp; Telemetri B2B (UU PDP), Moderasi 4 Tingkat, Transaksi Rekber, dan Langganan Merchant.
+                  </p>
+
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingTop: '0.7rem',
+                    borderTop: `1px solid ${theme.border}`,
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    color: '#10b981'
+                  }}>
+                    <span>Buka Pengaturan Kebijakan</span>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '0.5rem',
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <ChevronRight size={15} />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Extensibility & Scalability Information Card */}
@@ -18905,6 +19030,20 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
               </form>
             </div>
+          )}
+
+          {/* SUB-VIEW 5: MASTER KEBIJAKAN & LEGALITAS PLATFORM */}
+          {masterSubView === 'policies' && (
+            <PlatformPolicyManager
+              token={token || localStorage.getItem('catavor_token') || ''}
+              isDark={isDark}
+              theme={theme}
+              onBack={() => {
+                setMasterSubView('menu');
+                updatePlatformUrl('master_data', null, null);
+              }}
+              onNotify={(msg, type) => setToastMsg({ text: msg, type: type || 'success' })}
+            />
           )}
         </div>
       )}

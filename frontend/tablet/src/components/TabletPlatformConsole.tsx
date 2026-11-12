@@ -89,8 +89,10 @@ import {
   ImageOff,
   Power,
   Edit2,
-  Percent
+  Percent,
+  Scale
 } from 'lucide-react';
+import { TabletPolicyManager } from './TabletPolicyManager';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString } from '../utils/urlSecurity';
 import { SafeImage } from './SafeImage';
@@ -3019,16 +3021,18 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: MASTER DATA (Rekber, Domains, CS Templates)
   // =========================================================================
-  const [masterSubTab, setMasterSubTab] = useState<'rekber' | 'domains' | 'templates' | 'contact'>(() => {
+  const [masterSubTab, setMasterSubTab] = useState<'rekber' | 'domains' | 'templates' | 'contact' | 'policies'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const sub = params.get('sub');
+      const sub = (params.get('sub') || '').toLowerCase();
+      const tab = (params.get('tab') || params.get('view') || '').toLowerCase();
+      if (['policies', 'policy', 'kebijakan', 'legal'].includes(sub) || ['policies', 'policy', 'kebijakan', 'legal'].includes(tab)) return 'policies';
       if (sub === 'domains' || sub === 'templates' || sub === 'rekber' || sub === 'contact') return sub;
     }
     return 'rekber';
   });
 
-  const handleSwitchMasterSubTab = (sub: 'rekber' | 'domains' | 'templates' | 'contact') => {
+  const handleSwitchMasterSubTab = (sub: 'rekber' | 'domains' | 'templates' | 'contact' | 'policies') => {
     setMasterSubTab(sub);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
@@ -3088,15 +3092,17 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     const handleMasterPopState = () => {
       if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
       const params = new URLSearchParams(window.location.search);
-      const sub = params.get('sub');
-      const tab = params.get('tab') || params.get('view');
-      if (sub === 'domains' || sub === 'templates' || sub === 'rekber' || sub === 'contact') {
-        setMasterSubTab(sub);
-      } else if (['contact', 'kontak'].includes(String(tab).toLowerCase())) {
+      const sub = (params.get('sub') || '').toLowerCase();
+      const tab = (params.get('tab') || params.get('view') || '').toLowerCase();
+      if (['policies', 'policy', 'kebijakan', 'legal'].includes(sub) || ['policies', 'policy', 'kebijakan', 'legal'].includes(tab)) {
+        setMasterSubTab('policies');
+      } else if (sub === 'domains' || sub === 'templates' || sub === 'rekber' || sub === 'contact') {
+        setMasterSubTab(sub as any);
+      } else if (['contact', 'kontak'].includes(tab)) {
         setMasterSubTab('contact');
-      } else if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(String(tab).toLowerCase())) {
+      } else if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(tab)) {
         setMasterSubTab('domains');
-      } else if (['templates', 'canned'].includes(String(tab).toLowerCase())) {
+      } else if (['templates', 'canned'].includes(tab)) {
         setMasterSubTab('templates');
       }
     };
@@ -13247,6 +13253,39 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   <Phone size={17} />
                   <span>Kontak Resmi Platform</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSwitchMasterSubTab('policies')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.75rem',
+                    border: `1.5px solid ${masterSubTab === 'policies' ? '#10b981' : 'var(--border-light)'}`,
+                    backgroundColor: masterSubTab === 'policies' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                    color: masterSubTab === 'policies' ? '#10b981' : 'var(--text-muted)',
+                    fontSize: '0.82rem',
+                    fontWeight: masterSubTab === 'policies' ? 800 : 600,
+                    cursor: 'pointer',
+                    minHeight: '44px',
+                    transition: 'all 0.18s ease'
+                  }}
+                >
+                  <Scale size={17} />
+                  <span>Kebijakan &amp; Legalitas</span>
+                  <span style={{
+                    fontSize: '0.65rem',
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '999px',
+                    fontWeight: 700,
+                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                    color: '#10b981'
+                  }}>
+                    6 Dokumen
+                  </span>
+                </button>
               </div>
 
               {/* Subtab Content Area */}
@@ -14504,6 +14543,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       </form>
                     </div>
                   </div>
+                )}
+
+                {/* SUBTAB 5: KEBIJAKAN & LEGALITAS PLATFORM */}
+                {masterSubTab === 'policies' && (
+                  <TabletPolicyManager
+                    token={token || localStorage.getItem('catavor_token') || ''}
+                    showToast={showToast}
+                    onBack={() => handleSwitchMasterSubTab('rekber')}
+                  />
                 )}
               </div>
             </div>

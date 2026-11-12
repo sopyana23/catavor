@@ -601,6 +601,11 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 		})
 	}
 
+	// Record anonymized supply listing signal for macro B2B intelligence
+	if telemetrySvc := services.GetStoreTelemetryService(); telemetrySvc != nil {
+		telemetrySvc.EnqueueSupplySignal(product.ProductType, "supply_stock_turn", fmt.Sprintf("%s|new_listing", product.ProductType))
+	}
+
 	// Reload complete product with relations
 	h.db.Preload("Category").Preload("Images").Preload("Variants").First(&product, product.ID)
 
@@ -980,6 +985,30 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			"success": false,
 			"message": "Gagal memperbarui produk: " + txErr.Error(),
 		})
+	}
+
+	// Record anonymized merchant supply-side signals for macro market intelligence
+	if telemetrySvc := services.GetStoreTelemetryService(); telemetrySvc != nil {
+		if oldPrice != product.Price && oldPrice > 0 {
+			deltaPct := ((product.Price - oldPrice) / oldPrice) * 100
+			bucket := "stable_<5pct"
+			switch {
+			case deltaPct >= 20:
+				bucket = "up_>20pct"
+			case deltaPct >= 5:
+				bucket = "up_5_20pct"
+			case deltaPct <= -20:
+				bucket = "down_>20pct"
+			case deltaPct <= -5:
+				bucket = "down_5_20pct"
+			}
+			telemetrySvc.EnqueueSupplySignal(product.ProductType, "supply_price_delta", fmt.Sprintf("%s|%s", product.ProductType, bucket))
+		}
+		if product.ConservationStatus == "sold_out" {
+			telemetrySvc.EnqueueSupplySignal(product.ProductType, "supply_stock_turn", fmt.Sprintf("%s|sold_out", product.ProductType))
+		} else if product.ConservationStatus == "available" {
+			telemetrySvc.EnqueueSupplySignal(product.ProductType, "supply_stock_turn", fmt.Sprintf("%s|available", product.ProductType))
+		}
 	}
 
 	// Hard delete old images that are no longer referenced in new product images

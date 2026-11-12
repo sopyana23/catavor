@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"fmt"
 	"sort"
@@ -53,6 +54,65 @@ func (c *dedupCache) isDuplicate(key string, ttlSeconds int64) bool {
 
 	c.entries[key] = now
 	return false
+}
+
+// In-memory session search attribution cache (3 minutes TTL) for server-side search-to-click tracking
+type sessionSearchEntry struct {
+	keyword     string
+	productType string
+	timestamp   int64
+}
+
+type sessionSearchCache struct {
+	mu      sync.RWMutex
+	entries map[string]sessionSearchEntry
+}
+
+var globalSessionSearchCache = &sessionSearchCache{
+	entries: make(map[string]sessionSearchEntry),
+}
+
+func (c *sessionSearchCache) put(ip, sessionID, kw, pType string) {
+	key := fmt.Sprintf("%s:%s", ip, sessionID)
+	now := time.Now().Unix()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.entries) > 5000 {
+		for k, v := range c.entries {
+			if now-v.timestamp > 300 {
+				delete(c.entries, k)
+			}
+		}
+	}
+	c.entries[key] = sessionSearchEntry{
+		keyword:     kw,
+		productType: pType,
+		timestamp:   now,
+	}
+}
+
+func (c *sessionSearchCache) pop(ip, sessionID string) (sessionSearchEntry, bool) {
+	key := fmt.Sprintf("%s:%s", ip, sessionID)
+	now := time.Now().Unix()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if entry, exists := c.entries[key]; exists {
+		delete(c.entries, key)
+		if now-entry.timestamp <= 180 { // 3-minute attribution window
+			return entry, true
+		}
+	}
+	// Fallback to IP-level search key when search beacon was sent without session_id
+	if sessionID != "" {
+		ipKey := fmt.Sprintf("%s:", ip)
+		if entry, exists := c.entries[ipKey]; exists {
+			delete(c.entries, ipKey)
+			if now-entry.timestamp <= 180 {
+				return entry, true
+			}
+		}
+	}
+	return sessionSearchEntry{}, false
 }
 
 type AnalyticsHandler struct {
@@ -319,26 +379,58 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 		}
 	}
 
+	// Extract optional price and search_keyword from request metadata or session search cache
+	var searchKw string
+	var itemPrice float64
+	if req.Metadata != nil {
+		if skw, ok := req.Metadata["search_keyword"].(string); ok {
+			searchKw = strings.TrimSpace(skw)
+		} else if skw2, ok := req.Metadata["search_kw"].(string); ok {
+			searchKw = strings.TrimSpace(skw2)
+		}
+		if pr, ok := req.Metadata["price"].(float64); ok {
+			itemPrice = pr
+		} else if prStr, ok := req.Metadata["price"].(string); ok {
+			if parsed, err := strconv.ParseFloat(prStr, 64); err == nil {
+				itemPrice = parsed
+			}
+		}
+	}
+	// Server-side session search attribution: if user performed a search within the last 3 minutes
+	if searchKw == "" && (event == "product_view" || event == "store_view") {
+		if entry, found := globalSessionSearchCache.pop(clientIP, sessionToken); found {
+			searchKw = entry.keyword
+		}
+	}
+	if searchKw != "" {
+		searchSvc := services.GetSearchTelemetryService()
+		if searchSvc != nil {
+			searchSvc.RecordSearchClick(searchKw, req.ProductType)
+		}
+	}
+
 	// Enqueue to high-performance non-blocking telemetry service (0 DB queries in request path)
 	svc := services.GetStoreTelemetryService()
 	if svc != nil {
 		svc.EnqueueEvent(services.StoreTelemetryEvent{
-			StoreID:     storeID,
-			StoreSlug:   slug,
-			Event:       event,
-			ProductID:   req.ProductID,
-			ProductName: productName,
-			ProductType: req.ProductType,
-			ClientIP:    clientIP,
-			SessionID:   sessionToken,
-			UserAgent:   ua,
-			Source:      cleanSource,
-			Medium:      req.Medium,
-			Campaign:    req.Campaign,
-			Referrer:    ref,
-			City:        city,
-			Country:     country,
-			Timestamp:   time.Now().UTC(),
+			StoreID:       storeID,
+			StoreSlug:     slug,
+			Event:         event,
+			ProductID:     req.ProductID,
+			ProductName:   productName,
+			ProductType:   req.ProductType,
+			Price:         itemPrice,
+			SearchKeyword: searchKw,
+			ClientIP:      clientIP,
+			SessionID:     sessionToken,
+			UserAgent:     ua,
+			Source:        cleanSource,
+			Medium:        req.Medium,
+			Campaign:      req.Campaign,
+			Referrer:      ref,
+			City:          city,
+			Country:       country,
+			Timestamp:     time.Now().UTC(),
 		})
 	}
 
@@ -1584,6 +1676,7 @@ type TrackSearchRequest struct {
 	ResultCount  int    `json:"result_count"`
 	IsZeroResult bool   `json:"is_zero_result"`
 	City         string `json:"city"`
+	SessionID    string `json:"session_id"`
 	HpCheck      string `json:"_hp_check"`
 }
 
@@ -1613,6 +1706,13 @@ func (h *AnalyticsHandler) TrackSearchEvent(c *fiber.Ctx) error {
 	if cleanKw == "" {
 		return c.JSON(fiber.Map{"success": true, "message": "Search diabaikan."})
 	}
+
+	// Cache session search intent for server-side search-to-click attribution
+	sessID := strings.TrimSpace(req.SessionID)
+	if sessID == "" {
+		sessID = c.Get("X-Session-ID")
+	}
+	globalSessionSearchCache.put(c.IP(), sessID, cleanKw, req.ProductType)
 
 	// Sliding-window keyword deduplication per IP + Store + Keyword (TTL 60s)
 	// Prevents repeated enter-pressing / bot looping from inflating search analytics
@@ -1717,13 +1817,13 @@ func (h *AnalyticsHandler) GetTrendingKeywords(c *fiber.Ctx) error {
 	_ = h.db.Raw(`
 		SELECT 
 			keyword,
-			COALESCE(product_type, 'all') as product_type,
+			COALESCE(NULLIF(product_type, ''), 'all') as product_type,
 			SUM(search_volume) as search_volume,
 			SUM(zero_result_count) as zero_count,
-			COALESCE(AVG(ctr_percentage), 0) as ctr
+			CASE WHEN SUM(search_volume) > 0 THEN ROUND(LEAST(100.0, (SUM(clicked_product_count)::numeric / SUM(search_volume)::numeric) * 100), 2) ELSE 0 END as ctr
 		FROM search_daily_rollups
 		WHERE date >= ?
-		GROUP BY keyword, product_type
+		GROUP BY keyword, COALESCE(NULLIF(product_type, ''), 'all')
 		ORDER BY search_volume DESC
 		LIMIT 25
 	`, startDate).Scan(&results).Error
@@ -1788,12 +1888,13 @@ func (h *AnalyticsHandler) GetDemandGaps(c *fiber.Ctx) error {
 	_ = h.db.Raw(`
 		SELECT 
 			clean_keyword as keyword,
-			product_type,
-			COUNT(*) as zero_result_count,
+			COALESCE(NULLIF(product_type, ''), 'all') as product_type,
+			SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) as zero_result_count,
 			COUNT(*) as total_searches
 		FROM search_analytics
-		WHERE is_zero_result = true AND date >= ?
-		GROUP BY clean_keyword, product_type
+		WHERE date >= ?
+		GROUP BY clean_keyword, COALESCE(NULLIF(product_type, ''), 'all')
+		HAVING SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) > 0
 		ORDER BY zero_result_count DESC
 		LIMIT 20
 	`, startDate).Scan(&gaps).Error
@@ -1832,8 +1933,8 @@ func (h *AnalyticsHandler) GetCategoryPriceBenchmarks(c *fiber.Ctx) error {
 	})
 }
 
-// ExportStoreAnalytics streams a clean, Excel-compatible CSV export of the store's performance metrics.
-// Supports periods ('7d', '30d', '90d', 'all') and report types ('daily', 'products', 'full').
+// ExportStoreAnalytics streams modular, Excel-compatible CSV reports or a full ZIP package of the store's performance metrics.
+// Supports periods ('7d', '30d', '90d', 'all') and report types ('daily', 'products', 'traffic_sources', 'audience', 'hourly', 'package').
 func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -1855,234 +1956,89 @@ func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 		})
 	}
 
+	user, _ := c.Locals("user").(*models.User)
+	isStaff := user != nil && user.IsPlatformStaff()
+	if !isStaff && (store.DormancyStatus == "suspended" || store.IsSuspended || store.DormancyStatus == "banned" || store.IsBlacklisted) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "STORE_SUSPENDED",
+			"message": "Ekspor analitik dinonaktifkan sementara karena operasional profil katalog sedang dibekukan.",
+		})
+	}
+
+	// 1. Flush any pending in-memory telemetry buffers to guarantee zero data drift
+	telemetrySvc := services.GetStoreTelemetryService()
+	if telemetrySvc != nil {
+		telemetrySvc.FlushNow()
+	}
+
 	period := strings.ToLower(strings.TrimSpace(c.Query("period", "30d")))
-	reportType := strings.ToLower(strings.TrimSpace(c.Query("type", "full")))
-	if reportType == "" {
-		reportType = "full"
+	reportType := strings.ToLower(strings.TrimSpace(c.Query("type", "package")))
+	if reportType == "" || reportType == "full" {
+		reportType = "package"
 	}
 
-	days := 30
-	periodLabel := "30 Hari Terakhir"
-	isAllTime := false
-
-	if period == "7d" {
-		days = 7
-		periodLabel = "7 Hari Terakhir"
-	} else if period == "90d" {
-		days = 90
-		periodLabel = "90 Hari Terakhir"
-	} else if period == "all" || period == "all-time" || period == "alltime" {
-		isAllTime = true
-		period = "all"
-		periodLabel = "Sepanjang Waktu (Semua Riwayat)"
-	} else {
-		period = "30d"
+	filter := services.ProductExportFilter{
+		ProductType: strings.TrimSpace(strings.ToLower(c.Query("product_type", c.Query("type_filter", "")))),
+		Search:      strings.TrimSpace(c.Query("search", c.Query("q", ""))),
+		Sort:        strings.TrimSpace(strings.ToLower(c.Query("sort", "views"))),
 	}
 
-	db := h.db
+	filename, contentType := services.GetAnalyticsExportMetadata(store, reportType, period)
 
-	// CSV formatting & security helpers
-	escapeCSV := func(s string) string {
-		clean := strings.TrimSpace(s)
-		// Security: Prevent CSV formula injection in Microsoft Excel / LibreOffice
-		if len(clean) > 0 && (clean[0] == '=' || clean[0] == '+' || clean[0] == '-' || clean[0] == '@') {
-			clean = "'" + clean
+	// 2. Log audit activity asynchronously (Zero impact on request latency)
+	if user != nil {
+		actorRole := "merchant"
+		if user.IsPlatformStaff() {
+			actorRole = string(user.PlatformRole)
 		}
-		if strings.ContainsAny(clean, ",\"\n\r") {
-			clean = `"` + strings.ReplaceAll(clean, `"`, `""`) + `"`
-		}
-		return clean
+		sID := store.ID
+		uID := user.ID
+		uName := user.Name
+		uEmail := user.Email
+		ip := c.IP()
+		ua := c.Get("User-Agent")
+		repTypeCopy := reportType
+		periodCopy := period
+		go func() {
+			services.RecordActivity(services.RecordActivityParams{
+				DB:          h.db,
+				StoreID:     &sID,
+				UserID:      &uID,
+				ActorRole:   actorRole,
+				ActorName:   uName,
+				ActorEmail:  uEmail,
+				Action:      "analytics.export_data",
+				Category:    "analytics",
+				EntityType:  "store",
+				EntityID:    &sID,
+				Description: fmt.Sprintf("Mengekspor data analitika tipe '%s' periode '%s'", repTypeCopy, periodCopy),
+				IPAddress:   ip,
+				UserAgent:   ua,
+			})
+		}()
 	}
 
-	formatProductType := func(pType string) string {
-		switch strings.ToLower(pType) {
-		case "service":
-			return "Layanan / Jasa"
-		case "digital":
-			return "Produk Digital"
-		case "food":
-			return "Kuliner & FnB"
-		case "property":
-			return "Properti & Listing"
-		case "fauna":
-			return "Satwa & Fauna"
-		case "plant":
-			return "Tanaman & Flora"
-		default:
-			return "Produk Fisik"
-		}
-	}
-
-	var sb strings.Builder
-	// 1. Mandatory UTF-8 Byte Order Mark (BOM) for 100% Microsoft Excel Windows/Mac compatibility
-	sb.WriteString("\xEF\xBB\xBF")
-
-	// 2. Fetch daily records if needed
-	var dailyRecords []models.StoreDailyAnalytics
-	if reportType == "daily" || reportType == "full" {
-		query := db.Where("store_id = ?", store.ID)
-		if !isAllTime {
-			startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
-			query = query.Where("date >= ?", startDate)
-		}
-		_ = query.Order("date DESC").Find(&dailyRecords).Error
-	}
-
-	// 3. Fetch product records if needed
-	var products []models.Product
-	if reportType == "products" || reportType == "full" {
-		_ = db.Preload("Category").
-			Where("store_id = ? AND is_active = ?", store.ID, true).
-			Order("view_count DESC, wa_clicks_count DESC, id DESC").
-			Find(&products).Error
-	}
-
-	switch reportType {
-	case "products":
-		// Header row
-		sb.WriteString("ID Item,Nama Produk,Tipe Katalog,Kategori/Kelas,Harga (Rp),Tayangan (Views),Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi Peminat,Rasio Konversi CTR (%)\n")
-		for _, p := range products {
-			totalAct := p.WaClicksCount + p.MarketplaceClicksCount + p.RekberClicksCount + p.VideoViewsCount
-			ctr := 0.0
-			if p.ViewCount > 0 {
-				ctr = (float64(totalAct) / float64(p.ViewCount)) * 100
-				if ctr > 100 {
-					ctr = 100
-				}
-			}
-			catName := p.GetEffectiveCategory()
-			if catName == "" {
-				catName = "Umum"
-			}
-			sb.WriteString(fmt.Sprintf("%d,%s,%s,%s,%.0f,%d,%d,%d,%d,%d,%d,%.2f%%\n",
-				p.ID,
-				escapeCSV(p.Name),
-				escapeCSV(formatProductType(p.ProductType)),
-				escapeCSV(catName),
-				p.Price,
-				p.ViewCount,
-				p.WaClicksCount,
-				p.MarketplaceClicksCount,
-				p.RekberClicksCount,
-				p.VideoViewsCount,
-				totalAct,
-				ctr,
-			))
-		}
-
-	case "daily":
-		// Header row
-		sb.WriteString("Tanggal,Tayangan Toko,Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi,Tingkat Konversi (%)\n")
-		for _, r := range dailyRecords {
-			directWa := r.DirectWaClicks
-			if directWa == 0 && r.WaClicks > 0 {
-				directWa = r.WaClicks
-			}
-			act := r.TotalActions
-			if act == 0 {
-				act = directWa + r.MarketplaceClicks + r.RekberClicks + r.VideoViews
-			}
-			cr := 0.0
-			if r.StoreViews > 0 {
-				cr = (float64(act) / float64(r.StoreViews)) * 100
-				if cr > 100 {
-					cr = 100
-				}
-			}
-			sb.WriteString(fmt.Sprintf("%s,%d,%d,%d,%d,%d,%d,%.2f%%\n",
-				r.Date, r.StoreViews, directWa, r.MarketplaceClicks, r.RekberClicks, r.VideoViews, act, cr))
-		}
-
-	default: // "full"
-		// Executive Summary Metadata
-		totalStoreViews := 0
-		totalActions := 0
-		for _, r := range dailyRecords {
-			totalStoreViews += r.StoreViews
-			act := r.TotalActions
-			if act == 0 {
-				directWa := r.DirectWaClicks
-				if directWa == 0 && r.WaClicks > 0 {
-					directWa = r.WaClicks
-				}
-				act = directWa + r.MarketplaceClicks + r.RekberClicks + r.VideoViews
-			}
-			totalActions += act
-		}
-		overallCR := 0.0
-		if totalStoreViews > 0 {
-			overallCR = (float64(totalActions) / float64(totalStoreViews)) * 100
-			if overallCR > 100 {
-				overallCR = 100
-			}
-		}
-
-		storeName := store.StoreTitle
-		if storeName == "" {
-			storeName = store.Slug
-		}
-		sb.WriteString(fmt.Sprintf("# LAPORAN ANALITIK RESMI KATALOG CATAVOR - %s\n", escapeCSV(storeName)))
-		sb.WriteString(fmt.Sprintf("# Periode Laporan: %s | Tanggal Cetak: %s\n", periodLabel, time.Now().Format("2006-01-02 15:04:05")))
-		sb.WriteString(fmt.Sprintf("# Total Kunjungan Toko: %d | Total Aksi Peminat: %d | Rata-rata Konversi: %.2f%%\n\n", totalStoreViews, totalActions, overallCR))
-
-		// Section 1: Daily Timeline
-		sb.WriteString("=== BAGIAN 1: REKAPITULASI TREN HARIAN TOKO ===\n")
-		sb.WriteString("Tanggal,Tayangan Toko,Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi,Tingkat Konversi (%)\n")
-		for _, r := range dailyRecords {
-			directWa := r.DirectWaClicks
-			if directWa == 0 && r.WaClicks > 0 {
-				directWa = r.WaClicks
-			}
-			act := r.TotalActions
-			if act == 0 {
-				act = directWa + r.MarketplaceClicks + r.RekberClicks + r.VideoViews
-			}
-			cr := 0.0
-			if r.StoreViews > 0 {
-				cr = (float64(act) / float64(r.StoreViews)) * 100
-				if cr > 100 {
-					cr = 100
-				}
-			}
-			sb.WriteString(fmt.Sprintf("%s,%d,%d,%d,%d,%d,%d,%.2f%%\n",
-				r.Date, r.StoreViews, directWa, r.MarketplaceClicks, r.RekberClicks, r.VideoViews, act, cr))
-		}
-
-		// Section 2: Product Breakdown
-		sb.WriteString("\n=== BAGIAN 2: RINCIAN PERFORMA KATALOG ITEM ===\n")
-		sb.WriteString("ID Item,Nama Produk,Tipe Katalog,Kategori/Kelas,Harga (Rp),Tayangan (Views),Klik WhatsApp,Klik Marketplace,Klik Rekber,Tayangan Video,Total Aksi Peminat,Rasio Konversi CTR (%)\n")
-		for _, p := range products {
-			totalAct := p.WaClicksCount + p.MarketplaceClicksCount + p.RekberClicksCount + p.VideoViewsCount
-			ctr := 0.0
-			if p.ViewCount > 0 {
-				ctr = (float64(totalAct) / float64(p.ViewCount)) * 100
-				if ctr > 100 {
-					ctr = 100
-				}
-			}
-			catName := p.GetEffectiveCategory()
-			if catName == "" {
-				catName = "Umum"
-			}
-			sb.WriteString(fmt.Sprintf("%d,%s,%s,%s,%.0f,%d,%d,%d,%d,%d,%d,%.2f%%\n",
-				p.ID,
-				escapeCSV(p.Name),
-				escapeCSV(formatProductType(p.ProductType)),
-				escapeCSV(catName),
-				p.Price,
-				p.ViewCount,
-				p.WaClicksCount,
-				p.MarketplaceClicksCount,
-				p.RekberClicksCount,
-				p.VideoViewsCount,
-				totalAct,
-				ctr,
-			))
-		}
-	}
-
-	filename := fmt.Sprintf("catavor-analytics-%s-%s-%s-%s.csv", store.Slug, reportType, period, time.Now().Format("20060102"))
-	c.Set("Content-Type", "text/csv; charset=utf-8")
+	// 3. Set streaming headers
+	c.Set("Content-Type", contentType)
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
-	return c.Send([]byte(sb.String()))
+	c.Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	c.Set("Pragma", "no-cache")
+
+	// 4. Stream response via Fiber SetBodyStreamWriter (Constant O(1) Memory, Anti-OOM)
+	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error().Interface("recover", r).Msg("Recovered from analytics export stream panic")
+			}
+		}()
+
+		_, _, err := services.ExecuteAnalyticsExport(w, store, reportType, period, filter, h.db)
+		if err != nil {
+			log.Error().Err(err).Uint("store_id", store.ID).Str("type", reportType).Msg("Error streaming analytics export")
+		}
+		_ = w.Flush()
+	})
+
+	return nil
 }

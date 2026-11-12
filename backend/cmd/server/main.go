@@ -551,11 +551,11 @@ func main() {
 
 		// Catalog Data Portability & Export
 		// 1. Dedicated Catalog Items Export (Products only: CSV Excel & JSON Items)
-		guarded.Get("/products/export", catalogExportHandler.ExportProducts)
-		guarded.Get("/admin/products/export", catalogExportHandler.ExportProducts)
+		guarded.Get("/products/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportProducts)
+		guarded.Get("/admin/products/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportProducts)
 		// 2. Full Store Backup (Danger Zone & Store Profile Backup: CSV & JSON Store Dump)
-		guarded.Get("/catalog/export", catalogExportHandler.ExportCatalog)
-		guarded.Get("/admin/catalog/export", catalogExportHandler.ExportCatalog)
+		guarded.Get("/catalog/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportCatalog)
+		guarded.Get("/admin/catalog/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportCatalog)
 
 		// Support Tickets & Live Chat Conversations (with normalized attachments)
 		guarded.Get("/support/tickets", supportHandler.ListMyTickets)
@@ -612,8 +612,8 @@ func main() {
 		guarded.Get("/analytics/products", analyticsHandler.GetStoreAnalyticsProducts)
 		guarded.Get("/admin/analytics", analyticsHandler.GetStoreAnalytics)
 		guarded.Get("/analytics", analyticsHandler.GetStoreAnalytics)
-		guarded.Get("/admin/analytics/export", analyticsHandler.ExportStoreAnalytics)
-		guarded.Get("/analytics/export", analyticsHandler.ExportStoreAnalytics)
+		guarded.Get("/admin/analytics/export", middleware.ExportRateLimiter(), analyticsHandler.ExportStoreAnalytics)
+		guarded.Get("/analytics/export", middleware.ExportRateLimiter(), analyticsHandler.ExportStoreAnalytics)
 		// Settings & Policies
 		// SECURITY (N-18): menulis pengaturan platform adalah wewenang "system",
 		// bukan merchant. Sebelumnya hanya dijaga StoreOwnerRequired sehingga
@@ -622,6 +622,8 @@ func main() {
 			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
 		guardedMutations.Post("/settings/policies",
 			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.UpdatePolicy)
+		guardedMutations.Post("/settings/policies/reset-defaults",
+			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetDefaultPolicies)
 		// SECURITY (N-43): policy-audit-logs memuat AdminEmail dan AdminIP internal
 		// sehingga hanya boleh diakses oleh staf dengan izin system:settings:manage.
 		guarded.Get("/settings/policy-audit-logs",
@@ -724,6 +726,10 @@ func main() {
 		// kredensial partner) -> wajib izin khusus, bukan sekadar staf platform.
 		adminApi.Get("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Index)
 		adminApi.Post("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
+		adminApi.Get("/settings/policies", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.GetPolicies)
+		adminApi.Post("/settings/policies", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.UpdatePolicy)
+		adminApi.Post("/settings/policies/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetDefaultPolicies)
+		adminApi.Get("/settings/policy-audit-logs", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.GetPolicyAuditLogs)
 		adminApi.Post("/settings/rekber/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetRekberDefaults)
 		adminApi.Post("/payments/aulaa/test-connection", middleware.RequirePermission(cfg, "system:settings:manage"), paymentHandler.TestAulaaConnection)
 
