@@ -163,6 +163,7 @@ import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './util
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { OfficialContactSheet } from './components/OfficialContactSheet'
+import { MobilePoliciesView } from './components/MobilePoliciesView'
 import { normalizeNotification, getMobileNotificationDescription } from './utils/notificationHelpers'
 import {
   getSavedUserSlug,
@@ -23646,7 +23647,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               if (selectedTicket) return { title: `Tiket #${selectedTicket.id}`, subtitle: '' };
                               return { title: 'Pusat Bantuan', subtitle: '' };
                             case 'policies':
-                              return { title: 'Dashboard Admin', subtitle: '' };
+                              return { title: 'Ketentuan & Kebijakan', subtitle: 'Pedoman Regulasi Platform' };
                             case 'notifications':
                               if (selectedNotification) {
                                 return {
@@ -26858,7 +26859,44 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         </span>
                                       </button>
 
-                                      {/* 9. Hak Akses RBAC (Superadmin Only) */}
+                                      {/* 9. Kebijakan & Ketentuan Platform */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setAdminSubTab('policies');
+                                          const slug = getStoreSlug();
+                                          if (slug) window.history.pushState({}, '', `/${slug}/admin/policies`);
+                                        }}
+                                        style={{
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          alignItems: 'center',
+                                          gap: '0.35rem',
+                                          background: 'none',
+                                          border: 'none',
+                                          padding: 0,
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        <div style={{
+                                          width: '44px',
+                                          height: '44px',
+                                          borderRadius: '0.75rem',
+                                          backgroundColor: 'var(--bg-deep)',
+                                          border: '1px solid var(--border-light)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: 'var(--primary)'
+                                        }}>
+                                          <Scale size={20} />
+                                        </div>
+                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                                          Kebijakan
+                                        </span>
+                                      </button>
+
+                                      {/* 10. Hak Akses RBAC (Superadmin Only) */}
                                       {isSuperAdmin(adminUser) && (
                                         <button
                                           type="button"
@@ -29085,22 +29123,40 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               )}
 
                               {adminSubTab === 'policies' && (
-                                <div className="glass-panel animate-fade-in" style={{ padding: '2rem 1.25rem', textAlign: 'center', borderRadius: '1rem' }}>
-                                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', lineHeight: 1.5 }}>
-                                    Pedoman legal dan kebijakan platform tersedia di halaman publik dan pendaftaran akun.
-                                  </p>
-                                  <button
-                                    type="button"
-                                    className="btn-primary"
-                                    onClick={() => {
-                                      setAdminSubTab('menu');
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAdminSubTab('menu');
+                                        const slug = getStoreSlug();
+                                        if (slug) window.history.replaceState({}, '', `/${slug}/admin`);
+                                      }}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem',
+                                        padding: '0.5rem 0.85rem',
+                                        borderRadius: '0.5rem',
+                                        backgroundColor: 'var(--bg-deep)',
+                                        border: '1px solid var(--border-light)',
+                                        color: 'var(--text-secondary)',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      <ArrowLeft size={14} />
+                                      <span>Kembali ke Menu</span>
+                                    </button>
+                                  </div>
+                                  <MobilePoliciesView
+                                    onOpenHelpdesk={() => {
+                                      setAdminSubTab('help');
                                       const slug = getStoreSlug();
-                                      if (slug) window.history.replaceState({}, '', `/${slug}/admin`);
+                                      if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
                                     }}
-                                    style={{ marginTop: '1rem', padding: '0.55rem 1.25rem', fontSize: '0.8rem', fontWeight: 700 }}
-                                  >
-                                    Kembali ke Menu Dashboard
-                                  </button>
+                                  />
                                 </div>
                               )}
 

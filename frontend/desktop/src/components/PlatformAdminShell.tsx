@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Activity,
   CheckCircle2,
+  Scale,
   Menu,
   X
 } from 'lucide-react';
@@ -211,6 +212,14 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
           visible: canAccessMonetization
         },
         {
+          id: 'policies',
+          label: 'Kebijakan & Legalitas',
+          sublabel: '6 Pilar Regulasi & Banner',
+          icon: <Scale size={18} strokeWidth={1.75} />,
+          badge: 0,
+          visible: canAccessMasterData
+        },
+        {
           id: 'master_data',
           label: 'Master Data',
           sublabel: 'Domain, Template & Rekber',
@@ -252,6 +261,8 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
         return { title: 'Mesin Otomatisasi & Cron Bot', subtitle: 'Pemantauan kesehatan daemon worker, background scheduler, dan log otomatisasi' };
       case 'monetization':
         return { title: 'Monetisasi & Integrasi Google', subtitle: 'Pengaturan Google AdSense, file ads.txt, dan integrasi Google Analytics (GA4)' };
+      case 'policies':
+        return { title: 'Kebijakan & Legalitas Platform', subtitle: 'Manajemen 6 pilar regulasi, editor pasal dinamis, banner kepatuhan, dan log audit hukum' };
       case 'master_data':
         return { title: 'Master Data', subtitle: 'Whitelist domain transaksi aman, template balasan CS, dan escrow Rekber Syariah' };
       case 'audit':

@@ -302,6 +302,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(t)) return 'automation';
     if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'b2b'].includes(t)) return 'market_intel';
     if (['monetization', 'iklan', 'ads', 'google'].includes(t)) return 'monetization';
+    if (['policies', 'policy', 'kebijakan', 'legal', 'settings', 'setting', 'terms', 'aturan'].includes(t)) return 'policies';
     if (['master-data', 'master_data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(t)) return 'master-data';
     if (['audit', 'logs', 'activity', 'jejak'].includes(t)) return 'audit';
     return 'dashboard';
@@ -409,6 +410,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         return { title: 'Mesin Otomatisasi & Bot Worker', subtitle: 'Pemantauan status daemon dan background job' };
       case 'monetization':
         return { title: 'Monetisasi & Integrasi Google', subtitle: 'Pengaturan Google AdSense, ads.txt dan GA4' };
+      case 'policies':
+        return { title: 'Kebijakan & Legalitas Platform', subtitle: '6 pilar regulasi, editor pasal terstruktur, dan banner legal' };
       case 'master-data':
         return { title: 'Master Data', subtitle: 'Whitelist domain aman, template CS, dan proteksi rekber syariah' };
       case 'audit':
@@ -4818,6 +4821,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       { key: 'automation', label: 'Mesin Otomatisasi', desc: 'Status bot & scheduler', icon: Cpu, color: '#f97316', visible: canAccessAutomation },
                       { key: 'market_intel', label: 'Riset Pasar B2B', desc: 'Tren Hype & Demand Gap', icon: TrendingUp, color: '#10b981', visible: canAccessMarketIntel },
                       { key: 'monetization', label: 'Monetisasi & Iklan', desc: 'Google AdSense & GA4', icon: DollarSign, color: '#eab308', visible: canAccessMonetization },
+                      { key: 'policies', label: 'Kebijakan & Legalitas', desc: '6 pilar regulasi & banner legal', icon: Scale, color: '#10b981', visible: canAccessMasterData },
                       { key: 'master-data', label: 'Master Data', desc: 'Whitelist domain aman, template CS, dan proteksi rekber', icon: Layers, color: '#10b981', visible: canAccessMasterData },
                       { key: 'audit', label: 'Audit Trail', desc: 'Log aktivitas forensik sistem', icon: History, color: '#64748b', visible: canAccessAudit }
                     ].filter(mod => (mod as any).visible !== false).map(mod => {
@@ -14554,6 +14558,26 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   />
                 )}
               </div>
+            </div>
+          )}
+
+          {/* TAB: DIRECT KEBIJAKAN & LEGALITAS PLATFORM */}
+          {activeView === 'policies' && canAccessMasterData && (
+            <div style={{
+              height: '100%',
+              overflowY: 'auto',
+              padding: '1.25rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.15rem',
+              boxSizing: 'border-box',
+              WebkitOverflowScrolling: 'touch'
+            }}>
+              <TabletPolicyManager
+                token={token || localStorage.getItem('catavor_token') || ''}
+                showToast={showToast}
+                onBack={() => handleSwitchView('dashboard')}
+              />
             </div>
           )}
 

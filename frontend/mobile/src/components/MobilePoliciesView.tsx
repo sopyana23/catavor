@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Building2,
   ExternalLink,
+  CreditCard,
   Check
 } from 'lucide-react';
 
@@ -17,7 +18,14 @@ export interface MobilePoliciesViewProps {
   onOpenHelpdesk?: () => void;
 }
 
-type PolicyKey = 'terms' | 'prohibited' | 'privacy' | 'moderation' | 'transactions';
+export type PolicyKey = 'terms' | 'prohibited' | 'privacy' | 'moderation' | 'transactions' | 'subscription';
+
+export interface PolicyArticle {
+  number: string;
+  heading: string;
+  content: string;
+  highlights?: string[];
+}
 
 interface PolicyDoc {
   key: PolicyKey;
@@ -27,12 +35,7 @@ interface PolicyDoc {
   badge: string;
   icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties; strokeWidth?: number }>;
   summary: string;
-  articles: Array<{
-    number: string;
-    heading: string;
-    content: string;
-    highlights?: string[];
-  }>;
+  articles: PolicyArticle[];
 }
 
 const POLICY_SECTIONS: PolicyDoc[] = [
@@ -237,6 +240,53 @@ const POLICY_SECTIONS: PolicyDoc[] = [
         highlights: [
           'Dana pembeli dipegang aman di rekening penampung resmi Rekber Syariah dan baru diteruskan ke pengelola setelah pesanan diterima sesuai standar.',
           'Catavor dan Rekber Syariah menerapkan akad muamalah yang transparan, bebas riba, dan bebas manipulasi biaya.'
+        ]
+      }
+    ]
+  },
+  {
+    key: 'subscription',
+    navLabel: 'Langganan & Kuota',
+    title: 'Ketentuan Langganan Merchant, Kuota & Masa Aktif Toko',
+    category: 'Model Layanan Bisnis & Kuota',
+    badge: 'Ketentuan Komersial Merchant',
+    icon: CreditCard,
+    summary: 'Ketentuan paket berlangganan merchant, batas kapasitas kuota produk dan media penyimpanan, mekanisme pembayaran resmi, kebijakan non-refundable, serta prosedur Store Dormancy.',
+    articles: [
+      {
+        number: 'Pasal 1',
+        heading: 'Tingkatan Paket Langganan, Batas Produk, & Kuota Media',
+        content: 'Catavor menyediakan pilihan tingkatan paket langganan bagi pengelola profil katalog merchant guna mengakomodasi skala bisnis yang beragam (Free, Pro, Enterprise).',
+        highlights: [
+          'Paket Free (Starter): Batas hingga 10 produk aktif dan kuota penyimpanan 50 MB.',
+          'Paket Pro: Kapasitas hingga 100 produk aktif, kuota penyimpanan 500 MB, analitik bisnis, dan prioritas dukungan.',
+          'Paket Enterprise: Kuota produk tanpa batas, penyimpanan media multi-gigabyte, dan domain kustom.'
+        ]
+      },
+      {
+        number: 'Pasal 2',
+        heading: 'Siklus Penagihan & Kebijakan Non-Refundable',
+        content: 'Langganan paket berbayar diaktifkan melalui saluran pembayaran resmi (Gateway Aulaa atau QRIS). Biaya langganan bersifat final dan non-refundable.',
+        highlights: [
+          'Metode pembayaran sah mencakup integrasi Payment Gateway Aulaa dan QRIS resmi.',
+          'Biaya paket yang telah aktif tidak dapat dikembalikan kecuali kesalahan penagihan ganda dari platform.'
+        ]
+      },
+      {
+        number: 'Pasal 3',
+        heading: 'Berakhirnya Masa Langganan (Downgrade)',
+        content: 'Apabila masa aktif paket berbayar berakhir, status akun beralih ke Paket Free dengan proteksi over-quota aman.',
+        highlights: [
+          'Produk yang melebihi kuota Free disembunyikan sementara tanpa dihapus dari database.',
+          'Perpanjangan paket Pro akan otomatis memulihkan seluruh etalase produk.'
+        ]
+      },
+      {
+        number: 'Pasal 4',
+        heading: 'Mesin Keaktifan Toko (Store Dormancy Engine)',
+        content: 'Toko yang tidak memiliki aktivitas login atau pembaruan katalog selama 90 hari kalender akan masuk ke status dormant (disembunyikan dari pencarian).',
+        highlights: [
+          'Pengelola dapat mengaktifkan kembali tokonya seketika cukup dengan login ke dashboard admin.'
         ]
       }
     ]

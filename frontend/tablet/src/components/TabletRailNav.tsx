@@ -11,6 +11,7 @@ import {
   Flame,
   DollarSign,
   Layers,
+  Scale,
   History,
   TrendingUp,
   Sun,
@@ -85,6 +86,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
     { key: 'automation', label: 'Mesin Otomatisasi', icon: Cpu, visible: canAccessAutomation },
     { key: 'market_intel', label: 'Riset Pasar B2B', icon: TrendingUp, visible: canAccessMarketIntel },
     { key: 'monetization', label: 'Monetisasi & Iklan', icon: DollarSign, visible: canAccessMonetization },
+    { key: 'policies', label: 'Kebijakan & Legalitas', icon: Scale, visible: canAccessMasterData },
     { key: 'master-data', label: 'Master Data', icon: Layers, visible: canAccessMasterData },
     { key: 'audit', label: 'Audit Trail', icon: History, visible: canAccessAudit },
   ];

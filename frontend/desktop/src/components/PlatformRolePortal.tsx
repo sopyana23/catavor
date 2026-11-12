@@ -175,6 +175,7 @@ type ActiveView =
   | 'audit'
   | 'safe_domains'
   | 'master_data'
+  | 'policies'
   | 'market_intel';
 
 const formatSupportDateTime = (dateStr?: string | Date) => {
@@ -419,6 +420,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['broadcast', 'siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
       if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
       if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'b2b'].includes(tabParam)) return 'market_intel';
+      if (['policies', 'policy', 'kebijakan', 'legal', 'settings', 'setting', 'terms', 'aturan'].includes(tabParam)) return 'policies';
       if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) return 'master_data';
       if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) return 'audit';
     } catch {
@@ -2701,6 +2703,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             setActiveView('broadcast');
           } else if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(tabParam)) {
             setActiveView('automation');
+          } else if (['policies', 'policy', 'kebijakan', 'legal', 'settings', 'setting', 'terms', 'aturan'].includes(tabParam)) {
+            setActiveView('policies');
           } else if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) {
             setActiveView('master_data');
           } else if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) {
@@ -4151,6 +4155,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               : 'Pusat Konfigurasi Master Data')))
     },
     safe_domains: { title: 'Master Domain Aman', subtitle: 'Whitelist URL & Navigasi Bebas Hambatan' },
+    policies: { title: 'Kebijakan & Legalitas Platform', subtitle: '6 Pilar Regulasi & Kontrol Versi' },
     market_intel: { title: 'Riset Pasar B2B', subtitle: 'Tren Hype, Demand Gap & Benchmark Harga' },
   };
 
@@ -4221,6 +4226,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       border: isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(56, 189, 248, 0.25)',
       badge: 0,
       visible: canAccessAutomation
+    },
+    {
+      id: 'policies' as ActiveView,
+      title: 'Kebijakan & Legalitas',
+      subtitle: '6 Pilar Regulasi & Banner Legal',
+      icon: <Scale size={20} />,
+      color: '#10b981',
+      bg: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+      border: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)',
+      badge: 0,
+      visible: canAccessMasterData
     },
     {
       id: 'master_data' as ActiveView,
@@ -19045,6 +19061,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               onNotify={(msg, type) => setToastMsg({ text: msg, type: type || 'success' })}
             />
           )}
+        </div>
+      )}
+
+      {/* DIRECT TOP-LEVEL VIEW: KEBIJAKAN & LEGALITAS PLATFORM */}
+      {activeView === 'policies' && canAccessMasterData && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <PlatformPolicyManager
+            token={token || localStorage.getItem('catavor_token') || ''}
+            isDark={isDark}
+            theme={theme}
+            onBack={() => {
+              handleSwitchView('dashboard');
+              updatePlatformUrl('dashboard', null, null);
+            }}
+            onNotify={(msg, type) => setToastMsg({ text: msg, type: type || 'success' })}
+          />
         </div>
       )}
 
