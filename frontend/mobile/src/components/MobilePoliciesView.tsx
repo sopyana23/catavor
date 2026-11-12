@@ -355,6 +355,72 @@ const FALLBACK_POLICY_SECTIONS: PolicyDoc[] = [
   }
 ];
 
+// Defensive helper to parse inline markdown (bold, italic, code, links) and eliminate raw ** tokens
+export const renderInlineMarkdown = (text?: string): React.ReactNode => {
+  if (!text) return null;
+  const cleanText = text.replace(/^>\s*/, '');
+  const regex = /(\*\*([^*]+?)\*\*|__([^_]+?)__|(?<!\*)\*([^*]+?)\*(?!\*)|(?<!_)_([^_]+?)_(?!_)|`([^`]+?)`|\[([^\]]+)\]\(([^)]+)\))/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  let idx = 0;
+
+  while ((match = regex.exec(cleanText)) !== null) {
+    if (match.index > lastIndex) {
+      const rawText = cleanText.substring(lastIndex, match.index).replace(/\*\*/g, '');
+      if (rawText) parts.push(rawText);
+    }
+    if (match[2] !== undefined) {
+      parts.push(<strong key={`b-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[2]}</strong>);
+    } else if (match[3] !== undefined) {
+      parts.push(<strong key={`b2-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[3]}</strong>);
+    } else if (match[4] !== undefined) {
+      parts.push(<em key={`i-${idx++}`} style={{ fontStyle: 'italic', color: 'inherit' }}>{match[4]}</em>);
+    } else if (match[5] !== undefined) {
+      parts.push(<em key={`i2-${idx++}`} style={{ fontStyle: 'italic', color: 'inherit' }}>{match[5]}</em>);
+    } else if (match[6] !== undefined) {
+      parts.push(
+        <code key={`c-${idx++}`} style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.9em' }}>
+          {match[6]}
+        </code>
+      );
+    } else if (match[7] !== undefined && match[8] !== undefined) {
+      parts.push(
+        <a key={`l-${idx++}`} href={match[8]} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary, #10b981)', textDecoration: 'underline' }}>
+          {match[7]}
+        </a>
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < cleanText.length) {
+    const rawTail = cleanText.substring(lastIndex).replace(/\*\*/g, '');
+    if (rawTail) parts.push(rawTail);
+  }
+  return parts.length > 0 ? parts : cleanText.replace(/\*\*/g, '');
+};
+
+const renderArticleContent = (content: string) => {
+  if (!content) return null;
+  const paragraphs = content.split(/\n{2,}/);
+  if (paragraphs.length <= 1) {
+    return (
+      <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.55 }}>
+        {renderInlineMarkdown(content)}
+      </p>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+      {paragraphs.map((p, pIdx) => (
+        <p key={pIdx} style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.55 }}>
+          {renderInlineMarkdown(p.trim())}
+        </p>
+      ))}
+    </div>
+  );
+};
+
 export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
   onOpenHelpdesk,
   initialKey,
@@ -768,7 +834,7 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
           </div>
 
           <p style={{ margin: '0.65rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.5, fontStyle: 'italic' }}>
-            &ldquo;{currentDoc.summary}&rdquo;
+            &ldquo;{renderInlineMarkdown(currentDoc.summary.replace(/^>\s*/, '').replace(/^\*\*Ringkasan Eksekutif:\*\*\s*/i, ''))}&rdquo;
           </p>
         </div>
 
@@ -815,13 +881,11 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
                     {art.number}
                   </span>
                   <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
-                    {art.heading}
+                    {renderInlineMarkdown(art.heading.replace(/^#+\s*/, ''))}
                   </h4>
                 </div>
 
-                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.55 }}>
-                  {art.content}
-                </p>
+                {renderArticleContent(art.content)}
 
                 {art.highlights && art.highlights.length > 0 && (
                   <div
@@ -840,7 +904,7 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
                       <div key={hIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
                         <Check size={13} style={{ color: 'var(--primary, #10b981)', flexShrink: 0, marginTop: '2px' }} strokeWidth={2.5} />
                         <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.45 }}>
-                          {h}
+                          {renderInlineMarkdown(h)}
                         </span>
                       </div>
                     ))}

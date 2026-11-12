@@ -206,7 +206,8 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
 
     while ((match = regex.exec(str)) !== null) {
       if (match.index > lastIndex) {
-        parts.push(str.substring(lastIndex, match.index));
+        const raw = str.substring(lastIndex, match.index).replace(/\*\*/g, '');
+        if (raw) parts.push(raw);
       }
 
       // 1. CTA Button Syntax
@@ -279,9 +280,10 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       lastIndex = regex.lastIndex;
     }
     if (lastIndex < str.length) {
-      parts.push(str.substring(lastIndex));
+      const rawTail = str.substring(lastIndex).replace(/\*\*/g, '');
+      if (rawTail) parts.push(rawTail);
     }
-    return parts.length > 0 ? parts : str;
+    return parts.length > 0 ? parts : str.replace(/\*\*/g, '');
   };
 
   const flushList = (key: number) => {

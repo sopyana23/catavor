@@ -5303,48 +5303,7 @@ Terima kasih.`;
   // Helper to cleanly format Markdown policy content into React Elements
   const renderFormattedPolicyContent = (text: string) => {
     if (!text) return null;
-    const lines = text.split('\n');
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {lines.map((line, idx) => {
-          const trimmed = line.trim();
-          if (!trimmed) return null;
-
-          // Check for headings: ### Header Title or ## Header Title or # Header Title
-          if (trimmed.startsWith('#')) {
-            const headerText = trimmed.replace(/^#+\s*/, '');
-            return (
-              <div key={idx} style={{ marginTop: idx > 0 ? '0.85rem' : '0.2rem', marginBottom: '0.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                  <span style={{ width: '4px', height: '16px', borderRadius: '4px', background: '#2563eb', flexShrink: 0 }} />
-                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    {headerText}
-                  </h4>
-                </div>
-              </div>
-            );
-          }
-
-          // Check for list items: - item or • item
-          if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
-            const itemText = trimmed.replace(/^[-•]\s*/, '');
-            return (
-              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', paddingLeft: '0.6rem', color: '#475569', fontSize: '0.82rem', lineHeight: '1.6' }}>
-                <span style={{ color: '#2563eb', fontSize: '0.9rem', lineHeight: '1.4', flexShrink: 0, fontWeight: 'bold' }}>•</span>
-                <span>{itemText}</span>
-              </div>
-            );
-          }
-
-          // Regular paragraph text
-          return (
-            <p key={idx} style={{ margin: 0, color: '#475569', fontSize: '0.82rem', lineHeight: '1.65' }}>
-              {trimmed}
-            </p>
-          );
-        })}
-      </div>
-    );
+    return <FormattedText text={text} />;
   };
 
   // Universal Mobile Footer with Clean Modern Commerce Styling
@@ -34025,11 +33984,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   {showQuickPolicyModal === 'terms' ? 'Syarat & Ketentuan' : showQuickPolicyModal === 'privacy' ? 'Kebijakan Privasi' : 'Ketentuan Penggunaan'}
                 </span>
               </div>
-              <button type="button" onClick={() => setShowQuickPolicyModal(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.1rem', cursor: 'pointer' }}>✕</button>
+              <button type="button" onClick={() => setShowQuickPolicyModal(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: '0.2rem', display: 'flex', alignItems: 'center' }}>
+                <X size={18} />
+              </button>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.25rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
-              {renderFormattedPolicyContent(policies[showQuickPolicyModal]?.content || '')}
+              <FormattedText text={policies[showQuickPolicyModal]?.content || ''} />
             </div>
 
             <button type="button" className="btn-primary btn-full" onClick={() => setShowQuickPolicyModal(null)} style={{ marginTop: '1rem', padding: '0.65rem', fontSize: '0.8rem', fontWeight: 800 }}>
