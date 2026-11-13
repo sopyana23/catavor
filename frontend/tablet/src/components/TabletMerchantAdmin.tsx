@@ -9448,70 +9448,242 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                   {subscriptionOrders.map(order => {
-                    const st = order.payment_status || order.status;
+                    const st = order.payment_status || order.status || 'pending';
                     const isPaid = st === 'paid';
                     const isPending = st === 'pending';
                     const isPendingVerification = st === 'pending_verification';
                     const isRejected = st === 'rejected';
                     const isExpired = st === 'expired';
-                    const statusBg = isPaid ? 'rgba(16, 185, 129, 0.12)' : isPending ? 'rgba(245, 158, 11, 0.12)' : isPendingVerification ? 'rgba(59, 130, 246, 0.12)' : isRejected ? 'rgba(239, 68, 68, 0.12)' : 'rgba(100, 116, 139, 0.12)';
-                    const statusColor = isPaid ? '#10b981' : isPending ? '#f59e0b' : isPendingVerification ? '#3b82f6' : isRejected ? '#ef4444' : '#64748b';
-                    const statusLabel = isPaid ? 'Lunas' : isPending ? 'Menunggu Pembayaran' : isPendingVerification ? 'Verifikasi Admin' : isRejected ? 'Ditolak' : isExpired ? 'Kedaluwarsa' : st || 'Selesai';
-                    return (
-                      <div
-                        key={order.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '0.85rem 1rem',
-                          borderRadius: '0.65rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          flexWrap: 'wrap',
-                          gap: '0.75rem'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <CreditCard size={18} color="var(--primary)" />
-                          <div>
-                            <div style={{ fontSize: '0.88rem', fontWeight: 700 }}>
-                              {order.plan_name || order.Plan?.name || 'Paket Berlangganan'} &bull; {order.billing_cycle === 'annual' ? 'Tahunan (Hemat 20%)' : 'Bulanan'}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                              #{order.order_number || order.id} &bull; {order.created_at ? new Date(order.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
-                            </div>
-                          </div>
-                        </div>
 
-                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}>
-                          <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            Rp {Number(order.final_amount ?? order.total_amount ?? order.amount ?? 0).toLocaleString('id-ID')}
+                    const statusBg = isPaid
+                      ? 'rgba(16, 185, 129, 0.12)'
+                      : isPending
+                      ? 'rgba(245, 158, 11, 0.12)'
+                      : isPendingVerification
+                      ? 'rgba(59, 130, 246, 0.12)'
+                      : isRejected
+                      ? 'rgba(239, 68, 68, 0.12)'
+                      : 'rgba(100, 116, 139, 0.12)';
+
+                    const statusColor = isPaid
+                      ? '#10b981'
+                      : isPending
+                      ? '#f59e0b'
+                      : isPendingVerification
+                      ? '#3b82f6'
+                      : isRejected
+                      ? '#ef4444'
+                      : '#64748b';
+
+                    const statusLabel = isPaid
+                      ? 'Lunas'
+                      : isPending
+                      ? 'Menunggu Pembayaran'
+                      : isPendingVerification
+                      ? 'Verifikasi Admin'
+                      : isRejected
+                      ? 'Ditolak'
+                      : isExpired
+                      ? 'Kedaluwarsa'
+                      : st || 'Selesai';
+
+                    const planTitle = (() => {
+                      if (order.plan_name && order.plan_name !== 'Paket Berlangganan') return order.plan_name;
+                      if (order.Plan?.name) return order.Plan.name;
+                      switch (order.plan_code?.toLowerCase()) {
+                        case 'free': return 'Gratis Terbatas';
+                        case 'pro_starter': return 'Pro Starter';
+                        case 'pro_business': return 'Pro Bisnis';
+                        default: return order.plan_code ? order.plan_code.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Paket Berlangganan';
+                      }
+                    })();
+
+                    const cycleTitle = order.billing_cycle === 'annual' ? 'Tahunan (Hemat 20%)' : 'Bulanan';
+
+                    const paymentMethodLabel = (() => {
+                      if (order.payment_mode === 'coupon_free' || order.final_amount === 0) return 'Kupon 100%';
+                      if (order.payment_mode === 'gateway_aulaa') return 'Gateway Aulaa';
+                      if (order.payment_method === 'bank') return 'Transfer Bank';
+                      if (order.payment_method === 'qris') return 'QRIS';
+                      return order.payment_method ? order.payment_method.toUpperCase() : 'Transfer';
+                    })();
+
+                    const formattedDate = order.created_at
+                      ? new Date(order.created_at).toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : '-';
+
+                    if (isNarrowScreen) {
+                      return (
+                        <div
+                          key={order.id || order.order_number}
+                          style={{
+                            padding: '1rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'var(--bg-deep)',
+                            border: '1px solid var(--border-light)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.75rem',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+                          }}
+                        >
+                          {/* ROW 1: PLAN NAME & STATUS BADGE */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
+                              <div style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '0.5rem',
+                                background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--primary, #10b981)',
+                                flexShrink: 0
+                              }}>
+                                <Crown size={16} />
+                              </div>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{
+                                  fontSize: '0.9rem',
+                                  fontWeight: 800,
+                                  color: 'var(--text-primary)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}>
+                                  {planTitle}
+                                </div>
+                                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                  {cycleTitle}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Status Badge in Top Right */}
+                            <span style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              padding: '0.2rem 0.65rem',
+                              borderRadius: '999px',
+                              backgroundColor: statusBg,
+                              color: statusColor,
+                              border: `1px solid ${statusColor}`,
+                              flexShrink: 0
+                            }}>
+                              {statusLabel}
+                            </span>
                           </div>
-                          <span style={{
-                            display: 'inline-block',
-                            padding: '0.15rem 0.55rem',
-                            borderRadius: '999px',
-                            backgroundColor: statusBg,
-                            color: statusColor,
-                            fontSize: '0.72rem',
-                            fontWeight: 700
+
+                          {/* ROW 2: INVOICE IDENTIFIER & DATE SUB-BAR */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.45rem 0.75rem',
+                            borderRadius: '0.5rem',
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            border: '1px solid rgba(255, 255, 255, 0.05)',
+                            gap: '0.5rem',
+                            flexWrap: 'wrap'
                           }}>
-                            {statusLabel}
-                          </span>
+                            <span style={{
+                              fontSize: '0.74rem',
+                              color: 'var(--text-secondary)',
+                              fontFamily: 'monospace',
+                              fontWeight: 600,
+                              wordBreak: 'break-all'
+                            }}>
+                              #{order.order_number || order.id}
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                              {formattedDate}
+                            </span>
+                          </div>
 
-                          <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.25rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          {/* ROW 3: PAYMENT METHOD & NOMINAL AMOUNT */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Metode Pembayaran</span>
+                              <span style={{
+                                fontSize: '0.76rem',
+                                fontWeight: 700,
+                                color: 'var(--text-primary)',
+                                padding: '0.15rem 0.55rem',
+                                borderRadius: '0.35rem',
+                                background: 'rgba(255, 255, 255, 0.06)',
+                                display: 'inline-block',
+                                width: 'fit-content'
+                              }}>
+                                {paymentMethodLabel}
+                              </span>
+                            </div>
+
+                            <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Total Tagihan</span>
+                              <strong style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--primary, #10b981)' }}>
+                                Rp {Number(order.final_amount ?? order.total_amount ?? order.amount ?? 0).toLocaleString('id-ID')}
+                              </strong>
+                            </div>
+                          </div>
+
+                          {/* UNIQUE CODE NOTE */}
+                          {order.unique_code > 0 && (
+                            <div style={{
+                              fontSize: '0.72rem',
+                              color: 'var(--primary, #10b981)',
+                              fontWeight: 600,
+                              background: 'rgba(16, 185, 129, 0.06)',
+                              padding: '0.35rem 0.65rem',
+                              borderRadius: '0.4rem',
+                              border: '1px solid rgba(16, 185, 129, 0.15)'
+                            }}>
+                              Termasuk kode unik transfer: <strong>+Rp {order.unique_code}</strong>
+                            </div>
+                          )}
+
+                          {/* REJECTION REASON */}
+                          {isRejected && order.rejection_reason && (
+                            <div style={{
+                              fontSize: '0.72rem',
+                              color: '#ef4444',
+                              fontWeight: 700,
+                              background: 'rgba(239, 68, 68, 0.08)',
+                              padding: '0.4rem 0.65rem',
+                              borderRadius: '0.4rem',
+                              border: '1px solid rgba(239, 68, 68, 0.2)'
+                            }}>
+                              Alasan Penolakan: {order.rejection_reason}
+                            </div>
+                          )}
+
+                          {/* ROW 5: ACTION BUTTONS FOOTER */}
+                          <div style={{
+                            display: 'flex',
+                            gap: '0.45rem',
+                            justifyContent: 'flex-end',
+                            alignItems: 'center',
+                            paddingTop: '0.55rem',
+                            borderTop: '1px solid var(--border-light)',
+                            flexWrap: 'wrap'
+                          }}>
                             <button
                               type="button"
                               onClick={() => handleOpenTabletOrder(order)}
                               style={{
-                                minHeight: !isNarrowScreen ? '38px' : '34px',
-                                padding: !isNarrowScreen ? '0.4rem 0.85rem' : '0.3rem 0.65rem',
+                                minHeight: '36px',
+                                padding: '0.35rem 0.85rem',
                                 borderRadius: '0.5rem',
                                 background: 'rgba(255, 255, 255, 0.08)',
                                 border: '1px solid var(--border-light, #334155)',
                                 color: 'var(--text-primary, #f8fafc)',
-                                fontSize: !isNarrowScreen ? '0.8rem' : '0.74rem',
+                                fontSize: '0.76rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                                 display: 'inline-flex',
@@ -9519,7 +9691,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 gap: '0.35rem'
                               }}
                             >
-                              <FileText size={!isNarrowScreen ? 16 : 14} />
+                              <FileText size={15} />
                               <span>Rincian</span>
                             </button>
 
@@ -9528,13 +9700,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 type="button"
                                 onClick={() => handleOpenTabletProof(resolveProofImageUrl(order, token), order)}
                                 style={{
-                                  minHeight: !isNarrowScreen ? '38px' : '34px',
-                                  padding: !isNarrowScreen ? '0.4rem 0.85rem' : '0.3rem 0.65rem',
+                                  minHeight: '36px',
+                                  padding: '0.35rem 0.85rem',
                                   borderRadius: '0.5rem',
                                   background: 'rgba(59, 130, 246, 0.12)',
                                   border: '1px solid rgba(59, 130, 246, 0.3)',
                                   color: '#60a5fa',
-                                  fontSize: !isNarrowScreen ? '0.8rem' : '0.74rem',
+                                  fontSize: '0.76rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
                                   display: 'inline-flex',
@@ -9542,7 +9714,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   gap: '0.35rem'
                                 }}
                               >
-                                <Eye size={!isNarrowScreen ? 16 : 14} />
+                                <Eye size={15} />
                                 <span>Bukti Bayar</span>
                               </button>
                             )}
@@ -9553,12 +9725,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 target="_blank"
                                 rel="noreferrer"
                                 style={{
-                                  minHeight: !isNarrowScreen ? '38px' : '34px',
-                                  padding: !isNarrowScreen ? '0.4rem 0.85rem' : '0.3rem 0.65rem',
+                                  minHeight: '36px',
+                                  padding: '0.35rem 0.85rem',
                                   borderRadius: '0.5rem',
                                   background: 'var(--primary)',
                                   color: '#ffffff',
-                                  fontSize: !isNarrowScreen ? '0.8rem' : '0.74rem',
+                                  fontSize: '0.76rem',
                                   fontWeight: 800,
                                   textDecoration: 'none',
                                   display: 'inline-flex',
@@ -9566,7 +9738,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   gap: '0.35rem'
                                 }}
                               >
-                                <ExternalLink size={!isNarrowScreen ? 16 : 14} />
+                                <ExternalLink size={15} />
                                 <span>Bayar Online</span>
                               </a>
                             )}
@@ -9577,13 +9749,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 disabled={syncingOrderId === order.id}
                                 onClick={() => handleSyncOrder(order.id)}
                                 style={{
-                                  minHeight: !isNarrowScreen ? '38px' : '34px',
-                                  padding: !isNarrowScreen ? '0.4rem 0.85rem' : '0.3rem 0.65rem',
+                                  minHeight: '36px',
+                                  padding: '0.35rem 0.85rem',
                                   borderRadius: '0.5rem',
                                   background: 'var(--btn-secondary-bg, rgba(255,255,255,0.08))',
                                   border: '1px solid var(--btn-secondary-border, var(--border-light))',
                                   color: 'var(--btn-secondary-text, var(--text-primary))',
-                                  fontSize: !isNarrowScreen ? '0.8rem' : '0.74rem',
+                                  fontSize: '0.76rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
                                   display: 'inline-flex',
@@ -9591,7 +9763,187 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   gap: '0.35rem'
                                 }}
                               >
-                                <RefreshCw size={!isNarrowScreen ? 16 : 14} className={syncingOrderId === order.id ? 'animate-spin' : ''} />
+                                <RefreshCw size={15} className={syncingOrderId === order.id ? 'animate-spin' : ''} />
+                                <span>{syncingOrderId === order.id ? 'Sinkron...' : 'Cek Status'}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={order.id || order.order_number}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.95rem 1.25rem',
+                          borderRadius: '0.75rem',
+                          backgroundColor: 'var(--bg-deep)',
+                          border: '1px solid var(--border-light)',
+                          gap: '1rem'
+                        }}
+                      >
+                        {/* Left Block: Plan Info & Metadata */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0, flex: 1 }}>
+                          <div style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '0.6rem',
+                            background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--primary, #10b981)',
+                            flexShrink: 0
+                          }}>
+                            <Crown size={19} />
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                {planTitle} &bull; {cycleTitle}
+                              </span>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '0.15rem 0.55rem',
+                                borderRadius: '999px',
+                                backgroundColor: statusBg,
+                                color: statusColor,
+                                border: `1px solid ${statusColor}`,
+                                fontSize: '0.7rem',
+                                fontWeight: 800
+                              }}>
+                                {statusLabel}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontFamily: 'monospace' }}>#{order.order_number || order.id}</span>
+                              <span>&bull;</span>
+                              <span>{formattedDate}</span>
+                              <span>&bull;</span>
+                              <span style={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                background: 'rgba(255,255,255,0.06)',
+                                color: 'var(--text-secondary)'
+                              }}>
+                                {paymentMethodLabel}
+                              </span>
+                              {order.unique_code > 0 && (
+                                <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                                  (+Rp {order.unique_code})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Block: Amount & Action Buttons */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexShrink: 0 }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Tagihan</div>
+                            <div style={{ fontSize: '1.05rem', fontWeight: 900, color: 'var(--primary, #10b981)' }}>
+                              Rp {Number(order.final_amount ?? order.total_amount ?? order.amount ?? 0).toLocaleString('id-ID')}
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenTabletOrder(order)}
+                              style={{
+                                minHeight: '38px',
+                                padding: '0.4rem 0.95rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(255, 255, 255, 0.08)',
+                                border: '1px solid var(--border-light, #334155)',
+                                color: 'var(--text-primary, #f8fafc)',
+                                fontSize: '0.8rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <FileText size={16} />
+                              <span>Rincian</span>
+                            </button>
+
+                            {(order.payment_proof_url || order.proof_url) && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenTabletProof(resolveProofImageUrl(order, token), order)}
+                                style={{
+                                  minHeight: '38px',
+                                  padding: '0.4rem 0.95rem',
+                                  borderRadius: '0.5rem',
+                                  background: 'rgba(59, 130, 246, 0.12)',
+                                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                                  color: '#60a5fa',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem'
+                                }}
+                              >
+                                <Eye size={16} />
+                                <span>Bukti Bayar</span>
+                              </button>
+                            )}
+
+                            {isPending && order.gateway_payment_link && (
+                              <a
+                                href={order.gateway_payment_link}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  minHeight: '38px',
+                                  padding: '0.4rem 0.95rem',
+                                  borderRadius: '0.5rem',
+                                  background: 'var(--primary)',
+                                  color: '#ffffff',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 800,
+                                  textDecoration: 'none',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem'
+                                }}
+                              >
+                                <ExternalLink size={16} />
+                                <span>Bayar Online</span>
+                              </a>
+                            )}
+
+                            {(isPending || isPendingVerification) && (
+                              <button
+                                type="button"
+                                disabled={syncingOrderId === order.id}
+                                onClick={() => handleSyncOrder(order.id)}
+                                style={{
+                                  minHeight: '38px',
+                                  padding: '0.4rem 0.95rem',
+                                  borderRadius: '0.5rem',
+                                  background: 'var(--btn-secondary-bg, rgba(255,255,255,0.08))',
+                                  border: '1px solid var(--btn-secondary-border, var(--border-light))',
+                                  color: 'var(--btn-secondary-text, var(--text-primary))',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem'
+                                }}
+                              >
+                                <RefreshCw size={16} className={syncingOrderId === order.id ? 'animate-spin' : ''} />
                                 <span>{syncingOrderId === order.id ? 'Sinkron...' : 'Cek Status'}</span>
                               </button>
                             )}

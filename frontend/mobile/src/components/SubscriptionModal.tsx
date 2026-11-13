@@ -2468,100 +2468,246 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                     const isExpired = status === 'expired';
 
                     let badgeColor = '#f59e0b';
-                    let badgeBg = 'rgba(245, 158, 11, 0.15)';
-                    let badgeLabel = 'MENUNGGU';
+                    let badgeBg = 'rgba(245, 158, 11, 0.12)';
+                    let badgeLabel = 'Menunggu';
 
                     if (isPaid) {
                       badgeColor = '#10b981';
-                      badgeBg = 'rgba(16, 185, 129, 0.15)';
+                      badgeBg = 'rgba(16, 185, 129, 0.12)';
                       badgeLabel = 'Lunas';
                     } else if (isPendingVerification) {
                       badgeColor = '#3b82f6';
-                      badgeBg = 'rgba(59, 130, 246, 0.15)';
-                      badgeLabel = 'VERIFIKASI';
+                      badgeBg = 'rgba(59, 130, 246, 0.12)';
+                      badgeLabel = 'Verifikasi';
                     } else if (isRejected) {
                       badgeColor = '#ef4444';
-                      badgeBg = 'rgba(239, 68, 68, 0.15)';
-                      badgeLabel = 'DITOLAK';
+                      badgeBg = 'rgba(239, 68, 68, 0.12)';
+                      badgeLabel = 'Ditolak';
                     } else if (isExpired) {
                       badgeColor = '#64748b';
-                      badgeBg = 'rgba(100, 116, 139, 0.15)';
-                      badgeLabel = 'EXPIRED';
+                      badgeBg = 'rgba(100, 116, 139, 0.12)';
+                      badgeLabel = 'Kedaluwarsa';
                     }
+
+                    const planTitle = (() => {
+                      switch (ord.plan_code?.toLowerCase()) {
+                        case 'free': return 'Gratis Terbatas';
+                        case 'pro_starter': return 'Pro Starter';
+                        case 'pro_business': return 'Pro Bisnis';
+                        default: return ord.plan_code ? ord.plan_code.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Paket Langganan';
+                      }
+                    })();
+
+                    const cycleTitle = ord.billing_cycle === 'annual' ? 'Tahunan (Hemat 20%)' : 'Bulanan';
+
+                    const paymentMethodLabel = (() => {
+                      if (ord.payment_mode === 'coupon_free' || ord.final_amount === 0) return 'Kupon 100%';
+                      if (ord.payment_mode === 'gateway_aulaa') return 'Gateway Aulaa';
+                      if (ord.payment_method === 'bank') return 'Transfer Bank';
+                      if (ord.payment_method === 'qris') return 'QRIS';
+                      return ord.payment_method ? ord.payment_method.toUpperCase() : 'Manual';
+                    })();
 
                     return (
                       <div
                         key={ord.id || ord.order_number}
                         style={{
-                          padding: '0.85rem',
-                          borderRadius: '0.65rem',
-                          background: 'rgba(255,255,255,0.02)',
-                          border: '1px solid var(--border-light)',
+                          padding: '0.95rem 1rem',
+                          borderRadius: '0.75rem',
+                          background: 'var(--bg-card, rgba(255,255,255,0.03))',
+                          border: '1px solid var(--border-light, rgba(255,255,255,0.1))',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '0.5rem',
-                          fontSize: '0.76rem'
+                          gap: '0.7rem',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <strong style={{ color: 'var(--text-primary)' }}>{ord.order_number}</strong>
-                            <span style={{
-                              fontSize: '0.62rem',
-                              fontWeight: 800,
-                              padding: '1px 5px',
-                              borderRadius: '4px',
-                              background: badgeBg,
-                              color: badgeColor,
-                              border: `1px solid ${badgeColor}`
+                        {/* ROW 1: PLAN NAME & STATUS BADGE */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
+                            <div style={{
+                              width: '30px',
+                              height: '30px',
+                              borderRadius: '0.5rem',
+                              background: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'var(--primary, #10b981)',
+                              flexShrink: 0
                             }}>
-                              {badgeLabel}
+                              <Crown size={16} />
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{
+                                fontSize: '0.88rem',
+                                fontWeight: 800,
+                                color: 'var(--text-primary, #f8fafc)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}>
+                                {planTitle}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
+                                {cycleTitle}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Dedicated Status Badge with zero overlap risk */}
+                          <span style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            background: badgeBg,
+                            color: badgeColor,
+                            border: `1px solid ${badgeColor}`,
+                            flexShrink: 0,
+                            letterSpacing: '0.02em'
+                          }}>
+                            {badgeLabel}
+                          </span>
+                        </div>
+
+                        {/* ROW 2: INVOICE IDENTIFIER & DATE SUB-BAR */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.45rem 0.65rem',
+                          borderRadius: '0.5rem',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                          gap: '0.5rem',
+                          flexWrap: 'wrap'
+                        }}>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            color: 'var(--text-secondary, #cbd5e1)',
+                            fontFamily: 'monospace',
+                            fontWeight: 600,
+                            wordBreak: 'break-all'
+                          }}>
+                            #{ord.order_number}
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #94a3b8)', whiteSpace: 'nowrap' }}>
+                            {ord.created_at ? new Date(ord.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                          </span>
+                        </div>
+
+                        {/* ROW 3: PAYMENT METHOD & NOMINAL AMOUNT */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)' }}>Metode Pembayaran</span>
+                            <span style={{
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              color: 'var(--text-primary, #f8fafc)',
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '0.35rem',
+                              background: 'rgba(255, 255, 255, 0.06)',
+                              display: 'inline-block',
+                              width: 'fit-content'
+                            }}>
+                              {paymentMethodLabel}
                             </span>
                           </div>
-                          <strong style={{ color: 'var(--primary)', fontSize: '0.88rem' }}>
-                            Rp {ord.final_amount?.toLocaleString('id-ID')}
-                          </strong>
+
+                          <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)' }}>Total Tagihan</span>
+                            <strong style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--primary, #10b981)' }}>
+                              Rp {Number(ord.final_amount ?? ord.total_amount ?? ord.amount ?? 0).toLocaleString('id-ID')}
+                            </strong>
+                          </div>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.7rem' }}>
-                          <span>{ord.plan_code} ({ord.billing_cycle}) • {new Date(ord.created_at).toLocaleDateString('id-ID')}</span>
-                          <span>{ord.payment_method?.toUpperCase()}</span>
-                        </div>
-
+                        {/* ROW 4: UNIQUE CODE NOTE (IF ANY) */}
                         {ord.unique_code > 0 && (
-                          <div style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700 }}>
-                            Termasuk kode unik transfer: +Rp {ord.unique_code}
+                          <div style={{
+                            fontSize: '0.7rem',
+                            color: 'var(--primary, #10b981)',
+                            fontWeight: 600,
+                            background: 'rgba(16, 185, 129, 0.06)',
+                            padding: '0.35rem 0.6rem',
+                            borderRadius: '0.4rem',
+                            border: '1px solid rgba(16, 185, 129, 0.15)'
+                          }}>
+                            Termasuk kode unik transfer: <strong>+Rp {ord.unique_code}</strong>
                           </div>
                         )}
 
+                        {/* REJECTION REASON (IF REJECTED) */}
                         {isRejected && ord.rejection_reason && (
-                          <div style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 700 }}>
+                          <div style={{
+                            fontSize: '0.7rem',
+                            color: '#ef4444',
+                            fontWeight: 700,
+                            background: 'rgba(239, 68, 68, 0.08)',
+                            padding: '0.4rem 0.6rem',
+                            borderRadius: '0.4rem',
+                            border: '1px solid rgba(239, 68, 68, 0.2)'
+                          }}>
                             Alasan Penolakan: {ord.rejection_reason}
                           </div>
                         )}
 
-                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', marginTop: '0.2rem' }}>
+                        {/* ROW 5: ACTION BUTTONS FOOTER */}
+                        <div style={{
+                          display: 'flex',
+                          gap: '0.45rem',
+                          justifyContent: 'flex-end',
+                          alignItems: 'center',
+                          paddingTop: '0.5rem',
+                          borderTop: '1px solid var(--border-light, #1e293b)',
+                          flexWrap: 'wrap'
+                        }}>
                           <button
                             type="button"
                             onClick={() => handleOpenOrderDetail(ord)}
                             style={{
-                              minHeight: '34px',
-                              padding: '0.25rem 0.65rem',
-                              borderRadius: '0.4rem',
-                              background: 'rgba(255,255,255,0.06)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.7rem',
+                              minHeight: '36px',
+                              padding: '0.35rem 0.85rem',
+                              borderRadius: '0.5rem',
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              border: '1px solid var(--border-light, #334155)',
+                              color: 'var(--text-primary, #f8fafc)',
+                              fontSize: '0.74rem',
                               fontWeight: 700,
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '0.3rem'
+                              gap: '0.35rem'
                             }}
                           >
-                            <Receipt size={12} />
+                            <Receipt size={14} />
                             <span>Rincian</span>
                           </button>
+
+                          {(ord.payment_proof_url || ord.proof_url) && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenProofLightbox(resolveProofImageUrl(ord, token), ord)}
+                              style={{
+                                minHeight: '36px',
+                                padding: '0.35rem 0.85rem',
+                                borderRadius: '0.5rem',
+                                background: 'rgba(59, 130, 246, 0.12)',
+                                border: '1px solid rgba(59, 130, 246, 0.3)',
+                                color: '#60a5fa',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <Eye size={14} />
+                              <span>Bukti Bayar</span>
+                            </button>
+                          )}
 
                           {isPending && ord.gateway_payment_link && (
                             <a
@@ -2569,20 +2715,20 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                               target="_blank"
                               rel="noreferrer"
                               style={{
-                                minHeight: '34px',
-                                padding: '0.25rem 0.65rem',
-                                borderRadius: '0.4rem',
+                                minHeight: '36px',
+                                padding: '0.35rem 0.85rem',
+                                borderRadius: '0.5rem',
                                 background: 'var(--primary)',
                                 color: '#ffffff',
-                                fontSize: '0.7rem',
+                                fontSize: '0.74rem',
                                 fontWeight: 800,
                                 textDecoration: 'none',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '0.3rem'
+                                gap: '0.35rem'
                               }}
                             >
-                              <ExternalLink size={12} />
+                              <ExternalLink size={14} />
                               <span>Bayar Online</span>
                             </a>
                           )}
@@ -2593,21 +2739,21 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                               disabled={syncingOrderId === ord.id}
                               onClick={() => handleSyncOrder(ord.id)}
                               style={{
-                                minHeight: '34px',
-                                padding: '0.25rem 0.65rem',
-                                borderRadius: '0.4rem',
-                                background: 'var(--btn-secondary-bg)',
-                                border: '1px solid var(--btn-secondary-border)',
-                                color: 'var(--btn-secondary-text)',
-                                fontSize: '0.7rem',
+                                minHeight: '36px',
+                                padding: '0.35rem 0.85rem',
+                                borderRadius: '0.5rem',
+                                background: 'var(--btn-secondary-bg, rgba(255,255,255,0.08))',
+                                border: '1px solid var(--btn-secondary-border, var(--border-light))',
+                                color: 'var(--btn-secondary-text, var(--text-primary))',
+                                fontSize: '0.74rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '0.3rem'
+                                gap: '0.35rem'
                               }}
                             >
-                              <RefreshCw size={12} className={syncingOrderId === ord.id ? 'animate-spin' : ''} />
+                              <RefreshCw size={14} className={syncingOrderId === ord.id ? 'animate-spin' : ''} />
                               <span>{syncingOrderId === ord.id ? 'Sinkron...' : 'Cek Status'}</span>
                             </button>
                           )}
