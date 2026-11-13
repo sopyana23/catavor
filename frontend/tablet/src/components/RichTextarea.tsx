@@ -192,6 +192,11 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
   };
 
   const renderInlineMarkdown = (str: string): React.ReactNode => {
+    if (!str) return null;
+    const cleanStr = str
+      .replace(/^>+\s*/gm, '')
+      .replace(/(\s)--+(\s)/g, '$1—$2');
+    const sanitize = (t: string) => t.replace(/\*\*/g, '').replace(/^>+\s*/gm, '').replace(/---+/g, '');
     const parts: React.ReactNode[] = [];
     let idx = 0;
     // Regex matches:
@@ -205,9 +210,9 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
     let lastIndex = 0;
     let match;
 
-    while ((match = regex.exec(str)) !== null) {
+    while ((match = regex.exec(cleanStr)) !== null) {
       if (match.index > lastIndex) {
-        const raw = str.substring(lastIndex, match.index).replace(/\*\*/g, '');
+        const raw = sanitize(cleanStr.substring(lastIndex, match.index));
         if (raw) parts.push(raw);
       }
 
@@ -292,15 +297,15 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       }
       // 4. Bold
       else if (match[13] !== undefined) {
-        parts.push(<strong key={`b-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[13]}</strong>);
+        parts.push(<strong key={`b-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{sanitize(match[13])}</strong>);
       } else if (match[15] !== undefined) {
-        parts.push(<strong key={`b2-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{match[15]}</strong>);
+        parts.push(<strong key={`b2-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{sanitize(match[15])}</strong>);
       }
       // 5. Italic
       else if (match[14] !== undefined) {
-        parts.push(<em key={`i-${idx++}`}>{match[14]}</em>);
+        parts.push(<em key={`i-${idx++}`}>{sanitize(match[14])}</em>);
       } else if (match[16] !== undefined) {
-        parts.push(<em key={`i2-${idx++}`}>{match[16]}</em>);
+        parts.push(<em key={`i2-${idx++}`}>{sanitize(match[16])}</em>);
       }
       // 6. Code
       else if (match[17] !== undefined) {
@@ -312,11 +317,11 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
       }
       lastIndex = regex.lastIndex;
     }
-    if (lastIndex < str.length) {
-      const rawTail = str.substring(lastIndex).replace(/\*\*/g, '');
+    if (lastIndex < cleanStr.length) {
+      const rawTail = sanitize(cleanStr.substring(lastIndex));
       if (rawTail) parts.push(rawTail);
     }
-    return parts.length > 0 ? parts : str.replace(/\*\*/g, '');
+    return parts.length > 0 ? parts : sanitize(cleanStr);
   };
 
   const flushList = (key: number) => {
@@ -382,8 +387,8 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
           </span>
         </div>
       );
-    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
-      const itemText = trimmed.replace(/^[-*•]\s+/, '');
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ') || trimmed.startsWith('-- ')) {
+      const itemText = trimmed.replace(/^(--|[-*•])\s+/, '');
       if (currentList && currentList.type !== 'ul') {
         const flushed = flushList(lineIdx);
         if (flushed) elements.push(flushed);
@@ -404,10 +409,10 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
 
       if (trimmed === '') {
         elements.push(<div key={`br-${lineIdx}`} style={{ height: '0.4rem' }} />);
-      } else if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+      } else if (/^[-*_]{2,}$/.test(trimmed)) {
         elements.push(<hr key={`hr-${lineIdx}`} style={{ border: 'none', borderTop: '1px solid var(--border-light, #e2e8f0)', margin: '0.85rem 0' }} />);
-      } else if (trimmed.startsWith('> ') || trimmed.startsWith('>')) {
-        const quoteText = trimmed.replace(/^>\s*/, '');
+      } else if (trimmed.startsWith('>')) {
+        const quoteText = trimmed.replace(/^>+\s*/, '');
         elements.push(
           <blockquote key={`bq-${lineIdx}`} style={{
             margin: '0.5rem 0',
