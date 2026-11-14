@@ -29,7 +29,8 @@ import {
   ExternalLink,
   RefreshCw,
   Calendar,
-  Settings2
+  Settings2,
+  Info
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 
@@ -884,6 +885,30 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
           {/* VIEW 1: PLANS */}
           {modalView === 'plans' && (
             <>
+              {/* Transparent Prepaid Education Banner */}
+              {currentPlanCode !== 'free' && (
+                <div style={{
+                  padding: '0.75rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                  border: '1px solid rgba(37, 99, 235, 0.25)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.55rem',
+                  fontSize: '0.76rem',
+                  color: 'var(--text-secondary)'
+                }}>
+                  <Info size={16} style={{ color: '#3b82f6', flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.15rem' }}>
+                      Sistem Langganan Prabayar Manual (Bebas Auto-Debit)
+                    </strong>
+                    Toko Anda aktif sebagai <strong>{effectiveQuota?.plan?.name || currentPlanCode}</strong> hingga{' '}
+                    <strong>{effectiveQuota?.plan_expires_at ? new Date(effectiveQuota.plan_expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'akhir periode'}</strong> ({effectiveQuota?.days_remaining || 0} hari tersisa). Catavor tidak melakukan auto-debit kartu. Jika tidak diperpanjang, toko otomatis kembali ke paket Gratis Terbatas tanpa kehilangan data produk.
+                  </div>
+                </div>
+              )}
+
               {/* Billing Cycle Locked Badge */}
               <div style={{
                 display: 'flex',
@@ -1084,6 +1109,29 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                           <Sparkles size={14} style={{ flexShrink: 0 }} />
                           <span>Upgrade ke {plan.name}</span>
                         </button>
+                      ) : plan.code === 'free' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', textAlign: 'center', width: '100%' }}>
+                          <div style={{
+                            width: '100%',
+                            padding: '0.55rem 0.65rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                            border: '1px solid var(--border-light)',
+                            color: 'var(--text-muted)',
+                            fontWeight: 700,
+                            fontSize: '0.78rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.35rem'
+                          }}>
+                            <CheckCircle2 size={14} style={{ color: 'var(--text-muted)' }} />
+                            <span>Status Dasar Otomatis</span>
+                          </div>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+                            Otomatis aktif bila langganan berbayar berakhir.
+                          </span>
+                        </div>
                       ) : (
                         <button
                           type="button"
@@ -1099,7 +1147,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                             cursor: 'pointer'
                           }}
                         >
-                          Jadwalkan Turun ke {plan.name}
+                          Pilih untuk Siklus Berikutnya
                         </button>
                       )}
                     </div>
@@ -1918,102 +1966,146 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
             </div>
           )}
 
-          {/* VIEW 3: DOWNGRADE CONFIRMATION */}
-          {modalView === 'downgrade_confirm' && selectedTargetPlan && (
-            <div 
-              className="glass-panel"
-              style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                gap: '1.25rem', 
-                textAlign: 'center', 
-                padding: '1.5rem 1.25rem',
-                borderRadius: '0.85rem',
-                background: 'var(--card-bg-gradient, var(--bg-card))',
-                border: '1px solid var(--border-light)',
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
-              }}
-            >
-              <div style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '50%',
-                background: 'rgba(245, 158, 11, 0.15)',
-                border: '2px solid #f59e0b',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto',
-                color: '#f59e0b',
-                boxShadow: '0 0 20px rgba(245, 158, 11, 0.25)'
-              }}>
-                <AlertTriangle size={28} />
-              </div>
+          {/* VIEW 3: BILLING TRANSITION SHEET (DOWNGRADE ANTAR-TIER) */}
+          {modalView === 'downgrade_confirm' && selectedTargetPlan && (() => {
+            const activeItemsCount = effectiveQuota?.active_items_count || 0;
+            const targetMaxItems = selectedTargetPlan.max_items;
+            const isUnlimited = targetMaxItems === -1;
+            const isOverQuota = !isUnlimited && activeItemsCount > targetMaxItems;
+            const overQuotaCount = isOverQuota ? activeItemsCount - targetMaxItems : 0;
+            const targetPriceStr = selectedTargetPlan.price_monthly > 0
+              ? `Rp ${selectedTargetPlan.price_monthly.toLocaleString('id-ID')} / bulan`
+              : 'Gratis';
+            const expirationDateStr = effectiveQuota?.plan_expires_at
+              ? new Date(effectiveQuota.plan_expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+              : 'akhir periode aktif';
 
-              <div>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.45rem' }}>
-                  Jadwalkan Turun ke {selectedTargetPlan.name}?
-                </h3>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                  Paket aktif Anda tidak langsung diputus. Masa aktif saat ini (<strong>{effectiveQuota?.days_remaining || 0} hari</strong>) tetap berjalan penuh sampai tanggal kedaluwarsa.
-                </p>
-              </div>
+            return (
+              <div 
+                className="glass-panel"
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '1.15rem', 
+                  padding: '1.25rem',
+                  borderRadius: '0.85rem',
+                  background: 'var(--card-bg-gradient, var(--bg-card))',
+                  border: '1px solid var(--border-light)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+                }}
+              >
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{
+                    width: '52px',
+                    height: '52px',
+                    borderRadius: '50%',
+                    background: 'rgba(37, 99, 235, 0.12)',
+                    border: '2px solid #3b82f6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 0.75rem',
+                    color: '#3b82f6'
+                  }}>
+                    <Calendar size={26} />
+                  </div>
 
-              {/* Guarantees Checklist Card */}
-              <div style={{
-                background: 'var(--bg-deep)',
-                border: '1px solid var(--border-light)',
-                borderRadius: '0.75rem',
-                padding: '1rem',
-                textAlign: 'left',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.65rem',
-                fontSize: '0.78rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
-                  <Check size={16} strokeWidth={2.5} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
-                  <span style={{ color: 'var(--text-primary)' }}>Sisa hari aktif (<strong>{effectiveQuota?.days_remaining || 0} hari</strong>) tidak akan hangus.</span>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem' }}>
+                    Pemesanan Siklus Berikutnya: {selectedTargetPlan.name}
+                  </h3>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                    Penyesuaian paket ke <strong>{selectedTargetPlan.name}</strong> akan dijadwalkan dan mulai berlaku saat masa aktif paket Anda saat ini berakhir pada <strong>{expirationDateStr}</strong>.
+                  </p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
-                  <Check size={16} strokeWidth={2.5} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
-                  <span style={{ color: 'var(--text-primary)' }}>Seluruh katalog produk &amp; data Anda tetap tersimpan aman (diarsipkan tanpa hapus data).</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
-                  <Check size={16} strokeWidth={2.5} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
-                  <span style={{ color: 'var(--text-primary)' }}>Penjadwalan penurunan ini dapat Anda batalkan sewaktu-waktu.</span>
-                </div>
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '0.65rem', marginTop: '0.25rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setModalView('plans')}
-                  className="btn-secondary"
-                  style={{ padding: '0.75rem', borderRadius: '0.65rem', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  disabled={internalLoading}
-                  onClick={handleConfirmDowngrade}
-                  className="btn-primary"
-                  style={{ 
-                    padding: '0.75rem', 
-                    borderRadius: '0.65rem', 
-                    fontSize: '0.82rem', 
-                    fontWeight: 800, 
-                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                    boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {internalLoading ? 'Menjadwalkan...' : 'Konfirmasi Jadwal'}
-                </button>
+                {/* Live Product Quota Impact Calculator Card */}
+                <div style={{
+                  background: isOverQuota ? 'rgba(245, 158, 11, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                  border: isOverQuota ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)',
+                  borderRadius: '0.75rem',
+                  padding: '1rem',
+                  textAlign: 'left'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                    {isOverQuota ? (
+                      <AlertTriangle size={18} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '2px' }} />
+                    ) : (
+                      <CheckCircle2 size={18} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
+                    )}
+                    <div>
+                      <strong style={{ fontSize: '0.84rem', color: isOverQuota ? '#f59e0b' : '#10b981', display: 'block', marginBottom: '0.25rem' }}>
+                        {isOverQuota ? 'Perhatian: Penyesuaian Kuota Produk' : 'Kalkulator Kuota: Aman 100%'}
+                      </strong>
+                      <p style={{ margin: 0, fontSize: '0.76rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        {isOverQuota ? (
+                          <>
+                            Toko Anda memiliki <strong>{activeItemsCount} produk aktif</strong>, sedangkan batas kuota paket {selectedTargetPlan.name} adalah <strong>{targetMaxItems} item</strong>. Sebanyak <strong>{overQuotaCount} produk terlama</strong> akan diarsipkan otomatis saat transisi {expirationDateStr}. Foto &amp; spesifikasi tetap tersimpan aman di database tanpa terhapus.
+                          </>
+                        ) : (
+                          <>
+                            Toko Anda memiliki <strong>{activeItemsCount} produk aktif</strong>. Seluruh produk berada di dalam batas kuota <strong>{isUnlimited ? 'Unlimited' : targetMaxItems} item</strong> pada paket {selectedTargetPlan.name}. <strong>Tidak ada produk yang akan diarsipkan.</strong>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rights and Financial Details */}
+                <div style={{
+                  background: 'var(--bg-deep)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '0.75rem',
+                  padding: '0.9rem',
+                  textAlign: 'left',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.65rem',
+                  fontSize: '0.76rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
+                    <Check size={15} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
+                    <span style={{ color: 'var(--text-primary)' }}><strong>Sisa Hari Penuh:</strong> Fitur paket {effectiveQuota?.plan?.name} Anda ({effectiveQuota?.days_remaining || 0} hari tersisa) tetap aktif 100% hingga {expirationDateStr}.</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
+                    <CreditCard size={15} style={{ color: '#3b82f6', flexShrink: 0, marginTop: '2px' }} />
+                    <span style={{ color: 'var(--text-primary)' }}><strong>Biaya Siklus Depan:</strong> {targetPriceStr}. Dibayar manual via QRIS / Bank Transfer saat jatuh tempo (bebas auto-debit).</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
+                    <RotateCcw size={15} style={{ color: '#a855f7', flexShrink: 0, marginTop: '2px' }} />
+                    <span style={{ color: 'var(--text-primary)' }}><strong>Bisa Dibatalkan Kapan Saja:</strong> Jadwal perubahan paket ini dapat Anda batalkan sewaktu-waktu sebelum tanggal {expirationDateStr}.</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '0.65rem', marginTop: '0.25rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setModalView('plans')}
+                    className="btn-secondary"
+                    style={{ minHeight: '44px', padding: '0.75rem', borderRadius: '0.65rem', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    disabled={internalLoading}
+                    onClick={handleConfirmDowngrade}
+                    className="btn-primary"
+                    style={{ 
+                      minHeight: '44px',
+                      padding: '0.75rem', 
+                      borderRadius: '0.65rem', 
+                      fontSize: '0.82rem', 
+                      fontWeight: 800, 
+                      cursor: internalLoading ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {internalLoading ? 'Menyimpan Jadwal...' : 'Konfirmasi Jadwal'}
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* VIEW 4: ORDERS HISTORY */}
           {modalView === 'orders' && (

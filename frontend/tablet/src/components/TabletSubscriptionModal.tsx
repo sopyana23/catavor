@@ -23,7 +23,10 @@ import {
   Download,
   ExternalLink,
   Tag,
-  Settings2
+  Settings2,
+  Clock,
+  RotateCcw,
+  Info
 } from 'lucide-react';
 import { createAuthFetch } from '../utils/auth';
 import { useModalBackHandler } from '../utils/navigation';
@@ -122,7 +125,9 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('pro_starter');
   
   // Checkout & Payment step
-  const [checkoutStep, setCheckoutStep] = useState<'plan_select' | 'payment_detail'>('plan_select');
+  const [checkoutStep, setCheckoutStep] = useState<'plan_select' | 'payment_detail' | 'downgrade_confirm'>('plan_select');
+  const [selectedTargetPlan, setSelectedTargetPlan] = useState<SubscriptionPlanData | null>(null);
+  const [internalLoading, setInternalLoading] = useState<boolean>(false);
   const [paymentMethod, setPaymentMethod] = useState<'qris' | 'bank'>('qris');
   const [aulaaChannel, setAulaaChannel] = useState<'qris' | 'va' | 'ewallet' | 'cc'>('qris');
   const [submittingOrder, setSubmittingOrder] = useState<boolean>(false);
@@ -269,7 +274,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   useEffect(() => {
     if (!isOpen) return;
     const handlePopState = () => {
-      if (checkoutStep === 'payment_detail') {
+      if (checkoutStep === 'payment_detail' || checkoutStep === 'downgrade_confirm') {
         setCheckoutStep('plan_select');
       } else {
         onClose();
@@ -393,6 +398,49 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       return;
     }
     setCheckoutStep('payment_detail');
+  };
+
+  const handleConfirmDowngrade = async () => {
+    if (!selectedTargetPlan) return;
+    setInternalLoading(true);
+    try {
+      const res = await fetch('/api/subscription/schedule-downgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_plan_code: selectedTargetPlan.code })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Gagal menjadwalkan penurunan paket.');
+      }
+      showToast(data.message || 'Jadwal penurunan paket berhasil disimpan.', 'success');
+      setCheckoutStep('plan_select');
+      if (onSuccessUpgrade) onSuccessUpgrade();
+    } catch (err: any) {
+      showToast(err.message || 'Gagal memproses penurunan paket.', 'error');
+    } finally {
+      setInternalLoading(false);
+    }
+  };
+
+  const handleCancelDowngradeSchedule = async () => {
+    setInternalLoading(true);
+    try {
+      const res = await fetch('/api/subscription/cancel-downgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Gagal membatalkan jadwal downgrade.');
+      }
+      showToast('Jadwal downgrade berhasil dibatalkan. Langganan Anda tetap berlanjut.', 'success');
+      if (onSuccessUpgrade) onSuccessUpgrade();
+    } catch (err: any) {
+      showToast(err.message || 'Gagal membatalkan jadwal downgrade.', 'error');
+    } finally {
+      setInternalLoading(false);
+    }
   };
 
   const handleProofUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -561,7 +609,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
           backgroundColor: 'var(--bg-deep)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {checkoutStep === 'payment_detail' && (
+            {checkoutStep !== 'plan_select' && (
               <button
                 type="button"
                 onClick={() => setCheckoutStep('plan_select')}
@@ -583,11 +631,13 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
             )}
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
-                {checkoutStep === 'plan_select' ? 'Upgrade & Kelola Paket Langganan' : 'Konfirmasi & Instruksi Pembayaran'}
+                {checkoutStep === 'plan_select' ? 'Upgrade & Kelola Paket Langganan' : checkoutStep === 'downgrade_confirm' ? 'Jadwal Penyesuaian Paket' : 'Konfirmasi & Instruksi Pembayaran'}
               </h2>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
                 {checkoutStep === 'plan_select'
                   ? 'Tingkatkan kuota produk dan kapasitas penyimpanan media toko Anda'
+                  : checkoutStep === 'downgrade_confirm'
+                  ? 'Atur penyesuaian paket prabayar pada siklus jatuh tempo berikutnya'
                   : 'Selesaikan transaksi untuk mengaktifkan paket secara otomatis'}
               </p>
             </div>
@@ -616,6 +666,71 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
         <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1.75rem' }}>
           {checkoutStep === 'plan_select' ? (
             <div>
+              {/* Scheduled Downgrade Notice in Tablet Plans View */}
+              {currentQuota?.next_plan && (
+                <div style={{
+                  marginBottom: '1.25rem',
+                  padding: '1rem 1.25rem',
+                  borderRadius: '0.75rem',
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <Clock size={22} style={{ color: '#d97706', flexShrink: 0 }} />
+                    <div>
+                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 800 }}>
+                        Jadwal Penurunan Paket Aktif ({currentQuota.next_plan.name})
+                      </strong>
+                      <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        Paket Anda akan berganti ke {currentQuota.next_plan.name} saat periode masa aktif saat ini berakhir.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={internalLoading}
+                    onClick={handleCancelDowngradeSchedule}
+                    style={{
+                      padding: '0.5rem 1.15rem',
+                      borderRadius: '0.55rem',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                      color: '#ef4444',
+                      fontSize: '0.78rem',
+                      fontWeight: 800,
+                      cursor: internalLoading ? 'not-allowed' : 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {internalLoading ? 'Membatalkan...' : 'Batalkan Jadwal'}
+                  </button>
+                </div>
+              )}
+
+              {/* Prepaid Manual Education Banner */}
+              <div style={{
+                marginBottom: '1.25rem',
+                padding: '0.85rem 1.15rem',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem'
+              }}>
+                <Info size={18} style={{ color: '#3b82f6', flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.15rem' }}>
+                    Sistem Langganan Prabayar Manual Catavor (Bebas Auto-Debit)
+                  </strong>
+                  Platform beroperasi secara murni prabayar bulanan manual. Kami tidak pernah menyimpan nomor kartu kredit dan tidak membebankan auto-debit otomatis tanpa persetujuan Anda.
+                </div>
+              </div>
+
               {/* Billing Cycle Switcher */}
               <div style={{
                 display: 'flex',
@@ -648,128 +763,332 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                 gap: '1rem',
                 marginBottom: '1.5rem'
               }}>
-                {plans.map(p => {
-                  const isSelected = selectedPlanCode === p.code;
-                  const isCurrent = currentQuota?.plan?.code === p.code;
-                  const price = billingCycle === 'annual' ? p.price_annual : p.price_monthly;
-                  const storageMB = Math.round(p.storage_limit_bytes / (1024 * 1024));
+                {(() => {
+                  const planRank: Record<string, number> = {
+                    free: 0,
+                    pro_starter: 1,
+                    pro_business: 2
+                  };
+                  const currentPlanCode = currentQuota?.plan?.code || 'free';
+                  const currentRank = planRank[currentPlanCode] || 0;
 
-                  return (
-                    <div
-                      key={p.code}
-                      onClick={() => setSelectedPlanCode(p.code)}
-                      style={{
-                        borderRadius: '1rem',
-                        border: isSelected
-                          ? '2px solid var(--primary)'
-                          : '1px solid var(--border-light)',
-                        backgroundColor: isSelected ? 'rgba(30, 58, 138, 0.08)' : 'var(--bg-deep)',
-                        padding: '1.25rem',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer',
-                        position: 'relative',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {p.badge_label && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '-10px',
-                          right: '12px',
-                          backgroundColor: p.code === 'pro_business' ? '#a855f7' : 'var(--primary)',
-                          color: '#ffffff',
-                          fontSize: '0.68rem',
-                          fontWeight: 800,
-                          padding: '0.15rem 0.55rem',
-                          borderRadius: '999px',
-                          textTransform: 'uppercase'
-                        }}>
-                          {p.badge_label}
-                        </div>
-                      )}
+                  return plans.map(p => {
+                    const isSelected = selectedPlanCode === p.code;
+                    const isCurrent = currentPlanCode === p.code;
+                    const targetRank = planRank[p.code] || 0;
+                    const isDowngrade = targetRank < currentRank;
+                    const price = billingCycle === 'annual' ? p.price_annual : p.price_monthly;
+                    const storageMB = Math.round(p.storage_limit_bytes / (1024 * 1024));
 
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                          <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>
-                            {p.name}
-                          </h3>
-                          {isSelected && <CheckCircle2 size={18} color="var(--primary)" />}
-                        </div>
-                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4, margin: '0 0 1rem 0' }}>
-                          {p.description}
-                        </p>
+                    return (
+                      <div
+                        key={p.code}
+                        onClick={() => {
+                          if (p.code === 'free' && currentRank > 0) return;
+                          if (isDowngrade && p.code !== 'free') {
+                            setSelectedTargetPlan(p);
+                            setCheckoutStep('downgrade_confirm');
+                            return;
+                          }
+                          setSelectedPlanCode(p.code);
+                        }}
+                        style={{
+                          borderRadius: '1rem',
+                          border: isSelected
+                            ? '2px solid var(--primary)'
+                            : '1px solid var(--border-light)',
+                          backgroundColor: isSelected ? 'rgba(30, 58, 138, 0.08)' : 'var(--bg-deep)',
+                          padding: '1.25rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          cursor: (p.code === 'free' && currentRank > 0) ? 'default' : 'pointer',
+                          position: 'relative',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {p.badge_label && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '-10px',
+                            right: '12px',
+                            backgroundColor: p.code === 'pro_business' ? '#a855f7' : 'var(--primary)',
+                            color: '#ffffff',
+                            fontSize: '0.68rem',
+                            fontWeight: 800,
+                            padding: '0.15rem 0.55rem',
+                            borderRadius: '999px',
+                            textTransform: 'uppercase'
+                          }}>
+                            {p.badge_label}
+                          </div>
+                        )}
 
-                        <div style={{ marginBottom: '1.25rem' }}>
-                          <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            {price === 0 ? 'Gratis' : `Rp ${price.toLocaleString('id-ID')}`}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>
+                              {p.name}
+                            </h3>
+                            {isSelected && <CheckCircle2 size={18} color="var(--primary)" />}
                           </div>
-                          {price > 0 && (
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              / bulan (ditagih {billingCycle === 'annual' ? 'tahunan' : 'bulanan'})
-                            </span>
-                          )}
-                        </div>
+                          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.4, margin: '0 0 1rem 0' }}>
+                            {p.description}
+                          </p>
 
-                        {/* Features List */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <Package size={15} color="var(--primary)" />
-                            <span>Maksimal <strong>{p.max_items} Item</strong> Produk</span>
+                          <div style={{ marginBottom: '1.25rem' }}>
+                            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              {price === 0 ? 'Gratis' : `Rp ${price.toLocaleString('id-ID')}`}
+                            </div>
+                            {price > 0 && (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                / bulan (ditagih {billingCycle === 'annual' ? 'tahunan' : 'bulanan'})
+                              </span>
+                            )}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <HardDrive size={15} color="var(--primary)" />
-                            <span>Kapasitas <strong>{storageMB >= 1024 ? `${(storageMB / 1024).toFixed(1)} GB` : `${storageMB} MB`}</strong></span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <Sparkles size={15} color={p.has_verified_badge ? 'var(--primary)' : 'var(--text-muted)'} />
-                            <span style={{ color: p.has_verified_badge ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                              {p.has_verified_badge ? 'Centang Profil Resmi' : 'Tanpa Badge Verifikasi'}
-                            </span>
-                          </div>
-                          {p.has_custom_domain && (
+
+                          {/* Features List */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                              <Crown size={15} color="#a855f7" />
-                              <span style={{ fontWeight: 600 }}>Dukungan Custom Domain</span>
+                              <Package size={15} color="var(--primary)" />
+                              <span>Maksimal <strong>{p.max_items} Item</strong> Produk</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <HardDrive size={15} color="var(--primary)" />
+                              <span>Kapasitas <strong>{storageMB >= 1024 ? `${(storageMB / 1024).toFixed(1)} GB` : `${storageMB} MB`}</strong></span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <Sparkles size={15} color={p.has_verified_badge ? 'var(--primary)' : 'var(--text-muted)'} />
+                              <span style={{ color: p.has_verified_badge ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                                {p.has_verified_badge ? 'Centang Profil Resmi' : 'Tanpa Badge Verifikasi'}
+                              </span>
+                            </div>
+                            {p.has_custom_domain && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                <Crown size={15} color="#a855f7" />
+                                <span style={{ fontWeight: 600 }}>Dukungan Custom Domain</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ marginTop: '1.25rem' }}>
+                          {isCurrent ? (
+                            <div style={{
+                              textAlign: 'center',
+                              padding: '0.5rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              color: '#10b981',
+                              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                              borderRadius: '0.5rem'
+                            }}>
+                              Paket Saat Ini
+                            </div>
+                          ) : (p.code === 'free' && currentRank > 0) ? (
+                            <div style={{
+                              textAlign: 'center',
+                              padding: '0.5rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              color: 'var(--text-muted)',
+                              backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                              border: '1px solid var(--border-light)',
+                              borderRadius: '0.5rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem'
+                            }}>
+                              <CheckCircle2 size={14} style={{ color: 'var(--text-muted)' }} />
+                              <span>Status Dasar Otomatis</span>
+                            </div>
+                          ) : (isDowngrade && p.code !== 'free') ? (
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTargetPlan(p);
+                                setCheckoutStep('downgrade_confirm');
+                              }}
+                              style={{
+                                textAlign: 'center',
+                                padding: '0.5rem',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                                color: '#f59e0b',
+                                border: '1px solid rgba(245, 158, 11, 0.4)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Pilih untuk Siklus Berikutnya
+                            </div>
+                          ) : (
+                            <div style={{
+                              textAlign: 'center',
+                              padding: '0.5rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              borderRadius: '0.5rem',
+                              backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-card)',
+                              color: isSelected ? '#ffffff' : 'var(--text-primary)',
+                              border: isSelected ? 'none' : '1px solid var(--border-light)'
+                            }}>
+                              {isSelected ? 'Paket Terpilih' : 'Pilih Paket Ini'}
                             </div>
                           )}
                         </div>
                       </div>
-
-                      <div style={{ marginTop: '1.25rem' }}>
-                        {isCurrent ? (
-                          <div style={{
-                            textAlign: 'center',
-                            padding: '0.5rem',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            color: '#10b981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                            borderRadius: '0.5rem'
-                          }}>
-                            Paket Saat Ini
-                          </div>
-                        ) : (
-                          <div style={{
-                            textAlign: 'center',
-                            padding: '0.5rem',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            borderRadius: '0.5rem',
-                            backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-card)',
-                            color: isSelected ? '#ffffff' : 'var(--text-primary)',
-                            border: isSelected ? 'none' : '1px solid var(--border-light)'
-                          }}>
-                            {isSelected ? 'Paket Terpilih' : 'Pilih Paket Ini'}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             </div>
+          ) : checkoutStep === 'downgrade_confirm' && selectedTargetPlan ? (
+            /* Billing Transition Sheet (Downgrade Antar-Tier) */
+            (() => {
+              const activeItemsCount = currentQuota?.active_items_count || 0;
+              const targetMaxItems = selectedTargetPlan.max_items;
+              const isUnlimited = targetMaxItems === -1;
+              const isOverQuota = !isUnlimited && activeItemsCount > targetMaxItems;
+              const overQuotaCount = isOverQuota ? activeItemsCount - targetMaxItems : 0;
+              const targetPriceStr = selectedTargetPlan.price_monthly > 0
+                ? `Rp ${selectedTargetPlan.price_monthly.toLocaleString('id-ID')} / bulan`
+                : 'Gratis';
+              const expirationDateStr = currentQuota?.plan_expires_at
+                ? new Date(currentQuota.plan_expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+                : 'akhir periode aktif';
+
+              return (
+                <div style={{ padding: '1rem 0.5rem', maxWidth: '640px', margin: '0 auto' }}>
+                  <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+                    <div style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '50%',
+                      background: 'rgba(37, 99, 235, 0.12)',
+                      border: '2px solid #3b82f6',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 0.75rem',
+                      color: '#3b82f6'
+                    }}>
+                      <Calendar size={28} />
+                    </div>
+
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem' }}>
+                      Pemesanan Siklus Berikutnya: {selectedTargetPlan.name}
+                    </h3>
+
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                      Penyesuaian paket ke <strong>{selectedTargetPlan.name}</strong> akan dijadwalkan dan mulai berlaku saat masa aktif paket Anda saat ini berakhir pada <strong>{expirationDateStr}</strong>.
+                    </p>
+                  </div>
+
+                  {/* Live Product Quota Impact Calculator Card */}
+                  <div style={{
+                    background: isOverQuota ? 'rgba(245, 158, 11, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                    border: isOverQuota ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)',
+                    borderRadius: '0.85rem',
+                    padding: '1.15rem',
+                    marginBottom: '1.15rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                      {isOverQuota ? (
+                        <AlertTriangle size={20} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '2px' }} />
+                      ) : (
+                        <CheckCircle2 size={20} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
+                      )}
+                      <div>
+                        <strong style={{ fontSize: '0.88rem', color: isOverQuota ? '#f59e0b' : '#10b981', display: 'block', marginBottom: '0.25rem' }}>
+                          {isOverQuota ? 'Perhatian: Penyesuaian Kuota Produk' : 'Kalkulator Kuota: Aman 100%'}
+                        </strong>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                          {isOverQuota ? (
+                            <>
+                              Toko Anda saat ini memiliki <strong>{activeItemsCount} produk aktif</strong>, sedangkan batas kuota paket {selectedTargetPlan.name} adalah <strong>{targetMaxItems} item</strong>. Sebanyak <strong>{overQuotaCount} produk terlama</strong> akan diarsipkan otomatis saat transisi {expirationDateStr}. Foto &amp; spesifikasi produk tetap tersimpan aman di database dan dapat dipulihkan sewaktu-waktu saat Anda melakukan upgrade.
+                            </>
+                          ) : (
+                            <>
+                              Toko Anda memiliki <strong>{activeItemsCount} produk aktif</strong>. Seluruh produk berada di dalam batas kuota <strong>{isUnlimited ? 'Unlimited' : targetMaxItems} item</strong> pada paket {selectedTargetPlan.name}. <strong>Tidak ada produk yang akan diarsipkan.</strong>
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rights and Financial Details */}
+                  <div style={{
+                    background: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '0.85rem',
+                    padding: '1rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.65rem',
+                    marginBottom: '1.25rem',
+                    fontSize: '0.8rem'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                      <Check size={16} style={{ color: '#10b981', flexShrink: 0, marginTop: '2px' }} />
+                      <span><strong>Sisa Hari Penuh:</strong> Fitur paket {currentQuota?.plan?.name} Anda ({currentQuota?.days_remaining || 0} hari tersisa) tetap aktif 100% hingga {expirationDateStr} tanpa diputus di tengah jalan.</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                      <CreditCard size={16} style={{ color: '#3b82f6', flexShrink: 0, marginTop: '2px' }} />
+                      <span><strong>Biaya Siklus Depan:</strong> {targetPriceStr}. Pembayaran perpanjangan dilakukan secara manual melalui QRIS / Transfer Bank saat jatuh tempo (tanpa auto-debit).</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem' }}>
+                      <RotateCcw size={16} style={{ color: '#a855f7', flexShrink: 0, marginTop: '2px' }} />
+                      <span><strong>Bisa Dibatalkan Kapan Saja:</strong> Jadwal perubahan paket ini dapat Anda batalkan sewaktu-waktu sebelum tanggal {expirationDateStr} melalui dashboard langganan.</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setCheckoutStep('plan_select')}
+                      style={{
+                        flex: 1,
+                        minHeight: '44px',
+                        padding: '0.75rem',
+                        borderRadius: '0.65rem',
+                        fontWeight: 700,
+                        fontSize: '0.84rem',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'transparent',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Kembali
+                    </button>
+                    <button
+                      type="button"
+                      disabled={internalLoading}
+                      onClick={handleConfirmDowngrade}
+                      style={{
+                        flex: 1.3,
+                        minHeight: '44px',
+                        padding: '0.75rem',
+                        borderRadius: '0.65rem',
+                        fontWeight: 800,
+                        fontSize: '0.84rem',
+                        backgroundColor: 'var(--primary)',
+                        color: '#ffffff',
+                        border: 'none',
+                        cursor: internalLoading ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {internalLoading ? 'Menyimpan Jadwal...' : 'Konfirmasi Jadwal Penyesuaian'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()
           ) : (
             /* Payment & Confirmation Step */
             <div>
@@ -1769,6 +2088,23 @@ export const TabletQuotaWidget: React.FC<{
           )}
         </button>
       </div>
+
+      {quota?.next_plan && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.35rem',
+          fontSize: '0.7rem',
+          color: '#d97706',
+          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+          border: '1px solid rgba(245, 158, 11, 0.25)',
+          padding: '0.3rem 0.55rem',
+          borderRadius: '0.45rem'
+        }}>
+          <Clock size={12} style={{ flexShrink: 0 }} />
+          <span>Jadwal downgrade aktif: <strong>{quota.next_plan.name}</strong></span>
+        </div>
+      )}
 
       {/* Progress Indicators: Items Quota & Cloud Storage */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>

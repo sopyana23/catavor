@@ -992,5 +992,181 @@ func BuildNewDeviceLoginSecurityEmail(userName, userEmail, deviceName, ipAddress
 	return
 }
 
+// BuildSubscriptionDowngradeScheduledEmail creates an official email notification when a merchant schedules a plan transition.
+func BuildSubscriptionDowngradeScheduledEmail(storeTitle, targetPlanName, targetPlanPrice, effectiveDateStr, storeSlug string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Langganan] Jadwal Perubahan Paket ke %s untuk Toko '%s'", targetPlanName, storeTitle)
+	title := "Jadwal Perubahan Paket Disimpan"
+	subtitle := fmt.Sprintf("Penyesuaian paket langganan untuk profil katalog '%s'", storeTitle)
+	adminSubURL := "/admin?tab=subscription"
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Permintaan perubahan paket langganan Anda telah berhasil dijadwalkan pada sistem pembayaran prabayar Catavor.</p>
+
+	<!-- Transition Summary Card -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 13px; line-height: 1.6; color: #334155;">
+				<div style="margin-bottom: 8px;"><strong>Paket Tujuan:</strong> <span style="color: #2563eb; font-weight: 700;">%s</span></div>
+				<div style="margin-bottom: 8px;"><strong>Biaya Siklus Depan:</strong> %s</div>
+				<div><strong>Tanggal Berlaku Efektif:</strong> %s</div>
+			</td>
+		</tr>
+	</table>
+
+	<!-- Protection Highlights -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #166534;">
+				<strong style="display: block; margin-bottom: 6px; font-size: 13px;">Jaminan Hak &amp; Perlindungan Data:</strong>
+				• <strong>Sisa Hari Aman:</strong> Seluruh fitur paket aktif Anda saat ini tetap dapat digunakan 100%% penuh hingga tanggal berlaku efektif tanpa diputus di tengah jalan.<br>
+				• <strong>Proteksi Produk:</strong> Seluruh data produk dan foto katalog Anda tetap tersimpan aman di database.<br>
+				• <strong>Bebas Dibatalkan:</strong> Anda dapat membatalkan jadwal perubahan paket ini kapan saja sebelum tanggal efektif melalui Dashboard Merchant.
+			</td>
+		</tr>
+	</table>
+	`, html.EscapeString(storeTitle), html.EscapeString(targetPlanName), html.EscapeString(targetPlanPrice), html.EscapeString(effectiveDateStr))
+
+	bodyHTML = wrapEmailLayout("PERUBAHAN TERJADWAL", "#f59e0b", title, subtitle, mainContent, "Buka Pengaturan Langganan →", adminSubURL)
+	return
+}
+
+// BuildSubscriptionDowngradeCancelledEmail creates an email notification when a merchant cancels their scheduled downgrade.
+func BuildSubscriptionDowngradeCancelledEmail(storeTitle, currentPlanName, effectiveDateStr, storeSlug string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Langganan] Jadwal Perubahan Paket Dibatalkan untuk Toko '%s'", storeTitle)
+	title := "Jadwal Perubahan Paket Telah Dibatalkan"
+	subtitle := fmt.Sprintf("Langganan '%s' tetap dilanjutkan untuk '%s'", currentPlanName, storeTitle)
+	adminSubURL := "/admin?tab=subscription"
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Jadwal perubahan paket langganan Anda telah berhasil dibatalkan. Profil katalog Anda tetap melanjutkan paket <strong>%s</strong> hingga <strong>%s</strong>.</p>
+
+	<!-- Notice Box -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #10b981; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #334155;">
+				Seluruh fitur premium dan kuota produk Anda tetap aktif normal seperti biasa. Anda dapat meninjau detail langganan Anda kapan saja melalui dashboard admin.
+			</td>
+		</tr>
+	</table>
+	`, html.EscapeString(storeTitle), html.EscapeString(currentPlanName), html.EscapeString(effectiveDateStr))
+
+	bodyHTML = wrapEmailLayout("JADWAL DIBATALKAN", "#10b981", title, subtitle, mainContent, "Kelola Langganan Toko →", adminSubURL)
+	return
+}
+
+// BuildSubscriptionRenewalReminderH3Email creates an advance billing reminder email 3 days before expiration.
+func BuildSubscriptionRenewalReminderH3Email(storeTitle, targetPlanName, targetPlanPrice, expirationDateStr, storeSlug string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Pengingat] Masa Aktif Langganan Toko '%s' Berakhir dalam 3 Hari", storeTitle)
+	title := "Masa Aktif Paket Berakhir dalam 3 Hari"
+	subtitle := fmt.Sprintf("Persiapan siklus langganan berikutnya untuk '%s'", storeTitle)
+	adminSubURL := "/admin?tab=subscription"
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Masa aktif paket langganan berbayar Anda akan berakhir pada <strong>%s</strong> (3 hari lagi).</p>
+
+	<!-- Renewal Card -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 13px; line-height: 1.6; color: #334155;">
+				<div style="margin-bottom: 8px;"><strong>Paket Siklus Berikutnya:</strong> <span style="color: #2563eb; font-weight: 700;">%s</span></div>
+				<div style="margin-bottom: 8px;"><strong>Biaya Tagihan:</strong> %s</div>
+				<div><strong>Jatuh Tempo:</strong> %s</div>
+			</td>
+		</tr>
+	</table>
+
+	<!-- Transparent Prepaid Disclaimer -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #eff6ff; border-radius: 8px; border-left: 4px solid #3b82f6; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #1e40af;">
+				<strong style="display: block; margin-bottom: 4px; font-size: 13px;">Ketentuan Pembayaran Prabayar Catavor:</strong>
+				• <strong>Ingin Melanjutkan?</strong> Klik tombol di bawah untuk menyelesaikan pembayaran via QRIS Instan atau Transfer Bank.<br>
+				• <strong>Tidak Ingin Melanjutkan?</strong> Anda tidak perlu melakukan apa pun. Platform Catavor tidak menggunakan auto-debit kartu. Toko Anda akan otomatis kembali ke paket Gratis Terbatas tanpa kehilangan data produk katalog.
+			</td>
+		</tr>
+	</table>
+	`, html.EscapeString(storeTitle), html.EscapeString(expirationDateStr), html.EscapeString(targetPlanName), html.EscapeString(targetPlanPrice), html.EscapeString(expirationDateStr))
+
+	bodyHTML = wrapEmailLayout("PENGINGAT JATUH TEMPO", "#f59e0b", title, subtitle, mainContent, "Bayar Perpanjangan Langganan →", adminSubURL)
+	return
+}
+
+// BuildSubscriptionTransitionExecutedEmail notifies when a plan transition or auto-downgrade to free is executed.
+func BuildSubscriptionTransitionExecutedEmail(storeTitle, newPlanName string, maxItems int, archivedItemsCount int, storeSlug string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Langganan] Status Paket Toko '%s' Kini Berada di %s", storeTitle, newPlanName)
+	title := fmt.Sprintf("Toko Kini Aktif di Paket %s", newPlanName)
+	subtitle := fmt.Sprintf("Pembaruan siklus langganan untuk profil katalog '%s'", storeTitle)
+	adminSubURL := "/admin?tab=subscription"
+
+	maxItemsLabel := fmt.Sprintf("%d item", maxItems)
+	if maxItems < 0 {
+		maxItemsLabel = "Tanpa Batas (Unlimited)"
+	}
+
+	archivedNotice := ""
+	if archivedItemsCount > 0 {
+		archivedNotice = fmt.Sprintf(`
+		<div style="margin-top: 10px; padding: 10px 12px; background: rgba(245, 158, 11, 0.12); border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 12px; color: #92400e;">
+			<strong>Proteksi Arsip Produk:</strong> Sebanyak <strong>%d produk</strong> terlama telah dipindahkan ke arsip (draft) agar sesuai dengan kuota paket baru. Foto dan spesifikasi produk Anda tetap aman dan dapat diaktifkan kembali sewaktu-waktu saat Anda melakukan upgrade.
+		</div>`, archivedItemsCount)
+	}
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Masa aktif paket sebelumnya telah berakhir. Profil katalog toko Anda kini telah beralih ke paket <strong>%s</strong>.</p>
+
+	<!-- Plan Info Card -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 13px; line-height: 1.6; color: #334155;">
+				<div style="margin-bottom: 8px;"><strong>Paket Aktif:</strong> %s</div>
+				<div><strong>Batas Kuota Produk Aktif:</strong> %s</div>
+				%s
+			</td>
+		</tr>
+	</table>
+
+	<p style="margin: 0 0 14px 0; font-size: 12.5px; color: #64748b;">
+		Anda dapat melakukan upgrade paket kapan saja untuk menambah kuota produk, meningkatkan kapasitas penyimpanan, atau mengaktifkan fitur Custom Domain.
+	</p>
+	`, html.EscapeString(storeTitle), html.EscapeString(newPlanName), html.EscapeString(newPlanName), maxItemsLabel, archivedNotice)
+
+	bodyHTML = wrapEmailLayout("STATUS DIPERBARUI", "#64748b", title, subtitle, mainContent, "Kelola Produk & Langganan →", adminSubURL)
+	return
+}
+
+// BuildSubscriptionGracePeriodEmail notifies a merchant that their store has entered the 7-day grace period.
+func BuildSubscriptionGracePeriodEmail(storeTitle, currentPlanName, graceUntilDateStr, storeSlug string) (subject string, bodyHTML string) {
+	subject = fmt.Sprintf("[Catavor Peringatan] Toko '%s' Memasuki Masa Tenggang (Grace Period 7 Hari)", storeTitle)
+	title := "Masa Langganan Berakhir: Masa Tenggang 7 Hari"
+	subtitle := fmt.Sprintf("Fitur toko tetap aktif sampai %s", graceUntilDateStr)
+	adminSubURL := "/admin?tab=subscription"
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Masa aktif langganan paket <strong>%s</strong> Anda telah berakhir. Untuk memastikan operasional bisnis Anda tidak terganggu mendadak, toko Anda telah memasuki <strong>Masa Tenggang (Grace Period) selama 7 hari</strong> hingga <strong>%s</strong>.</p>
+
+	<!-- Grace Card -->
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fef2f2; border-radius: 8px; border: 1px solid #fecaca; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 13px; line-height: 1.6; color: #991b1b;">
+				<div style="margin-bottom: 8px;"><strong>Status Toko Saat Ini:</strong> Tetap aktif normal &amp; dapat diakses pembeli.</div>
+				<div><strong>Batas Akhir Masa Tenggang:</strong> %s</div>
+			</td>
+		</tr>
+	</table>
+
+	<p style="margin: 0 0 14px 0; font-size: 12.5px; color: #334155;">
+		Silakan selesaikan pembayaran perpanjangan sebelum masa tenggang berakhir agar seluruh fitur dan produk Anda tetap aktif. Jika masa tenggang berakhir tanpa pembayaran, toko Anda akan otomatis disesuaikan ke paket Gratis Terbatas tanpa kehilangan data.
+	</p>
+	`, html.EscapeString(storeTitle), html.EscapeString(currentPlanName), html.EscapeString(graceUntilDateStr), html.EscapeString(graceUntilDateStr))
+
+	bodyHTML = wrapEmailLayout("MASA TENGGANG AKTIF", "#ef4444", title, subtitle, mainContent, "Perpanjang Langganan Sekarang →", adminSubURL)
+	return
+}
+
 
 

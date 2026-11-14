@@ -432,7 +432,8 @@ func UpgradeStorePlan(db *gorm.DB, storeID uint, targetPlanCode string, duration
 // ScheduleStoreDowngrade sets a scheduled downgrade for the end of the current billing cycle.
 func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*StoreQuotaInfo, error) {
 	targetPlanCode = strings.ToLower(strings.TrimSpace(targetPlanCode))
-	if _, err := getPlanByCodeStrict(db, targetPlanCode); err != nil {
+	targetPlan, err := getPlanByCodeStrict(db, targetPlanCode)
+	if err != nil {
 		return nil, fmt.Errorf("paket target '%s' tidak valid: %w", targetPlanCode, err)
 	}
 
@@ -441,7 +442,8 @@ func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*
 		return nil, err
 	}
 
-	if targetPlanCode == store.Plan {
+	isCancelling := (targetPlanCode == store.Plan)
+	if isCancelling {
 		// Cancel scheduled change
 		store.NextPlanCode = nil
 	} else {
@@ -453,16 +455,73 @@ func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*
 	}
 
 	database.InvalidateStoreQuotaCache(context.Background(), storeID)
+
+	// Send transactional email notification asynchronously
+	var user models.User
+	if err := db.First(&user, store.UserID).Error; err == nil && user.Email != "" {
+		effectiveDateStr := "akhir periode aktif saat ini"
+		if store.PlanExpiresAt != nil {
+			effectiveDateStr = store.PlanExpiresAt.Format("02 January 2006")
+		}
+
+		if isCancelling {
+			currPlan, _ := GetPlanByCode(db, store.Plan)
+			currName := store.Plan
+			if currPlan != nil {
+				currName = currPlan.Name
+			}
+			subj, body := BuildSubscriptionDowngradeCancelledEmail(store.StoreTitle, currName, effectiveDateStr, store.Slug)
+			_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_cancelled", fmt.Sprintf("store_%d_cancel_downgrade_%d", store.ID, time.Now().Unix()))
+		} else {
+			targetPrice := "Gratis"
+			if targetPlan.PriceMonthly > 0 {
+				targetPrice = fmt.Sprintf("Rp %d / bulan", int64(targetPlan.PriceMonthly))
+			}
+			subj, body := BuildSubscriptionDowngradeScheduledEmail(store.StoreTitle, targetPlan.Name, targetPrice, effectiveDateStr, store.Slug)
+			_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_scheduled", fmt.Sprintf("store_%d_downgrade_%s_%s", store.ID, targetPlanCode, time.Now().Format("2006010215")))
+		}
+	}
+
 	return GetStoreQuotaInfo(db, storeID)
 }
 
-// ProcessSubscriptionLifecycle handles background expiration, grace periods, auto-downgrades, and overage archiving.
+// ProcessSubscriptionLifecycle handles background expiration, grace periods, auto-downgrades, overage archiving, and H-3 renewal notices.
 func ProcessSubscriptionLifecycle(db *gorm.DB) error {
 	_ = ProcessExpiredPendingOrders(db)
 	now := time.Now().UTC()
 
+	// 1. Advance H-3 Renewal Reminder Scan (3 days before expiration)
+	h3Threshold := now.Add(72 * time.Hour)
+	var expiringStores []models.Store
+	if err := db.Where("plan != ? AND plan_status = ? AND plan_expires_at IS NOT NULL AND plan_expires_at > ? AND plan_expires_at <= ?", "free", "active", now, h3Threshold).Find(&expiringStores).Error; err == nil {
+		for _, store := range expiringStores {
+			targetPlanCode := store.Plan
+			if store.NextPlanCode != nil && *store.NextPlanCode != "" {
+				targetPlanCode = *store.NextPlanCode
+			}
+
+			targetPlan, _ := GetPlanByCode(db, targetPlanCode)
+			targetName := targetPlanCode
+			targetPrice := "Gratis"
+			if targetPlan != nil {
+				targetName = targetPlan.Name
+				if targetPlan.PriceMonthly > 0 {
+					targetPrice = fmt.Sprintf("Rp %d / bulan", int64(targetPlan.PriceMonthly))
+				}
+			}
+
+			var user models.User
+			if err := db.First(&user, store.UserID).Error; err == nil && user.Email != "" {
+				expStr := store.PlanExpiresAt.Format("02 January 2006")
+				refID := fmt.Sprintf("store_%d_h3_%s", store.ID, store.PlanExpiresAt.Format("20060102"))
+				subj, body := BuildSubscriptionRenewalReminderH3Email(store.StoreTitle, targetName, targetPrice, expStr, store.Slug)
+				_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_renewal_reminder_h3", refID)
+			}
+		}
+	}
+
+	// 2. Scan expired stores (plan_expires_at <= now)
 	var stores []models.Store
-	// Find all non-free stores or stores with expiration set
 	if err := db.Where("plan != ? AND plan_expires_at IS NOT NULL AND plan_expires_at <= ?", "free", now).Find(&stores).Error; err != nil {
 		return err
 	}
@@ -478,6 +537,20 @@ func ProcessSubscriptionLifecycle(db *gorm.DB) error {
 			store.GracePeriodUntil = &graceEnd
 			db.Save(&store)
 			log.Info().Uint("store_id", store.ID).Time("grace_until", graceEnd).Msg("Store entered subscription grace period")
+
+			// Send Grace Period Notice Email
+			var user models.User
+			if err := db.First(&user, store.UserID).Error; err == nil && user.Email != "" {
+				currPlan, _ := GetPlanByCode(db, store.Plan)
+				pName := store.Plan
+				if currPlan != nil {
+					pName = currPlan.Name
+				}
+				graceStr := graceEnd.Format("02 January 2006")
+				subj, body := BuildSubscriptionGracePeriodEmail(store.StoreTitle, pName, graceStr, store.Slug)
+				refID := fmt.Sprintf("store_%d_grace_%s", store.ID, graceEnd.Format("20060102"))
+				_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_grace_period", refID)
+			}
 			continue
 		}
 
@@ -518,6 +591,7 @@ func ProcessSubscriptionLifecycle(db *gorm.DB) error {
 		db.Save(&store)
 
 		// Step 3: Auto-Archive Products exceeding new plan quota
+		archivedCount := 0
 		if targetPlan.MaxItems > 0 {
 			var activeProducts []models.Product
 			db.Where("store_id = ? AND is_active = ?", store.ID, true).
@@ -527,6 +601,7 @@ func ProcessSubscriptionLifecycle(db *gorm.DB) error {
 			if len(activeProducts) > targetPlan.MaxItems {
 				// Keep newest targetPlan.MaxItems active, archive the rest
 				toArchive := activeProducts[targetPlan.MaxItems:]
+				archivedCount = len(toArchive)
 				archivedTime := now
 				for _, p := range toArchive {
 					db.Model(&models.Product{}).Where("id = ?", p.ID).Updates(map[string]interface{}{
@@ -539,6 +614,14 @@ func ProcessSubscriptionLifecycle(db *gorm.DB) error {
 					Int("archived_count", len(toArchive)).
 					Msg("Auto-archived over-quota products after downgrade")
 			}
+		}
+
+		// Send Transition Executed Notice Email
+		var user models.User
+		if err := db.First(&user, store.UserID).Error; err == nil && user.Email != "" {
+			subj, body := BuildSubscriptionTransitionExecutedEmail(store.StoreTitle, targetPlan.Name, targetPlan.MaxItems, archivedCount, store.Slug)
+			refID := fmt.Sprintf("store_%d_transition_%s", store.ID, now.Format("20060102"))
+			_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_transition_executed", refID)
 		}
 	}
 
@@ -957,6 +1040,22 @@ func CancelStoreDowngrade(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 	}
 
 	database.InvalidateStoreQuotaCache(context.Background(), storeID)
+
+	var user models.User
+	if err := db.First(&user, store.UserID).Error; err == nil && user.Email != "" {
+		currPlan, _ := GetPlanByCode(db, store.Plan)
+		currName := store.Plan
+		if currPlan != nil {
+			currName = currPlan.Name
+		}
+		effectiveDateStr := "akhir periode aktif"
+		if store.PlanExpiresAt != nil {
+			effectiveDateStr = store.PlanExpiresAt.Format("02 January 2006")
+		}
+		subj, body := BuildSubscriptionDowngradeCancelledEmail(store.StoreTitle, currName, effectiveDateStr, store.Slug)
+		_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_cancelled", fmt.Sprintf("store_%d_cancel_downgrade_%d", store.ID, time.Now().Unix()))
+	}
+
 	return GetStoreQuotaInfo(db, storeID)
 }
 
