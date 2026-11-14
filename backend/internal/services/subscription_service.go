@@ -820,17 +820,26 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 	if orderType == "" {
 		orderType = req.OrderType
 	}
-	if orderType == "" {
-		var store models.Store
-		if err := db.First(&store, storeID).Error; err == nil {
-			if store.Plan == planCode {
-				orderType = "renewal"
-			} else {
-				orderType = "upgrade"
+	var currentStore models.Store
+	if err := db.First(&currentStore, storeID).Error; err == nil {
+		if currentStore.Plan == planCode && planCode != "free" {
+			orderType = "renewal"
+			now := time.Now().UTC()
+			if currentStore.PlanStatus == "active" && currentStore.PlanExpiresAt != nil {
+				renewalWindowStart := currentStore.PlanExpiresAt.Add(-3 * 24 * time.Hour)
+				if now.Before(renewalWindowStart) {
+					daysRemaining := int(currentStore.PlanExpiresAt.Sub(now).Hours() / 24)
+					if daysRemaining < 1 {
+						daysRemaining = 1
+					}
+					return nil, nil, fmt.Errorf("paket langganan Anda masih aktif (%d hari tersisa). Perpanjangan baru dapat dilakukan saat memasuki masa kedaluwarsa (H-3) atau masa tenggang", daysRemaining)
+				}
 			}
-		} else {
+		} else if orderType == "" {
 			orderType = "upgrade"
 		}
+	} else if orderType == "" {
+		orderType = "upgrade"
 	}
 
 	notes := strings.TrimSpace(req.Notes)

@@ -272,6 +272,13 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   if (!isOpen && !isPage) return null;
 
   const currentPlanCode = effectiveQuota?.plan?.code || 'free';
+  const canRenewCurrentPlan = Boolean(
+    effectiveQuota?.is_in_grace_period ||
+    effectiveQuota?.plan_status === 'grace_period' ||
+    effectiveQuota?.plan_status === 'expired' ||
+    (effectiveQuota?.days_remaining !== undefined && effectiveQuota.days_remaining <= 3) ||
+    (effectiveQuota?.plan_expires_at && (new Date(effectiveQuota.plan_expires_at).getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000))
+  );
 
   const formatBytes = (bytes: number): string => {
     if (!bytes || bytes === 0) return '0 MB';
@@ -1116,22 +1123,68 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                     <div>
                       {isCurrent ? (
                         plan.code !== 'free' ? (
-                          <button
-                            type="button"
-                            disabled={isLoading || internalLoading}
-                            onClick={() => openCheckout(plan, 'renewal')}
-                            className="btn-primary"
-                            style={{
-                              width: '100%',
-                              padding: '0.75rem',
-                              borderRadius: '0.55rem',
-                              fontWeight: 800,
-                              fontSize: '0.86rem',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Perpanjang Paket Ini
-                          </button>
+                          canRenewCurrentPlan ? (
+                            <button
+                              type="button"
+                              disabled={isLoading || internalLoading}
+                              onClick={() => openCheckout(plan, 'renewal')}
+                              className="btn-primary"
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem 0.75rem',
+                                borderRadius: '0.55rem',
+                                fontWeight: 800,
+                                fontSize: '0.86rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.15rem'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <RotateCcw size={14} />
+                                <span>Perpanjang Paket Ini</span>
+                              </div>
+                              <span style={{ fontSize: '0.7rem', opacity: 0.9, fontWeight: 600 }}>
+                                {effectiveQuota?.is_in_grace_period 
+                                  ? 'Masa Tenggang Aktif' 
+                                  : (effectiveQuota?.days_remaining === 0 ? 'Kedaluwarsa Hari Ini' : `Sisa ${effectiveQuota?.days_remaining} hari lagi`)}
+                              </span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={true}
+                              style={{
+                                width: '100%',
+                                padding: '0.65rem 0.75rem',
+                                borderRadius: '0.55rem',
+                                background: 'rgba(255, 255, 255, 0.04)',
+                                color: 'var(--text-muted)',
+                                border: '1px solid var(--border-light)',
+                                fontWeight: 700,
+                                fontSize: '0.84rem',
+                                cursor: 'not-allowed',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.2rem',
+                                opacity: 0.75
+                              }}
+                              title={`Paket masih aktif (${effectiveQuota?.days_remaining || 0} hari tersisa). Perpanjang paket baru dibuka saat memasuki masa kedaluwarsa (H-3) atau masa tenggang.`}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <Clock size={14} style={{ color: 'var(--text-muted)' }} />
+                                <span>Perpanjang Paket Ini</span>
+                              </div>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                Tersedia saat H-3 ({effectiveQuota?.days_remaining || 0} hari tersisa)
+                              </span>
+                            </button>
+                          )
                         ) : (
                           <div style={{
                             width: '100%',

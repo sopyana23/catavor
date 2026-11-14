@@ -392,9 +392,22 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
     }
   };
 
+  const canRenewCurrentPlan = Boolean(
+    currentQuota?.is_in_grace_period ||
+    currentQuota?.plan_status === 'grace_period' ||
+    currentQuota?.plan_status === 'expired' ||
+    (currentQuota?.days_remaining !== undefined && currentQuota.days_remaining <= 3) ||
+    (currentQuota?.plan_expires_at && (new Date(currentQuota.plan_expires_at).getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000))
+  );
+
   const handleProceedToPayment = () => {
     if (selectedPlan?.code === 'free') {
       showToast('Anda sudah berada pada paket Gratis atau pilih paket Pro', 'error');
+      return;
+    }
+    const currentCode = currentQuota?.plan?.code || 'free';
+    if (selectedPlan?.code === currentCode && currentCode !== 'free' && !canRenewCurrentPlan) {
+      showToast(`Paket Anda masih aktif (${currentQuota?.days_remaining || 0} hari tersisa). Perpanjangan baru dapat dilakukan saat memasuki masa kedaluwarsa (H-3).`, 'error');
       return;
     }
     setCheckoutStep('payment_detail');
@@ -790,6 +803,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                             setCheckoutStep('downgrade_confirm');
                             return;
                           }
+                          if (isCurrent && !canRenewCurrentPlan) return;
                           setSelectedPlanCode(p.code);
                         }}
                         style={{
@@ -802,7 +816,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'space-between',
-                          cursor: (p.code === 'free' && currentRank > 0) ? 'default' : 'pointer',
+                          cursor: (p.code === 'free' && currentRank > 0) || (isCurrent && !canRenewCurrentPlan) ? 'default' : 'pointer',
                           position: 'relative',
                           transition: 'all 0.15s ease'
                         }}
@@ -873,17 +887,87 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
 
                         <div style={{ marginTop: '1.25rem' }}>
                           {isCurrent ? (
-                            <div style={{
-                              textAlign: 'center',
-                              padding: '0.5rem',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              color: '#10b981',
-                              backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                              borderRadius: '0.5rem'
-                            }}>
-                              Paket Saat Ini
-                            </div>
+                            p.code !== 'free' ? (
+                              canRenewCurrentPlan ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPlanCode(p.code);
+                                    setCheckoutStep('payment_detail');
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    minHeight: '44px',
+                                    padding: '0.55rem 0.75rem',
+                                    borderRadius: '0.55rem',
+                                    fontWeight: 800,
+                                    fontSize: '0.82rem',
+                                    backgroundColor: 'var(--primary)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.15rem'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                    <RotateCcw size={14} />
+                                    <span>Perpanjang Paket Ini</span>
+                                  </div>
+                                  <span style={{ fontSize: '0.68rem', opacity: 0.9 }}>
+                                    {currentQuota?.is_in_grace_period ? 'Masa Tenggang' : `Sisa ${currentQuota?.days_remaining || 0} hari`}
+                                  </span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={true}
+                                  style={{
+                                    width: '100%',
+                                    minHeight: '44px',
+                                    padding: '0.55rem 0.75rem',
+                                    borderRadius: '0.55rem',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                                    color: 'var(--text-muted)',
+                                    border: '1px solid var(--border-light)',
+                                    fontWeight: 700,
+                                    fontSize: '0.82rem',
+                                    cursor: 'not-allowed',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.15rem',
+                                    opacity: 0.75
+                                  }}
+                                  title={`Paket masih aktif (${currentQuota?.days_remaining || 0} hari tersisa). Perpanjangan baru dapat dilakukan saat memasuki masa kedaluwarsa (H-3).`}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                    <Clock size={14} style={{ color: 'var(--text-muted)' }} />
+                                    <span>Perpanjang Paket Ini</span>
+                                  </div>
+                                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                    Tersedia saat H-3 ({currentQuota?.days_remaining || 0} hari tersisa)
+                                  </span>
+                                </button>
+                              )
+                            ) : (
+                              <div style={{
+                                textAlign: 'center',
+                                padding: '0.5rem',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                color: '#10b981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                borderRadius: '0.5rem'
+                              }}>
+                                Paket Saat Ini
+                              </div>
+                            )
                           ) : (p.code === 'free' && currentRank > 0) ? (
                             <div style={{
                               textAlign: 'center',
@@ -1916,27 +2000,36 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
               >
                 Batal
               </button>
-              <button
-                type="button"
-                onClick={handleProceedToPayment}
-                style={{
-                  minHeight: '44px',
-                  padding: '0.5rem 1.5rem',
-                  borderRadius: '0.5rem',
-                  border: 'none',
-                  backgroundColor: 'var(--primary)',
-                  color: '#ffffff',
-                  fontSize: '0.88rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Lanjutkan ke Pembayaran
-                <ArrowRight size={16} />
-              </button>
+              {(() => {
+                const currentCode = currentQuota?.plan?.code || 'free';
+                const isSelectedCurrent = selectedPlan?.code === currentCode && currentCode !== 'free';
+                const isRenewalDisabled = isSelectedCurrent && !canRenewCurrentPlan;
+
+                return (
+                  <button
+                    type="button"
+                    disabled={isRenewalDisabled}
+                    onClick={handleProceedToPayment}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.5rem 1.5rem',
+                      borderRadius: '0.5rem',
+                      border: 'none',
+                      backgroundColor: isRenewalDisabled ? 'rgba(255, 255, 255, 0.05)' : 'var(--primary)',
+                      color: isRenewalDisabled ? 'var(--text-muted)' : '#ffffff',
+                      fontSize: '0.88rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      cursor: isRenewalDisabled ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {isRenewalDisabled ? 'Paket Masih Aktif' : 'Lanjutkan ke Pembayaran'}
+                    {!isRenewalDisabled && <ArrowRight size={16} />}
+                  </button>
+                );
+              })()}
             </div>
           </div>
         )}
