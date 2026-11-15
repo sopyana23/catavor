@@ -41,26 +41,17 @@ import {
 import { SafeImage } from './SafeImage';
 import { ProofLightbox } from './ProofLightbox';
 
-export const resolveProofImageUrl = (order: any, token?: string | null): string => {
+export const resolveProofImageUrl = (order: any, _token?: string | null): string => {
   if (!order) return '';
-  const raw = order.payment_proof_url || order.proof_url || '';
-  if (raw && (raw.startsWith('data:') || raw.startsWith('blob:'))) {
+  const raw = (order.payment_proof_url || order.proof_url || '').trim();
+  const identifier = order.id || order.order_number;
+  if (identifier && (raw || order._isHydrating)) {
+    return `/api/subscription/orders/${encodeURIComponent(String(identifier))}/proof`;
+  }
+  if (raw && (raw.startsWith('blob:') || raw.startsWith('data:image/'))) {
     return raw;
   }
-  if (raw && (raw.startsWith('http://') || raw.startsWith('https://'))) {
-    return raw;
-  }
-  // Only route to authenticated proof streaming endpoint if proof exists or if hydrating from URL
-  if (raw || order._isHydrating) {
-    const identifier = order.id || order.order_number;
-    if (identifier) {
-      const effectiveToken = token || (typeof window !== 'undefined' ? (localStorage.getItem('catavor_token') || localStorage.getItem('token')) : null);
-      const t = effectiveToken ? `?token=${encodeURIComponent(effectiveToken)}` : '';
-      return `/api/subscription/orders/${encodeURIComponent(String(identifier))}/proof${t}`;
-    }
-  }
-  if (!raw) return '';
-  return raw.startsWith('/') ? raw : `/storage/${raw}`;
+  return '';
 };
 
 export interface SubscriptionPlanData {

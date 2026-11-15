@@ -3328,7 +3328,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const customerEmail = o?.user?.email || '-';
     const senderAccountName = o?.sender_account_name || o?.user?.name || '-';
     const senderPhone = o?.sender_phone || o?.store?.whatsapp_number || o?.user?.phone || '';
-    const proofUrl = o?.payment_proof_url || o?.transfer_proof_url || '';
+    const rawProof = (o?.payment_proof_url || o?.transfer_proof_url || '').trim();
+    let proofUrl = '';
+    if (rawProof) {
+      const orderId = o?.id || o?.order_number;
+      if (orderId) {
+        proofUrl = `/api/admin/subscription/orders/${encodeURIComponent(String(orderId))}/proof`;
+      } else if (rawProof.startsWith('blob:') || rawProof.startsWith('data:image/')) {
+        proofUrl = rawProof;
+      }
+    }
     const notes = o?.notes || '';
     const rejectionReason = o?.rejection_reason || '';
     const approvedByLabel = o?.approved_by_user?.name || o?.approved_by_user?.email || (isPaid && isAulaaGateway ? 'Webhook Otomatis Aulaa.co' : (isPaid ? 'Admin Keuangan Platform' : '-'));

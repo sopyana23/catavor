@@ -3324,7 +3324,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const notes = (o?.notes || '').trim();
     const rejectionReason = (o?.rejection_reason || '').trim();
     const orderNumber = o?.order_number || o?.invoice_number || `INV-SUB-${o?.id}`;
-    const proofUrl = (o?.payment_proof_url || o?.transfer_proof_url || '').trim();
+    const rawProof = (o?.payment_proof_url || o?.transfer_proof_url || '').trim();
+    let proofUrl = '';
+    if (rawProof) {
+      const orderId = o?.id || o?.order_number;
+      if (orderId) {
+        proofUrl = `/api/admin/subscription/orders/${encodeURIComponent(String(orderId))}/proof`;
+      } else if (rawProof.startsWith('blob:') || rawProof.startsWith('data:image/')) {
+        proofUrl = rawProof;
+      }
+    }
     const approvedByName = o?.approved_by_user?.name || (o?.approved_by ? `Admin #${o.approved_by}` : '');
 
     return {

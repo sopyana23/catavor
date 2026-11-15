@@ -302,7 +302,10 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		} else if userID > 0 {
 			objectKey = fmt.Sprintf("billing/users/%d/%d/%02d/%s%s", userID, now.Year(), now.Month(), uniqueID, ext)
 		} else {
-			objectKey = fmt.Sprintf("billing/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Unggahan bukti pembayaran memerlukan identitas toko atau pengguna yang valid.",
+			})
 		}
 	} else if category == "articles" {
 		objectKey = fmt.Sprintf("articles/%d/%02d/%s%s", now.Year(), now.Month(), uniqueID, ext)

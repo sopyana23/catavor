@@ -97,3 +97,58 @@ func indexOf(s, sub string) int {
 	}
 	return -1
 }
+
+func TestValidatePaymentProofURL(t *testing.T) {
+	// 1. Path traversal attacks (N-61)
+	traversalPayloads := []string{
+		"../../../../backend/.env",
+		"../canary_n61.txt",
+		"..\\..\\..\\boot.ini",
+		"/etc/passwd",
+		"C:\\Windows\\system32",
+		"storage/../../.env",
+	}
+	for _, p := range traversalPayloads {
+		if _, err := ValidatePaymentProofURL(p); err == nil {
+			t.Errorf("Path traversal %q harusnya ditolak, tapi lolos", p)
+		}
+	}
+
+	// 2. Stored XSS & Open Redirect attacks (N-59)
+	maliciousPayloads := []string{
+		"data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+		"data:text/javascript;base64,YWxlcnQoMSk=",
+		"data:application/pdf;base64,JVBERi0=",
+		"https://evil.example.com/phishing",
+		"http://evil.example.com/login",
+		"javascript:alert(1)",
+		"stores/1/products/billing/evil.jpg",
+		"stores/abc/billing/evil.jpg",
+		"private/support/tickets/2026/11/secret.jpg",
+		"private/stores/1/billing/2026/11/secret.exe",
+	}
+	for _, p := range maliciousPayloads {
+		if _, err := ValidatePaymentProofURL(p); err == nil {
+			t.Errorf("Payload berbahaya/ilegal %q harusnya ditolak, tapi lolos", p)
+		}
+	}
+
+	// 3. Valid inputs (Temuan Baru A & D)
+	validInputs := []string{
+		"data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+		"data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==",
+		"data:image/webp;base64,UklGR==",
+		"billing/users/1/2026/11/proof.jpg",
+		"private/billing/users/33/2026/11/proof.jpg",
+		"private/stores/1/billing/2026/11/transfer.png",
+		"stores/1/billing/2026/11/qris.webp",
+		"/storage/private/stores/1/billing/2026/11/transfer.png",
+		"/storage/billing/users/1/2026/11/proof.jpg",
+		"",
+	}
+	for _, p := range validInputs {
+		if _, err := ValidatePaymentProofURL(p); err != nil {
+			t.Errorf("Input sah %q harusnya diterima, tapi error: %v", p, err)
+		}
+	}
+}

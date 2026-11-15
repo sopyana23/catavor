@@ -180,7 +180,8 @@ func AuthRateLimiter() fiber.Handler {
 		Max:        20,
 		Expiration: 1 * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
-			return c.IP() + "_" + c.Path()
+			normPath := strings.ToLower(strings.TrimRight(c.Path(), "/"))
+			return c.IP() + "_" + normPath
 		},
 		LimitReached: func(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{

@@ -861,8 +861,29 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
+	var validatedProofURL string
+	if strings.TrimSpace(req.PaymentProofURL) != "" {
+		trimmedProof := strings.TrimSpace(req.PaymentProofURL)
+		// SECURITY (R3-1 Anti-IDOR): Registrant does not have a store or storage session yet.
+		// Payment proof MUST be an uploaded data URI image, never an existing internal storage key.
+		if !strings.HasPrefix(strings.ToLower(trimmedProof), "data:image/") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Bukti transfer pembayaran untuk pendaftaran akun baru wajib berupa gambar (data:image/...;base64,...), bukan kunci penyimpanan internal.",
+			})
+		}
+		cleanedProof, proofErr := security.ValidatePaymentProofURL(trimmedProof)
+		if proofErr != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Bukti transfer pembayaran tidak valid: " + proofErr.Error(),
+			})
+		}
+		validatedProofURL = cleanedProof
+	}
+
 	if requestedPlan != "free" && finalAmount > 0 && paymentSystemMode == "manual_qris" {
-		if strings.TrimSpace(req.PaymentProofURL) == "" {
+		if validatedProofURL == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": "Bukti transfer pembayaran wajib diunggah sebelum menyelesaikan pendaftaran paket berbayar.",
@@ -934,7 +955,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			PaymentMode:     paymentSystemMode,
 			SenderAccountName: senderName,
 			SenderPhone:       senderPhone,
-			PaymentProofURL: req.PaymentProofURL,
+			PaymentProofURL: validatedProofURL,
 			PaymentStatus:   orderPaymentStatus,
 			Notes:             orderNotes,
 			PaidAt:          orderPaidAt,

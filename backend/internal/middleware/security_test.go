@@ -403,6 +403,37 @@ func TestAuthRateLimiter(t *testing.T) {
 	}
 }
 
+// TestAuthRateLimiter_PathNormalization_N62: varian path (trailing slash, case) berbagi bucket rate limiter yang sama.
+func TestAuthRateLimiter_PathNormalization_N62(t *testing.T) {
+	app := rateLimitApp(t, AuthRateLimiter(), map[string]string{
+		"/api/auth/login":  http.MethodPost,
+		"/api/auth/login/": http.MethodPost,
+		"/API/AUTH/LOGIN":  http.MethodPost,
+	})
+	const ip = "192.0.2.77"
+
+	// 10 hits ke /api/auth/login
+	for i := 1; i <= 10; i++ {
+		res := hit(t, app, http.MethodPost, "/api/auth/login", ip)
+		if res.StatusCode != 200 {
+			t.Fatalf("hit ke-%d status %d, harus 200", i, res.StatusCode)
+		}
+	}
+	// 10 hits ke /api/auth/login/
+	for i := 11; i <= 20; i++ {
+		res := hit(t, app, http.MethodPost, "/api/auth/login/", ip)
+		if res.StatusCode != 200 {
+			t.Fatalf("hit ke-%d status %d, harus 200", i, res.StatusCode)
+		}
+	}
+
+	// Percobaan ke-21 via /API/AUTH/LOGIN harus langsung 429 Too Many Requests karena berbagi bucket normalisasi
+	res := hit(t, app, http.MethodPost, "/API/AUTH/LOGIN", ip)
+	if res.StatusCode != fiber.StatusTooManyRequests {
+		t.Fatalf("percobaan ke-21 varian path status %d, harus 429", res.StatusCode)
+	}
+}
+
 // TestPublicSubmissionRateLimiter: 15 pengiriman per menit per IP.
 func TestPublicSubmissionRateLimiter(t *testing.T) {
 	app := rateLimitApp(t, PublicSubmissionRateLimiter(), map[string]string{"/api/public/comment": http.MethodPost})

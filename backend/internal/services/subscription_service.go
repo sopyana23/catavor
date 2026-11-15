@@ -13,6 +13,7 @@ import (
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 	"catavor-backend/internal/storage"
 
 	"github.com/rs/zerolog/log"
@@ -687,6 +688,28 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		exp := time.Now().UTC().Add(2 * time.Hour)
 		expiresAt = &exp
 		if strings.TrimSpace(req.PaymentProofURL) != "" {
+			cleanedProof, proofErr := security.ValidatePaymentProofURL(req.PaymentProofURL)
+			if proofErr != nil {
+				return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: %w", proofErr)
+			}
+			// SECURITY (N-61 IDOR Tenant Binding & R3-1): Validasi kepemilikan tenant bila bukan data URL
+			lowerProof := strings.ToLower(cleanedProof)
+			subKey := strings.TrimPrefix(lowerProof, "private/")
+			if strings.HasPrefix(subKey, "stores/") {
+				expectedPrefix := fmt.Sprintf("stores/%d/billing/", storeID)
+				if !strings.HasPrefix(subKey, expectedPrefix) {
+					return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: berkas bukan milik toko Anda")
+				}
+			} else if strings.HasPrefix(subKey, "billing/users/") {
+				expectedPrefix := fmt.Sprintf("billing/users/%d/", userID)
+				if !strings.HasPrefix(subKey, expectedPrefix) {
+					return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: berkas bukan milik akun Anda")
+				}
+			} else if !strings.HasPrefix(lowerProof, "data:image/") {
+				// SECURITY (R3-1): Any storage key MUST have explicit tenant binding (stores/<id>/ or billing/users/<id>/)
+				return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: namespace penyimpanan tidak memiliki identitas pemilik")
+			}
+			req.PaymentProofURL = cleanedProof
 			paymentStatus = "pending_verification"
 		}
 	} else if paymentMode == "gateway_aulaa" {

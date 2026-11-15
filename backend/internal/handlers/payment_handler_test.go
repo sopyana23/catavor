@@ -200,6 +200,10 @@ func TestPaymentHandler_SyncOrderStatus(t *testing.T) {
 	handler := NewPaymentHandler(db)
 
 	app := fiber.New()
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals("store_id", uint(1))
+		return c.Next()
+	})
 	app.Post("/api/subscription/orders/:id/sync", handler.SyncOrderStatus)
 
 	paidOrder := models.SubscriptionOrder{
@@ -241,6 +245,24 @@ func TestPaymentHandler_SyncOrderStatus(t *testing.T) {
 		_ = json.NewDecoder(resp.Body).Decode(&result)
 		if result["success"] != true {
 			t.Errorf("expected success = true, got %v", result["success"])
+		}
+	})
+
+	t.Run("sync by unauthorized store caller should return 404 anti-idor (N-41)", func(t *testing.T) {
+		appDiffStore := fiber.New()
+		appDiffStore.Use(func(c *fiber.Ctx) error {
+			c.Locals("store_id", uint(999)) // Toko lain (penyusup)
+			return c.Next()
+		})
+		appDiffStore.Post("/api/subscription/orders/:id/sync", handler.SyncOrderStatus)
+
+		req := httptest.NewRequest("POST", fmt.Sprintf("/api/subscription/orders/%d/sync", paidOrder.ID), nil)
+		resp, err := appDiffStore.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode != fiber.StatusNotFound {
+			t.Errorf("status = %d, want 404 (anti-IDOR blocking)", resp.StatusCode)
 		}
 	})
 }

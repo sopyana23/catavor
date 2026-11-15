@@ -125,6 +125,7 @@ func TestGetPostgresDSN(t *testing.T) {
 const validSecret = "0123456789abcdef0123456789abcdef" // 32 karakter
 
 func TestLoadConfig_DefaultLocal(t *testing.T) {
+	t.Setenv("SKIP_DOTENV", "true")
 	t.Setenv("JWT_SECRET", validSecret)
 	t.Setenv("APP_ENV", "local")
 	t.Setenv("DB_SSLMODE", "disable")
@@ -183,6 +184,7 @@ func TestLoadConfig_DefaultLocal(t *testing.T) {
 }
 
 func TestLoadConfig_ParsingVariabel(t *testing.T) {
+	t.Setenv("SKIP_DOTENV", "true")
 	t.Setenv("JWT_SECRET", validSecret)
 	t.Setenv("APP_ENV", "local")
 	t.Setenv("DB_SSLMODE", "disable")

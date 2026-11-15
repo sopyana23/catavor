@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -505,4 +507,68 @@ func ValidateOrderLimits(minVal interface{}, maxVal interface{}) (int, *int) {
 // Legitimate human users will not see or fill this hidden field.
 func IsBotHoneypotTriggered(val string) bool {
 	return strings.TrimSpace(val) != ""
+}
+
+// ValidatePaymentProofURL validates that a payment proof URL or storage key is safe
+// against path traversal and restricted to image data URLs or valid billing storage keys (N-61/N-59).
+func ValidatePaymentProofURL(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+
+	// Format 1: Data URL base64 gambar
+	if strings.HasPrefix(trimmed, "data:") {
+		lower := strings.ToLower(trimmed)
+		if strings.HasPrefix(lower, "data:image/jpeg;base64,") ||
+			strings.HasPrefix(lower, "data:image/png;base64,") ||
+			strings.HasPrefix(lower, "data:image/webp;base64,") ||
+			strings.HasPrefix(lower, "data:image/jpg;base64,") {
+			return trimmed, nil
+		}
+		return "", fmt.Errorf("format data gambar bukti pembayaran tidak didukung")
+	}
+
+	// Format 2: Storage key untuk bukti pembayaran
+	// Tolak skema drive (C:), protocol (http:), backslash, dan path traversal ("..")
+	cleanKey := filepath.ToSlash(trimmed)
+	if strings.Contains(cleanKey, "..") || strings.Contains(cleanKey, "\\") || strings.Contains(cleanKey, ":") {
+		return "", fmt.Errorf("format bukti pembayaran tidak valid")
+	}
+
+	// Normalisasi leading slash & prefix storage/ secara seragam di Windows maupun Linux (Temuan Baru D)
+	cleanKey = strings.TrimLeft(cleanKey, "/")
+	cleanKey = strings.TrimPrefix(cleanKey, "storage/")
+	cleanKey = strings.TrimLeft(cleanKey, "/")
+
+	if cleanKey == "" {
+		return "", fmt.Errorf("format bukti pembayaran tidak valid: path kosong")
+	}
+
+	// Ekstensi wajib file gambar yang diizinkan
+	ext := strings.ToLower(filepath.Ext(cleanKey))
+	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" && ext != ".webp" {
+		return "", fmt.Errorf("ekstensi file bukti pembayaran harus gambar (.jpg, .jpeg, .png, .webp)")
+	}
+
+	lowerKey := strings.ToLower(cleanKey)
+	subKey := strings.TrimPrefix(lowerKey, "private/")
+
+	// Validasi namespace:
+	// Format sah 1: billing/... (misal billing/2026/11/x.jpg atau billing/users/33/2026/11/x.jpg)
+	if strings.HasPrefix(subKey, "billing/") {
+		return cleanKey, nil
+	}
+
+	// Format sah 2: stores/<storeID>/billing/... (Temuan Baru A)
+	if strings.HasPrefix(subKey, "stores/") {
+		parts := strings.Split(subKey, "/")
+		if len(parts) >= 4 && parts[2] == "billing" {
+			if _, err := strconv.ParseUint(parts[1], 10, 64); err == nil {
+				return cleanKey, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("namespace penyimpanan bukti pembayaran tidak diizinkan")
 }

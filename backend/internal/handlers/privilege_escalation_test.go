@@ -119,3 +119,54 @@ func TestN20ApproveLanggananTercatat(t *testing.T) {
 		t.Error("N-20: changes pada entri audit tidak memuat approved_by")
 	}
 }
+
+// TestR3_1_RegistrasiTolakStorageKeyInternal mengunci agar alur registrasi akun baru
+// menolak seluruh storage key internal (hanya izinkan data:image/ URI) untuk mencegah
+// IDOR pencurian bukti bayar toko lain (R3-1).
+func TestR3_1_RegistrasiTolakStorageKeyInternal(t *testing.T) {
+	src, err := bacaSumberHandler("auth_handler.go")
+	if err != nil {
+		t.Fatalf("R3-1: gagal membaca auth_handler.go: %v", err)
+	}
+
+	if !strings.Contains(src, "data:image/") {
+		t.Error("R3-1: auth_handler.go tidak memvalidasi prefix data:image/ pada PaymentProofURL registrasi")
+	}
+}
+
+// TestR3_2_ShadowRouteProofDihapusDariPublicAPI mengunci agar route proof
+// tidak didaftarkan pada public router api, melainkan hanya di guarded/adminApi (R3-2).
+func TestR3_2_ShadowRouteProofDihapusDariPublicAPI(t *testing.T) {
+	src := bacaSumberServer(t)
+
+	// Route publik "api.Get("/subscription/orders/:id/proof"" HARAM ada
+	if strings.Contains(src, `api.Get("/subscription/orders/:id/proof"`) {
+		t.Error("R3-2: main.go masih mendaftarkan shadow public route api.Get(\"/subscription/orders/:id/proof\"); wajib dihapus")
+	}
+
+	// Route harus tetap ada di guarded
+	if !strings.Contains(src, `guarded.Get("/subscription/orders/:id/proof"`) {
+		t.Error("R3-2: main.go harus mendaftarkan guarded.Get(\"/subscription/orders/:id/proof\")")
+	}
+
+	// Route harus tetap ada di adminApi
+	if !strings.Contains(src, `adminApi.Get("/subscription/orders/:id/proof"`) {
+		t.Error("R3-2: main.go harus mendaftarkan adminApi.Get(\"/subscription/orders/:id/proof\")")
+	}
+}
+
+// TestR3_3_StaffWajibPermissionFinanceOrdersRead memastikan GetOrderProof
+// memeriksa permission finance:orders:read dan bukan broad IsPlatformStaff (R3-3).
+func TestR3_3_StaffWajibPermissionFinanceOrdersRead(t *testing.T) {
+	src, err := bacaSumberHandler("subscription_handler.go")
+	if err != nil {
+		t.Fatalf("R3-3: gagal membaca subscription_handler.go: %v", err)
+	}
+
+	if !strings.Contains(src, `"finance:orders:read"`) {
+		t.Error("R3-3: subscription_handler.go GetOrderProof tidak memeriksa permission finance:orders:read")
+	}
+	if strings.Contains(src, "ExtractOptionalClaims") {
+		t.Error("R3-3: subscription_handler.go GetOrderProof tidak boleh memakai fallback ExtractOptionalClaims")
+	}
+}

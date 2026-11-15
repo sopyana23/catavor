@@ -226,14 +226,19 @@ func main() {
 	services.StartTrendingCalculatorWorker(database.DB, 2*time.Hour)
 
 	// 7. Static Asset Directories with Hardened Security Headers
-	// SECURITY (ST-01): route statis /storage hanya boleh menyajikan aset
+	// SECURITY (ST-01, N-58): route statis /storage hanya boleh menyajikan aset
 	// publik. Bukti pembayaran dan lampiran tiket bantuan adalah berkas privat
 	// yang hidup di StoragePrivateRoot dan hanya dapat diakses lewat endpoint
-	// ber-otorisasi (GET /api/support/attachments/:id).
+	// ber-otorisasi (GET /api/support/attachments/:id). Tolak path traversal
+	// serta segmen private/, support/, dan billing/ di SEMUA kedalaman path.
 	app.Use("/storage", func(c *fiber.Ctx) error {
-		rel := strings.ToLower(strings.TrimLeft(strings.TrimPrefix(c.Path(), "/storage"), "/"))
-		for _, prefix := range []string{"private/", "support/", "billing/"} {
-			if strings.HasPrefix(rel, prefix) {
+		raw := strings.TrimPrefix(c.Path(), "/storage")
+		rel := strings.ToLower(strings.TrimLeft(raw, "/\\"))
+		if strings.Contains(rel, "..") || filepath.IsAbs(rel) || strings.Contains(rel, ":") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
+		}
+		for _, seg := range []string{"private/", "support/", "billing/"} {
+			if strings.HasPrefix(rel, seg) || strings.Contains(rel, "/"+seg) || strings.Contains(rel, "\\"+seg) {
 				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
 			}
 		}
@@ -255,10 +260,13 @@ func main() {
 				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Path berkas tidak valid."})
 			}
 
-			// Keamanan ketat: jangan pernah menyajikan berkas privat di route publik
+			// Keamanan ketat (N-58): jangan pernah menyajikan berkas privat di route publik di kedalaman apa pun
 			lowerKey := strings.ToLower(cleanKey)
-			for _, prefix := range []string{"private/", "support/", "billing/"} {
-				if strings.HasPrefix(lowerKey, prefix) {
+			if strings.Contains(lowerKey, "..") || filepath.IsAbs(lowerKey) || strings.Contains(lowerKey, ":") {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
+			}
+			for _, seg := range []string{"private/", "support/", "billing/"} {
+				if strings.HasPrefix(lowerKey, seg) || strings.Contains(lowerKey, "/"+seg) || strings.Contains(lowerKey, "\\"+seg) {
 					return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
 				}
 			}
@@ -422,7 +430,6 @@ func main() {
 
 	// Public Subscription Plans & Payment Webhooks
 	api.Get("/subscription/plans", subscriptionHandler.GetPlans)
-	api.Get("/subscription/orders/:id/proof", subscriptionHandler.GetOrderProof)
 	api.Post("/subscription/verify-coupon", subscriptionHandler.VerifyCoupon)
 	api.Post("/auth/verify-coupon", subscriptionHandler.VerifyCoupon)
 	api.Post("/webhooks/payment/aulaa", paymentHandler.HandleAulaaWebhook)

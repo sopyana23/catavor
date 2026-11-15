@@ -58,6 +58,7 @@ func supportApp(t *testing.T, db *gorm.DB, cfg *config.Config) *fiber.App {
 		return c.Next()
 	}
 
+	app.Post("/tickets", actor, h.CreateTicket)
 	app.Get("/tickets/:id", actor, h.GetTicketDetails)
 	app.Post("/tickets/:id/reply", actor, h.ReplyTicket)
 	app.Post("/admin/tickets/:id/reply", actor, h.ReplyAsAdmin)
@@ -619,5 +620,192 @@ func TestSupportReplyAsAdmin_Transaction(t *testing.T) {
 	db.Model(&models.Notification{}).Where("target_id = ? AND type = 'ticket'", ownerUser.ID).Count(&notifCount)
 	if notifCount != 1 {
 		t.Errorf("merchant notification count = %d, want 1", notifCount)
+	}
+}
+
+func TestSupportTicket_AttachmentValidation_N65(t *testing.T) {
+	cfg := &config.Config{
+		StoragePrivateRoot: t.TempDir(),
+		StorageLocalRoot:   t.TempDir(),
+	}
+	db := supportDB(t)
+	app := supportApp(t, db, cfg)
+
+	t.Run("create_ticket_rejects_billing_namespace", func(t *testing.T) {
+		payload := `{
+			"subject": "Kendala IDOR Billing",
+			"category": "technical",
+			"priority": "medium",
+			"message": "Mohon cek bukti pembayaran ini",
+			"attachments": [
+				{"storage_key": "private/billing/users/1/secret.jpg", "file_name": "secret.jpg"}
+			]
+		}`
+		code, body, _ := supportReq(t, app, "POST", "/tickets", payload, "pemilik")
+		if code != 400 {
+			t.Fatalf("status = %d, want 400 (body %v)", code, body)
+		}
+		msg, _ := body["message"].(string)
+		if !strings.Contains(strings.ToLower(msg), "lampiran") {
+			t.Errorf("expected error message to mention lampiran, got: %v", msg)
+		}
+	})
+
+	t.Run("create_ticket_rejects_path_traversal", func(t *testing.T) {
+		payload := `{
+			"subject": "Kendala Traversal",
+			"category": "technical",
+			"priority": "medium",
+			"message": "Traversal test",
+			"attachments": [
+				{"storage_key": "private/support/tickets/../../billing/users/1/secret.jpg", "file_name": "secret.jpg"}
+			]
+		}`
+		code, body, _ := supportReq(t, app, "POST", "/tickets", payload, "pemilik")
+		if code != 400 {
+			t.Fatalf("status = %d, want 400 (body %v)", code, body)
+		}
+	})
+
+	t.Run("create_ticket_rejects_stores_namespace", func(t *testing.T) {
+		payload := `{
+			"subject": "Kendala Store Media",
+			"category": "technical",
+			"priority": "medium",
+			"message": "Store media test",
+			"attachments": [
+				{"storage_key": "stores/1/products/2026/secret.jpg", "file_name": "secret.jpg"}
+			]
+		}`
+		code, body, _ := supportReq(t, app, "POST", "/tickets", payload, "pemilik")
+		if code != 400 {
+			t.Fatalf("status = %d, want 400 (body %v)", code, body)
+		}
+	})
+
+	t.Run("create_ticket_allows_valid_support_key", func(t *testing.T) {
+		payload := `{
+			"subject": "Kendala Valid",
+			"category": "technical",
+			"priority": "medium",
+			"message": "Kendala normal dengan attachment sah",
+			"attachments": [
+				{"storage_key": "private/support/tickets/2026/11/valid.jpg", "file_name": "valid.jpg"}
+			]
+		}`
+		code, body, _ := supportReq(t, app, "POST", "/tickets", payload, "pemilik")
+		if code != 201 && code != 200 {
+			t.Fatalf("status = %d, want 200 or 201 (body %v)", code, body)
+		}
+	})
+
+	t.Run("reply_ticket_rejects_billing_namespace", func(t *testing.T) {
+		ticket := seedTicket(t, db, 10, "TCK-REPLY-N65-001", "Tiket Reply N65", "open")
+		payload := `{
+			"message": "Balasan dengan lampiran billing",
+			"attachments": [
+				{"storage_key": "private/billing/users/99/invoice.pdf", "file_name": "invoice.pdf"}
+			]
+		}`
+		code, body, _ := supportReq(t, app, "POST", "/tickets/"+ticket.TicketNumber+"/reply", payload, "pemilik")
+		if code != 400 {
+			t.Fatalf("status = %d, want 400 (body %v)", code, body)
+		}
+	})
+
+	t.Run("reply_ticket_allows_valid_support_key", func(t *testing.T) {
+		ticket := seedTicket(t, db, 10, "TCK-REPLY-N65-002", "Tiket Reply N65 Valid", "open")
+		payload := `{
+			"message": "Balasan dengan lampiran support sah",
+			"attachments": [
+				{"storage_key": "private/support/tickets/2026/11/valid_reply.jpg", "file_name": "valid_reply.jpg"}
+			]
+		}`
+		code, body, _ := supportReq(t, app, "POST", "/tickets/"+ticket.TicketNumber+"/reply", payload, "pemilik")
+		if code != 200 && code != 201 {
+			t.Fatalf("status = %d, want 200 or 201 (body %v)", code, body)
+		}
+	})
+}
+
+func TestSupportServeAttachment_LegacyMigrationFallback(t *testing.T) {
+	// Gunakan attachmentRoot(t) agar tahan terhadap file lock Windows pada c.SendFile dan mandiri di CI (Temuan Baru C)
+	privRoot := filepath.Join(attachmentRoot(t), "priv_legacy_test")
+
+	cfg := &config.Config{
+		StoragePrivateRoot: privRoot,
+		StorageLocalRoot:   t.TempDir(),
+	}
+	db := supportDB(t)
+	app := supportApp(t, db, cfg)
+
+	ownerID := uint(10)
+	ticket := seedTicket(t, db, ownerID, "TCK-LEGACY-001", "Tiket Legacy", "open")
+	msg := models.SupportMessage{
+		TicketID:   ticket.ID,
+		SenderID:   ownerID,
+		SenderType: "user",
+		Message:    "lampiran legacy saya",
+		CreatedAt:  time.Now().UTC(),
+	}
+	db.Create(&msg)
+
+	legacyCases := []struct {
+		storeID      string
+		relPath      string
+		fileName     string
+		wantType     string
+		dummyContent []byte
+	}{
+		{
+			storeID:      "1",
+			relPath:      "stores/1/support/2026/09/308115f4-ab39-4973-8b2a-7ed35c3c54f9.jpg",
+			fileName:     "308115f4-ab39-4973-8b2a-7ed35c3c54f9.jpg",
+			wantType:     "image/jpeg",
+			dummyContent: []byte("\xFF\xD8\xFF\xE0\x00\x10JFIF"),
+		},
+		{
+			storeID:      "5",
+			relPath:      "stores/5/support/2026/10/95d467ac-e995-47b9-8b07-69ff18c21955.pdf",
+			fileName:     "95d467ac-e995-47b9-8b07-69ff18c21955.pdf",
+			wantType:     "application/pdf",
+			dummyContent: []byte("%PDF-1.4\n%synthetic test pdf"),
+		},
+		{
+			storeID:      "15",
+			relPath:      "stores/15/support/2026/10/27500830-9972-4dc4-92cb-b94917b30446.jpg",
+			fileName:     "27500830-9972-4dc4-92cb-b94917b30446.jpg",
+			wantType:     "image/jpeg",
+			dummyContent: []byte("\xFF\xD8\xFF\xE0\x00\x10JFIF"),
+		},
+	}
+
+	for _, tc := range legacyCases {
+		t.Run("store_"+tc.storeID, func(t *testing.T) {
+			// Buat berkas dummy di privRoot/support/legacy/<tc.relPath>
+			fullTarget := filepath.Join(privRoot, "support", "legacy", filepath.FromSlash(tc.relPath))
+			if err := os.MkdirAll(filepath.Dir(fullTarget), 0755); err != nil {
+				t.Fatalf("mkdir failed: %v", err)
+			}
+			if err := os.WriteFile(fullTarget, tc.dummyContent, 0644); err != nil {
+				t.Fatalf("write file failed: %v", err)
+			}
+
+			att := models.SupportAttachment{
+				MessageID:  msg.ID,
+				StorageKey: tc.relPath,
+				FileName:   tc.fileName,
+				FileType:   tc.wantType,
+			}
+			db.Create(&att)
+
+			code, _, raw := supportReq(t, app, "GET", "/attachments/"+itoa(att.ID), "", "pemilik")
+			if code != 200 {
+				t.Fatalf("ServeAttachment store %s: status = %d, want 200", tc.storeID, code)
+			}
+			if len(raw) == 0 {
+				t.Fatalf("ServeAttachment store %s: body empty, want file contents", tc.storeID)
+			}
+		})
 	}
 }

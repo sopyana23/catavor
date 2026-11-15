@@ -106,22 +106,17 @@ import { SafeImage } from './SafeImage';
 import { ProofLightbox } from './ProofLightbox';
 import { RichTextarea, FormattedText } from './RichTextarea';
 
-export const resolveProofImageUrl = (order: any, token?: string | null): string => {
+export const resolveProofImageUrl = (order: any, _token?: string | null): string => {
   if (!order) return '';
-  const raw = order.payment_proof_url || order.proof_url || '';
-  if (raw && (raw.startsWith('data:') || raw.startsWith('blob:'))) {
-    return raw;
-  }
-  if (raw && (raw.startsWith('http://') || raw.startsWith('https://'))) {
-    return raw;
-  }
+  const raw = (order.payment_proof_url || order.proof_url || '').trim();
   const identifier = order.id || order.order_number;
-  if (identifier) {
-    const t = token ? `?token=${encodeURIComponent(token)}` : '';
-    return `/api/subscription/orders/${encodeURIComponent(String(identifier))}/proof${t}`;
+  if (identifier && (raw || order._isHydrating)) {
+    return `/api/subscription/orders/${encodeURIComponent(String(identifier))}/proof`;
   }
-  if (!raw) return '';
-  return raw.startsWith('/') ? raw : `/storage/${raw}`;
+  if (raw && (raw.startsWith('blob:') || raw.startsWith('data:image/'))) {
+    return raw;
+  }
+  return '';
 };
 import { TabletStoreSettingsView } from './TabletStoreSettingsView';
 import { TabletShareCatalogView } from './TabletShareCatalogView';

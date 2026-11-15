@@ -2,10 +2,8 @@ package handlers
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -13,13 +11,11 @@ import (
 	"time"
 
 	"catavor-backend/internal/config"
-	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
 	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
@@ -479,38 +475,8 @@ func (h *SubscriptionHandler) GetOrderProof(c *fiber.Ctx) error {
 		})
 	}
 
-	// 1. Resolve User and Authenticate
+	// 1. Resolve User and Authenticate (SECURITY R3-2: strictly enforced by middleware.AuthRequired; no unvalidated fallback)
 	user, _ := c.Locals("user").(*models.User)
-	if user == nil && h.cfg != nil {
-		// Try cookie, authorization header, or ?token= query param
-		claims := middleware.ExtractOptionalClaims(c, h.cfg)
-		if claims == nil {
-			if tokenParam := strings.TrimSpace(c.Query("token")); tokenParam != "" {
-				parsedClaims := &middleware.JWTClaims{}
-				token, err := jwt.ParseWithClaims(tokenParam, parsedClaims, func(t *jwt.Token) (interface{}, error) {
-					if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-						return nil, errors.New("unexpected signing algorithm")
-					}
-					return []byte(h.cfg.JWTSecret), nil
-				},
-					jwt.WithValidMethods([]string{"HS256"}),
-					jwt.WithIssuer(middleware.JWTIssuer),
-					jwt.WithAudience(middleware.JWTAudience),
-				)
-				if err == nil && token.Valid {
-					claims = parsedClaims
-				}
-			}
-		}
-
-		if claims != nil && claims.UserID > 0 {
-			var u models.User
-			if err := h.db.First(&u, claims.UserID).Error; err == nil {
-				user = &u
-			}
-		}
-	}
-
 	if user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
@@ -518,8 +484,11 @@ func (h *SubscriptionHandler) GetOrderProof(c *fiber.Ctx) error {
 		})
 	}
 
-	// 2. Strict RBAC / Ownership Authorization Check
-	isStaff := user.IsPlatformStaff()
+	// 2. Strict RBAC / Ownership Authorization Check (SECURITY R3-3: platform staff MUST hold finance:orders:read permission)
+	canReadAllProofs := false
+	if user.IsPlatformStaff() {
+		canReadAllProofs = services.GetRBACService().HasPermission(user, "finance:orders:read")
+	}
 	isOwner := user.ID == order.UserID
 
 	if !isOwner && order.StoreID > 0 {
@@ -534,50 +503,72 @@ func (h *SubscriptionHandler) GetOrderProof(c *fiber.Ctx) error {
 		}
 	}
 
-	if !isStaff && !isOwner {
+	if !canReadAllProofs && !isOwner {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": "Akses ditolak: Anda tidak memiliki izin untuk melihat bukti transfer pesanan ini.",
 		})
 	}
 
-	// 3. Handle base64 Data URLs
+	// 3. Handle base64 Data URLs (SECURITY: N-59 strictly whitelist image MIME types only; reject text/html & scripts)
 	if strings.HasPrefix(proofURL, "data:") {
 		parts := strings.SplitN(proofURL, ",", 2)
 		if len(parts) == 2 {
 			mimeType := "image/jpeg"
-			meta := parts[0]
+			meta := strings.ToLower(parts[0])
 			if strings.Contains(meta, ":") && strings.Contains(meta, ";") {
 				mimeType = meta[strings.Index(meta, ":")+1 : strings.Index(meta, ";")]
+			}
+			switch mimeType {
+			case "image/jpeg", "image/png", "image/webp":
+				// allowed safe image MIME
+			default:
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"success": false,
+					"message": "Format MIME bukti pembayaran tidak didukung atau tidak diizinkan.",
+				})
 			}
 			data, err := base64.StdEncoding.DecodeString(parts[1])
 			if err == nil && len(data) > 0 {
 				c.Set("Content-Type", mimeType)
 				c.Set("Cache-Control", "private, max-age=3600")
 				c.Set("X-Content-Type-Options", "nosniff")
+				c.Set("Content-Disposition", "inline; filename=\"bukti-pembayaran\"")
 				return c.Send(data)
 			}
 		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Data base64 bukti pembayaran tidak valid.",
+		})
 	}
 
-	// 4. Handle External URLs
+	// 4. Handle External URLs (SECURITY: N-59 reject arbitrary external redirects to eliminate open redirect & admin phishing)
 	if strings.HasPrefix(proofURL, "http://") || strings.HasPrefix(proofURL, "https://") {
-		return c.Redirect(proofURL, fiber.StatusFound)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Tautan bukti pembayaran eksternal tidak diizinkan.",
+		})
 	}
 
-	// 5. Clean up Storage Key and prepare candidate paths
+	// 5. Clean up Storage Key and prepare candidate paths (SECURITY: N-61 reject path traversal & colon/drive patterns)
 	cleanKey := strings.TrimLeft(filepath.ToSlash(proofURL), "/")
 	cleanKey = strings.TrimPrefix(cleanKey, "storage/")
 	cleanKey = strings.TrimLeft(cleanKey, "/")
 
+	if cleanKey == "" || strings.Contains(cleanKey, "..") || filepath.IsAbs(cleanKey) || strings.Contains(cleanKey, ":") {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Format path berkas bukti pembayaran tidak valid.",
+		})
+	}
+
 	candidateKeys := make([]string, 0, 4)
-	if cleanKey != "" {
-		candidateKeys = append(candidateKeys, cleanKey)
-		if strings.HasPrefix(cleanKey, storage.PrivateKeyPrefix) {
-			candidateKeys = append(candidateKeys, strings.TrimPrefix(cleanKey, storage.PrivateKeyPrefix))
-		} else {
-			candidateKeys = append(candidateKeys, storage.PrivateKeyPrefix+cleanKey)
-		}
+	candidateKeys = append(candidateKeys, cleanKey)
+	if strings.HasPrefix(cleanKey, storage.PrivateKeyPrefix) {
+		candidateKeys = append(candidateKeys, strings.TrimPrefix(cleanKey, storage.PrivateKeyPrefix))
+	} else {
+		candidateKeys = append(candidateKeys, storage.PrivateKeyPrefix+cleanKey)
 	}
 
 	// Try retrieval from configured storage service (Cloudflare R2 / S3 / MinIO / Local)
@@ -597,41 +588,46 @@ func (h *SubscriptionHandler) GetOrderProof(c *fiber.Ctx) error {
 					c.Set("Content-Type", cType)
 					c.Set("Cache-Control", "private, max-age=3600")
 					c.Set("X-Content-Type-Options", "nosniff")
+					c.Set("Content-Disposition", "inline; filename=\"bukti-pembayaran\"")
 					return c.Send(data)
 				}
 			}
 		}
 	}
 
-	// Fallback to local filesystem paths
-	localCandidates := make([]string, 0, 8)
+	// Fallback to local filesystem paths (SECURITY: N-61 strictly isolated inside StoragePrivateRoot & StorageLocalRoot via resolveInsideRoot)
+	localRoots := make([]string, 0, 2)
 	if h.cfg != nil {
-		for _, key := range candidateKeys {
-			rel := filepath.FromSlash(key)
-			if h.cfg.StoragePrivateRoot != "" {
-				localCandidates = append(localCandidates, filepath.Join(h.cfg.StoragePrivateRoot, rel))
-				localCandidates = append(localCandidates, filepath.Join(h.cfg.StoragePrivateRoot, strings.TrimPrefix(rel, "private"+string(os.PathSeparator))))
-			}
-			if h.cfg.StorageLocalRoot != "" {
-				localCandidates = append(localCandidates, filepath.Join(h.cfg.StorageLocalRoot, rel))
-				localCandidates = append(localCandidates, filepath.Join(h.cfg.StorageLocalRoot, strings.TrimPrefix(rel, "private"+string(os.PathSeparator))))
-			}
+		if h.cfg.StoragePrivateRoot != "" {
+			localRoots = append(localRoots, h.cfg.StoragePrivateRoot)
+		}
+		if h.cfg.StorageLocalRoot != "" {
+			localRoots = append(localRoots, h.cfg.StorageLocalRoot)
 		}
 	}
-	// Common relative paths in repo
-	for _, key := range candidateKeys {
-		rel := filepath.FromSlash(key)
-		localCandidates = append(localCandidates, filepath.Join("storage", "private", strings.TrimPrefix(rel, "private"+string(os.PathSeparator))))
-		localCandidates = append(localCandidates, filepath.Join("public", "storage", rel))
+	if len(localRoots) == 0 {
+		localRoots = append(localRoots, filepath.Join("storage", "private"), filepath.Join("public", "storage"))
 	}
 
-	for _, cand := range localCandidates {
-		if fi, err := os.Stat(cand); err == nil && !fi.IsDir() {
-			cType := detectOrderProofContentType(cand)
-			c.Set("Content-Type", cType)
-			c.Set("Cache-Control", "private, max-age=3600")
-			c.Set("X-Content-Type-Options", "nosniff")
-			return c.SendFile(cand)
+	for _, root := range localRoots {
+		for _, key := range candidateKeys {
+			relKey := strings.TrimPrefix(key, storage.PrivateKeyPrefix)
+			if cand, ok := resolveInsideRoot(root, relKey); ok && isRegularFile(cand) {
+				cType := detectOrderProofContentType(cand)
+				c.Set("Content-Type", cType)
+				c.Set("Cache-Control", "private, max-age=3600")
+				c.Set("X-Content-Type-Options", "nosniff")
+				c.Set("Content-Disposition", "inline; filename=\"bukti-pembayaran\"")
+				return c.SendFile(cand)
+			}
+			if cand, ok := resolveInsideRoot(root, key); ok && isRegularFile(cand) {
+				cType := detectOrderProofContentType(cand)
+				c.Set("Content-Type", cType)
+				c.Set("Cache-Control", "private, max-age=3600")
+				c.Set("X-Content-Type-Options", "nosniff")
+				c.Set("Content-Disposition", "inline; filename=\"bukti-pembayaran\"")
+				return c.SendFile(cand)
+			}
 		}
 	}
 

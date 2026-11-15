@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -486,6 +487,16 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		})
 	}
 
+	// Validasi lampiran tiket (SECURITY: N-65 Cegah IDOR lampiran dokumen sensitif antar-tenant)
+	for _, att := range req.Attachments {
+		if _, err := validateSupportAttachmentKey(att.StorageKey, att.FileURL); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Lampiran tiket tidak valid: %s", err.Error()),
+			})
+		}
+	}
+
 	isStaff := user.IsPlatformStaff()
 
 	// Resolve targeted store context (Store-Scoped Best Practice)
@@ -686,6 +697,16 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 			"success": false,
 			"message": "Pesan atau lampiran gambar wajib disertakan.",
 		})
+	}
+
+	// Validasi lampiran tiket (SECURITY: N-65 Cegah IDOR lampiran dokumen sensitif antar-tenant)
+	for _, att := range req.Attachments {
+		if _, err := validateSupportAttachmentKey(att.StorageKey, att.FileURL); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Lampiran balasan tiket tidak valid: %s", err.Error()),
+			})
+		}
 	}
 
 	now := time.Now().UTC()
@@ -1101,6 +1122,16 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			"success": false,
 			"message": "Pesan balasan wajib diisi.",
 		})
+	}
+
+	// Validasi lampiran tiket (SECURITY: N-65 Cegah IDOR lampiran dokumen sensitif antar-tenant)
+	for _, att := range req.Attachments {
+		if _, err := validateSupportAttachmentKey(att.StorageKey, att.FileURL); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Lampiran balasan staf tidak valid: %s", err.Error()),
+			})
+		}
 	}
 
 	now := time.Now().UTC()
@@ -2630,6 +2661,10 @@ func (h *SupportHandler) resolveAttachmentPath(key string) (string, bool) {
 			if candidate, ok := resolveInsideRoot(h.cfg.StoragePrivateRoot, relKey); ok && isRegularFile(candidate) {
 				return candidate, true
 			}
+			// Fallback migrasi berkas legacy yang dipindahkan ke storage/private/support/legacy/
+			if candidate, ok := resolveInsideRoot(h.cfg.StoragePrivateRoot, filepath.Join("support", "legacy", relKey)); ok && isRegularFile(candidate) {
+				return candidate, true
+			}
 		}
 		if h.cfg.StorageLocalRoot != "" {
 			if candidate, ok := resolveInsideRoot(h.cfg.StorageLocalRoot, relKey); ok && isRegularFile(candidate) {
@@ -2644,20 +2679,54 @@ func (h *SupportHandler) resolveAttachmentPath(key string) (string, bool) {
 			return candidate, true
 		}
 	}
+	if h.cfg.StoragePrivateRoot != "" {
+		// Fallback migrasi berkas legacy publik ke storage/private/support/legacy/
+		if candidate, ok := resolveInsideRoot(h.cfg.StoragePrivateRoot, filepath.Join("support", "legacy", cleanKey)); ok && isRegularFile(candidate) {
+			return candidate, true
+		}
+	}
 	return "", false
+}
+
+// validateSupportAttachmentKey memvalidasi storage key lampiran tiket bantuan secara ketat (SECURITY: N-65).
+// Whitelist presisi: HANYA izinkan prefix private/support/tickets/ dan private/support/staff/.
+// Tolak keras (error): bila mengandung billing, private/billing, stores/, private/stores/, traversal (".."),
+// karakter absolut, titik dua, backslash, atau tidak berada di direktori private/support/.
+func validateSupportAttachmentKey(rawKey, cleanURL string) (string, error) {
+	storageKey := storageKeyFromInput(rawKey, cleanURL)
+	if storageKey == "" {
+		return "", errors.New("kunci penyimpanan berkas (storage_key) wajib diisi")
+	}
+
+	// 1. Tolak traversal, pemisah Windows, drive letter, atau path absolut
+	if strings.Contains(storageKey, "..") || filepath.IsAbs(storageKey) || strings.Contains(storageKey, ":") || strings.Contains(storageKey, "\\") {
+		return "", errors.New("memuat karakter terlarang atau path traversal")
+	}
+
+	lowerKey := strings.ToLower(storageKey)
+
+	// 2. Tolak keras jika mencoba menyematkan namespace di luar domain bantuan (IDOR N-65)
+	if strings.Contains(lowerKey, "billing") || strings.Contains(lowerKey, "stores/") || strings.Contains(lowerKey, "store/") {
+		return "", errors.New("namespace dilarang untuk lampiran tiket")
+	}
+
+	// 3. Whitelist presisi: HANYA izinkan prefix private/support/tickets/ dan private/support/staff/
+	if !strings.HasPrefix(lowerKey, "private/support/tickets/") && !strings.HasPrefix(lowerKey, "private/support/staff/") {
+		return "", errors.New("harus berada di bawah private/support/tickets/ atau private/support/staff/")
+	}
+
+	return storageKey, nil
 }
 
 // buildSupportAttachment menyusun record lampiran dari payload klien.
 //
-// SECURITY (ST-01): berkas privat tidak lagi punya URL publik, sehingga
-// FileURL bisa kosong sementara storage_key terisi. Lampiran sah tidak boleh
-// dibuang hanya karena URL-nya kosong — itu akan menghilangkan dokumen
-// pengguna secara diam-diam.
+// SECURITY (ST-01, N-65): berkas privat tidak lagi punya URL publik, sehingga
+// FileURL bisa kosong sementara storage_key terisi. Lampiran sah divalidasi
+// terhadap whitelist namespace sebelum disimpan.
 func (h *SupportHandler) buildSupportAttachment(msgID uint, att AttachmentPayload, now time.Time) (models.SupportAttachment, bool) {
 	cleanURL := security.SanitizeURL(att.FileURL)
-	storageKey := storageKeyFromInput(att.StorageKey, cleanURL)
-
-	if cleanURL == "" && storageKey == "" {
+	storageKey, err := validateSupportAttachmentKey(att.StorageKey, cleanURL)
+	if err != nil || (cleanURL == "" && storageKey == "") {
 		return models.SupportAttachment{}, false
 	}
 
