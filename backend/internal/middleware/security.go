@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"catavor-backend/internal/config"
+	"catavor-backend/internal/database"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -225,6 +226,7 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 // GlobalAPIRateLimiter provides Layer-7 DoS protection across public API routes
 func GlobalAPIRateLimiter() fiber.Handler {
 	return limiter.New(limiter.Config{
+		Storage:    database.GetRateLimiterStorage(),
 		Max:        300, // 300 requests per minute per IP for normal SPA usage
 		Expiration: 1 * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
@@ -255,6 +257,7 @@ func GlobalAPIRateLimiter() fiber.Handler {
 // AuthRateLimiter limits brute force attempts on login/register endpoints
 func AuthRateLimiter() fiber.Handler {
 	return limiter.New(limiter.Config{
+		Storage:    database.GetRateLimiterStorage(),
 		Max:        20,
 		Expiration: 1 * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
@@ -273,6 +276,7 @@ func AuthRateLimiter() fiber.Handler {
 // PublicSubmissionRateLimiter limits spam on comments and sighting submissions
 func PublicSubmissionRateLimiter() fiber.Handler {
 	return limiter.New(limiter.Config{
+		Storage:    database.GetRateLimiterStorage(),
 		Max:        15,
 		Expiration: 1 * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
@@ -292,6 +296,7 @@ func PublicSubmissionRateLimiter() fiber.Handler {
 // Returns HTTP 202 Accepted on limit breach (silent drop) so client UX is never interrupted.
 func TelemetryRateLimiter() fiber.Handler {
 	return limiter.New(limiter.Config{
+		Storage:    database.GetRateLimiterStorage(),
 		Max:        180, // 180 requests per minute per IP for dynamic user browsing
 		Expiration: 1 * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {

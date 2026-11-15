@@ -2,6 +2,7 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -51,7 +52,7 @@ func ValidateAulaaBaseURL(rawURL string) (string, error) {
 		return "", fmt.Errorf("Base URL Aulaa tidak boleh memuat kredensial userinfo")
 	}
 
-	allowLocal := strings.EqualFold(strings.TrimSpace(os.Getenv("AULAA_ALLOW_LOCAL_HTTP")), "true")
+	allowLocal := isAulaaLocalHTTPAllowed()
 	scheme := strings.ToLower(u.Scheme)
 	if scheme != "https" && !(allowLocal && scheme == "http") {
 		return "", fmt.Errorf("Base URL Aulaa wajib menggunakan protokol HTTPS")
@@ -82,16 +83,154 @@ func ValidateAulaaBaseURL(rawURL string) (string, error) {
 	return trimmed, nil
 }
 
+var (
+	// Subnet IPv4 & IPv6 khusus yang dilarang untuk mencegah SSRF
+	disallowedIPNets = []*net.IPNet{
+		mustParseCIDR("0.0.0.0/8"),          // "This network" (0.0.0.1 - 0.255.255.255 diarahkan ke localhost di Linux)
+		mustParseCIDR("100.64.0.0/10"),      // Carrier-Grade NAT (RFC 6598)
+		mustParseCIDR("192.0.0.0/24"),        // IETF Protocol Assignments (RFC 6890)
+		mustParseCIDR("198.18.0.0/15"),       // Benchmark Testing (RFC 2544)
+		mustParseCIDR("240.0.0.0/4"),        // Reserved Class E (RFC 1112)
+		mustParseCIDR("255.255.255.255/32"),  // Limited Broadcast
+		mustParseCIDR("64:ff9b::/96"),        // IPv4/IPv6 translation NAT64 (RFC 6052)
+		mustParseCIDR("64:ff9b:1::/48"),      // Local-Use IPv4/IPv6 translation (RFC 8215)
+	}
+)
+
+func mustParseCIDR(s string) *net.IPNet {
+	_, ipNet, err := net.ParseCIDR(s)
+	if err != nil {
+		panic(fmt.Sprintf("invalid CIDR %s: %v", s, err))
+	}
+	return ipNet
+}
+
 func isDisallowedAulaaIP(ip net.IP) bool {
 	if ip == nil {
 		return true
 	}
-	return ip.IsLoopback() ||
+	// Normalisasi IPv4-mapped IPv6 (mis. ::ffff:127.0.0.1 -> 127.0.0.1)
+	if v4 := ip.To4(); v4 != nil {
+		ip = v4
+	}
+
+	if ip.IsLoopback() ||
 		ip.IsPrivate() ||
 		ip.IsLinkLocalUnicast() ||
 		ip.IsLinkLocalMulticast() ||
 		ip.IsMulticast() ||
-		ip.IsUnspecified()
+		ip.IsUnspecified() {
+		return true
+	}
+
+	for _, ipNet := range disallowedIPNets {
+		if ipNet.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isAulaaLocalHTTPAllowed() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("AULAA_ALLOW_LOCAL_HTTP")), "true")
+}
+
+type dnsLookupFunc func(ctx context.Context, host string) ([]net.IPAddr, error)
+
+// newSafeAulaaHTTPClientWithResolver membuat klien HTTP dengan perlindungan anti-SSRF dan anti-DNS Rebinding.
+// Resolver dapat diinjeksikan untuk unit testing deterministik offline.
+func newSafeAulaaHTTPClientWithResolver(lookup dnsLookupFunc) *http.Client {
+	if lookup == nil {
+		lookup = net.DefaultResolver.LookupIPAddr
+	}
+
+	dialer := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
+	transport := &http.Transport{
+		MaxIdleConns:          50,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     true,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, fmt.Errorf("SSRF guard: format alamat dial tidak valid %q: %w", addr, err)
+			}
+
+			allowLocal := isAulaaLocalHTTPAllowed()
+
+			// 1. Resolusi DNS
+			ips, err := lookup(ctx, host)
+			if err != nil {
+				return nil, fmt.Errorf("SSRF guard: gagal resolusi DNS untuk host %s: %w", host, err)
+			}
+			if len(ips) == 0 {
+				return nil, fmt.Errorf("SSRF guard: tidak ada alamat IP yang ditemukan untuk host %s", host)
+			}
+
+			// 2. Evaluasi seluruh IP hasil resolusi:
+			// BILA ADA 1 SAJA IP TERLARANG, TOLAK TOTAL (anti dual-record DNS poisoning)
+			var safeIPs []net.IP
+			for _, ipAddr := range ips {
+				ip := ipAddr.IP
+				if !allowLocal && isDisallowedAulaaIP(ip) {
+					return nil, fmt.Errorf("SSRF guard: koneksi ke host %s diblokir karena mengarah ke IP internal/metadata (%s)", host, ip.String())
+				}
+				safeIPs = append(safeIPs, ip)
+			}
+
+			// 3. Multi-IP Sequential Failover pada IP yang lolos validasi:
+			// Penting untuk domain Cloudflare/dual-stack (IPv6 AAAA + IPv4 A) bila IPv6 host tidak tersedia.
+			var lastDialErr error
+			perDialTimeout := 3 * time.Second
+			if len(safeIPs) <= 1 {
+				perDialTimeout = 10 * time.Second
+			}
+			for _, safeIP := range safeIPs {
+				targetAddr := net.JoinHostPort(safeIP.String(), port)
+				dialCtx, dialCancel := context.WithTimeout(ctx, perDialTimeout)
+				conn, dialErr := dialer.DialContext(dialCtx, network, targetAddr)
+				dialCancel()
+				if dialErr == nil {
+					return conn, nil
+				}
+				lastDialErr = dialErr
+			}
+
+			return nil, fmt.Errorf("SSRF guard: gagal menghubungkan ke seluruh IP aman untuk host %s: %w", host, lastDialErr)
+		},
+	}
+
+	return &http.Client{
+		Timeout:   DefaultHTTPTimeout,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Tolak auto-redirect pada interaksi API pembayaran untuk mencegah open-redirect SSRF
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
+// safeAulaaHTTPClient adalah singleton level paket untuk mencegah socket/goroutine leak
+var safeAulaaHTTPClient = newSafeAulaaHTTPClientWithResolver(nil)
+
+const MaxAulaaResponseBodySize = 2 * 1024 * 1024 // 2 MB
+
+func validateAulaaBaseURLScheme(baseURL string) error {
+	if isAulaaLocalHTTPAllowed() {
+		return nil
+	}
+	u, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil || !strings.EqualFold(u.Scheme, "https") {
+		return fmt.Errorf("keamanan outbound: Base URL Aulaa wajib menggunakan protokol HTTPS")
+	}
+	return nil
 }
 
 // GetAulaaConfig retrieves active Aulaa credentials from the database settings
@@ -203,8 +342,12 @@ func CreateAulaaPayment(cfg AulaaConfig, req AulaaCreatePaymentRequest) (*AulaaC
 	if cfg.APIKey == "" {
 		return nil, fmt.Errorf("AULAA_API_KEY belum dikonfigurasi pada pengaturan platform")
 	}
+	if err := validateAulaaBaseURLScheme(cfg.BaseURL); err != nil {
+		return nil, err
+	}
 
-	endpoint := fmt.Sprintf("%s/payments", cfg.BaseURL)
+	cleanBase := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
+	endpoint := fmt.Sprintf("%s/payments", cleanBase)
 	payloadBytes, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("gagal menyusun payload request aulaa: %w", err)
@@ -219,14 +362,13 @@ func CreateAulaaPayment(cfg AulaaConfig, req AulaaCreatePaymentRequest) (*AulaaC
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
 
-	client := &http.Client{Timeout: DefaultHTTPTimeout}
-	resp, err := client.Do(httpReq)
+	resp, err := safeAulaaHTTPClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("koneksi ke api aulaa.co gagal: %w", err)
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxAulaaResponseBodySize))
 	if err != nil {
 		return nil, fmt.Errorf("gagal membaca respon dari aulaa.co: %w", err)
 	}
@@ -248,12 +390,16 @@ func CheckAulaaPaymentStatus(cfg AulaaConfig, paymentID string) (*AulaaPaymentSt
 	if cfg.APIKey == "" {
 		return nil, fmt.Errorf("AULAA_API_KEY belum dikonfigurasi")
 	}
+	if err := validateAulaaBaseURLScheme(cfg.BaseURL); err != nil {
+		return nil, err
+	}
 	cleanPaymentID := strings.TrimSpace(paymentID)
 	if cleanPaymentID == "" {
 		return nil, fmt.Errorf("paymentID kosong")
 	}
 
-	endpoint := fmt.Sprintf("%s/payments/%s", cfg.BaseURL, cleanPaymentID)
+	cleanBase := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
+	endpoint := fmt.Sprintf("%s/payments/%s", cleanBase, cleanPaymentID)
 	httpReq, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("gagal membuat request cek status: %w", err)
@@ -262,14 +408,13 @@ func CheckAulaaPaymentStatus(cfg AulaaConfig, paymentID string) (*AulaaPaymentSt
 	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.APIKey))
 	httpReq.Header.Set("Accept", "application/json")
 
-	client := &http.Client{Timeout: DefaultHTTPTimeout}
-	resp, err := client.Do(httpReq)
+	resp, err := safeAulaaHTTPClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("gagal menghubungi aulaa: %w", err)
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxAulaaResponseBodySize))
 	if err != nil {
 		return nil, fmt.Errorf("gagal membaca respon cek status aulaa: %w", err)
 	}
@@ -291,8 +436,12 @@ func GetAulaaPaymentMethods(cfg AulaaConfig) ([]AulaaPaymentMethodItem, error) {
 	if cfg.APIKey == "" {
 		return nil, fmt.Errorf("AULAA_API_KEY belum dikonfigurasi")
 	}
+	if err := validateAulaaBaseURLScheme(cfg.BaseURL); err != nil {
+		return nil, err
+	}
 
-	endpoint := fmt.Sprintf("%s/payments/methods", cfg.BaseURL)
+	cleanBase := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
+	endpoint := fmt.Sprintf("%s/payments/methods", cleanBase)
 	httpReq, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("gagal membuat request metode pembayaran: %w", err)
@@ -301,14 +450,13 @@ func GetAulaaPaymentMethods(cfg AulaaConfig) ([]AulaaPaymentMethodItem, error) {
 	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.APIKey))
 	httpReq.Header.Set("Accept", "application/json")
 
-	client := &http.Client{Timeout: DefaultHTTPTimeout}
-	resp, err := client.Do(httpReq)
+	resp, err := safeAulaaHTTPClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("gagal menghubungi api aulaa.co: %w", err)
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxAulaaResponseBodySize))
 	if err != nil {
 		return nil, fmt.Errorf("gagal membaca respon metode pembayaran aulaa: %w", err)
 	}
@@ -340,12 +488,16 @@ func CancelAulaaPayment(cfg AulaaConfig, paymentID string) error {
 	if cfg.APIKey == "" {
 		return fmt.Errorf("AULAA_API_KEY belum dikonfigurasi")
 	}
+	if err := validateAulaaBaseURLScheme(cfg.BaseURL); err != nil {
+		return err
+	}
 	cleanPaymentID := strings.TrimSpace(paymentID)
 	if cleanPaymentID == "" {
 		return fmt.Errorf("paymentID kosong")
 	}
 
-	endpoint := fmt.Sprintf("%s/payments/%s/cancel", cfg.BaseURL, cleanPaymentID)
+	cleanBase := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
+	endpoint := fmt.Sprintf("%s/payments/%s/cancel", cleanBase, cleanPaymentID)
 	httpReq, err := http.NewRequest(http.MethodPost, endpoint, nil)
 	if err != nil {
 		return fmt.Errorf("gagal membuat request cancel payment: %w", err)
@@ -354,14 +506,13 @@ func CancelAulaaPayment(cfg AulaaConfig, paymentID string) error {
 	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.APIKey))
 	httpReq.Header.Set("Accept", "application/json")
 
-	client := &http.Client{Timeout: DefaultHTTPTimeout}
-	resp, err := client.Do(httpReq)
+	resp, err := safeAulaaHTTPClient.Do(httpReq)
 	if err != nil {
 		return fmt.Errorf("gagal menghubungi aulaa: %w", err)
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxAulaaResponseBodySize))
 	if err != nil {
 		return fmt.Errorf("gagal membaca respon cancel aulaa: %w", err)
 	}

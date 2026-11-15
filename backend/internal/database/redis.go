@@ -84,6 +84,21 @@ func IsRedisAvailable() bool {
 	return isRedisUp && RedisClient != nil
 }
 
+// SetRedisClientForTesting sets the redis client and availability for integration testing across packages.
+// Returns a cleanup function that restores the prior client and availability state.
+func SetRedisClientForTesting(client *redis.Client, isUp bool) func() {
+	redisMu.Lock()
+	prevClient, prevUp := RedisClient, isRedisUp
+	RedisClient, isRedisUp = client, isUp
+	redisMu.Unlock()
+
+	return func() {
+		redisMu.Lock()
+		RedisClient, isRedisUp = prevClient, prevUp
+		redisMu.Unlock()
+	}
+}
+
 // GetTicketCache fetches cached serialized ticket thread data.
 func GetTicketCache(ctx context.Context, ticketID uint) (string, bool) {
 	if !IsRedisAvailable() || ticketID == 0 {

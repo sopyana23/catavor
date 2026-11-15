@@ -17,6 +17,10 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"catavor-backend/internal/config"
+	"catavor-backend/internal/database"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 )
 
 // newTestApp memasang seluruh rantai SetupSecurityMiddlewares pada app uji.
@@ -386,6 +390,7 @@ func TestGlobalAPIRateLimiterExemptions(t *testing.T) {
 
 // TestAuthRateLimiter: 20 percobaan per menit per IP+path.
 func TestAuthRateLimiter(t *testing.T) {
+	_ = database.GetRateLimiterStorage().Reset()
 	app := rateLimitApp(t, AuthRateLimiter(), map[string]string{"/api/auth/login": http.MethodPost})
 	const ip = "192.0.2.30"
 
@@ -469,6 +474,54 @@ func TestTelemetryRateLimiter(t *testing.T) {
 	res := hit(t, app, http.MethodPost, "/api/telemetry/search", ip)
 	if res.StatusCode != fiber.StatusAccepted {
 		t.Fatalf("kiriman telemetri ke-181 status %d, harus 202 (silent drop)", res.StatusCode)
+	}
+}
+
+// TestDistributedRateLimiter_MultiInstance: jaminan N-49 — 2 instance *fiber.App terpisah berbagi bucket kuota
+// yang sama melalui Redis (miniredis). Membuktikan bahwa kuota rate limit terdistribusi dan tidak berlipat ganda
+// di arsitektur multi-replica/pod.
+func TestDistributedRateLimiter_MultiInstance(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = rClient.Close() }()
+	cleanup := database.SetRedisClientForTesting(rClient, true)
+	defer cleanup()
+
+	storage := database.GetRateLimiterStorage()
+	_ = storage.Reset()
+	defer func() { _ = storage.Reset() }()
+
+	app1 := rateLimitApp(t, AuthRateLimiter(), map[string]string{"/api/auth/login": http.MethodPost})
+	app2 := rateLimitApp(t, AuthRateLimiter(), map[string]string{"/api/auth/login": http.MethodPost})
+
+	const clientIP = "192.0.2.88"
+
+	// 10 request ke App 1
+	for i := 1; i <= 10; i++ {
+		res := hit(t, app1, http.MethodPost, "/api/auth/login", clientIP)
+		if res.StatusCode != 200 {
+			t.Fatalf("app1 hit ke-%d status %d, harus 200", i, res.StatusCode)
+		}
+	}
+
+	// 10 request ke App 2
+	for i := 11; i <= 20; i++ {
+		res := hit(t, app2, http.MethodPost, "/api/auth/login", clientIP)
+		if res.StatusCode != 200 {
+			t.Fatalf("app2 hit ke-%d status %d, harus 200", i, res.StatusCode)
+		}
+	}
+
+	// Request ke-21 ke App 1 -> WAJIB 429 Too Many Requests karena limit bersama adalah 20
+	res21 := hit(t, app1, http.MethodPost, "/api/auth/login", clientIP)
+	if res21.StatusCode != fiber.StatusTooManyRequests {
+		t.Fatalf("request ke-21 lintas app harus 429, got %d", res21.StatusCode)
+	}
+
+	// Request ke-22 ke App 2 -> WAJIB JUGA 429 Too Many Requests
+	res22 := hit(t, app2, http.MethodPost, "/api/auth/login", clientIP)
+	if res22.StatusCode != fiber.StatusTooManyRequests {
+		t.Fatalf("request ke-22 lintas app harus 429, got %d", res22.StatusCode)
 	}
 }
 
