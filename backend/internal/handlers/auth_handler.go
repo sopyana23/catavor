@@ -662,89 +662,8 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check email uniqueness and role isolation (merchant vs pengelola)
-	if userFound {
-		if existingUser.IsPlatformStaff() {
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-				"success": false,
-				"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
-			})
-		}
-		if isGoogleAuth {
-			if existingUser.Store != nil {
-				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-					"success": false,
-					"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
-				})
-			}
-			targetUser = existingUser
-			if (targetUser.GoogleID == nil || *targetUser.GoogleID == "") && req.GoogleID != "" {
-				targetUser.GoogleID = &req.GoogleID
-				h.db.Save(&targetUser)
-			}
-		} else {
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-				"success": false,
-				"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
-			})
-		}
-	} else {
-		now := time.Now()
-		// SECURITY (N-11): registrasi password manual wajib membawa verification_token yang sah.
-		// Registrasi Google SSO dilewatkan karena email sudah terverifikasi di sisi Google.
-		if !isGoogleAuth {
-			if strings.TrimSpace(req.VerificationToken) == "" {
-				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-					"success": false,
-					"message": "Verifikasi email wajib diselesaikan sebelum mendaftar.",
-				})
-			}
-			if !services.GetOTPService().ValidateAndConsumeToken(req.Email, req.VerificationToken, "registration") {
-				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-					"success": false,
-					"message": "Token verifikasi tidak valid atau sudah kedaluwarsa. Silakan minta kode baru.",
-				})
-			}
-		}
-
-		newUser := models.User{
-			Name:              req.Name,
-			Email:             req.Email,
-			EmailVerifiedAt:   &now,
-			IsPasswordChanged: true,
-		}
-		if isGoogleAuth {
-			googleID := req.GoogleID
-			if googleID == "" {
-				googleID = "G_" + uuid.New().String()[:12]
-			}
-			newUser.GoogleID = &googleID
-			newUser.HasCustomPassword = false
-			_ = newUser.SetPassword("G_SSO_" + googleID + "_" + uuid.New().String()[:8])
-		} else {
-			newUser.HasCustomPassword = true
-			if err := newUser.SetPassword(req.Password); err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"success": false,
-					"message": "Gagal memproses kata sandi.",
-				})
-			}
-		}
-
-		if err := h.db.Create(&newUser).Error; err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"success": false,
-				"message": "Gagal mendaftarkan akun.",
-			})
-		}
-		targetUser = newUser
-	}
-
-	storeTitle := req.StoreTitle
-	if storeTitle == "" {
-		storeTitle = req.Name + " Store"
-	}
-
+	// PRE-FLIGHT VALIDATION (R4-L2): Validasi paket, kupon, status maintenance,
+	// dan bukti pembayaran SEBELUM mengonsumsi OTP token dan SEBELUM menyimpan User baru.
 	rawPlan := strings.ToLower(strings.TrimSpace(req.Plan))
 	requestedPlan := "free"
 	if rawPlan == "pro" || rawPlan == "pro_starter" {
@@ -816,38 +735,6 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 	}
 
-	tz := strings.TrimSpace(req.RegistrationTimezone)
-	if tz == "" {
-		tz = "Asia/Jakarta"
-	}
-
-	// Universal Default Master Data
-	defaultClasses, _ := json.Marshal([]string{"Pakaian & Busana", "Aksesoris & Fashion", "Gadget & Elektronik", "Kebutuhan Rumah Tangga", "Kerajinan Tangan"})
-	defaultHabitats, _ := json.Marshal([]string{"Item Baru (Ready Stock)", "Pre-Order (PO)", "Varian Koleksi Khusus"})
-	defaultStatuses, _ := json.Marshal([]string{"Tersedia (Ready Stock)", "Habis (Sold Out)", "Stok Terbatas (Limited)"})
-	defaultShipping, _ := json.Marshal([]string{"Bisa Kirim Seluruh Indonesia", "Jabodetabek Saja", "Ambil Sendiri di Toko"})
-
-	newStore := models.Store{
-		UserID:                  targetUser.ID,
-		Slug:                    slug,
-		StoreTitle:              storeTitle,
-		StoreSlogan:             "Memudahkan pelanggan menjelajahi produk dan informasi bisnis.",
-		WhatsappNumber:          req.WhatsappNumber,
-		Plan:                    actualStorePlan,
-		PlanStatus:              planStatus,
-		PlanExpiresAt:           planExpiresAt,
-		CustomDomainStatus:      customDomainStatus,
-		PaymentStatus:           paymentStatus,
-		StoreTheme:              "navy",
-		RegistrationTimezone:    tz,
-		EnableWADirect:          true,
-		EnableWARekber:          true,
-		MasterClasses:           datatypes.JSON(defaultClasses),
-		MasterHabitats:          datatypes.JSON(defaultHabitats),
-		MasterStatuses:          datatypes.JSON(defaultStatuses),
-		MasterShippingCoverages: datatypes.JSON(defaultShipping),
-	}
-
 	var paymentSystemMode = "gateway_aulaa"
 	var modeSetting models.Setting
 	if err := h.db.Where("key = ?", "payment_system_mode").First(&modeSetting).Error; err == nil && modeSetting.Value != "" {
@@ -891,7 +778,128 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 	}
 
+	createdNewUser := false
+
+	// Check email uniqueness and role isolation (merchant vs pengelola)
+	if userFound {
+		if existingUser.IsPlatformStaff() {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
+			})
+		}
+		if isGoogleAuth {
+			if existingUser.Store != nil {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
+				})
+			}
+			targetUser = existingUser
+			if (targetUser.GoogleID == nil || *targetUser.GoogleID == "") && req.GoogleID != "" {
+				targetUser.GoogleID = &req.GoogleID
+				h.db.Save(&targetUser)
+			}
+		} else {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
+			})
+		}
+	} else {
+		nowUser := time.Now()
+		// SECURITY (N-11): registrasi password manual wajib membawa verification_token yang sah.
+		// Registrasi Google SSO dilewatkan karena email sudah terverifikasi di sisi Google.
+		if !isGoogleAuth {
+			if strings.TrimSpace(req.VerificationToken) == "" {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": "Verifikasi email wajib diselesaikan sebelum mendaftar.",
+				})
+			}
+			if !services.GetOTPService().ValidateAndConsumeToken(req.Email, req.VerificationToken, "registration") {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"message": "Token verifikasi tidak valid atau sudah kedaluwarsa. Silakan minta kode baru.",
+				})
+			}
+		}
+
+		newUser := models.User{
+			Name:              req.Name,
+			Email:             req.Email,
+			EmailVerifiedAt:   &nowUser,
+			IsPasswordChanged: true,
+		}
+		if isGoogleAuth {
+			googleID := req.GoogleID
+			if googleID == "" {
+				googleID = "G_" + uuid.New().String()[:12]
+			}
+			newUser.GoogleID = &googleID
+			newUser.HasCustomPassword = false
+			_ = newUser.SetPassword("G_SSO_" + googleID + "_" + uuid.New().String()[:8])
+		} else {
+			newUser.HasCustomPassword = true
+			if err := newUser.SetPassword(req.Password); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"success": false,
+					"message": "Gagal memproses kata sandi.",
+				})
+			}
+		}
+
+		if err := h.db.Create(&newUser).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal mendaftarkan akun.",
+			})
+		}
+		createdNewUser = true
+		targetUser = newUser
+	}
+
+	storeTitle := req.StoreTitle
+	if storeTitle == "" {
+		storeTitle = req.Name + " Store"
+	}
+
+	tz := strings.TrimSpace(req.RegistrationTimezone)
+	if tz == "" {
+		tz = "Asia/Jakarta"
+	}
+
+	// Universal Default Master Data
+	defaultClasses, _ := json.Marshal([]string{"Pakaian & Busana", "Aksesoris & Fashion", "Gadget & Elektronik", "Kebutuhan Rumah Tangga", "Kerajinan Tangan"})
+	defaultHabitats, _ := json.Marshal([]string{"Item Baru (Ready Stock)", "Pre-Order (PO)", "Varian Koleksi Khusus"})
+	defaultStatuses, _ := json.Marshal([]string{"Tersedia (Ready Stock)", "Habis (Sold Out)", "Stok Terbatas (Limited)"})
+	defaultShipping, _ := json.Marshal([]string{"Bisa Kirim Seluruh Indonesia", "Jabodetabek Saja", "Ambil Sendiri di Toko"})
+
+	newStore := models.Store{
+		UserID:                  targetUser.ID,
+		Slug:                    slug,
+		StoreTitle:              storeTitle,
+		StoreSlogan:             "Memudahkan pelanggan menjelajahi produk dan informasi bisnis.",
+		WhatsappNumber:          req.WhatsappNumber,
+		Plan:                    actualStorePlan,
+		PlanStatus:              planStatus,
+		PlanExpiresAt:           planExpiresAt,
+		CustomDomainStatus:      customDomainStatus,
+		PaymentStatus:           paymentStatus,
+		StoreTheme:              "navy",
+		RegistrationTimezone:    tz,
+		EnableWADirect:          true,
+		EnableWARekber:          true,
+		MasterClasses:           datatypes.JSON(defaultClasses),
+		MasterHabitats:          datatypes.JSON(defaultHabitats),
+		MasterStatuses:          datatypes.JSON(defaultStatuses),
+		MasterShippingCoverages: datatypes.JSON(defaultShipping),
+	}
+
 	if err := h.db.Create(&newStore).Error; err != nil {
+		if createdNewUser {
+			h.db.Unscoped().Delete(&models.User{}, targetUser.ID)
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal membuat profil toko.",

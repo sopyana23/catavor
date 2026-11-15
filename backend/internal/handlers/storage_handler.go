@@ -150,7 +150,7 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	contentType := "image/jpeg"
 	ext := ".jpg"
 
-	// Special handling: PDF documents are allowed for support tickets, billing/payment proofs, digital products, or any valid PDF upload
+	// Special handling: PDF documents are allowed for support tickets only
 	isPDF := bytes.HasPrefix(fileBytes, []byte("%PDF-")) || strings.EqualFold(filepath.Ext(file.Filename), ".pdf")
 	if isPDF {
 		// Strict verification: must start with PDF magic bytes
@@ -158,6 +158,13 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": "File PDF tidak valid atau rusak (header signature tidak cocok).",
+			})
+		}
+		// SECURITY (N-47): Dokumen PDF hanya diizinkan pada kategori privat tiket bantuan (support).
+		if category != "support" {
+			return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
+				"success": false,
+				"message": "Dokumen PDF hanya diizinkan untuk lampiran tiket bantuan.",
 			})
 		}
 		contentType = "application/pdf"
@@ -174,7 +181,7 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 			}
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
-				"message": "Format file tidak valid. Hanya file gambar asli (JPG, PNG, WEBP, GIF) atau dokumen PDF yang diperbolehkan.",
+				"message": "Format file tidak valid. Hanya file gambar asli (JPG, PNG, WEBP, GIF) yang diperbolehkan.",
 			})
 		}
 
@@ -315,12 +322,14 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		objectKey = fmt.Sprintf("general/%s/%d/%02d/%s%s", category, now.Year(), now.Month(), uniqueID, ext)
 	}
 
-	// SECURITY (ST-01): bukti pembayaran dan lampiran tiket bantuan adalah
+	// SECURITY (ST-01, N-47): bukti pembayaran dan lampiran tiket bantuan adalah
 	// berkas privat. Key-nya dipetakan ke namespace "private/" sehingga
 	// (a) tidak pernah mendapat URL publik dari GetURL, dan (b) tidak pernah
 	// berada di pohon direktori yang dilayani route statis /storage.
-	if category == "support" || category == "billing" {
-		objectKey = storage.PrivateKeyPrefix + objectKey
+	if category == "support" || category == "billing" || isPDF {
+		if !strings.HasPrefix(objectKey, storage.PrivateKeyPrefix) {
+			objectKey = storage.PrivateKeyPrefix + objectKey
+		}
 	}
 
 	// 7. Store via Abstracted Storage Service (Local / S3 / MinIO)

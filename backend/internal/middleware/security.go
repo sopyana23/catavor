@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -14,6 +15,22 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/rs/zerolog/log"
 )
+
+// extractCSPOrigin membersihkan dan mengekstrak origin (scheme + host[:port]) yang valid untuk direktif CSP.
+func extractCSPOrigin(raw string, allowHTTP bool) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" || strings.ContainsAny(trimmed, "; \t\r\n") || strings.Contains(trimmed, "*") {
+		return ""
+	}
+	u, err := url.Parse(trimmed)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	if u.Scheme == "https" || (allowHTTP && u.Scheme == "http") {
+		return u.Scheme + "://" + u.Host
+	}
+	return ""
+}
 
 // SetupSecurityMiddlewares configures enterprise-grade security headers, CORS, and request ID
 func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
@@ -35,30 +52,91 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 		c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Set("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
 		c.Set("Permissions-Policy", "geolocation=(), camera=(), microphone=()")
-	// SECURITY (M2): script-src TANPA 'unsafe-inline' dan 'unsafe-eval'.
-	// - 'unsafe-eval' dibuang total: source tidak memakai eval()/new Function().
-	// - 'unsafe-inline' diganti hash SHA-256 script inline (dihitung dari
-	//   index.html saat runtime) sehingga hanya script yang kita tulis sendiri
-	//   yang boleh jalan. Ini memutus eksekusi script yang disuntikkan penyerang.
-	//
-	// Catatan: style-src tetap 'unsafe-inline' karena React memakai style
-	// inline (ribuan atribut style) yang tidak bisa di-hash. Risiko jauh lebih
-	// rendah daripada script inline, dan bukan jalur eksekusi kode.
-	scriptHashes := scriptSrcHashes()
-	csp := "default-src 'self'; " +
-		"script-src 'self' " + scriptHashes +
-		"https://cdn.jsdelivr.net https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://*.instagram.com https://accounts.google.com https://*.google.com https://*.adtrafficquality.google https://*.googletagmanager.com https://*.googlesyndication.com https://*.googleadservices.com https://*.doubleclick.net https://*.google-analytics.com; " +
-		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-		"font-src 'self' https://fonts.gstatic.com data:; " +
-		"img-src 'self' data: blob: https: http:; " +
-		"frame-src 'self' https://www.youtube.com https://*.youtube.com https://www.youtube-nocookie.com https://*.youtube-nocookie.com https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://*.instagram.com https://accounts.google.com https://*.google.com https://*.doubleclick.net https://*.googlesyndication.com https://*.adtrafficquality.google https://*.googleadservices.com; " +
-		"connect-src 'self' https: http: https://*.tiktok.com https://*.instagram.com https://*.google.com https://*.adtrafficquality.google https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.googlesyndication.com https://*.doubleclick.net; " +
-		"object-src 'none'; base-uri 'self';"
-	c.Set("Content-Security-Policy", csp)
-		
+
+		isLocal := cfg.AppEnv == "local" || cfg.AppEnv == "development" || cfg.AppEnv == ""
+
+		imgSrc := "'self' data: blob: https:"
+		connectSources := []string{
+			"'self'",
+			"https://api.qrserver.com",
+			"https://www.googleapis.com",
+			"https://accounts.google.com",
+			"https://*.tiktok.com",
+			"https://*.instagram.com",
+			"https://*.google.com",
+			"https://*.adtrafficquality.google",
+			"https://*.googletrafficquality.google",
+			"https://*.google-analytics.com",
+			"https://*.analytics.google.com",
+			"https://*.googletagmanager.com",
+			"https://*.googlesyndication.com",
+			"https://*.doubleclick.net",
+		}
+
+		seenOrigin := map[string]bool{}
+		for _, s := range connectSources {
+			seenOrigin[s] = true
+		}
+		addOrigin := func(raw string) {
+			if orig := extractCSPOrigin(raw, isLocal); orig != "" && !seenOrigin[orig] {
+				seenOrigin[orig] = true
+				connectSources = append(connectSources, orig)
+			}
+		}
+
+		addOrigin(cfg.AppURL)
+		addOrigin(cfg.StoragePublicURL)
+		for _, origin := range cfg.AllowedOrigins {
+			addOrigin(origin)
+		}
+
+		if isLocal {
+			imgSrc += " http:"
+			for _, devSrc := range []string{
+				"http://localhost:*",
+				"http://127.0.0.1:*",
+				"ws://localhost:*",
+				"ws://127.0.0.1:*",
+			} {
+				if !seenOrigin[devSrc] {
+					seenOrigin[devSrc] = true
+					connectSources = append(connectSources, devSrc)
+				}
+			}
+		}
+		connectSrc := strings.Join(connectSources, " ")
+
+		// SECURITY (M2, N-50): script-src TANPA 'unsafe-inline' dan 'unsafe-eval'.
+		// - 'unsafe-eval' dibuang total: source tidak memakai eval()/new Function().
+		// - 'unsafe-inline' diganti hash SHA-256 script inline (dihitung dari
+		//   index.html saat runtime) sehingga hanya script yang kita tulis sendiri
+		//   yang boleh jalan. Ini memutus eksekusi script yang disuntikkan penyerang.
+		//
+		// Catatan: style-src tetap 'unsafe-inline' karena React memakai style
+		// inline (ribuan atribut style) yang tidak bisa di-hash. Risiko jauh lebih
+		// rendah daripada script inline, dan bukan jalur eksekusi kode.
+		scriptHashes := scriptSrcHashes()
+		csp := "default-src 'self'; " +
+			"script-src 'self' " + scriptHashes +
+			"https://cdn.jsdelivr.net https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://*.instagram.com https://accounts.google.com https://*.google.com https://*.adtrafficquality.google https://*.googletagmanager.com https://*.googlesyndication.com https://*.googleadservices.com https://*.doubleclick.net https://*.google-analytics.com; " +
+			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+			"font-src 'self' https://fonts.gstatic.com data:; " +
+			"img-src " + imgSrc + "; " +
+			"frame-src 'self' https://www.youtube.com https://*.youtube.com https://www.youtube-nocookie.com https://*.youtube-nocookie.com https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://*.instagram.com https://accounts.google.com https://*.google.com https://*.doubleclick.net https://*.googlesyndication.com https://*.adtrafficquality.google https://*.googleadservices.com; " +
+			"connect-src " + connectSrc + "; " +
+			"object-src 'none'; base-uri 'self';"
+		c.Set("Content-Security-Policy", csp)
+
 		// Set HSTS only if in production/secure
 		if c.Secure() {
-			c.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+			hstsVal := "max-age=31536000"
+			if cfg.HSTSIncludeSubDomains {
+				hstsVal += "; includeSubDomains"
+				if cfg.HSTSPreload {
+					hstsVal += "; preload"
+				}
+			}
+			c.Set("Strict-Transport-Security", hstsVal)
 		}
 
 		return c.Next()

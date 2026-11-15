@@ -275,12 +275,20 @@ func main() {
 			rc, contentType, _, err := storageService.Get(c.Context(), cleanKey)
 			if err == nil {
 				data, readErr := io.ReadAll(rc)
-			_ = rc.Close()
+				_ = rc.Close()
 				if readErr == nil {
-			c.Set("Content-Type", contentType)
-			c.Set("Cache-Control", "public, max-age=2592000, immutable")
-			c.Set("X-Content-Type-Options", "nosniff")
-			return c.Send(data)
+					isPDF := strings.EqualFold(filepath.Ext(cleanKey), ".pdf") || strings.EqualFold(contentType, "application/pdf")
+					if isPDF {
+						safeBase := strings.ReplaceAll(filepath.Base(cleanKey), `"`, `_`)
+						c.Set("Content-Type", "application/pdf")
+						c.Set("Content-Disposition", `attachment; filename="`+safeBase+`"`)
+						c.Set("Content-Security-Policy", "sandbox; default-src 'none'")
+					} else {
+						c.Set("Content-Type", contentType)
+					}
+					c.Set("Cache-Control", "public, max-age=2592000, immutable")
+					c.Set("X-Content-Type-Options", "nosniff")
+					return c.Send(data)
 				}
 			}
 
@@ -300,7 +308,10 @@ func main() {
 					case ".svg":
 						c.Set("Content-Type", "image/svg+xml")
 					case ".pdf":
+						safeBase := strings.ReplaceAll(filepath.Base(localPath), `"`, `_`)
 						c.Set("Content-Type", "application/pdf")
+						c.Set("Content-Disposition", `attachment; filename="`+safeBase+`"`)
+						c.Set("Content-Security-Policy", "sandbox; default-src 'none'")
 					}
 					c.Set("Cache-Control", "public, max-age=86400")
 					c.Set("X-Content-Type-Options", "nosniff")
@@ -439,7 +450,6 @@ func main() {
 	// Public Telemetry & Analytics Tracking (Isolated High-Capacity Rate Limiter, Zero PII)
 	api.Post("/analytics/track", middleware.TelemetryRateLimiter(), analyticsHandler.TrackEvent)
 	api.Post("/telemetry/search", middleware.TelemetryRateLimiter(), analyticsHandler.TrackSearchEvent)
-	api.Post("/api/telemetry/search", middleware.TelemetryRateLimiter(), analyticsHandler.TrackSearchEvent) // Defensive alias for double /api client prefix
 	api.Post("/client-logs", middleware.PublicSubmissionRateLimiter(), handlers.LogClientError)
 
 	// Public Market Intelligence & Macro Trends (Aggregated & Zero PII)

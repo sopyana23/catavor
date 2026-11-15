@@ -391,6 +391,40 @@ func TestSupportServeAttachment_SQLite(t *testing.T) {
 			t.Fatal("wildcard '%' mencocokkan lampiran milik akun lain")
 		}
 	})
+
+	t.Run("lampiran_pdf_forced_attachment_dan_csp_sandbox", func(t *testing.T) {
+		pdfPath := filepath.Join(root, "support", "tiket-dokumen.pdf")
+		if err := os.WriteFile(pdfPath, []byte("%PDF-1.4\nPDFCONTENT"), 0o644); err != nil {
+			t.Fatalf("tulis berkas pdf: %v", err)
+		}
+		attPDF := models.SupportAttachment{
+			MessageID:  msgSendiri.ID,
+			FileURL:    "/storage/support/tiket-dokumen.pdf",
+			StorageKey: "support/tiket-dokumen.pdf",
+			FileName:   "tiket-dokumen.pdf",
+			FileType:   "application/pdf",
+		}
+		db.Create(&attPDF)
+
+		req := httptest.NewRequest("GET", "/attachments/"+itoa(attPDF.ID), nil)
+		req.Header.Set("X-Test-Actor", "pemilik")
+		resp, err := app.Test(req, -1)
+		if err != nil {
+			t.Fatalf("app.Test: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+		cd := resp.Header.Get("Content-Disposition")
+		if !strings.HasPrefix(cd, "attachment") {
+			t.Errorf("Content-Disposition = %q, want attachment prefix", cd)
+		}
+		csp := resp.Header.Get("Content-Security-Policy")
+		if csp != "sandbox; default-src 'none'" {
+			t.Errorf("Content-Security-Policy = %q, want 'sandbox; default-src \\'none\\''", csp)
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -522,8 +556,11 @@ func TestSupportServeAttachment_CloudStorageDriver(t *testing.T) {
 		if cType := res.Header.Get("Content-Type"); !strings.Contains(cType, "application/pdf") {
 			t.Errorf("Content-Type = %q, want application/pdf", cType)
 		}
-		if disp := res.Header.Get("Content-Disposition"); !strings.Contains(disp, "inline") {
-			t.Errorf("Content-Disposition = %q, want inline for in-app PDF preview", disp)
+		if disp := res.Header.Get("Content-Disposition"); !strings.Contains(disp, "attachment") {
+			t.Errorf("Content-Disposition = %q, want attachment for PDF security (N-47)", disp)
+		}
+		if csp := res.Header.Get("Content-Security-Policy"); csp != "sandbox; default-src 'none'" {
+			t.Errorf("Content-Security-Policy = %q, want sandbox CSP for PDF (N-47)", csp)
 		}
 	})
 

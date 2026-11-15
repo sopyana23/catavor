@@ -14,8 +14,8 @@ Rencana implementasi ini dibagi menjadi **5 Fase Berurutan (dimulai dari Fase 0 
 | Fase | Fokus Utama | Item yang Ditutup | Status / Estimasi | Risiko Regresi |
 |---|---|---|---|---|
 | **Fase 0 (P0 Darurat)** | Hotfix Celah Kritis, Path Traversal & IDOR Berkas | **N-61** (CRITICAL), **N-58** (HIGH), **N-65/N-67** (HIGH), **N-59** (MED/LOW), **N-62** (MED) | ✅ **SELESAI & TERVERIFIKASI** | Sangat Rendah |
-| **Fase 1 (P1)** | Quick Wins, Patch CVE & Penutupan Celah HIGH PDF | **N-47**, **4 CVE Go**, **N-50**, **N-51**, **N-57**, **R4-L1/L2** | ⏳ **SIAP DIKERJAKAN** (2–3 Jam) | Sangat Rendah |
-| **Fase 2 (P2)** | Pertahanan Jaringan, Anti-Rebinding & Distributed Rate Limit | **N-48**, **N-49** | Antrean (3–4 Jam) | Rendah |
+| **Fase 1 (P1)** | Quick Wins, Patch CVE & Penutupan Celah HIGH PDF | **N-47**, **4 CVE Go**, **N-50**, **N-51**, **N-57**, **R4-L1/L2** | ✅ **SELESAI & TERVERIFIKASI** | Sangat Rendah |
+| **Fase 2 (P2)** | Pertahanan Jaringan, Anti-Rebinding & Distributed Rate Limit | **N-48**, **N-49** | ⏳ **SIAP DIKERJAKAN (Next Priority)** | Rendah |
 | **Fase 3 (P3)** | Privasi Log, Standar Password NIST & Rotasi Sesi | **N-53**, **N-54**, **N-55** | Antrean (4–6 Jam) | Sedang |
 | **Fase 4 (P4)** | Kepatuhan Enterprise (MFA/TOTP & Dokumentasi Edge WAF) | **N-52**, **N-56** | Antrean (1–2 Hari) | Sedang |
 
@@ -107,45 +107,55 @@ Rencana implementasi ini dibagi menjadi **5 Fase Berurutan (dimulai dari Fase 0 
 
 ---
 
-## Fase 1 — Penutupan Celah HIGH, Patch CVE & Hardening Header (Prioritas 1)
+## Fase 1 — Penutupan Celah HIGH, Patch CVE & Hardening Header (Prioritas 1) — [STATUS: ✅ SELESAI & TERVERIFIKASI]
+
+> [!NOTE]
+> **Status Eksekusi (15 November 2026):**
+> Seluruh item Fase 1 (N-47, 4 CVE Go via toolchain go1.26.11, N-50, N-51, N-57, serta hardening R4-L1 dan R4-L2) telah selesai dieksekusi 100% dan diverifikasi runtime:
+> - Test suite `go test ./...` 100% lulus di seluruh paket backend (`config`, `database`, `handlers`, `middleware`, `models`, `security`, `services`, `storage`, `utils`).
+> - `govulncheck ./...` menghasilkan 0 affected vulnerabilities.
+> - `go version -m` membuktikan Go stdlib `go1.26.11`, `andybalholm/brotli v1.2.8`, dan `klauspost/compress v1.20.4`.
+> - Tri-Build frontend desktop, tablet, dan mobile sukses 0 error via Node 22 (`public/{desktop,tablet,mobile}/` terbarui).
+> - Server live di port 8000 tetap stabil dan sehat (`/healthz` 200 OK).
+> - Rincian eksekusi dan bukti log runtime tercatat di `security-audit/implementation-plan-fase-1-2026-11-15.md`.
 
 ### 1.1. [N-47 — HIGH] Gating Kategori Upload PDF & Isolasi dari Pohon Publik
 
 - **Masalah Saat Ini:**  
   Di `backend/internal/handlers/storage_handler.go:154-165`, deteksi `isPDF` (`%PDF-`) mengizinkan unggahan dokumen PDF pada kategori apa pun (termasuk default `products`). Akibatnya, file PDF dapat disimpan di pohon publik `stores/{id}/products/...` dan disajikan langsung via `GET /storage/*` dengan `Content-Type: application/pdf`.
-- **Target Perbaikan:**
-  1. **Whitelist Kategori PDF:** Batasi unggahan PDF **hanya** untuk kategori yang memang membutuhkan dokumen (`support` dan `billing`). Tolak dengan `415 Unsupported Media Type` bila `isPDF == true` namun `category` adalah `products`, `store`, `avatars`, `banners`, atau `articles`.
+- **Target Perbaikan (Selaras Hasil Review Fase 1):**
+  1. **Whitelist Kategori PDF Hanya `support`:** Batasi unggahan PDF **hanya** untuk kategori `support` (bukan `billing`, karena sejak `N-59` endpoint `GetOrderProof` & `ValidatePaymentProofURL` hanya mengizinkan gambar `.jpg/.jpeg/.png/.webp` dan menolak PDF dengan `415`). Tolak dengan `415 Unsupported Media Type` bila `isPDF == true` dan `category != "support"`.
   2. **Paksa Namespace Privat (Defense-in-Depth):** Pastikan setiap objek dengan `isPDF == true` atau `contentType == "application/pdf"` **selalu** diprefiks dengan `storage.PrivateKeyPrefix` (`private/`), sehingga tidak pernah bisa disajikan oleh route statis publik `/storage/*`.
-  3. **Header Tambahan pada Penyajian PDF:** Pada endpoint pengunduhan berkas privat dan fallback statis (`cmd/server/main.go:294`), tambahkan `Content-Disposition: attachment` dan `Content-Security-Policy: sandbox` untuk `.pdf` agar PDF viewer browser tidak mengeksekusi script `/OpenAction`.
+  3. **Header Sandboxing pada Seluruh Penyajian PDF:** Pada fallback `/storage/*` (`cmd/server/main.go:275-309`) dan `ServeAttachment` (`handlers/support_handler.go:2624-2639`), paksa `Content-Disposition: attachment` dan `Content-Security-Policy: sandbox; default-src 'none'` untuk `.pdf` agar PDF viewer bawaan browser tidak pernah mengeksekusi script `/OpenAction` di origin aplikasi (preview in-app `DocumentPreviewModal` berbasis `fetch` + PDF.js canvas tetap berjalan normal).
 - **File yang Akan Diubah:**
-  - `backend/internal/handlers/storage_handler.go` (sekitar baris 153–166 dan 319–322)
-  - `backend/cmd/server/main.go` (sekitar baris 294–299)
+  - `backend/internal/handlers/storage_handler.go` (sekitar baris 153–179 dan 322)
+  - `backend/internal/handlers/support_handler.go` (sekitar baris 2624–2639)
+  - `backend/cmd/server/main.go` (sekitar baris 275–309)
 - **Cuplikan Implementasi Target (`storage_handler.go`):**
   ```go
   isPDF := bytes.HasPrefix(fileBytes, []byte("%PDF-")) || strings.EqualFold(filepath.Ext(file.Filename), ".pdf")
   if isPDF {
       if !bytes.HasPrefix(fileBytes, []byte("%PDF-")) {
-          return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
+          return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
               "success": false,
-              "message": "File PDF tidak valid atau rusak.",
+              "message": "File PDF tidak valid atau rusak (header signature tidak cocok).",
           })
       }
-      // SECURITY (N-47): PDF hanya diizinkan pada kategori privat (support & billing).
-      if category != "support" && category != "billing" {
+      // SECURITY (N-47): PDF hanya diizinkan pada kategori privat tiket bantuan (support).
+      if category != "support" {
           return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
               "success": false,
-              "message": "Dokumen PDF hanya diizinkan untuk lampiran tiket bantuan atau bukti pembayaran.",
+              "message": "Dokumen PDF hanya diizinkan untuk lampiran tiket bantuan.",
           })
       }
       contentType = "application/pdf"
       ext = ".pdf"
-      buf.Write(fileBytes)
-      uploadSize = int64(buf.Len())
+      buf = bytes.NewBuffer(fileBytes)
   }
   ```
 - **Langkah Verifikasi:**
-  - Buat unit test `TestUploadFile_PDFRejectedOnProductsCategory` → harus mengembalikan `415`.
-  - Buat unit test `TestUploadFile_PDFAllowedAndPrivateOnSupportAndBilling` → harus mengembalikan `200` dengan `storage_key` berawalan `private/` dan `url: ""`.
+  - Buat unit test `TestUploadFile_PDFRejectedOnNonSupportCategories` (`products` & `billing`) → harus mengembalikan `415`.
+  - Buat unit test `TestUploadFile_PDFAllowedAndPrivateOnSupport` → harus mengembalikan `200` dengan `storage_key` berawalan `private/` dan `url: ""`.
 
 ---
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"catavor-backend/internal/config"
@@ -113,5 +114,33 @@ func TestTrackSearchEvent_GibberishAndDeduplication(t *testing.T) {
 	resVal2, err := app.Test(reqVal2, -1)
 	if err != nil || resVal2.StatusCode != fiber.StatusAccepted {
 		t.Fatalf("Expected 202 for deduplicated search event, got %d", resVal2.StatusCode)
+	}
+}
+
+// TestTelemetryRoute_N57 memastikan route kanonik /api/telemetry/search terdaftar aktif (bukan 404),
+// sedangkan route duplikat /api/api/telemetry/search tidak terdaftar (404 Not Found).
+func TestTelemetryRoute_N57(t *testing.T) {
+	app, _ := setupTestAnalyticsApp(t)
+
+	// Route kanonik POST /api/telemetry/search
+	reqCanonical := httptest.NewRequest(http.MethodPost, "/api/telemetry/search", strings.NewReader(`{"keyword":"ikan"}`))
+	reqCanonical.Header.Set("Content-Type", "application/json")
+	resCanonical, err := app.Test(reqCanonical, -1)
+	if err != nil {
+		t.Fatalf("app.Test canonical route failed: %v", err)
+	}
+	if resCanonical.StatusCode == fiber.StatusNotFound {
+		t.Fatalf("Route kanonik /api/telemetry/search tidak boleh 404!")
+	}
+
+	// Route duplikat POST /api/api/telemetry/search (wajib 404 Not Found)
+	reqDuplicate := httptest.NewRequest(http.MethodPost, "/api/api/telemetry/search", strings.NewReader(`{"keyword":"ikan"}`))
+	reqDuplicate.Header.Set("Content-Type", "application/json")
+	resDuplicate, err := app.Test(reqDuplicate, -1)
+	if err != nil {
+		t.Fatalf("app.Test duplicate route failed: %v", err)
+	}
+	if resDuplicate.StatusCode != fiber.StatusNotFound {
+		t.Fatalf("Route duplikat /api/api/telemetry/search harus 404, got %d", resDuplicate.StatusCode)
 	}
 }

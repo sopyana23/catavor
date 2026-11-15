@@ -21,13 +21,28 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 // Configure PDF.js worker with bundled local asset
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
-// Helper to strictly prevent sending Bearer JWT to cross-origin or external servers (R3-4)
+// Helper to strictly prevent sending Bearer JWT to cross-origin or external servers (R3-4, R4-L1)
 const isSameOriginUrl = (url?: string): boolean => {
   if (!url) return false;
-  if (url.startsWith('/') && !url.startsWith('//')) return true;
+  const trimmed = url.trim();
+  if (
+    !trimmed ||
+    trimmed.startsWith('//') ||
+    trimmed.startsWith('/\\') ||
+    trimmed.startsWith('\\') ||
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('blob:')
+  ) {
+    return false;
+  }
   try {
-    const parsed = new URL(url, window.location.origin);
-    return parsed.origin === window.location.origin;
+    const baseOrigin = window.location.origin;
+    if (!baseOrigin || baseOrigin === 'null') return false;
+    const parsed = new URL(trimmed, baseOrigin);
+    return (
+      (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+      parsed.origin === baseOrigin
+    );
   } catch {
     return false;
   }
@@ -385,7 +400,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
             const canSendAuth = !!(authToken && isSameOriginUrl(targetUrl));
             res = await fetch(targetUrl, {
               headers: canSendAuth ? { Authorization: `Bearer ${authToken}` } : {},
-              credentials: 'include'
+              credentials: isSameOriginUrl(targetUrl) ? 'include' : 'omit'
             });
           } catch (e) {
             console.warn(`Mobile preview: failed to fetch by docId ${docId}:`, e);
@@ -400,7 +415,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
           const canSendAuth = !!(authToken && isSameOriginUrl(targetUrl) && !targetUrl.startsWith('data:') && !targetUrl.startsWith('blob:'));
           res = await fetch(targetUrl, {
             headers: canSendAuth ? { Authorization: `Bearer ${authToken}` } : {},
-            credentials: 'include'
+            credentials: isSameOriginUrl(targetUrl) ? 'include' : 'omit'
           });
         } catch (e) {
           console.warn('Mobile preview: failed to fetch by fileUrl:', e);
@@ -602,7 +617,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
       const canSendAuth = !!(authToken && isSameOriginUrl(targetUrl) && !targetUrl.startsWith('data:') && !targetUrl.startsWith('blob:'));
       const res = await fetch(targetUrl, {
         headers: canSendAuth ? { Authorization: `Bearer ${authToken}` } : {},
-        credentials: 'include'
+        credentials: isSameOriginUrl(targetUrl) ? 'include' : 'omit'
       });
 
       if (res.ok) {

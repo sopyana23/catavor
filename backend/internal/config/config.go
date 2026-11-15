@@ -54,10 +54,12 @@ type Config struct {
 	S3SecretAccessKey  string
 	S3UsePathStyle     bool
 	S3SSL              bool
-	DesktopDistDir     string
-	TabletDistDir      string
-	MobileDistDir      string
-	AllowedOrigins     []string
+	DesktopDistDir        string
+	TabletDistDir         string
+	MobileDistDir         string
+	AllowedOrigins        []string
+	HSTSIncludeSubDomains bool
+	HSTSPreload           bool
 }
 
 var AppConfig *Config
@@ -219,43 +221,48 @@ func LoadConfig() *Config {
 		}
 	}
 
+	hstsIncludeSub := !strings.EqualFold(strings.TrimSpace(getEnv("HSTS_INCLUDE_SUBDOMAINS", "true")), "false")
+	hstsPreload := strings.EqualFold(strings.TrimSpace(getEnv("HSTS_PRELOAD", "false")), "true")
+
 	AppConfig = &Config{
-		Port:               port,
-		AppEnv:             appEnv,
-		TrustedProxies:     trustedProxies,
-		AppURL:             appURL,
-		TLSCertFile:        strings.TrimSpace(getEnv("TLS_CERT_FILE", "")),
-		TLSKeyFile:         strings.TrimSpace(getEnv("TLS_KEY_FILE", "")),
-		DBHost:             getEnv("DB_HOST", "127.0.0.1"),
-		DBPort:             getEnv("DB_PORT", "5432"),
-		DBUser:             getEnv("DB_USER", "postgres"),
-		DBPassword:         getEnv("DB_PASSWORD", ""),
-		DBName:             getEnv("DB_NAME", "catavor"),
-		DBSSLMode:          dbSSLMode,
-		DBAutoMigrate:      dbAutoMigrate,
-		SkipDBMigrate:      skipDBMigrate,
-		JWTSecret:          jwtSecret,
-		JWTExpirationHours: jwtHours,
-		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
-		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
-		GoogleRedirectURI:  getEnv("GOOGLE_REDIRECT_URI", "http://localhost:"+port),
-		SQLiteSourcePath:   getEnv("SQLITE_SOURCE_PATH", "../legacy/laravel/database/database.sqlite"),
-		StorageDir:         storageDir,
-		StorageDriver:      getEnv("STORAGE_DRIVER", "local"),
-		StorageLocalRoot:   storageLocalRoot,
-		StoragePrivateRoot: storagePrivateRoot,
-		StoragePublicURL:   strings.TrimRight(storagePublicURL, "/"),
-		S3Endpoint:         getEnv("S3_ENDPOINT", "http://localhost:9000"),
-		S3Region:           getEnv("S3_REGION", "us-east-1"),
-		S3Bucket:           getEnv("S3_BUCKET", "catavor-uploads"),
-		S3AccessKeyID:      getEnv("S3_ACCESS_KEY_ID", ""),
-		S3SecretAccessKey:  getEnv("S3_SECRET_ACCESS_KEY", ""),
-		S3UsePathStyle:     s3UsePathStyle,
-		S3SSL:              s3SSL,
-		DesktopDistDir:     resolveDir("DESKTOP_DIST_DIR", "public/desktop"),
-		TabletDistDir:      resolveDir("TABLET_DIST_DIR", "public/tablet"),
-		MobileDistDir:      resolveDir("MOBILE_DIST_DIR", "public/mobile"),
-		AllowedOrigins:     origins,
+		Port:                  port,
+		AppEnv:                appEnv,
+		TrustedProxies:        trustedProxies,
+		AppURL:                appURL,
+		TLSCertFile:           strings.TrimSpace(getEnv("TLS_CERT_FILE", "")),
+		TLSKeyFile:            strings.TrimSpace(getEnv("TLS_KEY_FILE", "")),
+		DBHost:                getEnv("DB_HOST", "127.0.0.1"),
+		DBPort:                getEnv("DB_PORT", "5432"),
+		DBUser:                getEnv("DB_USER", "postgres"),
+		DBPassword:            getEnv("DB_PASSWORD", ""),
+		DBName:                getEnv("DB_NAME", "catavor"),
+		DBSSLMode:             dbSSLMode,
+		DBAutoMigrate:         dbAutoMigrate,
+		SkipDBMigrate:         skipDBMigrate,
+		JWTSecret:             jwtSecret,
+		JWTExpirationHours:    jwtHours,
+		GoogleClientID:        getEnv("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret:    getEnv("GOOGLE_CLIENT_SECRET", ""),
+		GoogleRedirectURI:     getEnv("GOOGLE_REDIRECT_URI", "http://localhost:"+port),
+		SQLiteSourcePath:      getEnv("SQLITE_SOURCE_PATH", "../legacy/laravel/database/database.sqlite"),
+		StorageDir:            storageDir,
+		StorageDriver:         getEnv("STORAGE_DRIVER", "local"),
+		StorageLocalRoot:      storageLocalRoot,
+		StoragePrivateRoot:    storagePrivateRoot,
+		StoragePublicURL:      strings.TrimRight(storagePublicURL, "/"),
+		S3Endpoint:            getEnv("S3_ENDPOINT", "http://localhost:9000"),
+		S3Region:              getEnv("S3_REGION", "us-east-1"),
+		S3Bucket:              getEnv("S3_BUCKET", "catavor-uploads"),
+		S3AccessKeyID:         getEnv("S3_ACCESS_KEY_ID", ""),
+		S3SecretAccessKey:     getEnv("S3_SECRET_ACCESS_KEY", ""),
+		S3UsePathStyle:        s3UsePathStyle,
+		S3SSL:                 s3SSL,
+		DesktopDistDir:        resolveDir("DESKTOP_DIST_DIR", "public/desktop"),
+		TabletDistDir:         resolveDir("TABLET_DIST_DIR", "public/tablet"),
+		MobileDistDir:         resolveDir("MOBILE_DIST_DIR", "public/mobile"),
+		AllowedOrigins:        origins,
+		HSTSIncludeSubDomains: hstsIncludeSub,
+		HSTSPreload:           hstsPreload,
 	}
 
 	return AppConfig

@@ -24,7 +24,11 @@ import (
 // mensimulasikan koneksi HTTPS (perilaku yang sama dengan di belakang LB).
 func newTestApp(t *testing.T, appEnv string, origins ...string) (*fiber.App, *config.Config) {
 	t.Helper()
-	cfg := &config.Config{AppEnv: appEnv, AllowedOrigins: origins}
+	cfg := &config.Config{
+		AppEnv:                appEnv,
+		AllowedOrigins:        origins,
+		HSTSIncludeSubDomains: true,
+	}
 	app := fiber.New(fiber.Config{
 		ProxyHeader:             fiber.HeaderXForwardedFor,
 		EnableTrustedProxyCheck: true,
@@ -467,4 +471,132 @@ func TestTelemetryRateLimiter(t *testing.T) {
 		t.Fatalf("kiriman telemetri ke-181 status %d, harus 202 (silent drop)", res.StatusCode)
 	}
 }
+
+// TestCSPTightening_ProductionVsLocal: jaminan N-50 — perketat CSP tanpa wildcard di produksi,
+// dan pastikan endpoint sah seperti api.qrserver.com, allowed origins, dan storage tercantum.
+func TestCSPTightening_ProductionVsLocal(t *testing.T) {
+	SetCSPDistDirs(t.TempDir())
+	RefreshCSPHashes()
+
+	// 1. Production Mode
+	prodApp, prodCfg := newTestApp(t, "production", "https://catavor.id", "https://app.catavor.id")
+	prodCfg.AppURL = "https://app.catavor.id"
+	prodCfg.StoragePublicURL = "https://cdn.catavor.id/storage"
+
+	resProd := doGet(t, prodApp, "/x", nil)
+	cspProd := resProd.Header.Get("Content-Security-Policy")
+	if cspProd == "" {
+		t.Fatal("CSP produksi kosong")
+	}
+
+	imgProd := directive(cspProd, "img-src")
+	if strings.Contains(imgProd, "http:") {
+		t.Errorf("img-src produksi tidak boleh memuat 'http:': %q", imgProd)
+	}
+	if !strings.Contains(imgProd, "'self'") || !strings.Contains(imgProd, "data:") || !strings.Contains(imgProd, "https:") {
+		t.Errorf("img-src produksi harus memuat 'self', data:, dan https:: %q", imgProd)
+	}
+
+	connectProd := directive(cspProd, "connect-src")
+	if strings.Contains(connectProd, " http:") {
+		t.Errorf("connect-src produksi tidak boleh memuat wildcard 'http:': %q", connectProd)
+	}
+	// Tidak boleh ada standalone wildcard https: (harus berupa origin spesifik)
+	tokens := strings.Fields(connectProd)
+	for _, tok := range tokens {
+		if tok == "https:" || tok == "http:" {
+			t.Errorf("connect-src produksi memuat token wildcard mentah %q: %q", tok, connectProd)
+		}
+	}
+	if !strings.Contains(connectProd, "https://api.qrserver.com") {
+		t.Errorf("connect-src produksi harus memuat https://api.qrserver.com untuk unduh QR: %q", connectProd)
+	}
+	if !strings.Contains(connectProd, "https://www.googleapis.com") {
+		t.Errorf("connect-src produksi harus memuat https://www.googleapis.com untuk SSO: %q", connectProd)
+	}
+	if !strings.Contains(connectProd, "https://catavor.id") {
+		t.Errorf("connect-src produksi harus memuat allowed origin https://catavor.id: %q", connectProd)
+	}
+	if !strings.Contains(connectProd, "https://cdn.catavor.id") {
+		t.Errorf("connect-src produksi harus memuat origin storage https://cdn.catavor.id: %q", connectProd)
+	}
+	if strings.Contains(connectProd, "localhost") {
+		t.Errorf("connect-src produksi tidak boleh memuat localhost: %q", connectProd)
+	}
+
+	// 2. Local Mode
+	localApp, _ := newTestApp(t, "local", "http://localhost:8000")
+	resLocal := doGet(t, localApp, "/x", nil)
+	cspLocal := resLocal.Header.Get("Content-Security-Policy")
+
+	imgLocal := directive(cspLocal, "img-src")
+	if !strings.Contains(imgLocal, "http:") {
+		t.Errorf("img-src lokal harus memuat http: untuk aset dev: %q", imgLocal)
+	}
+
+	connectLocal := directive(cspLocal, "connect-src")
+	if !strings.Contains(connectLocal, "http://localhost:*") || !strings.Contains(connectLocal, "ws://localhost:*") {
+		t.Errorf("connect-src lokal harus memuat loopback dev ports: %q", connectLocal)
+	}
+}
+
+// TestHSTSOptions: jaminan N-51 — flag preload dan includeSubDomains dapat dikendalikan.
+func TestHSTSOptions(t *testing.T) {
+	// Kasus 1: includeSubDomains=true, preload=false (default aman)
+	app1, cfg1 := newTestApp(t, "production", "https://app.catavor.id")
+	cfg1.HSTSIncludeSubDomains = true
+	cfg1.HSTSPreload = false
+	res1 := doGet(t, app1, "/x", map[string]string{"X-Forwarded-Proto": "https"})
+	hsts1 := res1.Header.Get("Strict-Transport-Security")
+	if hsts1 != "max-age=31536000; includeSubDomains" {
+		t.Errorf("HSTS kasus 1 tidak sesuai: got %q, want %q", hsts1, "max-age=31536000; includeSubDomains")
+	}
+
+	// Kasus 2: includeSubDomains=true, preload=true
+	app2, cfg2 := newTestApp(t, "production", "https://app.catavor.id")
+	cfg2.HSTSIncludeSubDomains = true
+	cfg2.HSTSPreload = true
+	res2 := doGet(t, app2, "/x", map[string]string{"X-Forwarded-Proto": "https"})
+	hsts2 := res2.Header.Get("Strict-Transport-Security")
+	if hsts2 != "max-age=31536000; includeSubDomains; preload" {
+		t.Errorf("HSTS kasus 2 tidak sesuai: got %q, want %q", hsts2, "max-age=31536000; includeSubDomains; preload")
+	}
+
+	// Kasus 3: includeSubDomains=false, preload=true (preload wajib ditekan bila subdomains false)
+	app3, cfg3 := newTestApp(t, "production", "https://app.catavor.id")
+	cfg3.HSTSIncludeSubDomains = false
+	cfg3.HSTSPreload = true
+	res3 := doGet(t, app3, "/x", map[string]string{"X-Forwarded-Proto": "https"})
+	hsts3 := res3.Header.Get("Strict-Transport-Security")
+	if hsts3 != "max-age=31536000" {
+		t.Errorf("HSTS kasus 3 tidak sesuai: got %q, want %q", hsts3, "max-age=31536000")
+	}
+}
+
+// TestExtractCSPOrigin: validasi sanitasi origin dinamis CSP.
+func TestExtractCSPOrigin(t *testing.T) {
+	tests := []struct {
+		raw       string
+		allowHTTP bool
+		want      string
+	}{
+		{"https://catavor.id", false, "https://catavor.id"},
+		{"https://catavor.id:8443/path?query=1", false, "https://catavor.id:8443"},
+		{"http://localhost:8000", false, ""},
+		{"http://localhost:8000", true, "http://localhost:8000"},
+		{"https://*.catavor.id", false, ""}, // wildcard ditolak oleh extractCSPOrigin
+		{"", false, ""},
+		{"   ", false, ""},
+		{"https://catavor.id; script-src *", false, ""}, // injeksi CSP ditolak
+		{"https://catavor.id/storage/", false, "https://catavor.id"},
+	}
+
+	for _, tt := range tests {
+		got := extractCSPOrigin(tt.raw, tt.allowHTTP)
+		if got != tt.want {
+			t.Errorf("extractCSPOrigin(%q, %v) = %q, want %q", tt.raw, tt.allowHTTP, got, tt.want)
+		}
+	}
+}
+
 

@@ -2618,12 +2618,13 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 
 	isDownload := c.Query("download") == "1" || strings.EqualFold(c.Query("download"), "true")
 
-	// SECURITY (ST-08 & UU PDP): Berkas gambar dan dokumen PDF diizinkan inline untuk preview in-app (modal & chat gallery).
-	// Dokumen PDF dirender secara terisolasi pada canvas klien (DocumentPreviewModal).
-	// Berkas biner lain dipaksa unduh (attachment) demi pencegahan eksekusi skrip / payload berbahaya.
+	// SECURITY (ST-08, UU PDP & N-47): Hanya berkas gambar yang diizinkan inline untuk preview in-app.
+	// Dokumen PDF dipaksa attachment dan diberi CSP sandbox demi mencegah eksekusi skrip / PDF viewer bypass.
+	// In-app DocumentPreviewModal menggunakan fetch() + PDF.js canvas sehingga tetap bekerja sempurna dengan attachment.
 	dispositionType := "attachment"
 	lowerType := strings.ToLower(contentType)
-	if !isDownload && (strings.HasPrefix(lowerType, "image/") || lowerType == "application/pdf") {
+	isPDF := lowerType == "application/pdf" || strings.EqualFold(filepath.Ext(fileName), ".pdf")
+	if !isDownload && strings.HasPrefix(lowerType, "image/") && !isPDF {
 		dispositionType = "inline"
 	}
 
@@ -2632,6 +2633,9 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	c.Set("Content-Type", contentType)
 	c.Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, dispositionType, safeFileName))
 	c.Set("X-Content-Type-Options", "nosniff")
+	if isPDF {
+		c.Set("Content-Security-Policy", "sandbox; default-src 'none'")
+	}
 	// SECURITY (ST-01): Lampiran tiket bersifat privat per-pengguna (UU PDP). Cache
 	// bersama (proxy publik, cache disk browser bersama) tidak boleh menyimpannya.
 	c.Set("Cache-Control", "private, no-store")
