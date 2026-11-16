@@ -4192,7 +4192,7 @@ function App() {
       } else if (path === '/register/step-3') {
         pathTab = isAuthenticated ? 'home' : 'register';
         pathStep = 3;
-      } else if (path === '/terms' || path === '/syarat-ketentuan') {
+      } else if (path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal') {
         pathTab = 'terms';
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         pathTab = 'privacy';
@@ -5597,48 +5597,7 @@ Terima kasih.`;
   // Helper to cleanly format Markdown policy content into React Elements
   const renderFormattedPolicyContent = (text: string) => {
     if (!text) return null;
-    const lines = text.split('\n');
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-        {lines.map((line, idx) => {
-          const trimmed = line.trim();
-          if (!trimmed) return null;
-
-          // Check for headings: ### Header Title or ## Header Title or # Header Title
-          if (trimmed.startsWith('#')) {
-            const headerText = trimmed.replace(/^#+\s*/, '');
-            return (
-              <div key={idx} style={{ marginTop: idx > 0 ? '0.9rem' : '0.2rem', marginBottom: '0.3rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <span style={{ width: '4px', height: '18px', borderRadius: '4px', background: 'var(--primary)', flexShrink: 0, boxShadow: '0 0 10px var(--primary-glow)' }} />
-                  <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }}>
-                    {headerText}
-                  </h4>
-                </div>
-              </div>
-            );
-          }
-
-          // Check for list items: - item or • item
-          if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
-            const itemText = trimmed.replace(/^[-•]\s*/, '');
-            return (
-              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', paddingLeft: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: '1.65' }}>
-                <span style={{ color: 'var(--primary)', fontSize: '0.95rem', lineHeight: '1.4', flexShrink: 0, fontWeight: 'bold' }}>•</span>
-                <span>{itemText}</span>
-              </div>
-            );
-          }
-
-          // Regular paragraph text
-          return (
-            <p key={idx} style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: '1.7' }}>
-              {trimmed}
-            </p>
-          );
-        })}
-      </div>
-    );
+    return <FormattedText text={text} />;
   };
 
   // Dedicated Full-Page Legal & Policy Renderer for Desktop
@@ -10595,7 +10554,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setPortalTab('register');
           setRegisterStep(1);
         }
-      } else if (path === '/terms' || path === '/syarat-ketentuan') {
+      } else if (path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal') {
         setPortalTab('terms');
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         setPortalTab('privacy');
@@ -32447,8 +32406,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 <X size={20} />
               </button>
             </div>
-            <div style={{ padding: '1.75rem 1.5rem', overflowY: 'auto', flex: 1, color: '#cbd5e1', fontSize: '0.88rem', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>
-              {policies[activePolicyModal].content}
+            <div style={{ padding: '1.75rem 1.5rem', overflowY: 'auto', flex: 1, color: '#cbd5e1', fontSize: '0.88rem', lineHeight: '1.7' }}>
+              <FormattedText text={policies[activePolicyModal].content} />
             </div>
             <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', background: 'rgba(15, 23, 42, 0.95)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
@@ -32800,11 +32759,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   {showQuickPolicyModal === 'terms' ? 'Syarat & Ketentuan' : showQuickPolicyModal === 'privacy' ? 'Kebijakan Privasi' : 'Ketentuan Penggunaan'}
                 </span>
               </div>
-              <button type="button" onClick={() => setShowQuickPolicyModal(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+              <button type="button" onClick={() => setShowQuickPolicyModal(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={18} />
+              </button>
             </div>
             
-            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.35rem', fontSize: '0.85rem', color: '#cbd5e1', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-              {policies[showQuickPolicyModal]?.content || 'Memuat dokumen...'}
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.35rem', fontSize: '0.85rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+              <FormattedText text={policies[showQuickPolicyModal]?.content || 'Memuat dokumen...'} />
             </div>
 
             <button type="button" className="btn-primary btn-full" onClick={() => setShowQuickPolicyModal(null)} style={{ marginTop: '1.25rem', padding: '0.75rem', fontSize: '0.85rem', fontWeight: 800 }}>

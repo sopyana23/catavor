@@ -250,6 +250,11 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           badgeTextColor: '#ef4444'
         },
         {
+          id: 'policies',
+          label: 'Ketentuan & Kebijakan',
+          icon: <Scale size={18} />
+        },
+        {
           id: 'notifications',
           label: 'Pusat Notifikasi',
           icon: <BellRing size={18} />,

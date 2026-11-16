@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   HelpCircle,
   CheckCircle2,
+  Check,
   ExternalLink,
   Info,
   Building2,
@@ -394,6 +395,129 @@ const FALLBACK_POLICY_SECTIONS: PolicyDoc[] = [
   }
 ];
 
+// Defensive helper to parse inline markdown (bold, italic, code, links) and eliminate raw **, >, and -- tokens
+export const renderInlineMarkdown = (text?: string): React.ReactNode => {
+  if (!text) return null;
+  // 1. Clean leading/stray blockquote markers and horizontal dividers
+  let cleanText = text
+    .replace(/^>+\s*/gm, '') // Remove leading blockquote markers on any line
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+
+  // Remove standalone horizontal rules / hyphens
+  cleanText = cleanText.replace(/^[ \t]*---+[ \t]*$/gm, '');
+  cleanText = cleanText.replace(/^[ \t]*--+[ \t]*$/gm, '');
+
+  // Convert mid-sentence double hyphens (e.g. "item -- termasuk") to em-dash "—"
+  cleanText = cleanText.replace(/(\s)--+(\s)/g, '$1—$2');
+
+  const regex = /(\*\*([^*]+?)\*\*|__([^_]+?)__|(?<!\*)\*([^*]+?)\*(?!\*)|(?<!_)_([^_]+?)_(?!_)|`([^`]+?)`|\[([^\]]+)\]\(([^)]+)\))/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  let idx = 0;
+
+  const sanitizePlain = (str: string) => {
+    return str
+      .replace(/\*\*/g, '')
+      .replace(/^>+\s*/gm, '')
+      .replace(/---+/g, '')
+      .replace(/--+/g, '—');
+  };
+
+  while ((match = regex.exec(cleanText)) !== null) {
+    if (match.index > lastIndex) {
+      const rawText = sanitizePlain(cleanText.substring(lastIndex, match.index));
+      if (rawText) parts.push(rawText);
+    }
+    if (match[2] !== undefined) {
+      parts.push(<strong key={`b-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{sanitizePlain(match[2])}</strong>);
+    } else if (match[3] !== undefined) {
+      parts.push(<strong key={`b2-${idx++}`} style={{ fontWeight: 700, color: 'inherit' }}>{sanitizePlain(match[3])}</strong>);
+    } else if (match[4] !== undefined) {
+      parts.push(<em key={`i-${idx++}`} style={{ fontStyle: 'italic', color: 'inherit' }}>{sanitizePlain(match[4])}</em>);
+    } else if (match[5] !== undefined) {
+      parts.push(<em key={`i2-${idx++}`} style={{ fontStyle: 'italic', color: 'inherit' }}>{sanitizePlain(match[5])}</em>);
+    } else if (match[6] !== undefined) {
+      parts.push(
+        <code key={`c-${idx++}`} style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.9em' }}>
+          {match[6]}
+        </code>
+      );
+    } else if (match[7] !== undefined && match[8] !== undefined) {
+      parts.push(
+        <a key={`l-${idx++}`} href={match[8]} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary, #10b981)', textDecoration: 'underline' }}>
+          {match[7]}
+        </a>
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < cleanText.length) {
+    const rawTail = sanitizePlain(cleanText.substring(lastIndex));
+    if (rawTail) parts.push(rawTail);
+  }
+  return parts.length > 0 ? parts : sanitizePlain(cleanText);
+};
+
+const renderArticleContent = (content: string) => {
+  if (!content) return null;
+  const lines = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const elements: React.ReactNode[] = [];
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      elements.push(<div key={`sp-${idx}`} style={{ height: '0.35rem' }} />);
+      return;
+    }
+
+    // Horizontal divider --- or --
+    if (/^[-*_]{2,}$/.test(trimmed)) {
+      elements.push(
+        <hr key={`hr-${idx}`} style={{ border: 'none', borderTop: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))', margin: '0.65rem 0' }} />
+      );
+      return;
+    }
+
+    // Blockquote starting with >
+    if (trimmed.startsWith('>')) {
+      const qText = trimmed.replace(/^>+\s*/, '');
+      elements.push(
+        <blockquote key={`bq-${idx}`} style={{ margin: '0.35rem 0', padding: '0.45rem 0.75rem', borderRadius: '0.45rem', backgroundColor: 'rgba(255, 255, 255, 0.03)', borderLeft: '3px solid var(--primary, #10b981)', color: 'var(--text-secondary, #cbd5e1)', fontStyle: 'italic', fontSize: '0.84rem' }}>
+          {renderInlineMarkdown(qText)}
+        </blockquote>
+      );
+      return;
+    }
+
+    // Bullet item starting with - or • or --
+    if (trimmed.startsWith('- ') || trimmed.startsWith('• ') || trimmed.startsWith('-- ')) {
+      const itemText = trimmed.replace(/^(--|-|•)\s+/, '');
+      elements.push(
+        <div key={`li-${idx}`} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', paddingLeft: '0.5rem', margin: '0.15rem 0' }}>
+          <span style={{ color: 'var(--primary, #10b981)', fontSize: '0.85rem', lineHeight: '1.4', flexShrink: 0 }}>•</span>
+          <span style={{ fontSize: 'inherit', color: 'inherit', lineHeight: 1.6 }}>{renderInlineMarkdown(itemText)}</span>
+        </div>
+      );
+      return;
+    }
+
+    // Regular paragraph
+    elements.push(
+      <p key={`p-${idx}`} style={{ margin: '0 0 0.35rem 0', fontSize: 'inherit', color: 'inherit', lineHeight: 1.65 }}>
+        {renderInlineMarkdown(trimmed)}
+      </p>
+    );
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+      {elements}
+    </div>
+  );
+};
+
 export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
   onOpenHelpdesk,
   initialKey,
@@ -488,6 +612,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
   const ActiveIcon = currentDoc.icon;
 
   const legalEntity = legalSettings.legal_entity_name || 'PT Catavor Media Digital';
+  const legalJurisdiction = legalSettings.legal_jurisdiction || 'Hukum Republik Indonesia';
   const legalWarning = legalSettings.legal_warning_banner || 'Sebagai pengelola katalog, Anda bertanggung jawab penuh atas keabsahan hukum dari setiap item yang dipajang. Segala bentuk peredaran satwa liar dilindungi tanpa izin BKSDA, tanaman langka tanpa karantina, komoditas ilegal, penipuan harga, atau pelanggaran hak cipta berakibat pada penindakan tegas berupa penonaktifan seketika (Item Locked) hingga pembekuan profil katalog permanen.';
   const officialEmail = legalSettings.platform_official_email || 'support@catavor.com';
   const officialWa = legalSettings.platform_official_whatsapp || '62811220227';
@@ -590,6 +715,22 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                 <Building2 size={13} />
                 {legalEntity}
               </span>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  color: 'var(--text-muted, #94a3b8)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                  padding: '0.2rem 0.55rem',
+                  borderRadius: '0.35rem',
+                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                }}
+              >
+                <Scale size={12} style={{ color: 'var(--primary, #10b981)' }} />
+                Yurisdiksi: {legalJurisdiction}
+              </span>
               {isLoading && (
                 <span style={{ fontSize: '0.72rem', color: 'var(--primary, #10b981)' }}>
                   Memuat data resmi...
@@ -679,7 +820,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
               Peringatan Kehati-hatian Pengunggahan Item
             </span>
             <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.55 }}>
-              {legalWarning}
+              {renderInlineMarkdown(legalWarning)}
             </p>
           </div>
         </div>
@@ -896,7 +1037,13 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
               <strong style={{ color: 'var(--text-primary, #ffffff)', display: 'block', marginBottom: '0.25rem' }}>
                 Ringkasan Eksekutif:
               </strong>
-              {currentDoc.summary}
+              {renderInlineMarkdown(
+                currentDoc.summary
+                  .replace(/^>+\s*/gm, '')
+                  .replace(/^\*\*Ringkasan Eksekutif:\*\*\s*/i, '')
+                  .replace(/^[ \t]*---+[ \t]*$/gm, '')
+                  .replace(/^[ \t]*--+[ \t]*$/gm, '')
+              )}
             </div>
 
             {/* Article Filter / Search Bar */}
@@ -1003,13 +1150,11 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                       {art.number}
                     </span>
                     <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
-                      {art.heading}
+                      {renderInlineMarkdown(art.heading.replace(/^#+\s*/, ''))}
                     </h3>
                   </div>
 
-                  <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.65 }}>
-                    {art.content}
-                  </p>
+                  {renderArticleContent(art.content)}
 
                   {art.highlights && art.highlights.length > 0 && (
                     <div
@@ -1026,11 +1171,9 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                     >
                       {art.highlights.map((h, hIdx) => (
                         <div key={hIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
-                          <span style={{ color: 'var(--primary, #10b981)', fontSize: '0.85rem', lineHeight: '1.4', flexShrink: 0, fontWeight: 'bold' }}>
-                            ✓
-                          </span>
+                          <Check size={13} style={{ color: 'var(--primary, #10b981)', flexShrink: 0, marginTop: '2px' }} strokeWidth={2.5} />
                           <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.55 }}>
-                            {h}
+                            {renderInlineMarkdown(h)}
                           </span>
                         </div>
                       ))}
@@ -1063,7 +1206,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                   Dokumen Resmi Kepatuhan Platform Catavor
                 </span>
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
-                  Dikelola dan diawasi oleh Divisi Hukum &amp; Kepatuhan {legalEntity} • Kontak: {officialEmail} / +{officialWa}
+                  Dikelola dan diawasi oleh Divisi Hukum &amp; Kepatuhan {legalEntity} • Yurisdiksi: {legalJurisdiction} • Kontak: {officialEmail} / +{officialWa}
                 </span>
               </div>
             </div>

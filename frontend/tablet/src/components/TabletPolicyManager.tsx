@@ -108,15 +108,21 @@ export const TabletPolicyManager: React.FC<TabletPolicyManagerProps> = ({
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [policiesRes, settingsRes] = await Promise.all([
+      const settingsHeaders: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const [policiesRes, settingsRes, publicSettingsRes] = await Promise.all([
         fetch('/api/policies').then(r => r.json()).catch(() => null),
-        fetch('/api/settings').then(r => r.json()).catch(() => null)
+        fetch(token ? '/api/admin/settings' : '/api/settings', { headers: settingsHeaders }).then(r => r.json()).catch(() => null),
+        fetch('/api/settings/public').then(r => r.json()).catch(() => null)
       ]);
 
-      if (settingsRes && settingsRes.success && settingsRes.data) {
-        if (settingsRes.data.legal_entity_name) setLegalEntityName(settingsRes.data.legal_entity_name);
-        if (settingsRes.data.legal_jurisdiction) setLegalJurisdiction(settingsRes.data.legal_jurisdiction);
-        if (settingsRes.data.legal_warning_banner) setLegalWarningBanner(settingsRes.data.legal_warning_banner);
+      const sData = (settingsRes && settingsRes.success && settingsRes.data) 
+        ? settingsRes.data 
+        : (publicSettingsRes && publicSettingsRes.success ? publicSettingsRes.data : null);
+
+      if (sData) {
+        if (sData.legal_entity_name) setLegalEntityName(sData.legal_entity_name);
+        if (sData.legal_jurisdiction) setLegalJurisdiction(sData.legal_jurisdiction);
+        if (sData.legal_warning_banner) setLegalWarningBanner(sData.legal_warning_banner);
       }
 
       if (policiesRes && policiesRes.success && policiesRes.data) {
