@@ -278,8 +278,12 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
       setErrorMsg('Nama lengkap, email, dan password petugas wajib diisi.');
       return;
     }
-    if (newStaffPassword.length < 8) {
-      setErrorMsg('Password petugas minimal 8 karakter.');
+    if (newStaffPassword.length < 10) {
+      setErrorMsg('Password petugas minimal 10 karakter.');
+      return;
+    }
+    if (new TextEncoder().encode(newStaffPassword).length > 72) {
+      setErrorMsg('Password petugas maksimal 72 karakter/byte.');
       return;
     }
 
@@ -1962,10 +1966,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   <Lock size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: colors.textMuted }} />
                   <input
                     type={showStaffPassword ? 'text' : 'password'}
-                    placeholder="Minimal 8 karakter..."
+                    placeholder="Minimal 10 karakter..."
                     value={newStaffPassword}
                     onChange={(e) => setNewStaffPassword(e.target.value)}
-                    minLength={8}
+                    minLength={10}
                     style={{
                       width: '100%',
                       height: '44px',
@@ -1999,7 +2003,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   </button>
                 </div>
                 <p style={{ fontSize: '0.72rem', color: colors.textMuted, margin: '0.35rem 0 0 0' }}>
-                  Minimal 8 karakter. Petugas dapat memperbarui kata sandi setelah login.
+                  Minimal 10 karakter (NIST SP 800-63B). Petugas dapat memperbarui kata sandi setelah login.
                 </p>
               </div>
 

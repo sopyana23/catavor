@@ -326,25 +326,34 @@ func TestValidateEmail(t *testing.T) {
 // ============================================================================
 
 func TestValidatePassword(t *testing.T) {
-	t.Run("positive control: password kuat lolos", func(t *testing.T) {
-		if err := ValidatePassword("Rahasia1!"); err != nil {
+	t.Run("positive control: password kuat 10-14 karakter lolos", func(t *testing.T) {
+		if err := ValidatePassword("BintangTerang99!"); err != nil {
 			t.Fatalf("password sah ditolak: %v", err)
 		}
 	})
 
+	t.Run("positive control: passphrase kalimat panjang >= 15 karakter lolos tanpa simbol", func(t *testing.T) {
+		if err := ValidatePassword("kucing berlari di taman kota"); err != nil {
+			t.Fatalf("passphrase kalimat sah ditolak: %v", err)
+		}
+	})
+
 	cases := []struct{ name, in, wantErr string }{
-		{"terlalu pendek", "Ab1!", "minimal 8"},
-		{"tanpa huruf besar", "rahasia1!", "huruf besar"},
-		{"tanpa huruf kecil", "RAHASIA1!", "huruf kecil"},
-		{"tanpa angka", "Rahasia!!", "angka"},
-		{"tanpa karakter khusus", "Rahasia12", "karakter khusus"},
+		{"kosong", "   ", "tidak boleh kosong"},
+		{"terlalu pendek < 10 char", "Rahasia1!", "minimal 10"},
+		{"10-14 char huruf saja", "rahasiasaja", "mengombinasikan huruf"},
+		{"10-14 char angka saja", "1238912389", "mengombinasikan huruf"},
+		{"karakter berulang", "aaaaaaaaaaaa", "karakter berulang"},
+		{"kata sandi pasaran", "Password123!", "terlalu umum"},
+		{"leetspeak pasaran", "P@ssw0rd123!", "terlalu umum"},
+		{"kata sandi pasaran admin", "admin12345", "terlalu umum"},
 		{"melebihi 72 byte", strings.Repeat("A", 70) + "1!b", "maksimal 72"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			err := ValidatePassword(c.in)
 			if err == nil {
-				t.Fatalf("password lemah %q diterima", c.in)
+				t.Fatalf("password tidak valid %q diterima", c.in)
 			}
 			if !strings.Contains(err.Error(), c.wantErr) {
 				t.Errorf("pesan error %q tidak memuat %q", err.Error(), c.wantErr)

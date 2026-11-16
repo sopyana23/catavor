@@ -29,7 +29,8 @@ import {
   resolveAuthenticatedRedirect,
   hasValidSessionToken,
   clearRegistrationDrafts,
-  appendViewParam
+  appendViewParam,
+  trySilentCookieRefresh
 } from './utils/authSync';
 import { initGoogleAdSense } from './utils/googleAdSense';
 import { initGoogleAnalytics } from './utils/googleAnalytics';
@@ -389,18 +390,33 @@ export const App: React.FC = () => {
     let isMounted = true;
     const verifySession = async () => {
       if (!token) return;
-      if (isTokenExpired(token)) {
-        handleUnauthorized();
-        return;
+      let activeToken = token;
+      if (isTokenExpired(activeToken)) {
+        const refreshed = await trySilentCookieRefresh();
+        if (!refreshed) {
+          handleUnauthorized();
+          return;
+        }
+        activeToken = refreshed;
+        setToken(refreshed);
       }
       try {
         const res = await fetch('/api/auth/verify', {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${activeToken}`,
             'Content-Type': 'application/json'
           }
         });
         if (!isMounted) return;
+
+        const refreshedToken = res.headers.get('X-Refreshed-Token');
+        if (refreshedToken) {
+          try {
+            localStorage.setItem('catavor_token', refreshedToken);
+            setToken(refreshedToken);
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', token: refreshedToken });
+          } catch {}
+        }
         if (res.ok) {
           const data = await res.json();
           if (data.valid && data.user) {

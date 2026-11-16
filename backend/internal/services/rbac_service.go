@@ -9,6 +9,7 @@ import (
 
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
@@ -399,8 +400,8 @@ func (s *RBACService) CreateStaffUser(params CreateStaffParams) (*models.User, e
 	if email == "" || !strings.Contains(email, "@") || !strings.Contains(email, ".") {
 		return nil, errors.New("format email petugas tidak valid")
 	}
-	if len(password) < 8 {
-		return nil, errors.New("kata sandi awal minimal 8 karakter")
+	if err := security.ValidatePassword(params.Password); err != nil {
+		return nil, err
 	}
 
 	// Cek apakah email sudah terdaftar (baik sebagai merchant maupun pengelola)

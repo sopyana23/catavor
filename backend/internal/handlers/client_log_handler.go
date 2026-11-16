@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -29,18 +30,35 @@ const (
 	maxClientLogField   = 300
 )
 
+var (
+	emailRegex      = regexp.MustCompile(`(?i)[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`)
+	bearerRegex     = regexp.MustCompile(`(?i)Bearer\s+[a-z0-9\-_.]+`)
+	jwtRegex        = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b`)
+	queryParamRegex = regexp.MustCompile(`(?i)(token|access_token|refresh_token|id_token|auth_token|authtoken|api_key|apikey|secret|client_secret|password|passwd|pwd)=([^&\s]+)`)
+)
+
+func redactSensitive(s string) string {
+	if s == "" {
+		return ""
+	}
+	s = bearerRegex.ReplaceAllString(s, "Bearer [REDACTED]")
+	s = queryParamRegex.ReplaceAllString(s, "$1=[REDACTED]")
+	s = jwtRegex.ReplaceAllString(s, "[REDACTED_JWT]")
+	s = emailRegex.ReplaceAllString(s, "[MASKED_EMAIL]")
+	return s
+}
+
 func clipClientLog(s string, max int) string {
-	s = strings.TrimSpace(s)
-	// Defensif: `max` negatif membuat s[:max] panik dan menjatuhkan handler.
-	// Saat ini semua pemanggil memakai konstanta positif sehingga tidak dapat
-	// dipicu dari HTTP, tetapi fungsi pembatas tidak boleh bisa memicu panic.
+	s = redactSensitive(strings.TrimSpace(s))
+	// Defensif: `max` negatif atau nol membuat fungsi pembatas aman tanpa panik.
 	if max <= 0 {
 		return ""
 	}
-	if len(s) <= max {
+	runes := []rune(s)
+	if len(runes) <= max {
 		return s
 	}
-	return s[:max] + "…[dipotong]"
+	return string(runes[:max]) + "…[dipotong]"
 }
 
 // LogClientError menerima crash report dari ErrorBoundary frontend.

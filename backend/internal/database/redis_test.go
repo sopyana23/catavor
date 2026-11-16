@@ -567,3 +567,48 @@ func TestCache_ExplicitTTL(t *testing.T) {
 		t.Errorf("TTL eksplisit store quota = %v, want 45s", ttl)
 	}
 }
+
+func TestBlacklistTokenWithGracePeriod_MiniRedis(t *testing.T) {
+	mr := useMiniRedis(t)
+	jti := "test-grace-jti-redis"
+	ttl := 10 * time.Minute
+	grace := 50 * time.Millisecond
+
+	BlacklistTokenWithGracePeriod(jti, grace, ttl)
+
+	// Saat ini (t = 0), masih dalam grace period -> tidak diblacklist
+	if IsTokenBlacklisted(jti) {
+		t.Errorf("token %s langsung diblacklist pada t=0 padahal ada grace period", jti)
+	}
+
+	// Tunggu grace period lewat
+	time.Sleep(60 * time.Millisecond)
+	mr.FastForward(60 * time.Millisecond)
+
+	// Sekarang, grace period sudah lewat -> wajib diblacklist
+	if !IsTokenBlacklisted(jti) {
+		t.Errorf("token %s belum diblacklist setelah grace period lewat", jti)
+	}
+}
+
+func TestBlacklistTokenWithGracePeriod_InMemory(t *testing.T) {
+	useNoRedis(t)
+	jti := "test-grace-jti-mem"
+	ttl := 10 * time.Minute
+	grace := 50 * time.Millisecond
+
+	BlacklistTokenWithGracePeriod(jti, grace, ttl)
+
+	// Pada t = 0 -> false
+	if IsTokenBlacklisted(jti) {
+		t.Errorf("token %s langsung diblacklist pada t=0", jti)
+	}
+
+	// Tunggu grace period lewat
+	time.Sleep(60 * time.Millisecond)
+
+	// Pada t = 60ms -> true
+	if !IsTokenBlacklisted(jti) {
+		t.Errorf("token %s belum diblacklist setelah grace period lewat", jti)
+	}
+}

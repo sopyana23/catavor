@@ -1610,7 +1610,24 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 		currentStore = user.Store
 	}
 
-	newToken, err := middleware.GenerateToken(user, currentStore, h.cfg)
+	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
+	if claims != nil && claims.IsAbsoluteExpired() {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"code":    "SESSION_ABSOLUTE_EXPIRED",
+			"message": "Sesi telah mencapai batas maksimum (7 hari). Silakan login kembali.",
+		})
+	}
+
+	var absExp time.Time
+	if claims != nil {
+		absExp = claims.GetAbsoluteExpiresAt()
+	}
+	if absExp.IsZero() {
+		absExp = time.Now().Add(7 * 24 * time.Hour)
+	}
+
+	newToken, newTokenID, newExpiresAt, err := middleware.GenerateSlidingTokenWithID(user, currentStore, h.cfg, absExp)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -1618,7 +1635,21 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 		})
 	}
 
+	if claims != nil && claims.ID != "" {
+		ttl := 72 * time.Hour
+		if claims.ExpiresAt != nil {
+			remaining := time.Until(claims.ExpiresAt.Time)
+			if remaining > 0 {
+				ttl = remaining
+			}
+		}
+		database.BlacklistTokenWithGracePeriod(claims.ID, 30*time.Second, ttl)
+		_ = services.RotateUserSessionToken(h.db, claims.ID, newTokenID, newExpiresAt, c.IP())
+	}
+	middleware.RegisterSessionFingerprint(newTokenID, c.IP(), c.Get("User-Agent"))
+
 	setSessionCookie(c, h.cfg, newToken)
+	c.Set("X-Refreshed-Token", newToken)
 
 	return c.JSON(fiber.Map{
 		"success":             true,

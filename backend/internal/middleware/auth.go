@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -27,18 +28,33 @@ const (
 )
 
 type JWTClaims struct {
-	UserID            uint   `json:"user_id"`
-	Email             string `json:"email"`
-	Name              string `json:"name"`
-	StoreSlug         string `json:"store_slug"`
-	StoreID           uint   `json:"store_id"`
-	IsPasswordChanged bool   `json:"is_password_changed"`
-	TokenVersion      int    `json:"token_version"`
+	UserID            uint              `json:"user_id"`
+	Email             string            `json:"email"`
+	Name              string            `json:"name"`
+	StoreSlug         string            `json:"store_slug"`
+	StoreID           uint              `json:"store_id"`
+	IsPasswordChanged bool              `json:"is_password_changed"`
+	TokenVersion      int               `json:"token_version"`
+	AbsoluteExpiresAt *jwt.NumericDate  `json:"abs_exp,omitempty"`
 	jwt.RegisteredClaims
 }
 
-// GenerateTokenWithID creates a cryptographically signed JWT token with algorithm pinning and returns token string, jti UUID, and expiresAt.
-func GenerateTokenWithID(user *models.User, store *models.Store, cfg *config.Config) (string, string, time.Time, error) {
+func (c *JWTClaims) GetAbsoluteExpiresAt() time.Time {
+	if c != nil && c.AbsoluteExpiresAt != nil {
+		return c.AbsoluteExpiresAt.Time
+	}
+	return time.Time{}
+}
+
+func (c *JWTClaims) IsAbsoluteExpired() bool {
+	if c == nil || c.AbsoluteExpiresAt == nil {
+		return false
+	}
+	return time.Now().After(c.AbsoluteExpiresAt.Time)
+}
+
+// GenerateSlidingTokenWithID creates a cryptographically signed JWT token preserving user claims and absolute expiration.
+func GenerateSlidingTokenWithID(user *models.User, store *models.Store, cfg *config.Config, absExp time.Time) (string, string, time.Time, error) {
 	var storeSlug string
 	var storeID uint
 	if store != nil {
@@ -54,6 +70,13 @@ func GenerateTokenWithID(user *models.User, store *models.Store, cfg *config.Con
 	tokenID := uuid.New().String()
 	expiresAt := time.Now().Add(time.Duration(cfg.JWTExpirationHours) * time.Hour)
 
+	var absNumericDate *jwt.NumericDate
+	if !absExp.IsZero() {
+		absNumericDate = jwt.NewNumericDate(absExp)
+	} else {
+		absNumericDate = jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour))
+	}
+
 	claims := JWTClaims{
 		UserID:            user.ID,
 		Email:             user.Email,
@@ -62,6 +85,7 @@ func GenerateTokenWithID(user *models.User, store *models.Store, cfg *config.Con
 		StoreID:           storeID,
 		IsPasswordChanged: user.IsPasswordChanged,
 		TokenVersion:      tokenVersion,
+		AbsoluteExpiresAt: absNumericDate,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        tokenID,
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
@@ -80,10 +104,40 @@ func GenerateTokenWithID(user *models.User, store *models.Store, cfg *config.Con
 	return signedToken, tokenID, expiresAt, nil
 }
 
+// GenerateTokenWithID creates a cryptographically signed JWT token with algorithm pinning and returns token string, jti UUID, and expiresAt.
+func GenerateTokenWithID(user *models.User, store *models.Store, cfg *config.Config) (string, string, time.Time, error) {
+	return GenerateSlidingTokenWithID(user, store, cfg, time.Now().Add(7*24*time.Hour))
+}
+
 // GenerateToken creates a cryptographically signed JWT token with algorithm pinning (backwards compatible)
 func GenerateToken(user *models.User, store *models.Store, cfg *config.Config) (string, error) {
 	token, _, _, err := GenerateTokenWithID(user, store, cfg)
 	return token, err
+}
+
+// parseJWTClaims safely validates and parses a token string with algorithm pinning and issuer/audience checks.
+func parseJWTClaims(tokenString, secret string) (*JWTClaims, error) {
+	if tokenString == "" || secret == "" {
+		return nil, errors.New("empty token or secret")
+	}
+	claims := &JWTClaims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing algorithm")
+		}
+		return []byte(secret), nil
+	},
+		jwt.WithValidMethods([]string{"HS256"}),
+		jwt.WithIssuer(JWTIssuer),
+		jwt.WithAudience(JWTAudience),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !token.Valid {
+		return nil, errors.New("invalid token")
+	}
+	return claims, nil
 }
 
 // ExtractOptionalClaims safely parses a Bearer token or token query without throwing HTTP 401.
@@ -92,41 +146,22 @@ func ExtractOptionalClaims(c *fiber.Ctx, cfg *config.Config) *JWTClaims {
 	if cfg == nil || cfg.JWTSecret == "" {
 		return nil
 	}
-	var tokenString string
 	if cookieToken := strings.TrimSpace(c.Cookies(SessionCookieName)); cookieToken != "" {
-		tokenString = cookieToken
+		if claims, err := parseJWTClaims(cookieToken, cfg.JWTSecret); err == nil {
+			return claims
+		}
 	}
-	if tokenString == "" {
-		authHeader := c.Get("Authorization")
-		if authHeader != "" {
-			parts := strings.SplitN(authHeader, " ", 2)
-			if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
-				tokenString = strings.TrimSpace(parts[1])
+	authHeader := c.Get("Authorization")
+	if authHeader != "" {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
+			bearerToken := strings.TrimSpace(parts[1])
+			if claims, err := parseJWTClaims(bearerToken, cfg.JWTSecret); err == nil {
+				return claims
 			}
 		}
 	}
-	if tokenString == "" {
-		return nil
-	}
-
-	claims := &JWTClaims{}
-	// SECURITY (N-30): validasi iss/aud, bukan hanya menyetelnya saat menandatangani.
-	// Tanpa opsi ini, token yang ditandatangani secret yang sama tetapi berasal dari
-	// sistem lain (iss/aud berbeda) akan diterima — memungkinkan token confusion.
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("unexpected signing algorithm")
-		}
-		return []byte(cfg.JWTSecret), nil
-	},
-		jwt.WithValidMethods([]string{"HS256"}),
-		jwt.WithIssuer(JWTIssuer),
-		jwt.WithAudience(JWTAudience),
-	)
-	if err != nil || !token.Valid {
-		return nil
-	}
-	return claims
+	return nil
 }
 
 // SECURITY (M1): nama cookie sesi. HttpOnly + Secure + SameSite=Strict,
@@ -140,37 +175,11 @@ const SessionCookieName = "catavor_session"
 //  3. ?token= query param (hanya untuk EventSource/SSE yang tak bisa kirim header)
 func AuthRequired(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		var tokenString string
-
-		// 1. Cookie HttpOnly — sumber utama.
-		if cookieToken := strings.TrimSpace(c.Cookies(SessionCookieName)); cookieToken != "" {
-			tokenString = cookieToken
-		}
-
-		authHeader := c.Get("Authorization")
-		if tokenString == "" && authHeader != "" {
-			parts := strings.SplitN(authHeader, " ", 2)
-			if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
-				tokenString = strings.TrimSpace(parts[1])
-			} else {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"success": false,
-					"code":    "INVALID_TOKEN_FORMAT",
-					"message": "Invalid authorization token format.",
-				})
-			}
-		}
-
 		// SECURITY (M1/SSE): tiket sekali pakai untuk EventSource.
 		// EventSource tak bisa mengirim header, jadi JWT dulu ditaruh di
 		// ?token= — URL mudah bocor ke access log/Referer. Sekarang klien
 		// menukar sesi dengan tiket berumur 30 detik lewat
 		// POST /api/notifications/ticket, lalu memakai ?ticket=.
-		//
-		// PENTING: bila ada ?ticket=, tiket adalah SATU-SATUNYA kredensial yang
-		// dihormati. Cookie sengaja tidak dipakai sebagai cadangan — kalau
-		// dipakai, tiket yang sudah kedaluwarsa/di-replay tetap lolos karena
-		// cookie sesi masih sah, sehingga jaminan "sekali pakai" jadi palsu.
 		if ticket := strings.TrimSpace(c.Query("ticket")); ticket != "" {
 			uid, ok := security.ConsumeSSETicket(ticket)
 			if !ok {
@@ -196,11 +205,7 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 				})
 			}
 
-			// SECURITY (N-05): whitelist terpusat, konsisten dengan RequireAdmin.
-			// ARSITEKTUR: staf platform ditentukan oleh platform_role yang
-			// ditetapkan dinamis (dapat dicabut & diaudit), bukan alamat email.
 			isTicketAdmin := user.IsPlatformStaff()
-
 			if !isTicketAdmin && user.IsBlacklisted {
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 					"success": false,
@@ -238,13 +243,24 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			return c.Next()
 		}
 
-		// SECURITY (N-02): fallback ?token= DIHAPUS.
-		// Token di URL bocor ke log reverse-proxy/CDN, header Referer, riwayat
-		// browser, dan berbagi tautan. Auth hanya lewat cookie httpOnly,
-		// header Authorization, atau tiket SSE sekali-pakai (?ticket= di atas).
-		// Klien lama yang masih mengirim ?token= akan menerima 401 — disengaja.
+		// Token extraction: Layer 1 (Cookie) & Layer 2 (Bearer Header)
+		cookieToken := strings.TrimSpace(c.Cookies(SessionCookieName))
+		var bearerToken string
+		authHeader := c.Get("Authorization")
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
+				bearerToken = strings.TrimSpace(parts[1])
+			} else if cookieToken == "" {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"code":    "INVALID_TOKEN_FORMAT",
+					"message": "Invalid authorization token format.",
+				})
+			}
+		}
 
-		if tokenString == "" {
+		if cookieToken == "" && bearerToken == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
 				"code":    "UNAUTHENTICATED",
@@ -252,24 +268,28 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		claims := &JWTClaims{}
+		// Validation with Layer 3 Fallback:
+		// Try Bearer token first if supplied; if expired/invalid but Cookie is valid, fallback to Cookie!
+		var claims *JWTClaims
+		var tokenErr error
 
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			// Algorithm Pinning: Enforce HMAC SHA-256 strictly
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, errors.New("unexpected signing algorithm")
+		if bearerToken != "" {
+			claims, tokenErr = parseJWTClaims(bearerToken, cfg.JWTSecret)
+			if (tokenErr != nil || claims == nil) && cookieToken != "" {
+				// Fallback to cookie
+				if cClaims, cErr := parseJWTClaims(cookieToken, cfg.JWTSecret); cErr == nil && cClaims != nil {
+					claims = cClaims
+					tokenErr = nil
+				}
 			}
-			return []byte(cfg.JWTSecret), nil
-		},
-			jwt.WithValidMethods([]string{"HS256"}),
-			jwt.WithIssuer(JWTIssuer),
-			jwt.WithAudience(JWTAudience),
-		)
+		} else if cookieToken != "" {
+			claims, tokenErr = parseJWTClaims(cookieToken, cfg.JWTSecret)
+		}
 
-		if err != nil || !token.Valid {
+		if tokenErr != nil || claims == nil {
 			errCode := "TOKEN_EXPIRED"
 			errMsg := "Sesi login Anda telah berakhir. Silakan masuk kembali."
-			if err != nil && strings.Contains(strings.ToLower(err.Error()), "malformed") {
+			if tokenErr != nil && strings.Contains(strings.ToLower(tokenErr.Error()), "malformed") {
 				errCode = "INVALID_TOKEN"
 				errMsg = "Token otentikasi tidak valid."
 			}
@@ -277,6 +297,15 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 				"success": false,
 				"code":    errCode,
 				"message": errMsg,
+			})
+		}
+
+		// Absolute Session Expiration Enforcement (N-55 / REV-R3-05)
+		if claims.IsAbsoluteExpired() {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "SESSION_ABSOLUTE_EXPIRED",
+				"message": "Sesi login telah mencapai batas maksimum (7 hari). Silakan login kembali.",
 			})
 		}
 
@@ -330,9 +359,6 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		}
 
 		// Security Check: Verify global token version (e.g. password reset or credential invalidation)
-		// SECURITY (N-04): token yang diterbitkan server SELALU punya token_version >= 1
-		// (lihat GenerateTokenWithID). Klaim yang hilang / 0 hanya mungkin berasal dari
-		// token yang dipalsukan, jadi perlakukan sebagai tidak valid — jangan fail-open.
 		if claims.TokenVersion <= 0 || claims.TokenVersion < user.TokenVersion {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"success": false,
@@ -342,13 +368,9 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		}
 
 		// SECURITY (M1-mitigasi): deteksi token yang dipakai dari IP/UA berbeda
-		// dari saat login. Tidak memblokir (mobile sering ganti jaringan), tetapi
-		// dicatat sebagai WARN agar bisa ditindaklanjuti lewat monitoring.
 		CheckSessionFingerprint(c, claims.ID, user.ID)
 
 		// SECURITY (N-05): gunakan whitelist terpusat (satu sumber kebenaran).
-		// Sebelumnya daftar ini hardcoded dan tidak konsisten dengan DB: memuat
-		// "admin" (tidak pernah ada di platform_role) dan melewatkan finance/content.
 		isPlatformAdmin := user.IsPlatformStaff()
 
 		if !isPlatformAdmin && user.IsBlacklisted {
@@ -396,6 +418,54 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			c.Locals("store", activeStore)
 			c.Locals("store_id", activeStore.ID)
 			c.Locals("store_slug", activeStore.Slug)
+		}
+
+		// Silent Sliding Session Rotation (N-55)
+		// Check if token has passed half-life, not absolute expired, and has a valid ID
+		if claims.ID != "" && claims.ExpiresAt != nil {
+			tokenHours := cfg.JWTExpirationHours
+			if tokenHours <= 0 {
+				tokenHours = 24
+			}
+			tokenDuration := time.Duration(tokenHours) * time.Hour
+			halfLife := tokenDuration / 2
+			remaining := time.Until(claims.ExpiresAt.Time)
+
+			if remaining > 0 && remaining <= halfLife && !claims.IsAbsoluteExpired() {
+				// Single-winner lock via Redis SETNX (cooldown 60s)
+				lockKey := "sec:slide_lock:" + claims.ID
+				canRotate := true
+				if database.IsRedisAvailable() && database.RedisClient != nil {
+					acquired, err := database.RedisClient.SetNX(context.Background(), lockKey, "1", 60*time.Second).Result()
+					if err != nil || !acquired {
+						canRotate = false
+					}
+				}
+
+				if canRotate {
+					absExp := claims.GetAbsoluteExpiresAt()
+					if absExp.IsZero() {
+						absExp = time.Now().Add(7 * 24 * time.Hour)
+					}
+
+					newToken, newJTI, newExpiresAt, err := GenerateSlidingTokenWithID(&user, activeStore, cfg, absExp)
+					if err == nil {
+						// 1. Update session cookie
+						SetSessionCookie(c, cfg, newToken)
+						// 2. Set client response header
+						c.Set("X-Refreshed-Token", newToken)
+						// 3. Blacklist old token with 30s grace period for in-flight requests
+						database.BlacklistTokenWithGracePeriod(claims.ID, 30*time.Second, remaining)
+						// 4. Synchronous light update on models.UserSession before c.Next() (POLISH-R3-01)
+						_ = services.RotateUserSessionToken(database.DB, claims.ID, newJTI, newExpiresAt, c.IP())
+						// 5. Register session fingerprint for new JTI (POLISH-R3-03)
+						RegisterSessionFingerprint(newJTI, c.IP(), c.Get("User-Agent"))
+						// 6. Mutate claims.ID = newJTI in c.Locals("claims") (POLISH-R3-01)
+						claims.ID = newJTI
+						c.Locals("claims", claims)
+					}
+				}
+			}
 		}
 
 		// Heartbeat / Last Seen Tracking (Throttled 5 menit di dalam TouchUserSession)

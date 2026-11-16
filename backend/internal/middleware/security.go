@@ -189,6 +189,7 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Store-Slug, X-Request-ID",
 		AllowMethods:     "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
 		AllowCredentials: allowCredentials,
+		ExposeHeaders:    "X-Refreshed-Token",
 		MaxAge:           86400,
 	}))
 

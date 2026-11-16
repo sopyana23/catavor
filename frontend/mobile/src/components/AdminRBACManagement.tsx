@@ -357,8 +357,12 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
       showNotification('Nama, email, dan password wajib diisi.', false);
       return;
     }
-    if (newStaffPassword.length < 8) {
-      showNotification('Password minimal 8 karakter.', false);
+    if (newStaffPassword.length < 10) {
+      showNotification('Password minimal 10 karakter.', false);
+      return;
+    }
+    if (new TextEncoder().encode(newStaffPassword).length > 72) {
+      showNotification('Password maksimal 72 karakter/byte.', false);
       return;
     }
 
@@ -1768,10 +1772,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   <Lock size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
                   <input
                     type={showStaffPassword ? 'text' : 'password'}
-                    placeholder="Minimal 8 karakter..."
+                    placeholder="Minimal 10 karakter..."
                     value={newStaffPassword}
                     onChange={(e) => setNewStaffPassword(e.target.value)}
-                    minLength={8}
+                    minLength={10}
                     style={{
                       width: '100%',
                       height: '44px',

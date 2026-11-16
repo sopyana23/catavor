@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"catavor-backend/internal/database"
+	"catavor-backend/internal/logutil"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/storage"
 
@@ -511,8 +512,8 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 
 			log.Info().
 				Uint("store_id", store.ID).
-				Str("user_email", userEmail).
-				Str("user_name", userName).
+				Str("user_email", logutil.MaskEmail(userEmail)).
+				Str("user_name", logutil.MaskName(userName)).
 				Int("freed_files", deletedFilesCount).
 				Msg("Hard Purge completed. Database records and physical media files successfully reclaimed.")
 

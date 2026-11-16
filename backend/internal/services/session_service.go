@@ -109,6 +109,9 @@ func TouchUserSession(tokenID string, ip string) {
 }
 
 func touchUserSession(tokenID string, ip string) {
+	if tokenID == "" || database.DB == nil {
+		return
+	}
 	// Update if last_active_at is older than 5 minutes
 	now := time.Now()
 	threshold := now.Add(-5 * time.Minute)
@@ -255,5 +258,32 @@ func RevokeAllSessionsForUser(db *gorm.DB, userID uint) error {
 
 	log.Info().Uint("user_id", userID).Msg("Successfully revoked all active sessions and bumped token_version.")
 	return nil
+}
+
+// RotateUserSessionToken memperbarui token_id, expires_at, dan last_active_at pada models.UserSession
+// saat rotasi token (N-55 / REV-R3-03).
+func RotateUserSessionToken(db *gorm.DB, oldTokenID, newTokenID string, newExpiresAt time.Time, ip string) error {
+	if oldTokenID == "" || newTokenID == "" {
+		return nil
+	}
+	if db == nil {
+		db = database.DB
+	}
+	if db == nil {
+		return nil
+	}
+	now := time.Now()
+	updates := map[string]interface{}{
+		"token_id":       newTokenID,
+		"expires_at":     newExpiresAt,
+		"last_active_at": now,
+		"updated_at":     now,
+	}
+	if ip != "" {
+		updates["ip_address"] = ip
+	}
+	return db.Model(&models.UserSession{}).
+		Where("token_id = ? AND is_revoked = false", oldTokenID).
+		Updates(updates).Error
 }
 

@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"catavor-backend/internal/logutil"
+
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 )
@@ -333,17 +335,62 @@ type loginFailureRecord struct {
 	ExpiresAt time.Time
 }
 
-// BlacklistToken adds a JWT ID (jti) to the revocation blacklist with a specified TTL.
+type tokenBlacklistEntry struct {
+	effectiveAt time.Time // Sebelum effectiveAt, token masih diterima (grace period)
+	expiresAt   time.Time // Batas hidup entri di memori
+}
+
+// BlacklistToken adds a JWT ID (jti) to the revocation blacklist immediately with a specified TTL.
 func BlacklistToken(jti string, ttl time.Duration) {
 	if jti == "" || ttl <= 0 {
 		return
 	}
-	memoryTokenBlacklist.Store(jti, time.Now().Add(ttl))
+	now := time.Now()
+	memoryTokenBlacklist.Store(jti, tokenBlacklistEntry{
+		effectiveAt: now,
+		expiresAt:   now.Add(ttl),
+	})
 
-	if IsRedisAvailable() {
+	redisMu.RLock()
+	client := RedisClient
+	redisMu.RUnlock()
+
+	if IsRedisAvailable() && client != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
-		_ = RedisClient.Set(ctx, "jwt:blacklist:"+jti, "1", ttl).Err()
+		_ = client.Set(ctx, "jwt:blacklist:"+jti, "1", ttl).Err()
+	}
+}
+
+// BlacklistTokenWithGracePeriod memasukkan jti ke daftar hitam dengan masa tenggang gracePeriod (POLISH-R3-04).
+// Selama gracePeriod (mis. 30 detik), IsTokenBlacklisted tetap false agar request in-flight tidak terputus.
+// Setelah gracePeriod lewat, token ditolak hingga ttl habis tanpa membocorkan goroutine sleep.
+func BlacklistTokenWithGracePeriod(jti string, gracePeriod time.Duration, ttl time.Duration) {
+	if jti == "" || ttl <= 0 {
+		return
+	}
+	if gracePeriod <= 0 {
+		BlacklistToken(jti, ttl)
+		return
+	}
+	now := time.Now()
+	effectiveAt := now.Add(gracePeriod)
+	expiresAt := effectiveAt.Add(ttl)
+
+	memoryTokenBlacklist.Store(jti, tokenBlacklistEntry{
+		effectiveAt: effectiveAt,
+		expiresAt:   expiresAt,
+	})
+
+	redisMu.RLock()
+	client := RedisClient
+	redisMu.RUnlock()
+
+	if IsRedisAvailable() && client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		val := fmt.Sprintf("after:%d", effectiveAt.Unix())
+		_ = client.Set(ctx, "jwt:blacklist:"+jti, val, gracePeriod+ttl).Err()
 	}
 }
 
@@ -352,11 +399,20 @@ func IsTokenBlacklisted(jti string) bool {
 	if jti == "" {
 		return false
 	}
+	now := time.Now()
 
 	// 1. Check in-memory store
 	if val, ok := memoryTokenBlacklist.Load(jti); ok {
-		if expireTime, ok := val.(time.Time); ok {
-			if time.Now().Before(expireTime) {
+		if entry, ok := val.(tokenBlacklistEntry); ok {
+			if now.Before(entry.expiresAt) {
+				if now.Before(entry.effectiveAt) {
+					return false // Masih dalam masa toleransi grace period
+				}
+				return true // Grace period sudah lewat -> diblacklist
+			}
+			memoryTokenBlacklist.Delete(jti)
+		} else if expireTime, ok := val.(time.Time); ok {
+			if now.Before(expireTime) {
 				return true
 			}
 			memoryTokenBlacklist.Delete(jti)
@@ -364,11 +420,27 @@ func IsTokenBlacklisted(jti string) bool {
 	}
 
 	// 2. Check Redis if available
-	if IsRedisAvailable() {
+	redisMu.RLock()
+	client := RedisClient
+	redisMu.RUnlock()
+
+	if IsRedisAvailable() && client != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
-		exists, err := RedisClient.Exists(ctx, "jwt:blacklist:"+jti).Result()
-		if err == nil && exists > 0 {
+		val, err := client.Get(ctx, "jwt:blacklist:"+jti).Result()
+		if err == nil && val != "" {
+			if val == "1" {
+				return true
+			}
+			if strings.HasPrefix(val, "after:") {
+				if effectiveUnix, parseErr := strconv.ParseInt(strings.TrimPrefix(val, "after:"), 10, 64); parseErr == nil {
+					if now.Unix() < effectiveUnix {
+						return false // Masih dalam masa toleransi grace period
+					}
+					return true // Grace period habis -> diblacklist
+				}
+				return true
+			}
 			return true
 		}
 	} else if isProductionEnv() {
@@ -442,7 +514,7 @@ func IsAccountLoginLocked(email string) (bool, time.Duration) {
 		// SECURITY (M3): fail closed. Tanpa Redis di production kita tidak dapat
 		// memastikan status lockout, sehingga brute-force bisa lolos. Tolak login
 		// sementara (retry 30 detik) alih-alih membiarkan percobaan tak terbatas.
-		log.Error().Str("email", cleaned).Msg("M3: Redis tidak tersedia di production — menolak login (fail closed)")
+		log.Error().Str("email", logutil.MaskEmail(cleaned)).Msg("M3: Redis tidak tersedia di production — menolak login (fail closed)")
 		return true, 30 * time.Second
 	}
 

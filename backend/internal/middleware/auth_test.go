@@ -623,3 +623,170 @@ func TestSessionFingerprint(t *testing.T) {
 		t.Error("sesi tak tercatat seharusnya dicatat ulang dan dianggap cocok")
 	}
 }
+
+func TestSlidingSession_RotationAndHeader(t *testing.T) {
+	db := testDB(t)
+	cfg := testCfg() // JWTExpirationHours: 2
+	u := seedUser(t, db, nil)
+
+	// Buat token yang sisa masa berlakunya 30 menit (di bawah half-life 1 jam)
+	tokenID := "test-sliding-jti-1"
+	expiresAt := time.Now().Add(30 * time.Minute)
+	absExp := time.Now().Add(7 * 24 * time.Hour)
+
+	claims := JWTClaims{
+		UserID:            u.ID,
+		Email:             u.Email,
+		Name:              u.Name,
+		TokenVersion:      u.TokenVersion,
+		AbsoluteExpiresAt: jwt.NewNumericDate(absExp),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        tokenID,
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(time.Now().Add(-90 * time.Minute)),
+			Issuer:    JWTIssuer,
+			Audience:  jwt.ClaimStrings{JWTAudience},
+		},
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := tok.SignedString([]byte(cfg.JWTSecret))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+
+	app := newApp()
+	app.Get("/protected", AuthRequired(cfg), func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenString)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+
+	refreshed := resp.Header.Get("X-Refreshed-Token")
+	if refreshed == "" {
+		t.Fatal("X-Refreshed-Token header harus ada saat rotasi sliding")
+	}
+	if refreshed == tokenString {
+		t.Fatal("X-Refreshed-Token harus token baru, bukan token lama")
+	}
+
+	setCookie := resp.Header.Get("Set-Cookie")
+	if !strings.Contains(setCookie, SessionCookieName+"=") {
+		t.Fatalf("Set-Cookie harus memuat cookie %s, got: %s", SessionCookieName, setCookie)
+	}
+}
+
+func TestSlidingSession_AbsoluteTimeout(t *testing.T) {
+	db := testDB(t)
+	cfg := testCfg()
+	u := seedUser(t, db, nil)
+
+	// Token dengan AbsoluteExpiresAt yang sudah lewat (lewat 7 hari)
+	tokenID := "test-sliding-abs-exp"
+	expiresAt := time.Now().Add(1 * time.Hour)
+	pastAbsExp := time.Now().Add(-1 * time.Hour)
+
+	claims := JWTClaims{
+		UserID:            u.ID,
+		Email:             u.Email,
+		Name:              u.Name,
+		TokenVersion:      u.TokenVersion,
+		AbsoluteExpiresAt: jwt.NewNumericDate(pastAbsExp),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        tokenID,
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(time.Now().Add(-7 * 24 * time.Hour)),
+			Issuer:    JWTIssuer,
+			Audience:  jwt.ClaimStrings{JWTAudience},
+		},
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := tok.SignedString([]byte(cfg.JWTSecret))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+
+	app := newApp()
+	app.Get("/protected", AuthRequired(cfg), func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenString)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401 saat absolute expired", resp.StatusCode)
+	}
+
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body["code"] != "SESSION_ABSOLUTE_EXPIRED" {
+		t.Fatalf("code = %v, want SESSION_ABSOLUTE_EXPIRED", body["code"])
+	}
+}
+
+func TestSlidingSession_CookieFallback(t *testing.T) {
+	db := testDB(t)
+	cfg := testCfg()
+	u := seedUser(t, db, nil)
+
+	// Token A (valid dan fresh di cookie)
+	tokenA, _, _, err := GenerateTokenWithID(u, nil, cfg)
+	if err != nil {
+		t.Fatalf("generate tokenA: %v", err)
+	}
+
+	// Token B (sudah expired di Bearer header)
+	claimsB := JWTClaims{
+		UserID:       u.ID,
+		Email:        u.Email,
+		TokenVersion: u.TokenVersion,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        "expired-b",
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now().Add(-3 * time.Hour)),
+			Issuer:    JWTIssuer,
+			Audience:  jwt.ClaimStrings{JWTAudience},
+		},
+	}
+	tokB := jwt.NewWithClaims(jwt.SigningMethodHS256, claimsB)
+	tokenB, _ := tokB.SignedString([]byte(cfg.JWTSecret))
+
+	app := newApp()
+	app.Get("/protected", AuthRequired(cfg), func(c *fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenB)
+	req.AddCookie(&http.Cookie{
+		Name:  SessionCookieName,
+		Value: tokenA,
+	})
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 via cookie fallback saat bearer expired", resp.StatusCode)
+	}
+}

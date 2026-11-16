@@ -2092,14 +2092,46 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 		})
 	}
 
+	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
+	if claims != nil && claims.IsAbsoluteExpired() {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"code":    "SESSION_ABSOLUTE_EXPIRED",
+			"message": "Sesi telah mencapai batas maksimum (7 hari). Silakan login kembali.",
+		})
+	}
+
+	var absExp time.Time
+	if claims != nil {
+		absExp = claims.GetAbsoluteExpiresAt()
+	}
+	if absExp.IsZero() {
+		absExp = time.Now().Add(7 * 24 * time.Hour)
+	}
+
 	cfg := config.LoadConfig()
-	newToken, err := middleware.GenerateToken(user, &targetStore, cfg)
+	newToken, newTokenID, newExpiresAt, err := middleware.GenerateSlidingTokenWithID(user, &targetStore, cfg, absExp)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal menghasilkan sesi login baru.",
 		})
 	}
+
+	if claims != nil && claims.ID != "" {
+		ttl := 72 * time.Hour
+		if claims.ExpiresAt != nil {
+			remaining := time.Until(claims.ExpiresAt.Time)
+			if remaining > 0 {
+				ttl = remaining
+			}
+		}
+		database.BlacklistTokenWithGracePeriod(claims.ID, 30*time.Second, ttl)
+		_ = services.RotateUserSessionToken(h.db, claims.ID, newTokenID, newExpiresAt, c.IP())
+	}
+	middleware.RegisterSessionFingerprint(newTokenID, c.IP(), c.Get("User-Agent"))
+	middleware.SetSessionCookie(c, cfg, newToken)
+	c.Set("X-Refreshed-Token", newToken)
 
 	theme := targetStore.StoreTheme
 	if theme == "" {

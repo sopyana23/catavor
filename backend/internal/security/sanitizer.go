@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/microcosm-cc/bluemonday"
 )
@@ -389,41 +390,137 @@ func ValidateEmail(email string) bool {
 	return emailRegex.MatchString(trimmed)
 }
 
-// ValidatePassword validates password length boundaries and industry-standard complexity requirements
-func ValidatePassword(password string) error {
-	trimmed := strings.TrimSpace(password)
-	if len(trimmed) < 8 {
-		return errors.New("Kata sandi minimal 8 karakter.")
-	}
-	if len([]byte(password)) > 72 {
-		return errors.New("Kata sandi maksimal 72 karakter.")
-	}
+var commonBreachedPasswords = map[string]struct{}{
+	"password":      {},
+	"passwords":     {},
+	"password123":   {},
+	"password1234":  {},
+	"admin123":      {},
+	"admin1234":     {},
+	"administrator": {},
+	"catavor":       {},
+	"catavor123":    {},
+	"dfauna":        {},
+	"dfauna123":     {},
+	"qwerty":        {},
+	"qwertyuiop":    {},
+	"12345678":      {},
+	"123456789":     {},
+	"1234567890":    {},
+	"letmein123":    {},
+	"welcome123":    {},
+	"indonesia":     {},
+	"indonesia123":  {},
+	"rahasia123":    {},
+	"iloveyou123":   {},
+	"sunshine123":   {},
+}
 
-	var hasUpper, hasLower, hasNumber, hasSpecial bool
-	for _, r := range trimmed {
-		switch {
-		case unicode.IsUpper(r):
-			hasUpper = true
-		case unicode.IsLower(r):
-			hasLower = true
-		case unicode.IsNumber(r):
-			hasNumber = true
-		case unicode.IsPunct(r) || unicode.IsSymbol(r) || (!unicode.IsLetter(r) && !unicode.IsNumber(r)):
-			hasSpecial = true
+func normalizeLeetspeak(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range strings.ToLower(s) {
+		switch r {
+		case '@', '4':
+			b.WriteRune('a')
+		case '0':
+			b.WriteRune('o')
+		case '1', '!', '|':
+			b.WriteRune('i')
+		case '3':
+			b.WriteRune('e')
+		case '$', '5':
+			b.WriteRune('s')
+		case '7':
+			b.WriteRune('t')
+		default:
+			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+				b.WriteRune(r)
+			}
+		}
+	}
+	return b.String()
+}
+
+func isCommonBreachedPassword(pw string) bool {
+	lower := strings.ToLower(pw)
+	if _, exists := commonBreachedPasswords[lower]; exists {
+		return true
+	}
+	for common := range commonBreachedPasswords {
+		if len(common) >= 6 && strings.Contains(lower, common) {
+			return true
 		}
 	}
 
-	if !hasUpper {
-		return errors.New("Kata sandi harus mengandung minimal 1 huruf besar (A-Z).")
+	normalized := normalizeLeetspeak(pw)
+	if _, exists := commonBreachedPasswords[normalized]; exists {
+		return true
 	}
-	if !hasLower {
-		return errors.New("Kata sandi harus mengandung minimal 1 huruf kecil (a-z).")
+	for common := range commonBreachedPasswords {
+		normCommon := normalizeLeetspeak(common)
+		if len(normCommon) >= 6 && strings.Contains(normalized, normCommon) {
+			return true
+		}
 	}
-	if !hasNumber {
-		return errors.New("Kata sandi harus mengandung minimal 1 angka (0-9).")
+	return false
+}
+
+func isAllSameRune(s string) bool {
+	runes := []rune(s)
+	if len(runes) == 0 {
+		return true
 	}
-	if !hasSpecial {
-		return errors.New("Kata sandi harus mengandung minimal 1 karakter khusus atau simbol (@, #, $, %, !, dll).")
+	first := runes[0]
+	for _, r := range runes[1:] {
+		if r != first {
+			return false
+		}
+	}
+	return true
+}
+
+// ValidatePassword menegakkan standar NIST SP 800-63B untuk keamanan kata sandi (N-54).
+func ValidatePassword(password string) error {
+	trimmed := strings.TrimSpace(password)
+	if trimmed == "" {
+		return errors.New("Kata sandi tidak boleh kosong.")
+	}
+
+	runeLen := utf8.RuneCountInString(password)
+	if runeLen < 10 {
+		return errors.New("Kata sandi minimal 10 karakter.")
+	}
+	if len([]byte(password)) > 72 {
+		return errors.New("Kata sandi melewati batas maksimum sistem (maksimal 72 karakter/byte).")
+	}
+
+	if isAllSameRune(password) {
+		return errors.New("Kata sandi tidak boleh hanya berupa karakter berulang.")
+	}
+
+	if isCommonBreachedPassword(password) {
+		return errors.New("Kata sandi terlalu umum atau mudah ditebak. Silakan gunakan kombinasi kata sandi lain.")
+	}
+
+	// NIST Passphrase Rule: kata sandi panjang (>= 15 karakter) bebas dari kewajiban simbol/angka
+	if runeLen >= 15 {
+		return nil
+	}
+
+	// Kata sandi pendek (10 - 14 karakter) membutuhkan variasi karakter
+	var hasLetter, hasNumberOrSpecial bool
+	for _, r := range password {
+		switch {
+		case unicode.IsLetter(r):
+			hasLetter = true
+		case unicode.IsNumber(r) || unicode.IsPunct(r) || unicode.IsSymbol(r):
+			hasNumberOrSpecial = true
+		}
+	}
+
+	if !hasLetter || !hasNumberOrSpecial {
+		return errors.New("Kata sandi 10-14 karakter harus mengombinasikan huruf dengan angka atau simbol.")
 	}
 
 	return nil

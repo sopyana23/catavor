@@ -9,6 +9,7 @@ import (
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -61,6 +62,10 @@ func main() {
 	if password == "" {
 		fmt.Println("Parameter -password wajib diisi.")
 		return
+	}
+	if err := security.ValidatePassword(password); err != nil {
+		fmt.Printf("Kata sandi tidak valid: %v\n", err)
+		os.Exit(1)
 	}
 
 	var user models.User

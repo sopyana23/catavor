@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"catavor-backend/internal/logutil"
 	"catavor-backend/internal/models"
 
 	"github.com/google/uuid"
@@ -181,7 +182,7 @@ func (s *OTPService) generateAndSendOTP(email string, recipientName string, purp
 		_ = SendHTMLEmail(cleanedEmail, subject, "Catavor Security", htmlBody)
 	})
 
-	log.Info().Str("email", cleanedEmail).Str("purpose", purpose).Msg("OTP generated and email dispatched")
+	log.Info().Str("email", logutil.MaskEmail(cleanedEmail)).Str("purpose", purpose).Msg("OTP generated and email dispatched")
 	return otpCode, nil
 }
 
@@ -262,7 +263,7 @@ func (s *OTPService) ValidateAndConsumeToken(email string, token string, purpose
 		Delete(&models.EmailVerificationOTP{})
 
 	if res.Error != nil {
-		log.Error().Err(res.Error).Str("email", cleanedEmail).Msg("gagal mengonsumsi token verifikasi")
+		log.Error().Err(res.Error).Str("email", logutil.MaskEmail(cleanedEmail)).Msg("gagal mengonsumsi token verifikasi")
 		return false
 	}
 

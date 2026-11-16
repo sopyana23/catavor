@@ -174,7 +174,7 @@ func TestRegister_SQLite(t *testing.T) {
 		return map[string]any{
 			"name":               "Budi Santoso",
 			"email":              "budi@example.com",
-			"password":           "Rahasia123!",
+			"password":           "BintangTerang99!",
 			"verification_token": "vt_test_valid",
 			"store_slug":         "tokobudi",
 			"store_name":         "Toko Budi",
@@ -268,7 +268,7 @@ func TestRegister_SQLite(t *testing.T) {
 		// Blacklist email bersifat DB-driven: user lama dengan is_blacklisted=true.
 		seedRegistrationToken(t, db, "spammer@blacklist.test", "vt_test_valid")
 		banned := models.User{Name: "Spammer", Email: "spammer@blacklist.test", IsBlacklisted: true}
-		if err := banned.SetPassword("Rahasia123!"); err != nil {
+		if err := banned.SetPassword("BintangTerang99!"); err != nil {
 			t.Fatalf("SetPassword: %v", err)
 		}
 		mustCreate(t, db, &banned)
@@ -294,7 +294,7 @@ func TestRegister_SQLite(t *testing.T) {
 	t.Run("slug_sudah_dipakai_422", func(t *testing.T) {
 		db := newTestDB(t)
 		u := models.User{Name: "Lain", Email: "lain@example.com"}
-		if err := u.SetPassword("Rahasia123!"); err != nil {
+		if err := u.SetPassword("BintangTerang99!"); err != nil {
 			t.Fatalf("SetPassword: %v", err)
 		}
 		mustCreate(t, db, &u)
@@ -309,7 +309,7 @@ func TestRegister_SQLite(t *testing.T) {
 	t.Run("email_sudah_terdaftar_422", func(t *testing.T) {
 		db := newTestDB(t)
 		u := models.User{Name: "Budi", Email: "budi@example.com"}
-		if err := u.SetPassword("Rahasia123!"); err != nil {
+		if err := u.SetPassword("BintangTerang99!"); err != nil {
 			t.Fatalf("SetPassword: %v", err)
 		}
 		mustCreate(t, db, &u)
@@ -509,7 +509,7 @@ func TestLogin_SQLite(t *testing.T) {
 	t.Run("user_tidak_dikenal_401", func(t *testing.T) {
 		db := newTestDB(t)
 		app := newTestApp(db)
-		r := call(t, app, "POST", "/api/auth/login", map[string]any{"email": "nobody@example.com", "password": "Rahasia123!"})
+		r := call(t, app, "POST", "/api/auth/login", map[string]any{"email": "nobody@example.com", "password": "BintangTerang99!"})
 		if r.Status != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401 (%s)", r.Status, r.Raw)
 		}
@@ -517,7 +517,7 @@ func TestLogin_SQLite(t *testing.T) {
 
 	t.Run("password_salah_401", func(t *testing.T) {
 		db := newTestDB(t)
-		seedUser(t, db, "budi@example.com", "Rahasia123!")
+		seedUser(t, db, "budi@example.com", "BintangTerang99!")
 		app := newTestApp(db)
 		r := call(t, app, "POST", "/api/auth/login", map[string]any{"email": "budi@example.com", "password": "SalahBanget1!"})
 		if r.Status != http.StatusUnauthorized {
@@ -527,10 +527,10 @@ func TestLogin_SQLite(t *testing.T) {
 
 	t.Run("sukses", func(t *testing.T) {
 		db := newTestDB(t)
-		u := seedUser(t, db, "budi@example.com", "Rahasia123!")
+		u := seedUser(t, db, "budi@example.com", "BintangTerang99!")
 		mustCreate(t, db, &models.Store{UserID: u.ID, Slug: "tokobudi", StoreTitle: "Toko Budi", Plan: "free"})
 		app := newTestApp(db)
-		r := call(t, app, "POST", "/api/auth/login", map[string]any{"email": "budi@example.com", "password": "Rahasia123!"})
+		r := call(t, app, "POST", "/api/auth/login", map[string]any{"email": "budi@example.com", "password": "BintangTerang99!"})
 		if r.Status != http.StatusOK {
 			t.Fatalf("status = %d, want 200 (%s)", r.Status, r.Raw)
 		}
@@ -560,7 +560,7 @@ func TestLogin_SQLite(t *testing.T) {
 func productFixtures(t *testing.T, db *gorm.DB) models.Store {
 	t.Helper()
 	u := models.User{Name: "Budi", Email: "budi@example.com"}
-	if err := u.SetPassword("Rahasia123!"); err != nil {
+	if err := u.SetPassword("BintangTerang99!"); err != nil {
 		t.Fatalf("SetPassword: %v", err)
 	}
 	mustCreate(t, db, &u)
@@ -806,7 +806,7 @@ func TestStoreCheckSlug_SQLite(t *testing.T) {
 	t.Run("slug_sudah_dipakai", func(t *testing.T) {
 		db := newTestDB(t)
 		u := models.User{Name: "Budi", Email: "budi@example.com"}
-		if err := u.SetPassword("Rahasia123!"); err != nil {
+		if err := u.SetPassword("BintangTerang99!"); err != nil {
 			t.Fatalf("SetPassword: %v", err)
 		}
 		mustCreate(t, db, &u)
@@ -831,7 +831,7 @@ func TestFeaturedStores_SQLite(t *testing.T) {
 	t.Run("menyaring_toko_suspend_banned_blacklist", func(t *testing.T) {
 		db := newTestDB(t)
 		u := models.User{Name: "Budi", Email: "budi@example.com"}
-		if err := u.SetPassword("Rahasia123!"); err != nil {
+		if err := u.SetPassword("BintangTerang99!"); err != nil {
 			t.Fatalf("SetPassword: %v", err)
 		}
 		mustCreate(t, db, &u)
@@ -868,7 +868,7 @@ func TestFeaturedStores_SQLite(t *testing.T) {
 	t.Run("sorting_popularitas_dan_filter_tipe", func(t *testing.T) {
 		db := newTestDB(t)
 		u := models.User{Name: "Dewi", Email: "dewi@example.com"}
-		_ = u.SetPassword("Rahasia123!")
+		_ = u.SetPassword("BintangTerang99!")
 		mustCreate(t, db, &u)
 
 		mustCreate(t, db, &models.Store{
@@ -926,7 +926,7 @@ func TestFeaturedStores_SQLite(t *testing.T) {
 func TestProducts_PopularitySorting_SQLite(t *testing.T) {
 	db := newTestDB(t)
 	u := models.User{Name: "Siti", Email: "siti@example.com"}
-	_ = u.SetPassword("Rahasia123!")
+	_ = u.SetPassword("BintangTerang99!")
 	mustCreate(t, db, &u)
 
 	store := models.Store{UserID: u.ID, Slug: "store-test", StoreTitle: "Store Test", DormancyStatus: "active"}

@@ -4,6 +4,8 @@
  * Following Clean Code & Senior Architecture Standards.
  */
 
+import { broadcastAuthEvent, trySilentCookieRefresh } from './authSync';
+
 /**
  * Checks if a JWT token is expired using pure base64 decoding (5-second safety buffer).
  */
@@ -49,16 +51,21 @@ export function createAuthFetch(
   const { getToken, onUnauthorized, defaultHeaders } = options;
 
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const currentToken = getToken
+    let currentToken = getToken
       ? getToken()
       : typeof localStorage !== 'undefined'
       ? localStorage.getItem('catavor_token')
       : null;
 
-    // 1. Proactive pre-flight token expiration check
+    // 1. Proactive pre-flight token expiration check with silent refresh fallback
     if (currentToken && isTokenExpired(currentToken)) {
-      onUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
-      throw new Error('TOKEN_EXPIRED');
+      const refreshed = await trySilentCookieRefresh();
+      if (refreshed) {
+        currentToken = refreshed;
+      } else {
+        onUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+        throw new Error('TOKEN_EXPIRED');
+      }
     }
 
     // 2. Prepare request headers cleanly
@@ -82,6 +89,14 @@ export function createAuthFetch(
       ...init,
       headers
     });
+
+    const refreshedToken = res.headers.get('X-Refreshed-Token');
+    if (refreshedToken) {
+      try {
+        localStorage.setItem('catavor_token', refreshedToken);
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', token: refreshedToken });
+      } catch {}
+    }
 
     // 4. Reactive 401 Unauthorized session interception (403 Forbidden is a permission error, NOT session expiration)
     if (res.status === 401) {

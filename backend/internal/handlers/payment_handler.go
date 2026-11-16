@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"catavor-backend/internal/logutil"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
 
@@ -58,7 +59,7 @@ func (h *PaymentHandler) HandleAulaaWebhook(c *fiber.Ctx) error {
 
 	var payload services.AulaaWebhookPayload
 	if err := json.Unmarshal(rawBody, &payload); err != nil {
-		log.Error().Err(err).Str("body", string(rawBody)).Msg("payment_webhook: gagal membedah json payload")
+		log.Error().Err(err).Str("body_snippet", logutil.SanitizeLogSnippet(string(rawBody), 256)).Msg("payment_webhook: gagal membedah json payload")
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": "Format payload webhook tidak valid.",

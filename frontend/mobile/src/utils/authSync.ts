@@ -360,3 +360,45 @@ export function subscribeAuthSync(callback: AuthSyncCallback): () => void {
     window.removeEventListener('storage', handleStorage);
   };
 }
+
+let silentRefreshInFlight: Promise<string | null> | null = null;
+
+/**
+ * Attempts a single-flight silent session refresh from the server-side HttpOnly cookie
+ * before evicting or logging out an expired client token.
+ */
+export async function trySilentCookieRefresh(): Promise<string | null> {
+  if (silentRefreshInFlight) {
+    return silentRefreshInFlight;
+  }
+  silentRefreshInFlight = (async () => {
+    try {
+      const res = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.token) {
+          localStorage.setItem('catavor_token', data.token);
+          broadcastAuthEvent({
+            type: 'LOGIN_SUCCESS',
+            token: data.token,
+            userId: data.user?.id
+          });
+          return data.token;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      silentRefreshInFlight = null;
+    }
+  })();
+  return silentRefreshInFlight;
+}

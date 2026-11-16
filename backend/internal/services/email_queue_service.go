@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"catavor-backend/internal/logutil"
 	"catavor-backend/internal/models"
 
 	"github.com/google/uuid"
@@ -42,7 +43,7 @@ func GetEmailQueue() *EmailQueueService {
 // EnqueueEmail persists an email job to the PostgreSQL database and immediately signals the worker.
 func EnqueueEmail(recipientEmail, recipientName, fromName, subject, bodyHTML, category, referenceID string) (*models.EmailJob, error) {
 	if globalEmailQueue == nil || globalEmailQueue.db == nil {
-		log.Warn().Str("to", recipientEmail).Str("subject", subject).Msg("Email queue service is not initialized, falling back to direct send")
+		log.Warn().Str("to", logutil.MaskEmail(recipientEmail)).Str("subject", subject).Msg("Email queue service is not initialized, falling back to direct send")
 		_ = SendHTMLEmail(recipientEmail, subject, fromName, bodyHTML)
 		return nil, nil
 	}
@@ -57,7 +58,7 @@ func EnqueueEmail(recipientEmail, recipientName, fromName, subject, bodyHTML, ca
 			Count(&duplicateCount).Error
 		if duplicateCount > 0 {
 			log.Info().
-				Str("to", recipientEmail).
+				Str("to", logutil.MaskEmail(recipientEmail)).
 				Str("category", category).
 				Str("ref", referenceID).
 				Msg("Skipping duplicate email enqueue (incident already dispatched within deduplication window)")
@@ -85,7 +86,7 @@ func EnqueueEmail(recipientEmail, recipientName, fromName, subject, bodyHTML, ca
 	}
 
 	if err := globalEmailQueue.db.Create(&job).Error; err != nil {
-		log.Error().Err(err).Str("to", recipientEmail).Msg("Failed to enqueue email job to database")
+		log.Error().Err(err).Str("to", logutil.MaskEmail(recipientEmail)).Msg("Failed to enqueue email job to database")
 		// Safe fallback: try direct sending if database insert fails
 		_ = SendHTMLEmail(recipientEmail, subject, fromName, bodyHTML)
 		return nil, err
@@ -93,7 +94,7 @@ func EnqueueEmail(recipientEmail, recipientName, fromName, subject, bodyHTML, ca
 
 	log.Info().
 		Str("job_id", job.ID).
-		Str("to", recipientEmail).
+		Str("to", logutil.MaskEmail(recipientEmail)).
 		Str("category", category).
 		Str("subject", subject).
 		Msg("Email job successfully persisted to queue")
@@ -172,7 +173,7 @@ func (s *EmailQueueService) dispatchJob(job models.EmailJob) {
 		})
 		log.Info().
 			Str("job_id", job.ID).
-			Str("to", job.RecipientEmail).
+			Str("to", logutil.MaskEmail(job.RecipientEmail)).
 			Str("subject", job.Subject).
 			Msg("Email job successfully delivered via queue")
 	} else {

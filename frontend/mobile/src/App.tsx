@@ -173,7 +173,8 @@ import {
   resolveAuthenticatedRedirect,
   hasValidSessionToken,
   appendViewParam,
-  clearRegistrationDrafts
+  clearRegistrationDrafts,
+  trySilentCookieRefresh
 } from './utils/authSync'
 import {
   createInitialTypeDrafts,
@@ -5611,8 +5612,10 @@ Terima kasih.`;
     if (!registerForm.google_id) {
       if (!registerForm.password || !registerForm.password.trim()) {
         errors.password = 'Kata Sandi wajib diisi.';
-      } else if (registerForm.password.length < 8) {
-        errors.password = 'Kata Sandi minimal 8 karakter.';
+      } else if (registerForm.password.length < 10) {
+        errors.password = 'Kata Sandi minimal 10 karakter.';
+      } else if (new TextEncoder().encode(registerForm.password).length > 72) {
+        errors.password = 'Kata Sandi maksimal 72 karakter/byte.';
       }
     }
     setFieldErrors(errors);
@@ -11391,10 +11394,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Industry-standard centralized authFetch wrapper with pre-flight check and 401 interception
   const authFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const currentToken = localStorage.getItem('catavor_token');
+    let currentToken = localStorage.getItem('catavor_token');
     if (!currentToken || isTokenExpired(currentToken)) {
-      handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
-      throw new Error('TOKEN_EXPIRED');
+      const refreshed = await trySilentCookieRefresh();
+      if (refreshed) {
+        currentToken = refreshed;
+        setToken(refreshed);
+      } else {
+        handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+        throw new Error('TOKEN_EXPIRED');
+      }
     }
 
     const headers = new Headers(init?.headers || {});
@@ -11413,6 +11422,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
       ...init,
       headers
     });
+
+    const refreshedToken = response.headers.get('X-Refreshed-Token');
+    if (refreshedToken) {
+      try {
+        localStorage.setItem('catavor_token', refreshedToken);
+        setToken(refreshedToken);
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', token: refreshedToken });
+      } catch {}
+    }
 
     if (response.status === 403) {
       try {
@@ -11486,7 +11504,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const now = Date.now();
       if (!force && now - mobileLastTokenCheckTimeRef.current < THROTTLE_MS) return;
 
-      const currentToken = localStorage.getItem('catavor_token') || token;
+      let currentToken = localStorage.getItem('catavor_token') || token;
       if (!currentToken) return;
 
       // Anti-loop safeguard: Hindari verifikasi berulang pada token yang sama jika baru diverifikasi < THROTTLE_MS
@@ -11495,8 +11513,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
 
       if (isTokenExpired(currentToken)) {
-        handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
-        return;
+        const refreshed = await trySilentCookieRefresh();
+        if (!refreshed) {
+          handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+          return;
+        }
+        currentToken = refreshed;
+        setToken(refreshed);
       }
 
       mobileLastTokenCheckTimeRef.current = now;
@@ -11508,6 +11531,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
             'Accept': 'application/json'
           }
         });
+
+        const refreshedToken = res.headers.get('X-Refreshed-Token');
+        if (refreshedToken) {
+          try {
+            localStorage.setItem('catavor_token', refreshedToken);
+            setToken(refreshedToken);
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', token: refreshedToken });
+          } catch {}
+        }
 
         if (res.status === 403) {
           const data = await res.json().catch(() => ({}));
@@ -13430,8 +13462,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       setForgotError('Kode OTP harus 6 digit.');
       return;
     }
-    if (forgotNewPassword.length < 6) {
-      setForgotError('Kata sandi baru minimal 6 karakter.');
+    if (forgotNewPassword.length < 10) {
+      setForgotError('Kata sandi baru minimal 10 karakter.');
+      return;
+    }
+    if (new TextEncoder().encode(forgotNewPassword).length > 72) {
+      setForgotError('Kata sandi baru maksimal 72 karakter/byte.');
       return;
     }
     if (forgotNewPassword !== forgotConfirmPassword) {
@@ -13521,35 +13557,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
     }
     const pass = backupPasswordForm.password || '';
-    if (pass.length < 8) {
-      const msg = 'Kata sandi minimal 8 karakter.';
+    if (pass.length < 10) {
+      const msg = 'Kata sandi minimal 10 karakter.';
       setBackupPasswordError(msg);
       showToast(msg, 'error');
       return;
     }
-    if (!/[A-Z]/.test(pass)) {
-      const msg = 'Kata sandi harus mengandung minimal 1 huruf besar (A-Z).';
+    if (new TextEncoder().encode(pass).length > 72) {
+      const msg = 'Kata sandi maksimal 72 karakter/byte.';
       setBackupPasswordError(msg);
       showToast(msg, 'error');
       return;
     }
-    if (!/[a-z]/.test(pass)) {
-      const msg = 'Kata sandi harus mengandung minimal 1 huruf kecil (a-z).';
-      setBackupPasswordError(msg);
-      showToast(msg, 'error');
-      return;
-    }
-    if (!/[0-9]/.test(pass)) {
-      const msg = 'Kata sandi harus mengandung minimal 1 angka (0-9).';
-      setBackupPasswordError(msg);
-      showToast(msg, 'error');
-      return;
-    }
-    if (!/[^a-zA-Z0-9\s]/.test(pass)) {
-      const msg = 'Kata sandi harus mengandung minimal 1 karakter khusus atau simbol (@, #, $, %, !, dll).';
-      setBackupPasswordError(msg);
-      showToast(msg, 'error');
-      return;
+    if (pass.length < 15) {
+      const hasLetter = /[a-zA-Z]/.test(pass);
+      const hasNumberOrSymbol = /[0-9]/.test(pass) || /[^a-zA-Z0-9\s]/.test(pass);
+      if (!hasLetter || !hasNumberOrSymbol) {
+        const msg = 'Kata sandi 10-14 karakter harus mengombinasikan huruf dengan angka atau simbol.';
+        setBackupPasswordError(msg);
+        showToast(msg, 'error');
+        return;
+      }
     }
     if (pass !== backupPasswordForm.confirm_password) {
       const msg = 'Konfirmasi kata sandi tidak cocok.';
@@ -19201,7 +19229,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 <input
                   type={showBackupPasswordText ? 'text' : 'password'}
                   className="form-input"
-                  placeholder="Minimal 8 karakter..."
+                  placeholder="Minimal 10 karakter..."
                   value={backupPasswordForm.password}
                   onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, password: e.target.value })}
                   style={{ paddingRight: '2.4rem', fontSize: '0.78rem' }}
@@ -36515,7 +36543,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       <input
                         type={showForgotNewPasswordText ? 'text' : 'password'}
                         required
-                        placeholder="Minimal 8 karakter"
+                        placeholder="Minimal 10 karakter"
                         value={forgotNewPassword}
                         onChange={(e) => setForgotNewPassword(e.target.value)}
                         style={{
@@ -36598,7 +36626,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 </div>
                 <button
                   type="submit"
-                  disabled={forgotLoading || forgotOTP.trim().length !== 6 || forgotNewPassword.length < 8}
+                  disabled={forgotLoading || forgotOTP.trim().length !== 6 || forgotNewPassword.length < 10}
                   style={{
                     width: '100%',
                     padding: '0.85rem',
@@ -36609,7 +36637,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     fontSize: '0.88rem',
                     border: 'none',
                     cursor: forgotLoading ? 'not-allowed' : 'pointer',
-                    opacity: (forgotLoading || forgotOTP.trim().length !== 6 || forgotNewPassword.length < 8) ? 0.6 : 1,
+                    opacity: (forgotLoading || forgotOTP.trim().length !== 6 || forgotNewPassword.length < 10) ? 0.6 : 1,
                     marginBottom: '0.75rem'
                   }}
                 >

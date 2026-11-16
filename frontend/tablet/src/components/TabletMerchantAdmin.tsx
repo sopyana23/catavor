@@ -121,7 +121,7 @@ export const resolveProofImageUrl = (order: any, _token?: string | null): string
 import { TabletStoreSettingsView } from './TabletStoreSettingsView';
 import { TabletShareCatalogView } from './TabletShareCatalogView';
 import { StoreChooserModal, type CatalogStoreItem } from './StoreChooserModal';
-import { broadcastAuthEvent, appendViewParam } from '../utils/authSync';
+import { broadcastAuthEvent, appendViewParam, trySilentCookieRefresh } from '../utils/authSync';
 import { useModalBackHandler } from '../utils/navigation';
 import { createAuthFetch, isTokenExpired } from '../utils/auth';
 import { isPlatformAdmin } from '../utils/rbac';
@@ -346,9 +346,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   // Proactive token expiration verification on mount and on idle focus/heartbeat
   useEffect(() => {
-    const checkToken = () => {
+    const checkToken = async () => {
       const curToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('catavor_token') : null);
       if (!curToken || isTokenExpired(curToken)) {
+        const refreshed = await trySilentCookieRefresh();
+        if (refreshed) {
+          return;
+        }
         if (onUnauthorized) {
           onUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
         } else {
@@ -357,12 +361,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       }
     };
 
-    checkToken();
+    void checkToken();
 
-    window.addEventListener('focus', checkToken);
-    const interval = setInterval(checkToken, 30000);
+    const handleFocus = () => { void checkToken(); };
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(() => { void checkToken(); }, 30000);
     return () => {
-      window.removeEventListener('focus', checkToken);
+      window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };
   }, [token, onUnauthorized, onLogout]);
@@ -3375,35 +3380,27 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       }
     }
 
-    if (newPass.length < 8) {
-      const msg = 'Kata sandi baru minimal 8 karakter';
+    if ([...newPass].length < 10) {
+      const msg = 'Kata sandi baru minimal 10 karakter';
       setBackupPasswordError(msg);
       showToast(msg, 'error');
       return;
     }
-    if (!/[A-Z]/.test(newPass)) {
-      const msg = 'Kata sandi baru wajib mengandung minimal 1 huruf besar (A-Z)';
+    if (new TextEncoder().encode(newPass).length > 72) {
+      const msg = 'Kata sandi baru maksimal 72 karakter/byte';
       setBackupPasswordError(msg);
       showToast(msg, 'error');
       return;
     }
-    if (!/[a-z]/.test(newPass)) {
-      const msg = 'Kata sandi baru wajib mengandung minimal 1 huruf kecil (a-z)';
-      setBackupPasswordError(msg);
-      showToast(msg, 'error');
-      return;
-    }
-    if (!/[0-9]/.test(newPass)) {
-      const msg = 'Kata sandi baru wajib mengandung minimal 1 angka (0-9)';
-      setBackupPasswordError(msg);
-      showToast(msg, 'error');
-      return;
-    }
-    if (!/[^a-zA-Z0-9\s]/.test(newPass)) {
-      const msg = 'Kata sandi baru wajib mengandung minimal 1 simbol unik (@, #, $, %, !, dll)';
-      setBackupPasswordError(msg);
-      showToast(msg, 'error');
-      return;
+    if ([...newPass].length < 15) {
+      const hasLetter = /[a-zA-Z]/.test(newPass);
+      const hasNumberOrSymbol = /[0-9]/.test(newPass) || /[^a-zA-Z0-9\s]/.test(newPass);
+      if (!hasLetter || !hasNumberOrSymbol) {
+        const msg = 'Kata sandi 10-14 karakter harus mengombinasikan huruf dengan angka atau simbol';
+        setBackupPasswordError(msg);
+        showToast(msg, 'error');
+        return;
+      }
     }
     if (newPass !== confirmPass) {
       const msg = 'Konfirmasi kata sandi tidak cocok';
@@ -11123,14 +11120,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           </span>
                         </div>
                         <p style={{ margin: '0 0 0.55rem 0', fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                          Demi menjaga keamanan akun toko dari serangan brute-force, kata sandi wajib memenuhi kombinasi berikut:
+                          Demi menjaga keamanan akun toko dari serangan brute-force, kata sandi mengikuti standar NIST SP 800-63B:
                         </p>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.45rem' }}>
                           {[
-                            { label: 'Minimal 8 karakter', valid: (passwordForm.new_password?.length || 0) >= 8 },
-                            { label: 'Huruf besar (A-Z) & kecil (a-z)', valid: /[A-Z]/.test(passwordForm.new_password || '') && /[a-z]/.test(passwordForm.new_password || '') },
-                            { label: 'Minimal 1 angka (0-9)', valid: /[0-9]/.test(passwordForm.new_password || '') },
-                            { label: 'Karakter khusus / simbol (@, #, $, dll)', valid: /[^a-zA-Z0-9\s]/.test(passwordForm.new_password || '') },
+                            { label: 'Minimal 10 karakter', valid: [...(passwordForm.new_password || '')].length >= 10 },
+                            { label: 'Maksimal 72 karakter/byte', valid: (passwordForm.new_password?.length || 0) > 0 && new TextEncoder().encode(passwordForm.new_password || '').length <= 72 },
+                            { label: 'Kombinasi huruf & angka/simbol (bila < 15 kar)', valid: [...(passwordForm.new_password || '')].length >= 15 || (/[a-zA-Z]/.test(passwordForm.new_password || '') && (/[0-9]/.test(passwordForm.new_password || '') || /[^a-zA-Z0-9\s]/.test(passwordForm.new_password || ''))) },
                           ].map((req, idx) => (
                             <div
                               key={idx}
@@ -11308,7 +11304,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                     <input
                                       type={showNewPassword ? 'text' : 'password'}
                                       className="form-input"
-                                      placeholder="Minimal 8 karakter"
+                                      placeholder="Minimal 10 karakter"
                                       value={passwordForm.new_password}
                                       onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
                                       style={{ paddingRight: '2.5rem' }}
@@ -11474,7 +11470,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   type={showNewPassword ? 'text' : 'password'}
                                   required
                                   className="form-input"
-                                  placeholder="Minimal 8 karakter"
+                                  placeholder="Minimal 10 karakter"
                                   value={passwordForm.new_password}
                                   onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
                                   style={{ paddingRight: '2.5rem' }}

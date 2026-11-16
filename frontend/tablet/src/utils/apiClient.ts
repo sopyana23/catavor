@@ -8,6 +8,8 @@
  * 5. Safe AbortController integration
  */
 
+import { broadcastAuthEvent, isTokenExpired, trySilentCookieRefresh } from './authSync';
+
 export interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
@@ -158,7 +160,13 @@ export async function request<T = any>(
     ? endpoint 
     : `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
-  const token = !skipAuth ? getStoredToken() : null;
+  let token = !skipAuth ? getStoredToken() : null;
+  if (!skipAuth && token && isTokenExpired(token)) {
+    const refreshed = await trySilentCookieRefresh();
+    if (refreshed) {
+      token = refreshed;
+    }
+  }
 
   const headers: Record<string, string> = {
     'Accept': 'application/json',
@@ -186,6 +194,14 @@ export async function request<T = any>(
     });
 
     clearTimeout(timeoutId);
+
+    const refreshedToken = res.headers.get('X-Refreshed-Token');
+    if (refreshedToken) {
+      try {
+        localStorage.setItem('catavor_token', refreshedToken);
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', token: refreshedToken });
+      } catch {}
+    }
 
     // Global 401 Unauthorized Interception
     if (res.status === 401) {

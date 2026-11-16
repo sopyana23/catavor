@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"catavor-backend/internal/logutil"
+
 	"github.com/rs/zerolog/log"
 )
 
@@ -117,7 +119,7 @@ func SendHTMLEmail(toEmail, subject, fromName, htmlBody string) error {
 
 	cfg := GetMailConfig()
 	if cfg.Host == "" || cfg.Port == "" {
-		log.Info().Str("to", toEmail).Str("subject", subject).Msg("SMTP not configured; email simulation logged")
+		log.Info().Str("to", logutil.MaskEmail(toEmail)).Str("subject", subject).Msg("SMTP not configured; email simulation logged")
 		return nil
 	}
 
@@ -131,10 +133,10 @@ func SendHTMLEmail(toEmail, subject, fromName, htmlBody string) error {
 
 	err := smtp.SendMail(addr, auth, cfg.From, []string{toEmail}, msg)
 	if err != nil {
-		log.Warn().Err(err).Str("to", toEmail).Str("subject", subject).Msg("Failed to dispatch email via SMTP")
+		log.Warn().Err(err).Str("to", logutil.MaskEmail(toEmail)).Str("subject", subject).Msg("Failed to dispatch email via SMTP")
 		return err
 	}
 
-	log.Info().Str("to", toEmail).Str("subject", subject).Msg("Email successfully delivered via SMTP")
+	log.Info().Str("to", logutil.MaskEmail(toEmail)).Str("subject", subject).Msg("Email successfully delivered via SMTP")
 	return nil
 }

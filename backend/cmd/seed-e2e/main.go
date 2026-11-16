@@ -72,6 +72,7 @@ func ensureUser(db *gorm.DB, email, name, password string) uint {
 		}
 		db.Model(&u).Updates(map[string]any{
 			"password":       u.Password,
+			"platform_role":  "merchant",
 			"is_blacklisted": false,
 			"token_version":  gorm.Expr("token_version + 1"),
 		})

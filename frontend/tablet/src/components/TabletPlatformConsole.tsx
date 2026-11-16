@@ -105,6 +105,7 @@ import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPrevie
 import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
 import { type UserRBACInfo, getRoleBadge, isSuperAdmin, hasPermission } from '../utils/rbac';
 import { useModalBackHandler } from '../utils/navigation';
+import { broadcastAuthEvent } from '../utils/authSync';
 
 export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
   rekber_template_physical: "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
@@ -419,6 +420,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // Centralized authenticated fetch with automatic 401 session eviction
   const authFetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const res = await fetch(input, init);
+    const refreshedToken = res.headers.get('X-Refreshed-Token');
+    if (refreshedToken) {
+      try {
+        localStorage.setItem('catavor_token', refreshedToken);
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', token: refreshedToken });
+      } catch {}
+    }
     if (res.status === 401) {
       onLogout();
       throw new Error('UNAUTHORIZED');

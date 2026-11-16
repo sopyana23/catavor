@@ -190,7 +190,8 @@ import {
   subscribeAuthSync,
   resolveAuthenticatedRedirect,
   hasValidSessionToken,
-  clearRegistrationDrafts
+  clearRegistrationDrafts,
+  trySilentCookieRefresh
 } from './utils/authSync'
 import {
   createInitialTypeDrafts,
@@ -5450,8 +5451,10 @@ Terima kasih.`;
     if (!registerForm.google_id) {
       if (!registerForm.password || !registerForm.password.trim()) {
         errors.password = 'Kata Sandi wajib diisi.';
-      } else if (registerForm.password.length < 8) {
-        errors.password = 'Kata Sandi minimal 8 karakter.';
+      } else if (registerForm.password.length < 10) {
+        errors.password = 'Kata Sandi minimal 10 karakter.';
+      } else if (new TextEncoder().encode(registerForm.password).length > 72) {
+        errors.password = 'Kata Sandi maksimal 72 karakter/byte.';
       }
     }
     setFieldErrors(errors);
@@ -10879,10 +10882,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
   // Industry-standard centralized authFetch wrapper with pre-flight check and 401 interception
   const authFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const currentToken = localStorage.getItem('catavor_token');
+    let currentToken = localStorage.getItem('catavor_token');
     if (!currentToken || isTokenExpired(currentToken)) {
-      handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
-      throw new Error('TOKEN_EXPIRED');
+      const refreshed = await trySilentCookieRefresh();
+      if (refreshed) {
+        currentToken = refreshed;
+        setToken(refreshed);
+      } else {
+        handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+        throw new Error('TOKEN_EXPIRED');
+      }
     }
 
     const headers = new Headers(init?.headers || {});
@@ -10901,6 +10910,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
       ...init,
       headers
     });
+
+    const refreshedToken = response.headers.get('X-Refreshed-Token');
+    if (refreshedToken) {
+      try {
+        localStorage.setItem('catavor_token', refreshedToken);
+        setToken(refreshedToken);
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', token: refreshedToken });
+      } catch {}
+    }
 
     if (response.status === 403) {
       try {
@@ -10936,7 +10954,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const now = Date.now();
       if (!force && now - desktopLastTokenCheckTimeRef.current < THROTTLE_MS) return;
 
-      const currentToken = localStorage.getItem('catavor_token') || token;
+      let currentToken = localStorage.getItem('catavor_token') || token;
       if (!currentToken) return;
 
       // Anti-loop safeguard: Hindari verifikasi berulang pada token yang sama jika baru diverifikasi < THROTTLE_MS
@@ -10945,8 +10963,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
 
       if (isTokenExpired(currentToken)) {
-        handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
-        return;
+        const refreshed = await trySilentCookieRefresh();
+        if (!refreshed) {
+          handleUnauthorized('Sesi Anda telah berakhir demi keamanan. Silakan login kembali.');
+          return;
+        }
+        currentToken = refreshed;
+        setToken(refreshed);
       }
 
       desktopLastTokenCheckTimeRef.current = now;
@@ -10958,6 +10981,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
             'Accept': 'application/json'
           }
         });
+
+        const refreshedToken = res.headers.get('X-Refreshed-Token');
+        if (refreshedToken) {
+          try {
+            localStorage.setItem('catavor_token', refreshedToken);
+            setToken(refreshedToken);
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', token: refreshedToken });
+          } catch {}
+        }
 
         if (res.status === 403) {
           const data = await res.json().catch(() => ({}));
@@ -12689,8 +12721,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       setForgotError('Masukkan 6-digit kode OTP angka.');
       return;
     }
-    if (forgotNewPassword.length < 8) {
-      setForgotError('Kata sandi baru minimal 8 karakter.');
+    if (forgotNewPassword.length < 10) {
+      setForgotError('Kata sandi baru minimal 10 karakter.');
+      return;
+    }
+    if (new TextEncoder().encode(forgotNewPassword).length > 72) {
+      setForgotError('Kata sandi baru maksimal 72 karakter/byte.');
       return;
     }
     if (forgotNewPassword !== forgotConfirmPassword) {
@@ -13344,35 +13380,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return
     }
     const pass = backupPasswordForm.password || ''
-    if (pass.length < 8) {
-      const msg = 'Kata sandi minimal 8 karakter.'
+    if (pass.length < 10) {
+      const msg = 'Kata sandi minimal 10 karakter.'
       setBackupPasswordError(msg)
       showToast(msg, 'error')
       return
     }
-    if (!/[A-Z]/.test(pass)) {
-      const msg = 'Kata sandi harus mengandung minimal 1 huruf besar (A-Z).'
+    if (new TextEncoder().encode(pass).length > 72) {
+      const msg = 'Kata sandi maksimal 72 karakter/byte.'
       setBackupPasswordError(msg)
       showToast(msg, 'error')
       return
     }
-    if (!/[a-z]/.test(pass)) {
-      const msg = 'Kata sandi harus mengandung minimal 1 huruf kecil (a-z).'
-      setBackupPasswordError(msg)
-      showToast(msg, 'error')
-      return
-    }
-    if (!/[0-9]/.test(pass)) {
-      const msg = 'Kata sandi harus mengandung minimal 1 angka (0-9).'
-      setBackupPasswordError(msg)
-      showToast(msg, 'error')
-      return
-    }
-    if (!/[^a-zA-Z0-9\s]/.test(pass)) {
-      const msg = 'Kata sandi harus mengandung minimal 1 karakter khusus atau simbol (@, #, $, %, !, dll).'
-      setBackupPasswordError(msg)
-      showToast(msg, 'error')
-      return
+    if (pass.length < 15) {
+      const hasLetter = /[a-zA-Z]/.test(pass)
+      const hasNumberOrSymbol = /[0-9]/.test(pass) || /[^a-zA-Z0-9\s]/.test(pass)
+      if (!hasLetter || !hasNumberOrSymbol) {
+        const msg = 'Kata sandi 10-14 karakter harus mengombinasikan huruf dengan angka atau simbol.'
+        setBackupPasswordError(msg)
+        showToast(msg, 'error')
+        return
+      }
     }
     if (pass !== backupPasswordForm.confirm_password) {
       const msg = 'Konfirmasi kata sandi tidak cocok.'
@@ -13475,35 +13503,27 @@ Terima kasih atas perhatian dan kerja samanya.`;
       showToast(msg, 'error');
       return;
     }
-    if (pwd.length < 8) {
-      const msg = 'Kata sandi baru minimal 8 karakter.';
+    if (pwd.length < 10) {
+      const msg = 'Kata sandi baru minimal 10 karakter.';
       setProfileOtpError(msg);
       showToast(msg, 'error');
       return;
     }
-    if (!/[A-Z]/.test(pwd)) {
-      const msg = 'Kata sandi baru harus mengandung minimal 1 huruf besar (A-Z).';
+    if (new TextEncoder().encode(pwd).length > 72) {
+      const msg = 'Kata sandi baru maksimal 72 karakter/byte.';
       setProfileOtpError(msg);
       showToast(msg, 'error');
       return;
     }
-    if (!/[a-z]/.test(pwd)) {
-      const msg = 'Kata sandi baru harus mengandung minimal 1 huruf kecil (a-z).';
-      setProfileOtpError(msg);
-      showToast(msg, 'error');
-      return;
-    }
-    if (!/[0-9]/.test(pwd)) {
-      const msg = 'Kata sandi baru harus mengandung minimal 1 angka (0-9).';
-      setProfileOtpError(msg);
-      showToast(msg, 'error');
-      return;
-    }
-    if (!/[^a-zA-Z0-9\s]/.test(pwd)) {
-      const msg = 'Kata sandi baru harus mengandung minimal 1 karakter khusus atau simbol.';
-      setProfileOtpError(msg);
-      showToast(msg, 'error');
-      return;
+    if (pwd.length < 15) {
+      const hasLetter = /[a-zA-Z]/.test(pwd);
+      const hasNumberOrSymbol = /[0-9]/.test(pwd) || /[^a-zA-Z0-9\s]/.test(pwd);
+      if (!hasLetter || !hasNumberOrSymbol) {
+        const msg = 'Kata sandi baru 10-14 karakter harus mengombinasikan huruf dengan angka atau simbol.';
+        setProfileOtpError(msg);
+        showToast(msg, 'error');
+        return;
+      }
     }
     if (pwd !== confirmPwd) {
       const msg = 'Konfirmasi kata sandi baru tidak cocok.';
@@ -24846,14 +24866,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                 </span>
                               </div>
                               <p style={{ margin: '0 0 0.55rem 0', fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                                Demi menjaga keamanan akun toko dari serangan brute-force, kata sandi wajib memenuhi kombinasi berikut:
+                                Demi menjaga keamanan akun toko dari serangan brute-force, kata sandi mengikuti standar NIST SP 800-63B:
                               </p>
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.45rem' }}>
                                 {[
-                                  { label: 'Minimal 8 karakter', valid: (backupPasswordForm.password?.length || 0) >= 8 },
-                                  { label: 'Huruf besar (A-Z) & kecil (a-z)', valid: /[A-Z]/.test(backupPasswordForm.password || '') && /[a-z]/.test(backupPasswordForm.password || '') },
-                                  { label: 'Minimal 1 angka (0-9)', valid: /[0-9]/.test(backupPasswordForm.password || '') },
-                                  { label: 'Karakter khusus / simbol (@, #, $, dll)', valid: /[^a-zA-Z0-9\s]/.test(backupPasswordForm.password || '') },
+                                  { label: 'Minimal 10 karakter', valid: (backupPasswordForm.password?.length || 0) >= 10 },
+                                  { label: 'Maksimal 72 karakter/byte', valid: (backupPasswordForm.password?.length || 0) > 0 && new TextEncoder().encode(backupPasswordForm.password || '').length <= 72 },
+                                  { label: 'Kombinasi huruf & angka/simbol (bila < 15 kar)', valid: (backupPasswordForm.password?.length || 0) >= 15 || (/[a-zA-Z]/.test(backupPasswordForm.password || '') && (/[0-9]/.test(backupPasswordForm.password || '') || /[^a-zA-Z0-9\s]/.test(backupPasswordForm.password || ''))) },
+                                  { label: 'Bukan karakter berulang', valid: (backupPasswordForm.password?.length || 0) >= 10 && !/^(.)\1+$/.test(backupPasswordForm.password || '') },
                                 ].map((req, idx) => (
                                   <div
                                     key={idx}
@@ -25067,7 +25087,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                           <input
                                             type={showBackupPasswordText ? 'text' : 'password'}
                                             className="form-input"
-                                            placeholder="Minimal 8 karakter"
+                                            placeholder="Minimal 10 karakter"
                                             value={backupPasswordForm.password}
                                             onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, password: e.target.value })}
                                             style={{ paddingRight: '2.5rem' }}
@@ -25252,7 +25272,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                       <input
                                         type={showBackupPasswordText ? 'text' : 'password'}
                                         className="form-input"
-                                        placeholder="Minimal 8 karakter"
+                                        placeholder="Minimal 10 karakter"
                                         value={backupPasswordForm.password}
                                         onChange={(e) => setBackupPasswordForm({ ...backupPasswordForm, password: e.target.value })}
                                         style={{ paddingRight: '2.5rem' }}
@@ -32680,7 +32700,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     <input
                       type={showForgotNewPasswordText ? 'text' : 'password'}
                       required
-                      placeholder="Minimal 8 karakter"
+                      placeholder="Minimal 10 karakter"
                       className="form-input"
                       value={forgotNewPassword}
                       onChange={(e) => setForgotNewPassword(e.target.value)}
