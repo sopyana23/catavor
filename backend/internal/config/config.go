@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,6 +35,17 @@ type Config struct {
 	SkipDBMigrate      bool
 	JWTSecret          string
 	JWTExpirationHours int
+	// MFAEncryptionKey adalah material kunci untuk mengenkripsi secret TOTP dan
+	// meng-hash kode cadangan. Bila MFA_ENCRYPTION_KEY tidak diset, nilainya
+	// diturunkan dari JWT_SECRET dengan domain separation (lihat resolveMFAKey).
+	// Konsekuensinya: rotasi JWT_SECRET membuat secret MFA lama tidak bisa
+	// dibuka sehingga user harus mendaftar ulang. Set MFA_ENCRYPTION_KEY secara
+	// eksplisit bila ingin merotasi JWT tanpa memutus MFA.
+	MFAEncryptionKey string
+	// MFAEnabled adalah saklar rilis fitur faktor kedua. Ketika false, login
+	// TIDAK boleh menantang MFA (kalau menantang sementara /verify mati, akun
+	// yang sudah mendaftar jadi terkunci permanen) dan endpoint MFA balas 404.
+	MFAEnabled         bool
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURI  string
@@ -45,15 +57,15 @@ type Config struct {
 	// bantuan). Direktori ini SENGAJA berada di luar pohon yang dilayani
 	// route statis /storage sehingga tidak mungkin bocor lewat HTTP tanpa
 	// otorisasi. Key privat selalu berawalan "private/".
-	StoragePrivateRoot string
-	StoragePublicURL   string
-	S3Endpoint         string
-	S3Region           string
-	S3Bucket           string
-	S3AccessKeyID      string
-	S3SecretAccessKey  string
-	S3UsePathStyle     bool
-	S3SSL              bool
+	StoragePrivateRoot    string
+	StoragePublicURL      string
+	S3Endpoint            string
+	S3Region              string
+	S3Bucket              string
+	S3AccessKeyID         string
+	S3SecretAccessKey     string
+	S3UsePathStyle        bool
+	S3SSL                 bool
 	DesktopDistDir        string
 	TabletDistDir         string
 	MobileDistDir         string
@@ -225,22 +237,26 @@ func LoadConfig() *Config {
 	hstsPreload := strings.EqualFold(strings.TrimSpace(getEnv("HSTS_PRELOAD", "false")), "true")
 
 	AppConfig = &Config{
-		Port:                  port,
-		AppEnv:                appEnv,
-		TrustedProxies:        trustedProxies,
-		AppURL:                appURL,
-		TLSCertFile:           strings.TrimSpace(getEnv("TLS_CERT_FILE", "")),
-		TLSKeyFile:            strings.TrimSpace(getEnv("TLS_KEY_FILE", "")),
-		DBHost:                getEnv("DB_HOST", "127.0.0.1"),
-		DBPort:                getEnv("DB_PORT", "5432"),
-		DBUser:                getEnv("DB_USER", "postgres"),
-		DBPassword:            getEnv("DB_PASSWORD", ""),
-		DBName:                getEnv("DB_NAME", "catavor"),
-		DBSSLMode:             dbSSLMode,
-		DBAutoMigrate:         dbAutoMigrate,
-		SkipDBMigrate:         skipDBMigrate,
-		JWTSecret:             jwtSecret,
-		JWTExpirationHours:    jwtHours,
+		Port:               port,
+		AppEnv:             appEnv,
+		TrustedProxies:     trustedProxies,
+		AppURL:             appURL,
+		TLSCertFile:        strings.TrimSpace(getEnv("TLS_CERT_FILE", "")),
+		TLSKeyFile:         strings.TrimSpace(getEnv("TLS_KEY_FILE", "")),
+		DBHost:             getEnv("DB_HOST", "127.0.0.1"),
+		DBPort:             getEnv("DB_PORT", "5432"),
+		DBUser:             getEnv("DB_USER", "postgres"),
+		DBPassword:         getEnv("DB_PASSWORD", ""),
+		DBName:             getEnv("DB_NAME", "catavor"),
+		DBSSLMode:          dbSSLMode,
+		DBAutoMigrate:      dbAutoMigrate,
+		SkipDBMigrate:      skipDBMigrate,
+		JWTSecret:          jwtSecret,
+		JWTExpirationHours: jwtHours,
+		MFAEncryptionKey:   resolveMFAKey(jwtSecret),
+		// Default aktif. Endpoint MFA hanya berguna bagi akun yang mendaftar
+		// sendiri, jadi menyalakannya tidak memaksa siapa pun.
+		MFAEnabled:            resolveMFAEnabled(),
 		GoogleClientID:        getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret:    getEnv("GOOGLE_CLIENT_SECRET", ""),
 		GoogleRedirectURI:     getEnv("GOOGLE_REDIRECT_URI", "http://localhost:"+port),
@@ -268,6 +284,17 @@ func LoadConfig() *Config {
 	return AppConfig
 }
 
+// resolveMFAKey menentukan material kunci enkripsi MFA. Prioritas: env
+// MFA_ENCRYPTION_KEY, lalu turunan dari JWT_SECRET dengan domain separation
+// agar kunci enkripsi tidak identik dengan kunci tanda tangan token.
+func resolveMFAKey(jwtSecret string) string {
+	if explicit := strings.TrimSpace(os.Getenv("MFA_ENCRYPTION_KEY")); explicit != "" {
+		return explicit
+	}
+	sum := sha256.Sum256([]byte("catavor-mfa-envelope|" + jwtSecret))
+	return hex.EncodeToString(sum[:])
+}
+
 func (c *Config) GetPostgresDSN() string {
 	if c.DBPassword == "" {
 		return fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s",
@@ -275,6 +302,17 @@ func (c *Config) GetPostgresDSN() string {
 	}
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode)
+}
+
+// resolveMFAEnabled membaca saklar rilis fitur faktor kedua. Kosong berarti
+// AKTIF — endpoint MFA hanya berguna untuk akun yang mendaftar sendiri.
+func resolveMFAEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MFA_2FA_ENABLED"))) {
+	case "", "true", "1", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 // projectRoot mengembalikan direktori yang memuat go.mod — acuan resolusi path
