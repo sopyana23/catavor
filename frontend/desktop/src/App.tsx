@@ -166,7 +166,8 @@ import { StoreChooserModal, type CatalogStoreItem } from './components/StoreChoo
 import { DesktopCustomSelect } from './components/DesktopCustomSelect'
 import { ConnectedDevicesView } from './components/ConnectedDevicesView'
 import { MFASettingsView } from './components/MFASettingsView'
-import { MFAChallengeView } from './components/MFAChallengeView'
+import { MFAChallengeView, type MFAChallengeFactor } from './components/MFAChallengeView'
+import { MFAOnboardingModal } from './components/MFAOnboardingModal'
 import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
@@ -7349,7 +7350,7 @@ Terima kasih.`;
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        if (data.token) {
+        if (data.token && !data.mfa_required && !data.mfa_setup_required) {
           localStorage.setItem('catavor_token', data.token);
           setToken(data.token);
         }
@@ -7447,7 +7448,7 @@ Terima kasih.`;
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        if (data.token) {
+        if (data.token && !data.mfa_required && !data.mfa_setup_required) {
           localStorage.setItem('catavor_token', data.token);
           setToken(data.token);
         }
@@ -9094,6 +9095,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [mfaChallenge, setMfaChallenge] = useState<{ challenge: string; email: string; slug: string } | null>(null)
+  const [mfaSetupPending, setMfaSetupPending] = useState<{ setupToken: string; email: string; slug: string } | null>(null)
+  const [mfaStepUpAction, setMfaStepUpAction] = useState<{
+    email: string;
+    execute: (code: string, factorType: MFAChallengeFactor) => Promise<void>;
+  } | null>(null)
 
   // First-time Password Change Form State
   const [firstPasswordForm, setFirstPasswordForm] = useState({
@@ -12085,7 +12091,23 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
 
       if (data.success) {
-        if (data.token && data.user && (data.user.store_slug || data.active_store?.slug)) {
+        if (data.mfa_required && data.challenge) {
+          setMfaChallenge({
+            challenge: data.challenge,
+            email: data.user?.email || googleUser.email || 'akun Anda',
+            slug: currentRequestedSlug || '',
+          });
+          return;
+        }
+        if ((data.mfa_setup_required || data.requires_2fa_setup) && data.setup_token) {
+          setMfaSetupPending({
+            setupToken: data.setup_token,
+            email: data.user?.email || googleUser.email || 'staf pengelola',
+            slug: currentRequestedSlug || '',
+          });
+          return;
+        }
+        if (data.token && data.user && (data.user.store_slug || data.active_store?.slug || isPlatformAdmin(data.user))) {
           // Existing User with complete store -> Immediate Auto Login to Admin Dashboard
           localStorage.setItem('catavor_token', data.token);
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
@@ -12751,7 +12773,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        if (data.token) {
+        if (data.token && !data.mfa_required && !data.mfa_setup_required) {
           localStorage.setItem('catavor_token', data.token);
           setToken(data.token);
         }
@@ -13216,7 +13238,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setMfaChallenge({ challenge: data.challenge, email: loginForm.email, slug: currentRequestedSlug || '' })
         return
       }
-      if (res.ok && data.success) {
+      if (res.ok && data.success && (data.mfa_setup_required || data.requires_2fa_setup) && data.setup_token) {
+        setMfaSetupPending({ setupToken: data.setup_token, email: loginForm.email, slug: currentRequestedSlug || '' })
+        return
+      }
+      if (res.ok && data.success && data.token) {
         finalizeLogin(data, currentRequestedSlug)
       } else {
         setLoginError(data.message || 'Email atau password salah.')
@@ -13436,18 +13462,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setBackupPasswordError(null)
     setBackupPasswordSuccess(null)
     try {
-      const res = await fetch(`${API_BASE}/profile`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          name: profileForm.name || (adminUser as any)?.name || 'Admin',
-          current_password: backupPasswordForm.current_password || '',
-          password: backupPasswordForm.password,
-          confirm_password: backupPasswordForm.confirm_password
-        })
-      })
-      const data = await res.json()
-      if (res.ok && data.success) {
+      const pwdPayload = {
+        name: profileForm.name || (adminUser as any)?.name || 'Admin',
+        current_password: backupPasswordForm.current_password || '',
+        password: backupPasswordForm.password,
+        confirm_password: backupPasswordForm.confirm_password
+      }
+      const applyBackupPwdSuccess = (data: any) => {
         if (data.token) {
           localStorage.setItem('catavor_token', data.token)
           setToken(data.token)
@@ -13465,6 +13486,32 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setShowBackupCurrentPasswordText(false)
         setShowBackupPasswordText(false)
         setShowBackupConfirmPasswordText(false)
+      }
+      const res = await fetch(`${API_BASE}/profile`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(pwdPayload)
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        applyBackupPwdSuccess(data)
+      } else if (res.status === 428 && data.code === 'MFA_STEP_UP_REQUIRED') {
+        setMfaStepUpAction({
+          email: (adminUser as any)?.email || 'akun Anda',
+          execute: async (mfaCode, factorType) => {
+            const stepRes = await fetch(`${API_BASE}/profile`, {
+              method: 'POST',
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ ...pwdPayload, mfa_code: mfaCode, factor_type: factorType })
+            })
+            const stepData = await stepRes.json()
+            if (!stepRes.ok || !stepData.success) {
+              throw new Error(stepData.message || 'Verifikasi faktor kedua gagal.')
+            }
+            setMfaStepUpAction(null)
+            applyBackupPwdSuccess(stepData)
+          }
+        })
       } else {
         const errorMsg = data.message || 'Gagal menyimpan kata sandi.'
         setBackupPasswordError(errorMsg)
@@ -13553,19 +13600,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setProfileOtpLoading(true);
     setProfileOtpError(null);
     try {
-      const res = await fetch(`${API_BASE}/profile`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          name: profileForm.name || (adminUser as any)?.name || 'Admin',
-          password: pwd,
-          confirm_password: confirmPwd,
-          otp: otp
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        if (data.token) {
+      const otpPayload = {
+        name: profileForm.name || (adminUser as any)?.name || 'Admin',
+        password: pwd,
+        confirm_password: confirmPwd,
+        otp: otp
+      };
+      const applyOtpPwdSuccess = (data: any) => {
+        if (data.token && !data.mfa_required && !data.mfa_setup_required) {
           localStorage.setItem('catavor_token', data.token);
           setToken(data.token);
         }
@@ -13590,6 +13632,32 @@ Terima kasih atas perhatian dan kerja samanya.`;
         const sMsg = 'Kata sandi akun Anda berhasil diperbarui via verifikasi OTP!';
         setBackupPasswordSuccess(sMsg);
         showToast(sMsg, 'success');
+      };
+      const res = await fetch(`${API_BASE}/profile`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(otpPayload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        applyOtpPwdSuccess(data);
+      } else if (res.status === 428 && data.code === 'MFA_STEP_UP_REQUIRED') {
+        setMfaStepUpAction({
+          email: (adminUser as any)?.email || 'akun Anda',
+          execute: async (mfaCode, factorType) => {
+            const stepRes = await fetch(`${API_BASE}/profile`, {
+              method: 'POST',
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ ...otpPayload, mfa_code: mfaCode, factor_type: factorType })
+            });
+            const stepData = await stepRes.json();
+            if (!stepRes.ok || !stepData.success) {
+              throw new Error(stepData.message || 'Verifikasi faktor kedua gagal.');
+            }
+            setMfaStepUpAction(null);
+            applyOtpPwdSuccess(stepData);
+          }
+        });
       } else {
         const errMsg = data.message || 'Gagal memperbarui kata sandi dengan OTP.';
         setProfileOtpError(errMsg);
@@ -25670,7 +25738,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   {/* TAB 3: SESI & PERANGKAT TERHUBUNG */}
                   {profileSubTab === 'security' && (
                     <>
-                      <MFASettingsView token={token || ''} apiBase={API_BASE} showToast={(type, msg) => showToast(msg, type)} />
+                      <MFASettingsView
+                        token={token || ''}
+                        apiBase={API_BASE}
+                        showToast={(type, msg) => showToast(msg, type)}
+                        onTokenUpdate={(nextTok) => {
+                          localStorage.setItem('catavor_token', nextTok)
+                          setToken(nextTok)
+                        }}
+                      />
                       <ConnectedDevicesView token={token || ''} apiBase={API_BASE} onLogoutCurrent={handleLogout} showToast={(type, msg) => showToast(msg, type)} />
                     </>
                   )}
@@ -34497,6 +34573,31 @@ Terima kasih atas perhatian dan kerja samanya.`;
           apiBase={API_BASE}
           onCancel={() => { setMfaChallenge(null); setLoginError(null); }}
           onVerified={handleMFAVerified}
+        />
+      )}
+      {mfaSetupPending && (
+        <MFAOnboardingModal
+          setupToken={mfaSetupPending.setupToken}
+          email={mfaSetupPending.email}
+          apiBase={API_BASE}
+          onCancel={() => { setMfaSetupPending(null); setLoginError(null); }}
+          onCompleted={(verifiedData) => {
+            const pending = mfaSetupPending;
+            setMfaSetupPending(null);
+            finalizeLogin(verifiedData, pending?.slug || null);
+          }}
+        />
+      )}
+      {mfaStepUpAction && (
+        <MFAChallengeView
+          email={mfaStepUpAction.email}
+          apiBase={API_BASE}
+          title="Konfirmasi Perubahan Kredensial"
+          subtitle="Akun Anda dilindungi MFA. Masukkan kode 6 digit authenticator atau kode cadangan untuk menyimpan perubahan kata sandi."
+          submitLabel="Konfirmasi & Simpan"
+          cancelLabel="Batal"
+          onCancel={() => setMfaStepUpAction(null)}
+          onStepUpVerify={mfaStepUpAction.execute}
         />
       )}
       <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />

@@ -159,7 +159,8 @@ import { initGoogleAnalytics } from './utils/googleAnalytics'
 import { initGoogleAdSense } from './utils/googleAdSense'
 import { ConnectedDevicesView } from './components/ConnectedDevicesView'
 import { MFASettingsView } from './components/MFASettingsView'
-import { MFAChallengeView } from './components/MFAChallengeView'
+import { MFAChallengeView, type MFAChallengeFactor } from './components/MFAChallengeView'
+import { MFAOnboardingModal } from './components/MFAOnboardingModal'
 import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
 import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
@@ -9168,6 +9169,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [mfaChallenge, setMfaChallenge] = useState<{ challenge: string; email: string; slug: string } | null>(null)
+  const [mfaSetupPending, setMfaSetupPending] = useState<{ setupToken: string; email: string; slug: string } | null>(null)
+  const [mfaStepUpAction, setMfaStepUpAction] = useState<{
+    email: string;
+    execute: (code: string, factorType: MFAChallengeFactor) => Promise<void>;
+  } | null>(null)
   const [loginRedirectPortal, setLoginRedirectPortal] = useState<string | null>(null)
 
   // First-time Password Change Form State
@@ -12658,10 +12664,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
       const currentRequestedSlug = getStoreSlug();
 
+      const curPathClean = typeof window !== 'undefined' ? window.location.pathname.toLowerCase().split('?')[0].replace(/\/+$/, '') : '';
+      const isPlatformAdminPortal = curPathClean === '/admin' || curPathClean.startsWith('/admin/') || curPathClean === '/platform' || curPathClean === '/ops';
+      const authPortal = isPlatformAdminPortal ? 'admin' : 'merchant';
+
       const res = await fetch(`${API_BASE}/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Auth-Portal': authPortal,
           ...(currentRequestedSlug ? { 'X-Store-Slug': currentRequestedSlug } : {})
         },
         body: JSON.stringify({
@@ -12671,6 +12682,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           avatar: googleUser.avatar || '',
           token: googleUser.token || '',
           credential: googleUser.credential || '',
+          portal: authPortal,
           store_slug: currentRequestedSlug || '',
           plan: registerPlan
         })
@@ -12711,7 +12723,23 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
 
       if (data.success) {
-        if (data.token && data.user && (data.user.store_slug || data.active_store?.slug)) {
+        if (data.mfa_required && data.challenge) {
+          setMfaChallenge({
+            challenge: data.challenge,
+            email: data.user?.email || googleUser.email || 'akun Anda',
+            slug: currentRequestedSlug || '',
+          });
+          return;
+        }
+        if ((data.mfa_setup_required || data.requires_2fa_setup) && data.setup_token) {
+          setMfaSetupPending({
+            setupToken: data.setup_token,
+            email: data.user?.email || googleUser.email || 'staf pengelola',
+            slug: currentRequestedSlug || '',
+          });
+          return;
+        }
+        if (data.token && data.user && (data.user.store_slug || data.active_store?.slug || isPlatformAdmin(data.user))) {
           // Existing User with complete store -> Immediate Auto Login to Admin Dashboard
           mobileLastTokenCheckTimeRef.current = Date.now();
           mobileVerifiedTokenRef.current = data.token;
@@ -13610,13 +13638,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           payload.current_password = backupPasswordForm.current_password;
         }
       }
-      const res = await fetch(`${API_BASE}/profile`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const applyMobilePwdSuccess = (data: any) => {
         if (data.token) {
           localStorage.setItem('catavor_token', data.token);
           setToken(data.token);
@@ -13633,6 +13655,32 @@ Terima kasih atas perhatian dan kerja samanya.`;
         if (adminUser) {
           setAdminUser({ ...adminUser, has_custom_password: true });
         }
+      };
+      const res = await fetch(`${API_BASE}/profile`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        applyMobilePwdSuccess(data);
+      } else if (res.status === 428 && data.code === 'MFA_STEP_UP_REQUIRED') {
+        setMfaStepUpAction({
+          email: (adminUser as any)?.email || 'akun Anda',
+          execute: async (mfaCode, factorType) => {
+            const stepRes = await fetch(`${API_BASE}/profile`, {
+              method: 'POST',
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ ...payload, mfa_code: mfaCode, factor_type: factorType })
+            });
+            const stepData = await stepRes.json();
+            if (!stepRes.ok || !stepData.success) {
+              throw new Error(stepData.message || 'Verifikasi faktor kedua gagal.');
+            }
+            setMfaStepUpAction(null);
+            applyMobilePwdSuccess(stepData);
+          }
+        });
       } else {
         const errorMsg = data.message || (isUpdating ? 'Gagal memperbarui kata sandi.' : 'Gagal menyimpan kata sandi cadangan.');
         setBackupPasswordError(errorMsg);
@@ -13932,7 +13980,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setMfaChallenge({ challenge: data.challenge, email: loginForm.email, slug: currentRequestedSlug || '' })
         return
       }
-      if (res.ok && data.success) {
+      if (res.ok && data.success && (data.mfa_setup_required || data.requires_2fa_setup) && data.setup_token) {
+        setMfaSetupPending({ setupToken: data.setup_token, email: loginForm.email, slug: currentRequestedSlug || '' })
+        return
+      }
+      if (res.ok && data.success && data.token) {
         finalizeLogin(data, currentRequestedSlug)
       } else {
         setLoginError(data.message || 'Email atau password salah.')
@@ -28959,7 +29011,15 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       {/* Security & Connected Devices on Mobile */}
                                       {mobileSettingsTab === 'security' && (
                                         <div className="animate-fade-in">
-                                          <MFASettingsView token={token || ''} apiBase={API_BASE} showToast={(type, msg) => showToast(msg, type)} />
+                                          <MFASettingsView
+                                            token={token || ''}
+                                            apiBase={API_BASE}
+                                            showToast={(type, msg) => showToast(msg, type)}
+                                            onTokenUpdate={(nextTok) => {
+                                              localStorage.setItem('catavor_token', nextTok);
+                                              setToken(nextTok);
+                                            }}
+                                          />
                                           <ConnectedDevicesView
                                             token={token || ''}
                                             apiBase={API_BASE}
@@ -29197,7 +29257,15 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
                                               {mobileAccountSubTab === 'devices' && (
                                                 <div className="animate-fade-in">
-                                                  <MFASettingsView token={token || ''} apiBase={API_BASE} showToast={(type, msg) => showToast(msg, type)} />
+                                                  <MFASettingsView
+                                            token={token || ''}
+                                            apiBase={API_BASE}
+                                            showToast={(type, msg) => showToast(msg, type)}
+                                            onTokenUpdate={(nextTok) => {
+                                              localStorage.setItem('catavor_token', nextTok);
+                                              setToken(nextTok);
+                                            }}
+                                          />
                                                   <ConnectedDevicesView
                                                     token={token || ''}
                                                     apiBase={API_BASE}
@@ -35591,6 +35659,31 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
           apiBase={API_BASE}
           onCancel={() => { setMfaChallenge(null); setLoginError(null); }}
           onVerified={handleMFAVerified}
+        />
+      )}
+      {mfaSetupPending && (
+        <MFAOnboardingModal
+          setupToken={mfaSetupPending.setupToken}
+          email={mfaSetupPending.email}
+          apiBase={API_BASE}
+          onCancel={() => { setMfaSetupPending(null); setLoginError(null); }}
+          onCompleted={(verifiedData) => {
+            const pending = mfaSetupPending;
+            setMfaSetupPending(null);
+            finalizeLogin(verifiedData, pending?.slug || null);
+          }}
+        />
+      )}
+      {mfaStepUpAction && (
+        <MFAChallengeView
+          email={mfaStepUpAction.email}
+          apiBase={API_BASE}
+          title="Konfirmasi Perubahan Kredensial"
+          subtitle="Akun Anda dilindungi MFA. Masukkan kode 6 digit authenticator atau kode cadangan untuk menyimpan perubahan kata sandi."
+          submitLabel="Konfirmasi & Simpan"
+          cancelLabel="Batal"
+          onCancel={() => setMfaStepUpAction(null)}
+          onStepUpVerify={mfaStepUpAction.execute}
         />
       )}
       <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />

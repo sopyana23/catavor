@@ -37,6 +37,7 @@ import { initGoogleAnalytics } from './utils/googleAnalytics';
 import { smartBack } from './utils/navigation';
 import { ExternalLinkWarningModal } from './components/ExternalLinkWarningModal';
 import { MFAChallengeView } from './components/MFAChallengeView';
+import { MFAOnboardingModal } from './components/MFAOnboardingModal';
 
 const RESERVED_SLUGS = [
   'api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'ops',
@@ -249,6 +250,7 @@ export const App: React.FC = () => {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [mfaChallenge, setMfaChallenge] = useState<{ challenge: string; email: string; slug: string } | null>(null);
+  const [mfaSetupPending, setMfaSetupPending] = useState<{ setupToken: string; email: string; slug: string } | null>(null);
   const [loginRedirectPortal, setLoginRedirectPortal] = useState<string | null>(null);
 
   // Persistent device classification cookie for resilient form-factor retention across refreshes
@@ -670,6 +672,10 @@ export const App: React.FC = () => {
         setMfaChallenge({ challenge: json.challenge, email: loginEmail, slug: activeSlug || '' });
         return;
       }
+      if (res.ok && json.success && (json.mfa_setup_required || json.requires_2fa_setup) && json.setup_token) {
+        setMfaSetupPending({ setupToken: json.setup_token, email: loginEmail, slug: activeSlug || '' });
+        return;
+      }
       if (res.ok && json.token) {
         localStorage.setItem('catavor_token', json.token);
         localStorage.setItem('catavor_user', JSON.stringify(json.user || {}));
@@ -750,10 +756,14 @@ export const App: React.FC = () => {
   const processGoogleUserPayload = async (googleUser: { email?: string; name?: string; google_id?: string; avatar?: string; token?: string; credential?: string }) => {
     setLoginLoading(true);
     setLoginError(null);
+    const authPortal = isPlatformAdminPath ? 'admin' : 'merchant';
     try {
       const res = await fetch('/api/auth/google', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Auth-Portal': authPortal,
+        },
         body: JSON.stringify({
           email: googleUser.email || '',
           name: googleUser.name || '',
@@ -761,6 +771,7 @@ export const App: React.FC = () => {
           avatar: googleUser.avatar || '',
           token: googleUser.token || '',
           credential: googleUser.credential || '',
+          portal: authPortal,
           store_slug: activeSlug || ''
         })
       });
@@ -812,6 +823,22 @@ export const App: React.FC = () => {
         return;
       }
 
+      if (data.success && data.mfa_required && data.challenge) {
+        setMfaChallenge({
+          challenge: data.challenge,
+          email: data.user?.email || googleUser.email || 'akun Anda',
+          slug: activeSlug || '',
+        });
+        return;
+      }
+      if (data.success && (data.mfa_setup_required || data.requires_2fa_setup) && data.setup_token) {
+        setMfaSetupPending({
+          setupToken: data.setup_token,
+          email: data.user?.email || googleUser.email || 'staf pengelola',
+          slug: activeSlug || '',
+        });
+        return;
+      }
       if (data.success && data.token) {
         localStorage.setItem('catavor_token', data.token);
         if (data.user) {
@@ -2465,6 +2492,34 @@ export const App: React.FC = () => {
           apiBase="/api"
           onCancel={() => { setMfaChallenge(null); setLoginError(null); }}
           onVerified={handleMFAVerified}
+        />
+      )}
+      {mfaSetupPending && (
+        <MFAOnboardingModal
+          setupToken={mfaSetupPending.setupToken}
+          email={mfaSetupPending.email}
+          apiBase="/api"
+          onCancel={() => { setMfaSetupPending(null); setLoginError(null); }}
+          onCompleted={(verifiedJson) => {
+            const pending = mfaSetupPending;
+            setMfaSetupPending(null);
+            if (!verifiedJson?.token || !verifiedJson?.user) {
+              setLoginError('Respons aktivasi MFA tidak lengkap. Silakan login ulang.');
+              return;
+            }
+            localStorage.setItem('catavor_token', verifiedJson.token);
+            localStorage.setItem('catavor_user', JSON.stringify(verifiedJson.user));
+            const stores = Array.isArray(verifiedJson.stores)
+              ? verifiedJson.stores.filter((s: any) => s && s.slug && !RESERVED_SLUGS.includes(s.slug.toLowerCase()) && s.dormancy_status !== 'banned' && !s.is_blacklisted)
+              : [];
+            localStorage.setItem('catavor_stores', JSON.stringify(stores));
+            setToken(verifiedJson.token);
+            setCurrentUser(verifiedJson.user);
+            const targetSlug = pending?.slug || (stores.length === 1 ? stores[0].slug : null);
+            const destination = resolveAuthenticatedRedirect(verifiedJson.user, targetSlug);
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: verifiedJson.user?.id || '0', token: verifiedJson.token });
+            navigateTo(destination);
+          }}
         />
       )}
       <TabletGlobalSecurityModal />

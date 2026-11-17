@@ -95,6 +95,7 @@ import { TabletAnalyticsView } from './TabletAnalyticsView';
 import { TabletSubscriptionModal, TabletQuotaWidget, type StoreQuotaData } from './TabletSubscriptionModal';
 import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { MFASettingsView } from './MFASettingsView';
+import { MFAChallengeView, type MFAChallengeFactor } from './MFAChallengeView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
 import { TabletDangerZoneView } from './TabletDangerZoneView';
 import { TabletHelpdeskView } from './TabletHelpdeskView';
@@ -3434,13 +3435,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           payload.current_password = oldPass;
         }
       }
-      const res = await fetch('/api/profile', {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const applyTabletPasswordSuccess = (data: any) => {
         if (data.token) {
           localStorage.setItem('catavor_token', data.token);
         }
@@ -3466,6 +3461,33 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           : (hasCustomPassword ? 'Kata sandi akun berhasil diperbarui!' : 'Kata sandi akun cadangan berhasil disimpan!');
         setBackupPasswordSuccess(successMsg);
         showToast(successMsg, 'success');
+      };
+
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        applyTabletPasswordSuccess(data);
+      } else if (res.status === 428 && data.code === 'MFA_STEP_UP_REQUIRED') {
+        setMfaStepUpAction({
+          email: adminUser?.email || currentUser?.email || 'akun Anda',
+          execute: async (mfaCode, factorType) => {
+            const stepRes = await fetch('/api/profile', {
+              method: 'POST',
+              headers: getHeaders(),
+              body: JSON.stringify({ ...payload, mfa_code: mfaCode, factor_type: factorType })
+            });
+            const stepData = await stepRes.json();
+            if (!stepRes.ok || !stepData.success) {
+              throw new Error(stepData.message || 'Verifikasi faktor kedua gagal.');
+            }
+            setMfaStepUpAction(null);
+            applyTabletPasswordSuccess(stepData);
+          }
+        });
       } else {
         const errMsg = data.message || 'Gagal menyimpan kata sandi';
         setBackupPasswordError(errMsg);
@@ -3487,6 +3509,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   };
 
   // User profile state and name updater
+  const [mfaStepUpAction, setMfaStepUpAction] = useState<{
+    email: string;
+    execute: (code: string, factorType: MFAChallengeFactor) => Promise<void>;
+  } | null>(null);
   const [adminUser, setAdminUser] = useState<any>(currentUser);
   useEffect(() => {
     if (currentUser) setAdminUser(currentUser);
@@ -13354,6 +13380,18 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             </div>
           </div>
         </div>
+      )}
+      {mfaStepUpAction && (
+        <MFAChallengeView
+          email={mfaStepUpAction.email}
+          apiBase="/api"
+          title="Konfirmasi Perubahan Kredensial"
+          subtitle="Akun Anda dilindungi MFA. Masukkan kode 6 digit authenticator atau kode cadangan untuk menyimpan kata sandi baru."
+          submitLabel="Konfirmasi & Simpan"
+          cancelLabel="Batal"
+          onCancel={() => setMfaStepUpAction(null)}
+          onStepUpVerify={mfaStepUpAction.execute}
+        />
       )}
     </div>
   );
