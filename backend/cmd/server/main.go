@@ -52,9 +52,9 @@ func main() {
 	// 4. Initialize Fiber App with Industrial SaaS timeouts (WriteTimeout 0 for SSE streaming)
 	app := fiber.New(fiber.Config{
 		AppName:                 "Catavor Multi-Channel Commerce Server",
-		BodyLimit:               12 * 1024 * 1024, // 12 MB max payload
-		ReadTimeout:             0,                // Unlimited for streaming & SSE
-		WriteTimeout:            0,                // Unlimited write deadline for persistent SSE streams (prevents net::ERR_INCOMPLETE_CHUNKED_ENCODING)
+		BodyLimit:               12 * 1024 * 1024,  // 12 MB max payload
+		ReadTimeout:             0,                 // Unlimited for streaming & SSE
+		WriteTimeout:            0,                 // Unlimited write deadline for persistent SSE streams (prevents net::ERR_INCOMPLETE_CHUNKED_ENCODING)
 		IdleTimeout:             300 * time.Second, // 5 menit (mencegah socket hangup saat tab idle)
 		DisableStartupMessage:   false,
 		ProxyHeader:             fiber.HeaderXForwardedFor,
@@ -79,6 +79,8 @@ func main() {
 	}
 
 	authHandler := handlers.NewAuthHandler(cfg, database.DB, storageService)
+	mfaEnabled := cfg.MFAEnabled
+	mfaHandler := handlers.NewMFAHandler(cfg, database.DB, cfg.MFAEncryptionKey, cfg.JWTSecret, mfaEnabled)
 	sessionHandler := handlers.NewSessionHandler(cfg, database.DB)
 	storeHandler := handlers.NewStoreHandler(database.DB, cfg, storageService)
 	// Muat cache master categories dari DB (single source of truth).
@@ -477,6 +479,9 @@ func main() {
 	// Authentication Endpoints with Rate Limiter
 	api.Post("/login", middleware.AuthRateLimiter(), authHandler.Login)
 	api.Post("/auth/login", middleware.AuthRateLimiter(), authHandler.Login)
+	// Faktor kedua: challenge ditukar menjadi sesi penuh. Endpoint ini TIDAK
+	// memakai AuthRequired karena pemanggil belum punya sesi.
+	api.Post("/auth/mfa/verify", middleware.AuthRateLimiter(), mfaHandler.VerifyChallenge)
 	api.Post("/register", middleware.AuthRateLimiter(), authHandler.Register)
 	api.Post("/auth/register", middleware.AuthRateLimiter(), authHandler.Register)
 	api.Post("/auth/google", middleware.AuthRateLimiter(), authHandler.GoogleAuth)
@@ -507,6 +512,11 @@ func main() {
 	{
 		authOnly.Get("/auth/verify", authHandler.VerifyToken)
 		authOnly.Get("/auth/me", authHandler.VerifyToken)
+		// Manajemen faktor kedua (butuh sesi aktif).
+		authOnly.Get("/auth/mfa/status", mfaHandler.Status)
+		authOnly.Post("/auth/mfa/enroll", mfaHandler.StartEnrollment)
+		authOnly.Post("/auth/mfa/confirm", mfaHandler.ConfirmEnrollment)
+		authOnly.Post("/auth/mfa/disable", middleware.AuthRateLimiter(), mfaHandler.Disable)
 		authOnly.Post("/auth/refresh", authHandler.RefreshToken)
 		authOnly.Post("/logout", authHandler.Logout)
 		authOnly.Post("/profile", authHandler.UpdateProfile)
@@ -644,7 +654,6 @@ func main() {
 		guarded.Get("/settings/policy-audit-logs",
 			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.GetPolicyAuditLogs)
 
-
 		// SECURITY (N-07): rute /reports di grup "guarded" tidak memfilter tenant
 		// sama sekali. Terbukti runtime: merchant membaca 26 laporan dari SEMUA
 		// toko (termasuk reporter_email/ip/user-agent dan admin_notes internal)
@@ -734,7 +743,6 @@ func main() {
 		adminApi.Get("/stores/:id", storeHandler.AdminGetStoreDetail)
 		adminApi.Get("/products/export", catalogExportHandler.ExportProducts)
 		adminApi.Get("/catalog/export", catalogExportHandler.ExportCatalog)
-
 
 		// Monetization, Rekber Syariah & Platform Settings
 		// SECURITY (N-12): settings mengubah konfigurasi platform (monetisasi, iklan,

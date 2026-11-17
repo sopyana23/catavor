@@ -36,6 +36,8 @@ func testCfg() *config.Config {
 		AppURL:             "http://localhost:8000",
 		JWTSecret:          "unit-test-secret-key-0123456789abcdef",
 		JWTExpirationHours: 12,
+		MFAEncryptionKey:   "unit-test-mfa-key-0123456789abcdef",
+		MFAEnabled:         true,
 		AllowedOrigins:     []string{"http://localhost:3000"},
 	}
 }
@@ -70,6 +72,9 @@ func newTestDB(t *testing.T) *gorm.DB {
 		&models.PlatformPermission{},
 		&models.PlatformRolePermission{},
 		&models.Setting{},
+		// Tabel faktor kedua: lockout durable + ledger idempotensi kegagalan.
+		&models.MFAAccountLockout{},
+		&models.MFAChallengeFailure{},
 	); err != nil {
 		t.Fatalf("AutoMigrate(sqlite): %v", err)
 	}

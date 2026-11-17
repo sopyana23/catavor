@@ -14,6 +14,7 @@ import (
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
+	"catavor-backend/internal/mfa"
 	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
@@ -396,6 +397,41 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		} else {
 			primaryStore = user.Store
 		}
+	}
+
+	if user.TwoFactorEnabled && h.cfg.MFAEnabled {
+		// Faktor kedua: kata sandi sudah benar, tetapi token sesi TIDAK boleh
+		// terbit sebelum kode TOTP/backup terbukti. Challenge di bawah hanya
+		// bisa ditukar di POST /api/auth/mfa/verify.
+		now := time.Now().UTC()
+		challenge, jti, challengeExp, chErr := mfa.IssueChallenge(h.cfg.JWTSecret, user.ID, now)
+		if chErr != nil {
+			log.Error().Err(chErr).Uint("user_id", user.ID).Msg("mfa: gagal menerbitkan challenge")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"code":    "MFA_CHALLENGE_ERROR",
+				"message": "Gagal menyiapkan verifikasi dua langkah.",
+			})
+		}
+		logAuthEvent(h.db, c, "AUTH_MFA_CHALLENGE", "Kata sandi benar, menunggu faktor kedua", &user, map[string]interface{}{
+			"jti":    jti,
+			"method": "password",
+		})
+		// 200 (bukan 401): kredensial tahap pertama SAH, klien hanya perlu
+		// melanjutkan ke langkah berikutnya.
+		return c.JSON(fiber.Map{
+			"success":                  true,
+			"mfa_required":             true,
+			"message":                  "Masukkan kode 6 digit dari aplikasi authenticator Anda.",
+			"challenge":                challenge,
+			"challenge_expires_at":     challengeExp,
+			"factors":                  []string{mfa.FactorTOTP, mfa.FactorBackupCode},
+			"is_password_changed":      user.IsPasswordChanged,
+			"has_custom_password":      user.HasCustomPassword,
+			"active_store":             activeStore,
+			"stores_count":             len(storeList),
+			"requires_store_selection": activeStore.ID == 0 && len(storeList) > 0,
+		})
 	}
 
 	token, tokenID, expiresAt, err := middleware.GenerateTokenWithID(&user, primaryStore, h.cfg)
@@ -947,27 +983,27 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			orderNotes = fmt.Sprintf("Pendaftaran awal toko %s (%s)", storeTitle, requestedPlan)
 		}
 		subOrder := models.SubscriptionOrder{
-			StoreID:         newStore.ID,
-			UserID:          targetUser.ID,
-			OrderNumber:     orderNumber,
-			Type:            "initial",
-			PlanCode:        requestedPlan,
-			BillingCycle:    billingCycle,
-			DurationMonths:  durationMonths,
-			OriginalAmount:  origAmount,
-			DiscountAmount:  discountAmount,
-			FinalAmount:     finalAmount,
-			UniqueCode:      uniqueCode,
-			CouponCode:      cleanCoupon,
-			PaymentMethod:   payMethod,
-			PaymentMode:     paymentSystemMode,
+			StoreID:           newStore.ID,
+			UserID:            targetUser.ID,
+			OrderNumber:       orderNumber,
+			Type:              "initial",
+			PlanCode:          requestedPlan,
+			BillingCycle:      billingCycle,
+			DurationMonths:    durationMonths,
+			OriginalAmount:    origAmount,
+			DiscountAmount:    discountAmount,
+			FinalAmount:       finalAmount,
+			UniqueCode:        uniqueCode,
+			CouponCode:        cleanCoupon,
+			PaymentMethod:     payMethod,
+			PaymentMode:       paymentSystemMode,
 			SenderAccountName: senderName,
 			SenderPhone:       senderPhone,
-			PaymentProofURL: validatedProofURL,
-			PaymentStatus:   orderPaymentStatus,
+			PaymentProofURL:   validatedProofURL,
+			PaymentStatus:     orderPaymentStatus,
 			Notes:             orderNotes,
-			PaidAt:          orderPaidAt,
-			ExpiresAt:       orderExpiresAt,
+			PaidAt:            orderPaidAt,
+			ExpiresAt:         orderExpiresAt,
 		}
 
 		if paymentSystemMode == "gateway_aulaa" && finalAmount > 0 {
