@@ -42,6 +42,18 @@ func requireRBACSuperadmin(actor *models.User) error {
 	return nil
 }
 
+func InitRBACService(db *gorm.DB) *RBACService {
+	svc := GetRBACService()
+	svc.cacheLock.Lock()
+	svc.db = db
+	svc.permCache = make(map[string]map[string]bool)
+	svc.cacheLock.Unlock()
+	if db != nil {
+		svc.RefreshCache()
+	}
+	return svc
+}
+
 func GetRBACService() *RBACService {
 	rbacOnce.Do(func() {
 		rbacServiceInstance = &RBACService{
@@ -348,8 +360,17 @@ func (s *RBACService) AssignStaffRole(targetEmailOrID string, roleSlug string, a
 
 	oldRole := targetUser.PlatformRole
 	targetUser.PlatformRole = roleSlug
+	if models.IsPlatformStaffRole(roleSlug) {
+		targetUser.TwoFactorEnforced = true
+	}
 	if err := s.db.Save(&targetUser).Error; err != nil {
 		return err
+	}
+
+	// Mutasi role staf wajib mencabut sesi lama agar pengguna terikat kembali pada gerbang MFA sesuai role barunya.
+	if err := RevokeAllSessionsForUser(s.db, targetUser.ID); err != nil {
+		log.Warn().Err(err).Uint("user_id", targetUser.ID).
+			Msg("gagal mencabut sesi setelah penugasan role staf")
 	}
 
 	// Record Enterprise Audit Log
@@ -429,6 +450,7 @@ func (s *RBACService) CreateStaffUser(params CreateStaffParams) (*models.User, e
 		Name:              name,
 		Email:             email,
 		PlatformRole:      roleSlug,
+		TwoFactorEnforced: models.IsPlatformStaffRole(roleSlug),
 		EmailVerifiedAt:   &now,
 		IsPasswordChanged: true,
 		HasCustomPassword: true,

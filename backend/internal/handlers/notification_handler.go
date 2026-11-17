@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"catavor-backend/internal/database"
+	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
@@ -571,7 +572,17 @@ func (h *NotificationHandler) IssueStreamTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	ticket, exp, err := security.IssueSSETicket(uid)
+	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
+	user, _ := c.Locals("user").(*models.User)
+	mfaVerified := claims != nil && claims.MfaVerified
+	tokenVer := 0
+	if user != nil {
+		tokenVer = user.TokenVersion
+	} else if claims != nil {
+		tokenVer = claims.TokenVersion
+	}
+
+	ticket, exp, err := security.IssueSSETicketWithMeta(uid, mfaVerified, tokenVer)
 	if err != nil {
 		log.Error().Err(err).Uint("user_id", uid).Msg("gagal membuat tiket SSE")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

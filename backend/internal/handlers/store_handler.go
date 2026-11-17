@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1982,8 +1983,17 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 		})
 	}
 
-	cfg := config.LoadConfig()
-	newToken, _ := middleware.GenerateToken(user, &newStore, cfg)
+	cfg := h.cfg
+	if cfg == nil {
+		cfg = config.LoadConfig()
+	}
+	newToken, rotErr := h.rotateStoreContextSession(c, user, &newStore, cfg)
+	if rotErr != nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Profil katalog baru berhasil dibuat, namun gagal memperbarui sesi aktif.",
+		})
+	}
 
 	// Fetch all stores of user
 	var allStores []models.Store
@@ -2101,37 +2111,24 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 		})
 	}
 
-	var absExp time.Time
-	if claims != nil {
-		absExp = claims.GetAbsoluteExpiresAt()
+	cfg := h.cfg
+	if cfg == nil {
+		cfg = config.LoadConfig()
 	}
-	if absExp.IsZero() {
-		absExp = time.Now().Add(7 * 24 * time.Hour)
-	}
-
-	cfg := config.LoadConfig()
-	newToken, newTokenID, newExpiresAt, err := middleware.GenerateSlidingTokenWithID(user, &targetStore, cfg, absExp)
+	newToken, err := h.rotateStoreContextSession(c, user, &targetStore, cfg)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		if errors.Is(err, services.ErrSessionNotFound) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "SESSION_REVOKED",
+				"message": "Sesi login telah dicabut. Silakan masuk kembali.",
+			})
+		}
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"success": false,
-			"message": "Gagal menghasilkan sesi login baru.",
+			"message": "Gagal menyimpan peralihan sesi katalog.",
 		})
 	}
-
-	if claims != nil && claims.ID != "" {
-		ttl := 72 * time.Hour
-		if claims.ExpiresAt != nil {
-			remaining := time.Until(claims.ExpiresAt.Time)
-			if remaining > 0 {
-				ttl = remaining
-			}
-		}
-		database.BlacklistTokenWithGracePeriod(claims.ID, 30*time.Second, ttl)
-		_ = services.RotateUserSessionToken(h.db, claims.ID, newTokenID, newExpiresAt, c.IP())
-	}
-	middleware.RegisterSessionFingerprint(newTokenID, c.IP(), c.Get("User-Agent"))
-	middleware.SetSessionCookie(c, cfg, newToken)
-	c.Set("X-Refreshed-Token", newToken)
 
 	theme := targetStore.StoreTheme
 	if theme == "" {
@@ -2379,11 +2376,8 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 	var nextStore *models.Store
 	if len(remainingStores) > 0 {
 		nextStore = &remainingStores[0]
-		nextToken, _ = middleware.GenerateToken(user, nextStore, cfg)
-	} else {
-		// No stores left, generate token with nil store
-		nextToken, _ = middleware.GenerateToken(user, nil, cfg)
 	}
+	nextToken, _ = h.rotateStoreContextSession(c, user, nextStore, cfg)
 
 	return c.JSON(fiber.Map{
 		"success":          true,
@@ -2393,6 +2387,53 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 		"new_token":        nextToken,
 		"next_store":       nextStore,
 	})
+}
+
+// rotateStoreContextSession memperbarui klaim store pada JWT sambil mempertahankan
+// status mfa_verified & waktu autentikasi asli, serta merotasi baris UserSession secara sinkron.
+func (h *StoreHandler) rotateStoreContextSession(c *fiber.Ctx, user *models.User, targetStore *models.Store, cfg *config.Config) (string, error) {
+	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
+	var mfaVerified bool
+	var authAt, absExp time.Time
+	if claims != nil {
+		mfaVerified = claims.MfaVerified
+		authAt = claims.GetAuthTime()
+		absExp = claims.GetAbsoluteExpiresAt()
+	}
+	if absExp.IsZero() {
+		absExp = time.Now().UTC().Add(7 * 24 * time.Hour)
+	}
+
+	newToken, newTokenID, newExpiresAt, err := middleware.GenerateTokenWithOptions(user, targetStore, cfg, middleware.TokenOptions{
+		MFAVerified:       mfaVerified,
+		AuthAt:            authAt,
+		AbsoluteExpiresAt: absExp,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if claims != nil && strings.TrimSpace(claims.ID) != "" {
+		if rotErr := services.RotateUserSessionTokenStrict(h.db, user.ID, claims.ID, newTokenID, newExpiresAt, c.IP()); rotErr != nil {
+			return "", rotErr
+		}
+		ttl := 72 * time.Hour
+		if claims.ExpiresAt != nil {
+			if remaining := time.Until(claims.ExpiresAt.Time); remaining > 0 {
+				ttl = remaining
+			}
+		}
+		database.BlacklistTokenWithGracePeriod(claims.ID, 30*time.Second, ttl)
+	} else if h.db != nil {
+		if _, sErr := services.CreateDurableUserSession(h.db, user.ID, newTokenID, newExpiresAt, c.IP(), c.Get("User-Agent")); sErr != nil {
+			return "", sErr
+		}
+	}
+
+	middleware.RegisterSessionFingerprint(newTokenID, c.IP(), c.Get("User-Agent"))
+	middleware.SetSessionCookie(c, cfg, newToken)
+	c.Set("X-Refreshed-Token", newToken)
+	return newToken, nil
 }
 
 // AdminStoreListItem represents a registered store catalog for platform management

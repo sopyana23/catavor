@@ -1,6 +1,8 @@
 package services
 
 import (
+	"errors"
+	"strings"
 	"time"
 
 	"catavor-backend/internal/database"
@@ -9,6 +11,12 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
+)
+
+var (
+	ErrSessionStorageUnavailable = errors.New("session: penyimpanan sesi tidak tersedia")
+	ErrSessionInvalidInput       = errors.New("session: parameter sesi tidak lengkap")
+	ErrSessionNotFound           = errors.New("session: sesi aktif tidak ditemukan")
 )
 
 // runBackground menjalankan tugas latar belakang tanpa membiarkan panic
@@ -28,6 +36,171 @@ func runBackground(task string, fn func()) {
 	fn()
 }
 
+// CreateUserSessionTx menulis baris sesi aktif di dalam transaksi yang sedang
+// berjalan. Semua error database dipropagasikan agar pemanggil dapat fail-closed
+// sebelum menerbitkan token atau cookie. Mengembalikan daftar token_id lama
+// yang tergusur oleh batas LRU (maks 10 sesi aktif) untuk di-blacklist setelah commit.
+func CreateUserSessionTx(tx *gorm.DB, userID uint, tokenID string, expiresAt time.Time, ip string, userAgent string, now time.Time) (*models.UserSession, []string, error) {
+	if tx == nil {
+		return nil, nil, ErrSessionStorageUnavailable
+	}
+	if userID == 0 || strings.TrimSpace(tokenID) == "" || expiresAt.IsZero() {
+		return nil, nil, ErrSessionInvalidInput
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+
+	cleanIP := strings.TrimSpace(ip)
+	if cleanIP == "" {
+		cleanIP = "0.0.0.0"
+	}
+
+	var evictedTokens []string
+	var activeCount int64
+	if err := tx.Model(&models.UserSession{}).
+		Where("user_id = ? AND is_revoked = false AND expires_at > ?", userID, now).
+		Count(&activeCount).Error; err != nil {
+		return nil, nil, err
+	}
+
+	if activeCount >= 10 {
+		excess := int(activeCount - 9)
+		var oldestSessions []models.UserSession
+		if err := tx.Where("user_id = ? AND is_revoked = false AND expires_at > ?", userID, now).
+			Order("last_active_at ASC, id ASC").
+			Limit(excess).
+			Find(&oldestSessions).Error; err != nil {
+			return nil, nil, err
+		}
+		for _, s := range oldestSessions {
+			if err := tx.Model(&models.UserSession{}).
+				Where("id = ?", s.ID).
+				Updates(map[string]interface{}{
+					"is_revoked": true,
+					"revoked_at": &now,
+					"updated_at": now,
+				}).Error; err != nil {
+				return nil, nil, err
+			}
+			if s.TokenID != "" {
+				evictedTokens = append(evictedTokens, s.TokenID)
+			}
+		}
+	}
+
+	devInfo := utils.ParseUserAgent(userAgent)
+	devName := strings.TrimSpace(devInfo.DeviceName)
+	if devName == "" {
+		devName = "Unknown Device"
+	}
+	devType := strings.TrimSpace(devInfo.DeviceType)
+	if devType == "" {
+		devType = "desktop"
+	}
+
+	sess := &models.UserSession{
+		UserID:       userID,
+		TokenID:      tokenID,
+		IPAddress:    cleanIP,
+		UserAgent:    userAgent,
+		DeviceName:   devName,
+		DeviceType:   devType,
+		Browser:      devInfo.Browser,
+		OS:           devInfo.OS,
+		LastActiveAt: now,
+		ExpiresAt:    expiresAt,
+		IsRevoked:    false,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := tx.Create(sess).Error; err != nil {
+		return nil, nil, err
+	}
+	return sess, evictedTokens, nil
+}
+
+// BlacklistTokenIDs mem-blacklist daftar JTI sesi setelah transaksi DB berhasil commit.
+func BlacklistTokenIDs(tokenIDs []string, ttl time.Duration) {
+	if ttl <= 0 {
+		ttl = 72 * time.Hour
+	}
+	for _, tid := range tokenIDs {
+		if strings.TrimSpace(tid) != "" {
+			database.BlacklistToken(tid, ttl)
+		}
+	}
+}
+
+// CreateDurableUserSession menyimpan sesi secara sinkron dalam transaksi DB.
+// Kegagalan penyimpanan dikembalikan ke pemanggil (fail-closed).
+func CreateDurableUserSession(db *gorm.DB, userID uint, tokenID string, expiresAt time.Time, ip string, userAgent string) (*models.UserSession, error) {
+	if db == nil {
+		return nil, ErrSessionStorageUnavailable
+	}
+	now := time.Now().UTC()
+	var created *models.UserSession
+	var evicted []string
+	err := db.Transaction(func(tx *gorm.DB) error {
+		var txErr error
+		created, evicted, txErr = CreateUserSessionTx(tx, userID, tokenID, expiresAt, ip, userAgent, now)
+		return txErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	BlacklistTokenIDs(evicted, 72*time.Hour)
+	return created, nil
+}
+
+// RevokeUserSessionsTx menandai seluruh sesi aktif milik user sebagai revoked di
+// dalam transaksi yang sedang berjalan (opsional mengecualikan satu tokenID),
+// dan mengembalikan daftar token_id yang dicabut untuk di-blacklist pasca-commit.
+func RevokeUserSessionsTx(tx *gorm.DB, userID uint, exceptTokenID string, now time.Time) ([]string, error) {
+	if tx == nil {
+		return nil, ErrSessionStorageUnavailable
+	}
+	if userID == 0 {
+		return nil, nil
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+
+	q := tx.Where("user_id = ? AND is_revoked = false", userID)
+	if strings.TrimSpace(exceptTokenID) != "" {
+		q = q.Where("token_id != ?", strings.TrimSpace(exceptTokenID))
+	}
+	var sessions []models.UserSession
+	if err := q.Find(&sessions).Error; err != nil {
+		return nil, err
+	}
+	if len(sessions) == 0 {
+		return nil, nil
+	}
+
+	upd := tx.Model(&models.UserSession{}).Where("user_id = ? AND is_revoked = false", userID)
+	if strings.TrimSpace(exceptTokenID) != "" {
+		upd = upd.Where("token_id != ?", strings.TrimSpace(exceptTokenID))
+	}
+	if err := upd.Updates(map[string]interface{}{
+		"is_revoked": true,
+		"revoked_at": &now,
+		"updated_at": now,
+	}).Error; err != nil {
+		return nil, err
+	}
+
+	ids := make([]string, 0, len(sessions))
+	for _, s := range sessions {
+		if s.TokenID != "" {
+			ids = append(ids, s.TokenID)
+		}
+	}
+	return ids, nil
+}
+
 // RecordUserSession creates an active user session record for device tracking.
 func RecordUserSession(userID uint, tokenID string, expiresAt time.Time, ip string, userAgent string) {
 	if userID == 0 || tokenID == "" {
@@ -42,57 +215,7 @@ func recordUserSession(userID uint, tokenID string, expiresAt time.Time, ip stri
 	if database.DB == nil {
 		return
 	}
-
-	now := time.Now()
-
-	// LRU Auto-Eviction: Enforce max 10 active concurrent sessions per user (Industry Standard)
-	var activeCount int64
-	database.DB.Model(&models.UserSession{}).
-		Where("user_id = ? AND is_revoked = false AND expires_at > ?", userID, now).
-		Count(&activeCount)
-
-	if activeCount >= 10 {
-		excess := int(activeCount - 9)
-		var oldestSessions []models.UserSession
-		if err := database.DB.Where("user_id = ? AND is_revoked = false AND expires_at > ?", userID, now).
-			Order("last_active_at ASC").
-			Limit(excess).
-			Find(&oldestSessions).Error; err == nil {
-			for _, s := range oldestSessions {
-				s.IsRevoked = true
-				s.RevokedAt = &now
-				_ = database.DB.Save(&s).Error
-
-				ttl := 72 * time.Hour
-				if s.ExpiresAt.After(now) {
-					ttl = time.Until(s.ExpiresAt)
-				}
-				if s.TokenID != "" {
-					database.BlacklistToken(s.TokenID, ttl)
-				}
-			}
-		}
-	}
-
-	devInfo := utils.ParseUserAgent(userAgent)
-
-	sess := models.UserSession{
-		UserID:       userID,
-		TokenID:      tokenID,
-		IPAddress:    ip,
-		UserAgent:    userAgent,
-		DeviceName:   devInfo.DeviceName,
-		DeviceType:   devInfo.DeviceType,
-		Browser:      devInfo.Browser,
-		OS:           devInfo.OS,
-		LastActiveAt: now,
-		ExpiresAt:    expiresAt,
-		IsRevoked:    false,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	}
-
-	if err := database.DB.Create(&sess).Error; err != nil {
+	if _, err := CreateDurableUserSession(database.DB, userID, tokenID, expiresAt, ip, userAgent); err != nil {
 		log.Warn().Err(err).Uint("user_id", userID).Msg("Failed to record user session in database")
 	}
 }
@@ -225,36 +348,48 @@ func RevokeAllSessionsForUser(db *gorm.DB, userID uint) error {
 	if userID == 0 {
 		return nil
 	}
+	if db == nil {
+		db = database.DB
+	}
+	if db == nil {
+		return ErrSessionStorageUnavailable
+	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	// 1. Fetch active session token IDs
 	var sessions []models.UserSession
 	if err := db.Where("user_id = ? AND is_revoked = false", userID).Find(&sessions).Error; err != nil {
 		log.Warn().Err(err).Uint("user_id", userID).Msg("Failed to query active sessions for revocation")
-	} else {
-		for _, s := range sessions {
-			ttl := 72 * time.Hour
-			if s.ExpiresAt.After(now) {
-				ttl = time.Until(s.ExpiresAt)
-			}
-			if s.TokenID != "" {
-				database.BlacklistToken(s.TokenID, ttl)
-			}
-		}
+		return err
 	}
 
-	// 2. Mark all sessions as revoked in database
-	_ = db.Model(&models.UserSession{}).
-		Where("user_id = ? AND is_revoked = false", userID).
-		Updates(map[string]interface{}{
-			"is_revoked": true,
-			"revoked_at": &now,
-			"updated_at": now,
-		}).Error
+	// 2. Mark all sessions as revoked in database and bump token_version atomically
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.UserSession{}).
+			Where("user_id = ? AND is_revoked = false", userID).
+			Updates(map[string]interface{}{
+				"is_revoked": true,
+				"revoked_at": &now,
+				"updated_at": now,
+			}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.User{}).Where("id = ?", userID).
+			UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error
+	}); err != nil {
+		return err
+	}
 
-	// 3. Increment TokenVersion on User record to immediately invalidate any lingering JWTs
-	_ = db.Model(&models.User{}).Where("id = ?", userID).UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error
+	for _, s := range sessions {
+		ttl := 72 * time.Hour
+		if s.ExpiresAt.After(now) {
+			ttl = time.Until(s.ExpiresAt)
+		}
+		if s.TokenID != "" {
+			database.BlacklistToken(s.TokenID, ttl)
+		}
+	}
 
 	log.Info().Uint("user_id", userID).Msg("Successfully revoked all active sessions and bumped token_version.")
 	return nil
@@ -285,5 +420,39 @@ func RotateUserSessionToken(db *gorm.DB, oldTokenID, newTokenID string, newExpir
 	return db.Model(&models.UserSession{}).
 		Where("token_id = ? AND is_revoked = false", oldTokenID).
 		Updates(updates).Error
+}
+
+// RotateUserSessionTokenStrict memperbarui token_id pada sesi aktif dan
+// menolak (fail-closed) bila baris sesi tidak ditemukan, sudah dicabut, atau DB gagal.
+func RotateUserSessionTokenStrict(db *gorm.DB, userID uint, oldTokenID, newTokenID string, newExpiresAt time.Time, ip string) error {
+	if db == nil {
+		db = database.DB
+	}
+	if db == nil {
+		return ErrSessionStorageUnavailable
+	}
+	if userID == 0 || strings.TrimSpace(oldTokenID) == "" || strings.TrimSpace(newTokenID) == "" || newExpiresAt.IsZero() {
+		return ErrSessionInvalidInput
+	}
+	now := time.Now().UTC()
+	updates := map[string]interface{}{
+		"token_id":       newTokenID,
+		"expires_at":     newExpiresAt,
+		"last_active_at": now,
+		"updated_at":     now,
+	}
+	if strings.TrimSpace(ip) != "" {
+		updates["ip_address"] = strings.TrimSpace(ip)
+	}
+	res := db.Model(&models.UserSession{}).
+		Where("user_id = ? AND token_id = ? AND is_revoked = false AND expires_at > ?", userID, oldTokenID, now).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrSessionNotFound
+	}
+	return nil
 }
 

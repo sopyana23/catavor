@@ -30,8 +30,17 @@ const (
 )
 
 type sseTicket struct {
-	userID    uint
-	expiresAt time.Time
+	userID       uint
+	mfaVerified  bool
+	tokenVersion int
+	expiresAt    time.Time
+}
+
+// SSETicketMeta membawa konteks keamanan sesi asal saat tiket SSE diterbitkan.
+type SSETicketMeta struct {
+	UserID       uint
+	MFAVerified  bool
+	TokenVersion int
 }
 
 var (
@@ -41,6 +50,12 @@ var (
 
 // IssueSSETicket membuat tiket acak 32 byte untuk user tertentu.
 func IssueSSETicket(userID uint) (string, time.Time, error) {
+	return IssueSSETicketWithMeta(userID, false, 0)
+}
+
+// IssueSSETicketWithMeta membuat tiket sekali pakai yang mengikat status MFA
+// dan versi token sesi pemanggil.
+func IssueSSETicketWithMeta(userID uint, mfaVerified bool, tokenVersion int) (string, time.Time, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
 		return "", time.Time{}, err
@@ -81,14 +96,28 @@ func IssueSSETicket(userID uint) (string, time.Time, error) {
 		}
 	}
 
-	sseTickets[ticket] = sseTicket{userID: userID, expiresAt: exp}
+	sseTickets[ticket] = sseTicket{
+		userID:       userID,
+		mfaVerified:  mfaVerified,
+		tokenVersion: tokenVersion,
+		expiresAt:    exp,
+	}
 	return ticket, exp, nil
 }
 
 // ConsumeSSETicket memvalidasi dan langsung menghapus tiket (single use).
 func ConsumeSSETicket(ticket string) (uint, bool) {
-	if ticket == "" {
+	meta, ok := ConsumeSSETicketWithMeta(ticket)
+	if !ok {
 		return 0, false
+	}
+	return meta.UserID, true
+}
+
+// ConsumeSSETicketWithMeta memvalidasi dan menghapus tiket sekali pakai beserta metadata sesi asal.
+func ConsumeSSETicketWithMeta(ticket string) (SSETicketMeta, bool) {
+	if ticket == "" {
+		return SSETicketMeta{}, false
 	}
 	sseTicketMu.Lock()
 	t, ok := sseTickets[ticket]
@@ -98,9 +127,13 @@ func ConsumeSSETicket(ticket string) (uint, bool) {
 	sseTicketMu.Unlock()
 
 	if !ok || time.Now().After(t.expiresAt) {
-		return 0, false
+		return SSETicketMeta{}, false
 	}
-	return t.userID, true
+	return SSETicketMeta{
+		UserID:       t.userID,
+		MFAVerified:  t.mfaVerified,
+		TokenVersion: t.tokenVersion,
+	}, true
 }
 
 // ResetSSETickets hanya untuk pengujian.

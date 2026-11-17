@@ -9,6 +9,7 @@ import (
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
+	"catavor-backend/internal/mfa"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
@@ -28,20 +29,45 @@ const (
 )
 
 type JWTClaims struct {
-	UserID            uint              `json:"user_id"`
-	Email             string            `json:"email"`
-	Name              string            `json:"name"`
-	StoreSlug         string            `json:"store_slug"`
-	StoreID           uint              `json:"store_id"`
-	IsPasswordChanged bool              `json:"is_password_changed"`
-	TokenVersion      int               `json:"token_version"`
-	AbsoluteExpiresAt *jwt.NumericDate  `json:"abs_exp,omitempty"`
+	UserID            uint             `json:"user_id"`
+	Email             string           `json:"email"`
+	Name              string           `json:"name"`
+	StoreSlug         string           `json:"store_slug"`
+	StoreID           uint             `json:"store_id"`
+	IsPasswordChanged bool             `json:"is_password_changed"`
+	TokenVersion      int              `json:"token_version"`
+	MfaVerified       bool             `json:"mfa_verified,omitempty"`
+	AuthAt            *jwt.NumericDate `json:"auth_at,omitempty"`
+	AbsoluteExpiresAt *jwt.NumericDate `json:"abs_exp,omitempty"`
 	jwt.RegisteredClaims
+}
+
+// TokenOptions mengontrol klaim keamanan saat menerbitkan atau merotasi token sesi.
+type TokenOptions struct {
+	TokenID           string
+	MFAVerified       bool
+	AuthAt            time.Time
+	AbsoluteExpiresAt time.Time
 }
 
 func (c *JWTClaims) GetAbsoluteExpiresAt() time.Time {
 	if c != nil && c.AbsoluteExpiresAt != nil {
 		return c.AbsoluteExpiresAt.Time
+	}
+	return time.Time{}
+}
+
+// GetAuthTime mengembalikan waktu autentikasi kredensial asli (bukan waktu rotasi sliding),
+// digunakan untuk memeriksa kesegaran re-autentikasi (<= 10 menit).
+func (c *JWTClaims) GetAuthTime() time.Time {
+	if c == nil {
+		return time.Time{}
+	}
+	if c.AuthAt != nil && !c.AuthAt.Time.IsZero() {
+		return c.AuthAt.Time
+	}
+	if c.IssuedAt != nil && !c.IssuedAt.Time.IsZero() {
+		return c.IssuedAt.Time
 	}
 	return time.Time{}
 }
@@ -53,8 +79,13 @@ func (c *JWTClaims) IsAbsoluteExpired() bool {
 	return time.Now().After(c.AbsoluteExpiresAt.Time)
 }
 
-// GenerateSlidingTokenWithID creates a cryptographically signed JWT token preserving user claims and absolute expiration.
-func GenerateSlidingTokenWithID(user *models.User, store *models.Store, cfg *config.Config, absExp time.Time) (string, string, time.Time, error) {
+// GenerateTokenWithOptions menerbitkan JWT sesi penuh (audience catavor-web)
+// dengan kontrol eksplisit atas status MFA, waktu autentikasi asli, dan JTI.
+func GenerateTokenWithOptions(user *models.User, store *models.Store, cfg *config.Config, opts TokenOptions) (string, string, time.Time, error) {
+	if user == nil || cfg == nil || strings.TrimSpace(cfg.JWTSecret) == "" {
+		return "", "", time.Time{}, errors.New("invalid token parameters")
+	}
+
 	var storeSlug string
 	var storeID uint
 	if store != nil {
@@ -63,18 +94,30 @@ func GenerateSlidingTokenWithID(user *models.User, store *models.Store, cfg *con
 	}
 
 	tokenVersion := user.TokenVersion
-	if tokenVersion == 0 {
+	if tokenVersion <= 0 {
 		tokenVersion = 1
 	}
 
-	tokenID := uuid.New().String()
-	expiresAt := time.Now().Add(time.Duration(cfg.JWTExpirationHours) * time.Hour)
+	now := time.Now().UTC()
+	tokenID := strings.TrimSpace(opts.TokenID)
+	if tokenID == "" {
+		tokenID = uuid.New().String()
+	}
 
-	var absNumericDate *jwt.NumericDate
-	if !absExp.IsZero() {
-		absNumericDate = jwt.NewNumericDate(absExp)
-	} else {
-		absNumericDate = jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour))
+	hours := cfg.JWTExpirationHours
+	if hours <= 0 {
+		hours = 12
+	}
+	expiresAt := now.Add(time.Duration(hours) * time.Hour)
+
+	authAt := opts.AuthAt
+	if authAt.IsZero() {
+		authAt = now
+	}
+
+	absExp := opts.AbsoluteExpiresAt
+	if absExp.IsZero() {
+		absExp = now.Add(7 * 24 * time.Hour)
 	}
 
 	claims := JWTClaims{
@@ -85,12 +128,14 @@ func GenerateSlidingTokenWithID(user *models.User, store *models.Store, cfg *con
 		StoreID:           storeID,
 		IsPasswordChanged: user.IsPasswordChanged,
 		TokenVersion:      tokenVersion,
-		AbsoluteExpiresAt: absNumericDate,
+		MfaVerified:       opts.MFAVerified,
+		AuthAt:            jwt.NewNumericDate(authAt),
+		AbsoluteExpiresAt: jwt.NewNumericDate(absExp),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        tokenID,
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now.Add(-30 * time.Second)),
 			Issuer:    JWTIssuer,
 			Audience:  jwt.ClaimStrings{JWTAudience},
 		},
@@ -104,9 +149,34 @@ func GenerateSlidingTokenWithID(user *models.User, store *models.Store, cfg *con
 	return signedToken, tokenID, expiresAt, nil
 }
 
+// GenerateSlidingTokenWithID creates a cryptographically signed JWT token preserving user claims and absolute expiration.
+func GenerateSlidingTokenWithID(user *models.User, store *models.Store, cfg *config.Config, absExp time.Time) (string, string, time.Time, error) {
+	return GenerateTokenWithOptions(user, store, cfg, TokenOptions{
+		MFAVerified:       false,
+		AbsoluteExpiresAt: absExp,
+	})
+}
+
+// GenerateSlidingTokenWithIDVerified menerbitkan token sliding dengan klaim mfa_verified=true.
+func GenerateSlidingTokenWithIDVerified(user *models.User, store *models.Store, cfg *config.Config, absExp time.Time) (string, string, time.Time, error) {
+	return GenerateTokenWithOptions(user, store, cfg, TokenOptions{
+		MFAVerified:       true,
+		AbsoluteExpiresAt: absExp,
+	})
+}
+
 // GenerateTokenWithID creates a cryptographically signed JWT token with algorithm pinning and returns token string, jti UUID, and expiresAt.
 func GenerateTokenWithID(user *models.User, store *models.Store, cfg *config.Config) (string, string, time.Time, error) {
-	return GenerateSlidingTokenWithID(user, store, cfg, time.Now().Add(7*24*time.Hour))
+	return GenerateTokenWithOptions(user, store, cfg, TokenOptions{
+		MFAVerified: false,
+	})
+}
+
+// GenerateTokenWithIDVerified menerbitkan JWT sesi penuh yang telah terverifikasi faktor kedua.
+func GenerateTokenWithIDVerified(user *models.User, store *models.Store, cfg *config.Config) (string, string, time.Time, error) {
+	return GenerateTokenWithOptions(user, store, cfg, TokenOptions{
+		MFAVerified: true,
+	})
 }
 
 // GenerateToken creates a cryptographically signed JWT token with algorithm pinning (backwards compatible)
@@ -164,6 +234,67 @@ func ExtractOptionalClaims(c *fiber.Ctx, cfg *config.Config) *JWTClaims {
 	return nil
 }
 
+// MfaGateDecision merepresentasikan putusan gerbang MFA terpusat pada middleware sesi.
+type MfaGateDecision struct {
+	RequireCode string
+	Status      int
+	Message     string
+}
+
+// MfaPolicyFor mengevaluasi kebijakan MFA tunggal untuk semua sesi yang masuk.
+// Mengembalikan nil jika diizinkan, atau *MfaGateDecision jika wajib diblokir.
+func MfaPolicyFor(user *models.User, claims *JWTClaims, cfg *config.Config) *MfaGateDecision {
+	if user == nil {
+		return &MfaGateDecision{
+			RequireCode: "INTERNAL",
+			Status:      fiber.StatusInternalServerError,
+			Message:     "Pemeriksaan keamanan sesi gagal.",
+		}
+	}
+
+	mandatory := mfa.IsMFAMandatory(user)
+	mfaEnabled := cfg != nil && cfg.MFAEnabled
+	hasMFAKey := cfg != nil && strings.TrimSpace(cfg.MFAEncryptionKey) != ""
+
+	// Akun wajib-MFA (staf platform kanonik atau akun enforced) TIDAK boleh
+	// lolos walau feature flag dimatikan atau konfigurasi kunci kosong.
+	if mandatory && (!mfaEnabled || !hasMFAKey) {
+		return &MfaGateDecision{
+			RequireCode: "MFA_SERVICE_UNAVAILABLE",
+			Status:      fiber.StatusServiceUnavailable,
+			Message:     "Layanan verifikasi dua langkah wajib aktif bagi staf platform.",
+		}
+	}
+
+	if mandatory && !user.TwoFactorEnabled {
+		return &MfaGateDecision{
+			RequireCode: "MFA_SETUP_REQUIRED",
+			Status:      fiber.StatusForbidden,
+			Message:     "Akun staf platform wajib mengaktifkan verifikasi dua langkah (MFA) sebelum mengakses sistem.",
+		}
+	}
+
+	if user.TwoFactorEnabled && (mandatory || mfaEnabled) {
+		if !hasMFAKey {
+			return &MfaGateDecision{
+				RequireCode: "MFA_SERVICE_UNAVAILABLE",
+				Status:      fiber.StatusServiceUnavailable,
+				Message:     "Konfigurasi keamanan verifikasi dua langkah belum tersedia.",
+			}
+		}
+		if claims != nil && claims.MfaVerified {
+			return nil
+		}
+		return &MfaGateDecision{
+			RequireCode: "MFA_REQUIRED",
+			Status:      fiber.StatusPreconditionRequired,
+			Message:     "Kode verifikasi dua langkah dibutuhkan untuk melanjutkan sesi.",
+		}
+	}
+
+	return nil
+}
+
 // SECURITY (M1): nama cookie sesi. HttpOnly + Secure + SameSite=Strict,
 // sehingga JavaScript tidak bisa membacanya — token tidak lagi rentan dicuri XSS.
 const SessionCookieName = "catavor_session"
@@ -172,17 +303,21 @@ const SessionCookieName = "catavor_session"
 // Urutan sumber kredensial:
 //  1. HttpOnly cookie (cara yang benar, kebal XSS)
 //  2. Authorization: Bearer header (fallback kompatibilitas klien lama)
-//  3. ?token= query param (hanya untuk EventSource/SSE yang tak bisa kirim header)
+//  3. ?ticket= sekali pakai (khusus EventSource/SSE yang tak bisa kirim header)
 func AuthRequired(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if database.DB == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"success": false,
+				"code":    "AUTH_STORAGE_UNAVAILABLE",
+				"message": "Layanan autentikasi belum siap.",
+			})
+		}
+
 		// SECURITY (M1/SSE): tiket sekali pakai untuk EventSource.
-		// EventSource tak bisa mengirim header, jadi JWT dulu ditaruh di
-		// ?token= — URL mudah bocor ke access log/Referer. Sekarang klien
-		// menukar sesi dengan tiket berumur 30 detik lewat
-		// POST /api/notifications/ticket, lalu memakai ?ticket=.
 		if ticket := strings.TrimSpace(c.Query("ticket")); ticket != "" {
-			uid, ok := security.ConsumeSSETicket(ticket)
-			if !ok {
+			meta, ok := security.ConsumeSSETicketWithMeta(ticket)
+			if !ok || meta.UserID == 0 {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 					"success": false,
 					"code":    "INVALID_TICKET",
@@ -190,18 +325,24 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 				})
 			}
 
-			// Tahap 2: bangun konteks user dari DB dengan aturan yang sama
-			// seperti jalur JWT (akun bisa saja diblokir setelah tiket terbit).
 			var user models.User
 			if err := database.DB.Preload("Stores", func(db *gorm.DB) *gorm.DB {
 				return db.Where("dormancy_status != 'banned' AND is_blacklisted = false")
 			}).Preload("Store", func(db *gorm.DB) *gorm.DB {
 				return db.Where("dormancy_status != 'banned' AND is_blacklisted = false")
-			}).First(&user, uid).Error; err != nil {
+			}).First(&user, meta.UserID).Error; err != nil {
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 					"success": false,
 					"code":    "USER_NOT_FOUND",
 					"message": "Pengguna tidak ditemukan atau telah dinonaktifkan.",
+				})
+			}
+
+			if meta.TokenVersion > 0 && meta.TokenVersion < user.TokenVersion {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"code":    "PASSWORD_CHANGED",
+					"message": "Sesi Anda telah dicabut. Silakan login kembali.",
 				})
 			}
 
@@ -214,9 +355,22 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 				})
 			}
 
+			ticketClaims := &JWTClaims{
+				UserID:       user.ID,
+				TokenVersion: user.TokenVersion,
+				MfaVerified:  meta.MFAVerified,
+			}
+			if decision := MfaPolicyFor(&user, ticketClaims, cfg); decision != nil {
+				return c.Status(decision.Status).JSON(fiber.Map{
+					"success": false,
+					"code":    decision.RequireCode,
+					"message": decision.Message,
+				})
+			}
+
 			c.Locals("user", &user)
 			c.Locals("user_id", user.ID)
-			c.Locals("claims", &JWTClaims{UserID: user.ID})
+			c.Locals("claims", ticketClaims)
 			c.Locals("sse_ticket_auth", true)
 
 			var activeStore *models.Store
@@ -276,7 +430,6 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		if bearerToken != "" {
 			claims, tokenErr = parseJWTClaims(bearerToken, cfg.JWTSecret)
 			if (tokenErr != nil || claims == nil) && cookieToken != "" {
-				// Fallback to cookie
 				if cClaims, cErr := parseJWTClaims(cookieToken, cfg.JWTSecret); cErr == nil && cClaims != nil {
 					claims = cClaims
 					tokenErr = nil
@@ -309,39 +462,50 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			})
 		}
 
-		// Security Check: Verify if token has been revoked via Logout or Blacklist
-		if claims.ID != "" {
-			if database.IsTokenBlacklisted(claims.ID) {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"success": false,
-					"code":    "SESSION_REVOKED",
-					"message": "Sesi login telah dicabut atau Anda telah logout. Silakan masuk kembali.",
-				})
-			}
+		// Sesi penuh wajib memiliki JTI dan baris UserSession durable yang belum dicabut (fail-closed).
+		if strings.TrimSpace(claims.ID) == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "INVALID_TOKEN",
+				"message": "Identitas sesi tidak valid.",
+			})
+		}
 
-			// Anti-Zombie Session Check: Persistent revocation check in database
-			if database.DB != nil {
-				var isRevoked bool
-				err := database.DB.Model(&models.UserSession{}).
-					Select("is_revoked").
-					Where("token_id = ?", claims.ID).
-					Scan(&isRevoked).Error
-				if err == nil && isRevoked {
-					ttl := 72 * time.Hour
-					if claims.ExpiresAt != nil {
-						remaining := time.Until(claims.ExpiresAt.Time)
-						if remaining > 0 {
-							ttl = remaining
-						}
+		if database.IsTokenBlacklisted(claims.ID) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "SESSION_REVOKED",
+				"message": "Sesi login telah dicabut atau Anda telah logout. Silakan masuk kembali.",
+			})
+		}
+
+		var sess models.UserSession
+		sessRes := database.DB.Select("id, user_id, is_revoked, expires_at").
+			Where("token_id = ? AND user_id = ?", claims.ID, claims.UserID).
+			Limit(1).
+			Find(&sess)
+		if sessRes.Error != nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"success": false,
+				"code":    "AUTH_STORAGE_ERROR",
+				"message": "Gagal memverifikasi status sesi pengguna.",
+			})
+		}
+		if sessRes.RowsAffected == 0 || sess.IsRevoked || !time.Now().UTC().Before(sess.ExpiresAt) {
+			if sessRes.RowsAffected > 0 && sess.IsRevoked {
+				ttl := 72 * time.Hour
+				if claims.ExpiresAt != nil {
+					if remaining := time.Until(claims.ExpiresAt.Time); remaining > 0 {
+						ttl = remaining
 					}
-					database.BlacklistToken(claims.ID, ttl)
-					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-						"success": false,
-						"code":    "SESSION_REVOKED",
-						"message": "Sesi login telah dicabut atau Anda telah logout. Silakan masuk kembali.",
-					})
 				}
+				database.BlacklistToken(claims.ID, ttl)
 			}
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "SESSION_REVOKED",
+				"message": "Sesi login telah dicabut atau tidak ditemukan. Silakan masuk kembali.",
+			})
 		}
 
 		// Retrieve user and their stores from DB to guarantee freshest state
@@ -351,10 +515,17 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		}).Preload("Store", func(db *gorm.DB) *gorm.DB {
 			return db.Where("dormancy_status != 'banned' AND is_blacklisted = false")
 		}).First(&user, claims.UserID).Error; err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"code":    "USER_NOT_FOUND",
+					"message": "Pengguna tidak ditemukan atau telah dinonaktifkan.",
+				})
+			}
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 				"success": false,
-				"code":    "USER_NOT_FOUND",
-				"message": "Pengguna tidak ditemukan atau telah dinonaktifkan.",
+				"code":    "AUTH_STORAGE_ERROR",
+				"message": "Gagal memuat profil keamanan pengguna.",
 			})
 		}
 
@@ -393,6 +564,16 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			}
 		}
 
+		// MFA gate: satu kebijakan untuk semua jalur penerbitan sesi.
+		// PENTING: kembalikan respons blokir secara eksplisit tanpa memanggil c.Next().
+		if decision := MfaPolicyFor(&user, claims, cfg); decision != nil {
+			return c.Status(decision.Status).JSON(fiber.Map{
+				"success": false,
+				"code":    decision.RequireCode,
+				"message": decision.Message,
+			})
+		}
+
 		c.Locals("user", &user)
 		c.Locals("user_id", user.ID)
 		c.Locals("claims", claims)
@@ -421,7 +602,6 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		}
 
 		// Silent Sliding Session Rotation (N-55)
-		// Check if token has passed half-life, not absolute expired, and has a valid ID
 		if claims.ID != "" && claims.ExpiresAt != nil {
 			tokenHours := cfg.JWTExpirationHours
 			if tokenHours <= 0 {
@@ -432,7 +612,6 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 			remaining := time.Until(claims.ExpiresAt.Time)
 
 			if remaining > 0 && remaining <= halfLife && !claims.IsAbsoluteExpired() {
-				// Single-winner lock via Redis SETNX (cooldown 60s)
 				lockKey := "sec:slide_lock:" + claims.ID
 				canRotate := true
 				if database.IsRedisAvailable() && database.RedisClient != nil {
@@ -447,22 +626,21 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 					if absExp.IsZero() {
 						absExp = time.Now().Add(7 * 24 * time.Hour)
 					}
-
-					newToken, newJTI, newExpiresAt, err := GenerateSlidingTokenWithID(&user, activeStore, cfg, absExp)
+					newToken, newJTI, newExpiresAt, err := GenerateTokenWithOptions(&user, activeStore, cfg, TokenOptions{
+						MFAVerified:       claims.MfaVerified,
+						AuthAt:            claims.GetAuthTime(),
+						AbsoluteExpiresAt: absExp,
+					})
 					if err == nil {
-						// 1. Update session cookie
-						SetSessionCookie(c, cfg, newToken)
-						// 2. Set client response header
-						c.Set("X-Refreshed-Token", newToken)
-						// 3. Blacklist old token with 30s grace period for in-flight requests
-						database.BlacklistTokenWithGracePeriod(claims.ID, 30*time.Second, remaining)
-						// 4. Synchronous light update on models.UserSession before c.Next() (POLISH-R3-01)
-						_ = services.RotateUserSessionToken(database.DB, claims.ID, newJTI, newExpiresAt, c.IP())
-						// 5. Register session fingerprint for new JTI (POLISH-R3-03)
-						RegisterSessionFingerprint(newJTI, c.IP(), c.Get("User-Agent"))
-						// 6. Mutate claims.ID = newJTI in c.Locals("claims") (POLISH-R3-01)
-						claims.ID = newJTI
-						c.Locals("claims", claims)
+						// Persist rotasi di DB terlebih dahulu; bila DB gagal, pertahankan token aktif saat ini.
+						if rotErr := services.RotateUserSessionTokenStrict(database.DB, user.ID, claims.ID, newJTI, newExpiresAt, c.IP()); rotErr == nil {
+							SetSessionCookie(c, cfg, newToken)
+							c.Set("X-Refreshed-Token", newToken)
+							database.BlacklistTokenWithGracePeriod(claims.ID, 30*time.Second, remaining)
+							RegisterSessionFingerprint(newJTI, c.IP(), c.Get("User-Agent"))
+							claims.ID = newJTI
+							c.Locals("claims", claims)
+						}
 					}
 				}
 			}
@@ -475,6 +653,134 @@ func AuthRequired(cfg *config.Config) fiber.Handler {
 		}
 
 		return c.Next()
+	}
+}
+
+// isUnverifiedSetupToken memeriksa apakah token mentah membawa klaim audience/purpose
+// setup MFA tanpa menerima validasinya, untuk mencegah fallback ke cookie basi
+// ketika pemanggil sengaja mengirim setup_token yang rusak/kedaluwarsa.
+func isUnverifiedSetupToken(tokenString string) bool {
+	parser := jwt.NewParser()
+	claims := &mfa.SetupClaims{}
+	_, _, err := parser.ParseUnverified(tokenString, claims)
+	if err != nil {
+		return false
+	}
+	if claims.Purpose == mfa.SetupPurpose {
+		return true
+	}
+	for _, aud := range claims.Audience {
+		if aud == mfa.SetupAudience {
+			return true
+		}
+	}
+	return false
+}
+
+// AuthOrMFASetupRequired HANYA dipasang pada endpoint pendaftaran MFA
+// (/api/auth/mfa/status, /enroll, /confirm). Middleware ini menerima:
+//  1. setup_token berumur pendek milik staf wajib-MFA yang belum terdaftar, ATAU
+//  2. sesi penuh yang valid melalui AuthRequired.
+// setup_token tidak pernah diterima oleh AuthRequired pada rute bisnis/admin lainnya.
+func AuthOrMFASetupRequired(cfg *config.Config) fiber.Handler {
+	fullAuth := AuthRequired(cfg)
+	return func(c *fiber.Ctx) error {
+		authHeader := strings.TrimSpace(c.Get("Authorization"))
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && strings.EqualFold(parts[0], "bearer") {
+				rawBearer := strings.TrimSpace(parts[1])
+				if rawBearer != "" && cfg != nil && strings.TrimSpace(cfg.JWTSecret) != "" {
+					now := time.Now().UTC()
+					if setupClaims, err := mfa.ParseSetupToken(cfg.JWTSecret, rawBearer, now); err == nil && setupClaims != nil {
+						if !cfg.MFAEnabled || strings.TrimSpace(cfg.MFAEncryptionKey) == "" || database.DB == nil {
+							return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+								"success": false,
+								"code":    "MFA_SERVICE_UNAVAILABLE",
+								"message": "Layanan pendaftaran MFA belum siap.",
+							})
+						}
+						used, uErr := mfa.IsTokenJTIUsed(database.DB, mfa.SetupPurpose, setupClaims.ID)
+						if uErr != nil {
+							return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+								"success": false,
+								"code":    "AUTH_STORAGE_ERROR",
+								"message": "Gagal memeriksa status token pendaftaran MFA.",
+							})
+						}
+						if used {
+							return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+								"success": false,
+								"code":    "MFA_SETUP_TOKEN_USED",
+								"message": "Token pendaftaran MFA sudah pernah digunakan. Silakan login kembali.",
+							})
+						}
+
+						var user models.User
+						if err := database.DB.Preload("Stores", func(db *gorm.DB) *gorm.DB {
+							return db.Where("dormancy_status != 'banned' AND is_blacklisted = false")
+						}).Preload("Store", func(db *gorm.DB) *gorm.DB {
+							return db.Where("dormancy_status != 'banned' AND is_blacklisted = false")
+						}).First(&user, setupClaims.UserID).Error; err != nil {
+							if errors.Is(err, gorm.ErrRecordNotFound) {
+								return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+									"success": false,
+									"code":    "USER_NOT_FOUND",
+									"message": "Pengguna tidak ditemukan.",
+								})
+							}
+							return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+								"success": false,
+								"code":    "AUTH_STORAGE_ERROR",
+								"message": "Gagal memuat akun pengguna.",
+							})
+						}
+
+						if setupClaims.TokenVersion <= 0 || setupClaims.TokenVersion < user.TokenVersion {
+							return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+								"success": false,
+								"code":    "PASSWORD_CHANGED",
+								"message": "Kredensial akun telah berubah. Silakan login ulang.",
+							})
+						}
+						if !user.IsPlatformStaff() && user.IsBlacklisted {
+							return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+								"success": false,
+								"code":    "ACCOUNT_BANNED",
+								"message": "Akun Anda telah dinonaktifkan.",
+							})
+						}
+						if !mfa.IsMFAMandatory(&user) {
+							return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+								"success": false,
+								"code":    "MFA_SETUP_TOKEN_INVALID",
+								"message": "Hak akses akun telah berubah. Silakan login kembali.",
+							})
+						}
+						if user.TwoFactorEnabled {
+							return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+								"success": false,
+								"code":    "MFA_ALREADY_ENABLED",
+								"message": "Verifikasi dua langkah sudah aktif. Silakan masuk dengan kode authenticator.",
+							})
+						}
+
+						c.Locals("user", &user)
+						c.Locals("user_id", user.ID)
+						c.Locals("mfa_setup_claims", setupClaims)
+						return c.Next()
+					}
+					if isUnverifiedSetupToken(rawBearer) {
+						return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+							"success": false,
+							"code":    "MFA_SETUP_TOKEN_INVALID",
+							"message": "Token pendaftaran MFA tidak valid atau sudah kedaluwarsa.",
+						})
+					}
+				}
+			}
+		}
+		return fullAuth(c)
 	}
 }
 

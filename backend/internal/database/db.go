@@ -147,6 +147,10 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.UserSession{},
+		&models.MFAAuthCompletion{},
+		&models.MFAAccountLockout{},
+		&models.MFAChallengeFailure{},
+		&models.TwoFactorRecoveryTicket{},
 		&models.Store{},
 		&models.SubscriptionPlan{},
 		&models.SubscriptionOrder{},

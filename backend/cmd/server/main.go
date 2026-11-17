@@ -482,6 +482,11 @@ func main() {
 	// Faktor kedua: challenge ditukar menjadi sesi penuh. Endpoint ini TIDAK
 	// memakai AuthRequired karena pemanggil belum punya sesi.
 	api.Post("/auth/mfa/verify", middleware.AuthRateLimiter(), mfaHandler.VerifyChallenge)
+	// Endpoint pendaftaran MFA didaftarkan SEBELUM api.Group("", AuthRequired) agar
+	// dapat menerima setup_token berumur pendek milik staf wajib-MFA maupun sesi penuh merchant.
+	api.Get("/auth/mfa/status", middleware.AuthOrMFASetupRequired(cfg), mfaHandler.Status)
+	api.Post("/auth/mfa/enroll", middleware.AuthRateLimiter(), middleware.AuthOrMFASetupRequired(cfg), mfaHandler.StartEnrollment)
+	api.Post("/auth/mfa/confirm", middleware.AuthRateLimiter(), middleware.AuthOrMFASetupRequired(cfg), mfaHandler.ConfirmEnrollment)
 	api.Post("/register", middleware.AuthRateLimiter(), authHandler.Register)
 	api.Post("/auth/register", middleware.AuthRateLimiter(), authHandler.Register)
 	api.Post("/auth/google", middleware.AuthRateLimiter(), authHandler.GoogleAuth)
@@ -512,10 +517,7 @@ func main() {
 	{
 		authOnly.Get("/auth/verify", authHandler.VerifyToken)
 		authOnly.Get("/auth/me", authHandler.VerifyToken)
-		// Manajemen faktor kedua (butuh sesi aktif).
-		authOnly.Get("/auth/mfa/status", mfaHandler.Status)
-		authOnly.Post("/auth/mfa/enroll", mfaHandler.StartEnrollment)
-		authOnly.Post("/auth/mfa/confirm", mfaHandler.ConfirmEnrollment)
+		// Manajemen faktor kedua: penonaktifan wajib sesi penuh aktif (bukan setup_token).
 		authOnly.Post("/auth/mfa/disable", middleware.AuthRateLimiter(), mfaHandler.Disable)
 		authOnly.Post("/auth/refresh", authHandler.RefreshToken)
 		authOnly.Post("/logout", authHandler.Logout)
@@ -688,8 +690,8 @@ func main() {
 		guarded.Get("/activity-logs/summary", activityLogHandler.GetActivitySummary)
 	}
 
-	// 8.1 Dedicated Platform Admin API Group (Granular RBAC Protected)
-	adminApi := api.Group("/admin", middleware.AuthRequired(cfg), middleware.RequireAdmin(cfg))
+	// 8.1 Dedicated Platform Admin API Group (Granular RBAC + Mandatory MFA Protected)
+	adminApi := api.Group("/admin", middleware.AuthRequired(cfg), middleware.RequireAdmin(cfg), middleware.RequireMFACompleted(cfg))
 	{
 		// System Bot & Automation Engine Monitoring & Sandbox
 		adminApi.Get("/automation/status", notificationHandler.GetAutomationStatus)

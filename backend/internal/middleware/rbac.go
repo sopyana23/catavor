@@ -148,3 +148,41 @@ func RequireAdmin(cfg *config.Config) fiber.Handler {
 		return c.Next()
 	}
 }
+
+// RequireMFACompleted memastikan akun staf platform telah mengaktifkan MFA dan
+// sesi saat ini benar-benar telah terverifikasi faktor kedua (defense-in-depth).
+func RequireMFACompleted(cfg *config.Config) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		user, ok := c.Locals("user").(*models.User)
+		if !ok || user == nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "UNAUTHENTICATED",
+				"message": "Autentikasi diperlukan.",
+			})
+		}
+		if cfg == nil || !cfg.MFAEnabled {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"success": false,
+				"code":    "MFA_SERVICE_UNAVAILABLE",
+				"message": "Layanan verifikasi dua langkah wajib aktif untuk konsol pengelola.",
+			})
+		}
+		if !user.TwoFactorEnabled {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "MFA_ENROLLMENT_REQUIRED",
+				"message": "Seluruh staf pengelola platform wajib mengaktifkan MFA sebelum mengakses konsol manajemen.",
+			})
+		}
+		claims, _ := c.Locals("claims").(*JWTClaims)
+		if claims == nil || !claims.MfaVerified {
+			return c.Status(fiber.StatusPreconditionRequired).JSON(fiber.Map{
+				"success": false,
+				"code":    "MFA_REQUIRED",
+				"message": "Sesi ini belum menyelesaikan verifikasi faktor kedua.",
+			})
+		}
+		return c.Next()
+	}
+}

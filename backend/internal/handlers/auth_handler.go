@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -101,6 +102,7 @@ type GoogleAuthRequest struct {
 	Credential string `json:"credential"`
 	IDToken    string `json:"id_token"`
 	Token      string `json:"token"`
+	Portal     string `json:"portal"`
 	StoreName  string `json:"store_name"`
 	StoreSlug  string `json:"store_slug"`
 	Plan       string `json:"plan"`
@@ -114,6 +116,9 @@ type UpdateProfileRequest struct {
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
 	OTP             string `json:"otp"`
+	MFACode         string `json:"mfa_code"`
+	Code            string `json:"code"`
+	FactorType      string `json:"factor_type"`
 }
 
 type StoreSummary struct {
@@ -221,18 +226,126 @@ func buildStoreSummaries(db *gorm.DB, stores []models.Store, singleStore *models
 	return list, StoreSummary{StoreTheme: "navy"}
 }
 
+type GoogleCredentialVerifier func(credentialStr string, expectedClientID string) (email, name, googleID, avatar string, err error)
+
 type AuthHandler struct {
-	cfg     *config.Config
-	db      *gorm.DB
-	storage storage.StorageService
+	cfg            *config.Config
+	db             *gorm.DB
+	storage        storage.StorageService
+	googleVerifier GoogleCredentialVerifier
 }
 
 func NewAuthHandler(cfg *config.Config, db *gorm.DB, strg ...storage.StorageService) *AuthHandler {
-	h := &AuthHandler{cfg: cfg, db: db}
+	h := &AuthHandler{
+		cfg:            cfg,
+		db:             db,
+		googleVerifier: verifyGoogleCredential,
+	}
 	if len(strg) > 0 {
 		h.storage = strg[0]
 	}
 	return h
+}
+
+// evaluateMFASessionGate mengevaluasi satu kebijakan MFA berbasis role untuk
+// seluruh jalur penerbitan sesi. Mengembalikan allowSession=true HANYA jika
+// sesi penuh boleh diterbitkan langsung tanpa faktor kedua. Bila false, respons
+// HTTP yang sesuai (challenge 200, wajib setup 403, lockout 429, atau fail-closed 503)
+// sudah ditulis ke c tanpa pernah menerbitkan token sesi maupun cookie.
+func (h *AuthHandler) evaluateMFASessionGate(
+	c *fiber.Ctx,
+	user *models.User,
+	method string,
+	targetSlug string,
+	storeList []StoreSummary,
+	activeStore StoreSummary,
+) (bool, error) {
+	now := time.Now().UTC()
+	mfaEnabled := h.cfg != nil && h.cfg.MFAEnabled
+	var keyMat, jwtSecret string
+	if h.cfg != nil {
+		keyMat = h.cfg.MFAEncryptionKey
+		jwtSecret = h.cfg.JWTSecret
+	}
+
+	gate := mfa.EvaluateLoginGate(h.db, user, mfaEnabled, keyMat, jwtSecret, now, targetSlug)
+	switch gate.Action {
+	case mfa.GateAllowSession:
+		return true, nil
+
+	case mfa.GateRequireChallenge:
+		logAuthEvent(h.db, c, "AUTH_MFA_CHALLENGE", "Kredensial tahap pertama valid, menunggu faktor kedua", user, map[string]interface{}{
+			"jti":    gate.JTI,
+			"method": method,
+		})
+		return false, c.JSON(fiber.Map{
+			"success":                  true,
+			"mfa_required":             true,
+			"requires_2fa":             true,
+			"message":                  "Masukkan kode 6 digit dari aplikasi authenticator Anda.",
+			"challenge":                gate.Token,
+			"challenge_expires_at":     gate.ExpiresAt,
+			"factors":                  []string{mfa.FactorTOTP, mfa.FactorBackupCode},
+			"is_password_changed":      user.IsPasswordChanged,
+			"has_custom_password":      user.HasCustomPassword,
+			"active_store":             activeStore,
+			"stores_count":             len(storeList),
+			"requires_store_selection": activeStore.ID == 0 && len(storeList) > 0,
+		})
+
+	case mfa.GateRequireSetup:
+		logAuthEvent(h.db, c, "AUTH_MFA_SETUP_REQUIRED", "Login staf platform ditahan: wajib menyelesaikan pendaftaran MFA", user, map[string]interface{}{
+			"jti":    gate.JTI,
+			"method": method,
+			"role":   user.PlatformRole,
+		})
+		// Kredensial tahap pertama valid, tetapi sesi penuh & cookie TIDAK diterbitkan.
+		// Klien hanya memperoleh setup_token berumur pendek yang terbatas pada /api/auth/mfa/*.
+		return false, c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"success":            true,
+			"code":               "MFA_SETUP_REQUIRED",
+			"mfa_setup_required": true,
+			"requires_2fa_setup": true,
+			"setup_token":        gate.Token,
+			"setup_expires_at":   gate.ExpiresAt,
+			"message":            "Seluruh staf pengelola platform wajib mengaktifkan verifikasi dua langkah (MFA) sebelum dapat mengakses sistem.",
+		})
+
+	case mfa.GateRejectLocked:
+		logAuthEvent(h.db, c, "AUTH_MFA_LOCKED", "Autentikasi ditolak: faktor kedua sementara dikunci", user, map[string]interface{}{
+			"method": method,
+		})
+		return false, c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"success": false,
+			"code":    "MFA_LOCKED",
+			"message": "Terlalu banyak percobaan faktor kedua yang salah. Akun sementara dikunci.",
+		})
+
+	default:
+		log.Error().Err(gate.Err).Uint("user_id", user.ID).Str("method", method).Msg("mfa: gate fail-closed")
+		return false, c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"code":    "MFA_SERVICE_UNAVAILABLE",
+			"message": "Layanan verifikasi keamanan sedang tidak dapat memproses permintaan ini.",
+		})
+	}
+}
+
+// mintDurableSession membuat JWT sesi penuh dan menyimpannya ke tabel user_sessions
+// secara sinkron sebelum token/cookie dikembalikan ke klien (fail-closed pada error DB).
+func (h *AuthHandler) mintDurableSession(c *fiber.Ctx, user *models.User, store *models.Store, opts middleware.TokenOptions) (string, string, time.Time, error) {
+	if h.db == nil || h.cfg == nil {
+		return "", "", time.Time{}, services.ErrSessionStorageUnavailable
+	}
+	token, tokenID, expiresAt, err := middleware.GenerateTokenWithOptions(user, store, h.cfg, opts)
+	if err != nil {
+		return "", "", time.Time{}, err
+	}
+	if _, err := services.CreateDurableUserSession(h.db, user.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent")); err != nil {
+		return "", "", time.Time{}, err
+	}
+	middleware.RegisterSessionFingerprint(tokenID, c.IP(), c.Get("User-Agent"))
+	return token, tokenID, expiresAt, nil
 }
 
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
@@ -399,52 +512,21 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		}
 	}
 
-	if user.TwoFactorEnabled && h.cfg.MFAEnabled {
-		// Faktor kedua: kata sandi sudah benar, tetapi token sesi TIDAK boleh
-		// terbit sebelum kode TOTP/backup terbukti. Challenge di bawah hanya
-		// bisa ditukar di POST /api/auth/mfa/verify.
-		now := time.Now().UTC()
-		challenge, jti, challengeExp, chErr := mfa.IssueChallenge(h.cfg.JWTSecret, user.ID, now, targetSlug)
-		if chErr != nil {
-			log.Error().Err(chErr).Uint("user_id", user.ID).Msg("mfa: gagal menerbitkan challenge")
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"success": false,
-				"code":    "MFA_CHALLENGE_ERROR",
-				"message": "Gagal menyiapkan verifikasi dua langkah.",
-			})
-		}
-		logAuthEvent(h.db, c, "AUTH_MFA_CHALLENGE", "Kata sandi benar, menunggu faktor kedua", &user, map[string]interface{}{
-			"jti":    jti,
-			"method": "password",
-		})
-		// 200 (bukan 401): kredensial tahap pertama SAH, klien hanya perlu
-		// melanjutkan ke langkah berikutnya.
-		return c.JSON(fiber.Map{
-			"success":                  true,
-			"mfa_required":             true,
-			"message":                  "Masukkan kode 6 digit dari aplikasi authenticator Anda.",
-			"challenge":                challenge,
-			"challenge_expires_at":     challengeExp,
-			"factors":                  []string{mfa.FactorTOTP, mfa.FactorBackupCode},
-			"is_password_changed":      user.IsPasswordChanged,
-			"has_custom_password":      user.HasCustomPassword,
-			"active_store":             activeStore,
-			"stores_count":             len(storeList),
-			"requires_store_selection": activeStore.ID == 0 && len(storeList) > 0,
-		})
+	allowSession, gateErr := h.evaluateMFASessionGate(c, &user, "password", targetSlug, storeList, activeStore)
+	if !allowSession {
+		return gateErr
 	}
 
-	token, tokenID, expiresAt, err := middleware.GenerateTokenWithID(&user, primaryStore, h.cfg)
+	token, _, _, err := h.mintDurableSession(c, &user, primaryStore, middleware.TokenOptions{
+		MFAVerified: false,
+	})
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"success": false,
-			"message": "Gagal membuat sesi login.",
+			"code":    "SESSION_STORAGE_ERROR",
+			"message": "Gagal menyimpan sesi login secara aman.",
 		})
 	}
-	go services.RecordUserSession(user.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
-	// SECURITY (M1-mitigasi): rekam sidik jari sesi (hash IP+UA) untuk deteksi
-	// penyalahgunaan token di kemudian hari.
-	middleware.RegisterSessionFingerprint(tokenID, c.IP(), c.Get("User-Agent"))
 
 	// Touch store activity upon admin login
 	for _, st := range user.Stores {
@@ -1044,9 +1126,6 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 	}
 
-	token, tokenID, expiresAt, _ := middleware.GenerateTokenWithID(&targetUser, &newStore, h.cfg)
-	go services.RecordUserSession(targetUser.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
-
 	singleSummary := StoreSummary{
 		ID:             newStore.ID,
 		Slug:           newStore.Slug,
@@ -1056,6 +1135,22 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		Plan:           newStore.Plan,
 		PaymentStatus:  newStore.PaymentStatus,
 		WhatsappNumber: newStore.WhatsappNumber,
+	}
+
+	allowRegSession, regGateErr := h.evaluateMFASessionGate(c, &targetUser, "register", newStore.Slug, []StoreSummary{singleSummary}, singleSummary)
+	if !allowRegSession {
+		return regGateErr
+	}
+
+	token, _, _, sessErr := h.mintDurableSession(c, &targetUser, &newStore, middleware.TokenOptions{
+		MFAVerified: false,
+	})
+	if sessErr != nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"code":    "SESSION_STORAGE_ERROR",
+			"message": "Pendaftaran tersimpan, namun sesi login gagal dibuat. Silakan masuk melalui halaman login.",
+		})
 	}
 
 	regMsg := "Pendaftaran akun dan toko berhasil!"
@@ -1117,7 +1212,15 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 	}
 
 	// Cryptographically verify Google credential via official Google endpoints
-	verifiedEmail, verifiedName, verifiedGoogleID, verifiedAvatar, err := verifyGoogleCredential(credentialStr, h.cfg.GoogleClientID)
+	verifier := h.googleVerifier
+	if verifier == nil {
+		verifier = verifyGoogleCredential
+	}
+	var expectedGoogleClientID string
+	if h.cfg != nil {
+		expectedGoogleClientID = h.cfg.GoogleClientID
+	}
+	verifiedEmail, verifiedName, verifiedGoogleID, verifiedAvatar, err := verifier(credentialStr, expectedGoogleClientID)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
@@ -1177,15 +1280,43 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		}
 
 		isPlatformAdmin := strings.EqualFold(user.PlatformRole, "superadmin") || user.IsPlatformStaff()
+		requestedPortal := strings.ToLower(strings.TrimSpace(req.Portal))
+		if requestedPortal == "" {
+			requestedPortal = strings.ToLower(strings.TrimSpace(c.Get("X-Auth-Portal")))
+		}
 		if isPlatformAdmin {
-			logAuthEvent(h.db, c, "AUTH_LOGIN_PORTAL_MISMATCH", "Percobaan Google SSO akun staf pengelola melalui portal merchant ditolak (stealth)", &user, map[string]interface{}{
-				"method": "google_sso",
-				"reason": "admin_on_merchant_portal",
-			})
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"success": false,
-				"message": "Autentikasi gagal. Akun tidak memiliki izin untuk masuk melalui portal ini.",
-			})
+			if requestedPortal != "admin" {
+				logAuthEvent(h.db, c, "AUTH_LOGIN_PORTAL_MISMATCH", "Percobaan Google SSO akun staf pengelola melalui portal merchant ditolak (stealth)", &user, map[string]interface{}{
+					"method": "google_sso",
+					"portal": requestedPortal,
+					"reason": "admin_on_merchant_portal",
+				})
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"message": "Autentikasi gagal. Akun tidak memiliki izin untuk masuk melalui portal ini.",
+				})
+			}
+		} else {
+			if requestedPortal == "admin" {
+				logAuthEvent(h.db, c, "AUTH_LOGIN_PORTAL_MISMATCH", "Percobaan Google SSO akun merchant melalui portal pengelola ditolak", &user, map[string]interface{}{
+					"method": "google_sso",
+					"portal": requestedPortal,
+					"reason": "merchant_on_admin_portal",
+				})
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"success":         false,
+					"code":            "PORTAL_ACCESS_DENIED",
+					"message":         "Akun Anda tidak memiliki hak akses ke konsol pengelola platform. Silakan masuk melalui portal merchant di /login.",
+					"redirect_portal": "/login",
+				})
+			}
+			if user.IsBlacklisted {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"success": false,
+					"code":    "USER_BLACKLISTED",
+					"message": "Akun Anda telah dinonaktifkan secara permanen karena pelanggaran pedoman platform.",
+				})
+			}
 		}
 
 		targetSlug := cleanSlug(req.StoreSlug)
@@ -1193,6 +1324,14 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			targetSlug = cleanSlug(c.Get("X-Store-Slug"))
 		}
 		storeList, activeStore := buildStoreSummaries(h.db, user.Stores, user.Store, targetSlug)
+
+		if !isPlatformAdmin && len(storeList) == 0 && (len(user.Stores) > 0 || user.Store != nil) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "ALL_STORES_BANNED",
+				"message": "Akun dan seluruh profil katalog Anda telah dinonaktifkan secara permanen oleh platform karena pelanggaran kepatuhan.",
+			})
+		}
 
 		var primaryStore *models.Store
 		if targetSlug != "" {
@@ -1214,14 +1353,21 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			}
 		}
 
-		token, tokenID, expiresAt, err := middleware.GenerateTokenWithID(&user, primaryStore, h.cfg)
+		allowSession, gateErr := h.evaluateMFASessionGate(c, &user, "google_sso", targetSlug, storeList, activeStore)
+		if !allowSession {
+			return gateErr
+		}
+
+		token, _, _, err := h.mintDurableSession(c, &user, primaryStore, middleware.TokenOptions{
+			MFAVerified: false,
+		})
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 				"success": false,
-				"message": "Gagal membuat sesi login.",
+				"code":    "SESSION_STORAGE_ERROR",
+				"message": "Gagal menyimpan sesi login secara aman.",
 			})
 		}
-		go services.RecordUserSession(user.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
 
 		// Touch store activity upon Google login
 		for _, st := range user.Stores {
@@ -1404,8 +1550,31 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		})
 	}
 
-	token, tokenID, expiresAt, _ := middleware.GenerateTokenWithID(&newUser, &newStore, h.cfg)
-	go services.RecordUserSession(newUser.ID, tokenID, expiresAt, c.IP(), c.Get("User-Agent"))
+	newSummary := StoreSummary{
+		ID:            newStore.ID,
+		Slug:          newStore.Slug,
+		StoreTitle:    newStore.StoreTitle,
+		StoreSlogan:   newStore.StoreSlogan,
+		StoreTheme:    newStore.StoreTheme,
+		Plan:          newStore.Plan,
+		PaymentStatus: newStore.PaymentStatus,
+	}
+	allowNewGoogleSession, gGateErr := h.evaluateMFASessionGate(c, &newUser, "google_register", newStore.Slug, []StoreSummary{newSummary}, newSummary)
+	if !allowNewGoogleSession {
+		return gGateErr
+	}
+
+	token, _, _, gSessErr := h.mintDurableSession(c, &newUser, &newStore, middleware.TokenOptions{
+		MFAVerified: false,
+	})
+	if gSessErr != nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"code":    "SESSION_STORAGE_ERROR",
+			"message": "Pendaftaran tersimpan, namun sesi login gagal dibuat. Silakan masuk melalui halaman login.",
+		})
+	}
+	setSessionCookie(c, h.cfg, token)
 
 	return c.JSON(fiber.Map{
 		"success":             true,
@@ -1647,23 +1816,38 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	}
 
 	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
-	if claims != nil && claims.IsAbsoluteExpired() {
+	if claims == nil || strings.TrimSpace(claims.ID) == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"code":    "INVALID_TOKEN",
+			"message": "Sesi autentikasi tidak valid. Silakan login kembali.",
+		})
+	}
+	if claims.IsAbsoluteExpired() {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
 			"code":    "SESSION_ABSOLUTE_EXPIRED",
 			"message": "Sesi telah mencapai batas maksimum (7 hari). Silakan login kembali.",
 		})
 	}
-
-	var absExp time.Time
-	if claims != nil {
-		absExp = claims.GetAbsoluteExpiresAt()
+	if decision := middleware.MfaPolicyFor(user, claims, h.cfg); decision != nil {
+		return c.Status(decision.Status).JSON(fiber.Map{
+			"success": false,
+			"code":    decision.RequireCode,
+			"message": decision.Message,
+		})
 	}
+
+	absExp := claims.GetAbsoluteExpiresAt()
 	if absExp.IsZero() {
 		absExp = time.Now().Add(7 * 24 * time.Hour)
 	}
 
-	newToken, newTokenID, newExpiresAt, err := middleware.GenerateSlidingTokenWithID(user, currentStore, h.cfg, absExp)
+	newToken, newTokenID, newExpiresAt, err := middleware.GenerateTokenWithOptions(user, currentStore, h.cfg, middleware.TokenOptions{
+		MFAVerified:       claims.MfaVerified,
+		AuthAt:            claims.GetAuthTime(),
+		AbsoluteExpiresAt: absExp,
+	})
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -1671,17 +1855,28 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 		})
 	}
 
-	if claims != nil && claims.ID != "" {
-		ttl := 72 * time.Hour
-		if claims.ExpiresAt != nil {
-			remaining := time.Until(claims.ExpiresAt.Time)
-			if remaining > 0 {
-				ttl = remaining
-			}
+	if rotErr := services.RotateUserSessionTokenStrict(h.db, user.ID, claims.ID, newTokenID, newExpiresAt, c.IP()); rotErr != nil {
+		if errors.Is(rotErr, services.ErrSessionNotFound) {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "SESSION_REVOKED",
+				"message": "Sesi login telah dicabut. Silakan masuk kembali.",
+			})
 		}
-		database.BlacklistTokenWithGracePeriod(claims.ID, 30*time.Second, ttl)
-		_ = services.RotateUserSessionToken(h.db, claims.ID, newTokenID, newExpiresAt, c.IP())
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"code":    "SESSION_STORAGE_ERROR",
+			"message": "Gagal menyimpan perpanjangan sesi.",
+		})
 	}
+
+	ttl := 72 * time.Hour
+	if claims.ExpiresAt != nil {
+		if remaining := time.Until(claims.ExpiresAt.Time); remaining > 0 {
+			ttl = remaining
+		}
+	}
+	database.BlacklistTokenWithGracePeriod(claims.ID, 30*time.Second, ttl)
 	middleware.RegisterSessionFingerprint(newTokenID, c.IP(), c.Get("User-Agent"))
 
 	setSessionCookie(c, h.cfg, newToken)
@@ -1777,11 +1972,17 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		})
 	}
 
+	now := time.Now().UTC()
+	claims, _ := c.Locals("claims").(*middleware.JWTClaims)
+
 	if req.Name != "" {
 		user.Name = security.SanitizePlainText(req.Name, 100)
 	}
 
-	if req.Email != "" && strings.ToLower(req.Email) != strings.ToLower(user.Email) {
+	originalEmail := user.Email
+	emailChanging := false
+	var pendingNewEmail string
+	if req.Email != "" && strings.ToLower(strings.TrimSpace(req.Email)) != strings.ToLower(strings.TrimSpace(user.Email)) {
 		reqEmail := strings.ToLower(strings.TrimSpace(req.Email))
 		if !security.ValidateEmail(reqEmail) {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
@@ -1797,14 +1998,53 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 				"message": "Email sudah digunakan oleh pengguna lain.",
 			})
 		}
-		user.Email = reqEmail
+		pendingNewEmail = reqEmail
+		emailChanging = true
+	}
+
+	// Tolak lebih awal sebelum mengonsumsi OTP sekali pakai apabila akun wajib/aktif MFA
+	// belum menyertakan kode faktor kedua pada perubahan kredensial.
+	if emailChanging || req.Password != "" {
+		if mfa.RequiresMFA(user, h.cfg != nil && h.cfg.MFAEnabled) {
+			if !user.TwoFactorEnabled {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"success": false,
+					"code":    "MFA_SETUP_REQUIRED",
+					"message": "Wajib mengaktifkan MFA sebelum mengubah kredensial akun.",
+				})
+			}
+			if h.cfg == nil || !h.cfg.MFAEnabled || strings.TrimSpace(h.cfg.MFAEncryptionKey) == "" {
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+					"success": false,
+					"code":    "MFA_SERVICE_UNAVAILABLE",
+					"message": "Layanan MFA belum siap memproses perubahan kredensial.",
+				})
+			}
+			earlyMFACode := strings.TrimSpace(req.MFACode)
+			if earlyMFACode == "" {
+				earlyMFACode = strings.TrimSpace(req.Code)
+			}
+			if earlyMFACode == "" {
+				return c.Status(fiber.StatusPreconditionRequired).JSON(fiber.Map{
+					"success": false,
+					"code":    "MFA_STEP_UP_REQUIRED",
+					"message": "Masukkan kode 6 digit authenticator atau kode cadangan untuk mengonfirmasi perubahan kredensial.",
+				})
+			}
+		}
 	}
 
 	passwordWasChanged := false
+	otpReauthed := false
+	passwordReauthed := false
+	if strings.TrimSpace(req.CurrentPassword) != "" && (user.HasCustomPassword || user.Password != "") && user.CheckPassword(req.CurrentPassword) {
+		passwordReauthed = true
+	}
+
 	if req.Password != "" {
 		if user.HasCustomPassword {
 			if strings.TrimSpace(req.OTP) != "" {
-				token, err := services.GetOTPService().VerifyOTP(user.Email, strings.TrimSpace(req.OTP), "password_reset")
+				token, err := services.GetOTPService().VerifyOTP(originalEmail, strings.TrimSpace(req.OTP), "password_reset")
 				if err != nil {
 					return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 						"success": false,
@@ -1812,12 +2052,13 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 					})
 				}
 				// SECURITY (N-11): token verifikasi wajib valid & terpakai.
-				if !services.GetOTPService().ValidateAndConsumeToken(user.Email, token, "password_reset") {
+				if !services.GetOTPService().ValidateAndConsumeToken(originalEmail, token, "password_reset") {
 					return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 						"success": false,
 						"message": "Token verifikasi tidak valid atau sudah kedaluwarsa. Silakan minta kode baru.",
 					})
 				}
+				otpReauthed = true
 			} else {
 				if strings.TrimSpace(req.CurrentPassword) == "" {
 					return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
@@ -1825,7 +2066,7 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 						"message": "Kata sandi saat ini wajib diisi untuk mengubah kata sandi akun.",
 					})
 				}
-				if !user.CheckPassword(req.CurrentPassword) {
+				if !passwordReauthed {
 					return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 						"success": false,
 						"message": "Kata sandi saat ini yang Anda masukkan salah.",
@@ -1847,7 +2088,6 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			})
 		}
 
-		// Industry Standard & NIST SP 800-63B / OWASP ASVS: Prevent password reuse against current active password
 		if req.CurrentPassword != "" && strings.TrimSpace(req.CurrentPassword) == strings.TrimSpace(req.Password) {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 				"success": false,
@@ -1869,22 +2109,192 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 		}
 		user.HasCustomPassword = true
 		user.IsPasswordChanged = true
-		user.TokenVersion++
 		passwordWasChanged = true
 	}
 
-	if err := h.db.Save(user).Error; err != nil {
-		log.Error().Err(err).Msg("UpdateProfile DB.Save failed")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal memperbarui profil.",
+	credentialChanged := emailChanging || passwordWasChanged
+	var newToken string
+
+	if credentialChanged {
+		sessionFresh := claims != nil && !claims.GetAuthTime().IsZero() && now.Sub(claims.GetAuthTime()) <= mfa.FreshReauthMaxAge
+		if !sessionFresh && !passwordReauthed && !otpReauthed {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "REAUTH_REQUIRED",
+				"message": "Perubahan email atau kata sandi memerlukan autentikasi segar (<= 10 menit) atau konfirmasi kata sandi saat ini.",
+			})
+		}
+		if emailChanging {
+			user.Email = pendingNewEmail
+		}
+
+		mfaActive := mfa.RequiresMFA(user, h.cfg != nil && h.cfg.MFAEnabled)
+		if mfaActive && !user.TwoFactorEnabled {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "MFA_SETUP_REQUIRED",
+				"message": "Wajib mengaktifkan MFA sebelum mengubah kredensial akun.",
+			})
+		}
+
+		candidateTokenID := uuid.New().String()
+		hours := 12
+		if h.cfg != nil && h.cfg.JWTExpirationHours > 0 {
+			hours = h.cfg.JWTExpirationHours
+		}
+		newExpiresAt := now.Add(time.Duration(hours) * time.Hour)
+		absExp := now.Add(7 * 24 * time.Hour)
+		if claims != nil && !claims.GetAbsoluteExpiresAt().IsZero() {
+			absExp = claims.GetAbsoluteExpiresAt()
+		}
+
+		var revoked []string
+		var evicted []string
+
+		if mfaActive {
+			if h.cfg == nil || !h.cfg.MFAEnabled || strings.TrimSpace(h.cfg.MFAEncryptionKey) == "" {
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+					"success": false,
+					"code":    "MFA_SERVICE_UNAVAILABLE",
+					"message": "Layanan MFA belum siap memproses perubahan kredensial.",
+				})
+			}
+			mfaCode := strings.TrimSpace(req.MFACode)
+			if mfaCode == "" {
+				mfaCode = strings.TrimSpace(req.Code)
+			}
+			if mfaCode == "" {
+				return c.Status(fiber.StatusPreconditionRequired).JSON(fiber.Map{
+					"success": false,
+					"code":    "MFA_STEP_UP_REQUIRED",
+					"message": "Masukkan kode 6 digit authenticator atau kode cadangan untuk mengonfirmasi perubahan kredensial.",
+				})
+			}
+			failCtx := "credchange-u"
+			if claims != nil && claims.ID != "" {
+				failCtx = "cred:" + claims.ID
+			}
+			_, stepErr := mfa.VerifyStepUpAndMutate(
+				h.db,
+				h.cfg.MFAEncryptionKey,
+				user.ID,
+				mfaCode,
+				req.FactorType,
+				failCtx,
+				now,
+				func(tx *gorm.DB, lockedUser *models.User, usedFactor string) error {
+					user.TokenVersion = lockedUser.TokenVersion + 1
+					user.TwoFactorLastTOTPStep = lockedUser.TwoFactorLastTOTPStep
+					user.TwoFactorBackupCodesHash = lockedUser.TwoFactorBackupCodesHash
+					if err := tx.Save(user).Error; err != nil {
+						return err
+					}
+					var revErr error
+					revoked, revErr = services.RevokeUserSessionsTx(tx, user.ID, "", now)
+					if revErr != nil {
+						return revErr
+					}
+					_, ev, sErr := services.CreateUserSessionTx(tx, user.ID, candidateTokenID, newExpiresAt, c.IP(), c.Get("User-Agent"), now)
+					if sErr != nil {
+						return sErr
+					}
+					evicted = ev
+					return nil
+				},
+			)
+			if stepErr != nil {
+				switch {
+				case errors.Is(stepErr, mfa.ErrFactorLocked):
+					return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+						"success": false,
+						"code":    "MFA_LOCKED",
+						"message": "Terlalu banyak kode salah. Faktor kedua sementara dikunci.",
+					})
+				case errors.Is(stepErr, mfa.ErrReplay):
+					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+						"success": false,
+						"code":    "MFA_CODE_REUSED",
+						"message": "Kode ini sudah dipakai. Tunggu kode berikutnya.",
+					})
+				case errors.Is(stepErr, mfa.ErrFactorInvalid):
+					return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+						"success": false,
+						"code":    "MFA_CODE_INVALID",
+						"message": "Kode verifikasi faktor kedua salah.",
+					})
+				default:
+					return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+						"success": false,
+						"code":    "MFA_STORAGE_ERROR",
+						"message": "Gagal memperbarui kredensial akun.",
+					})
+				}
+			}
+		} else {
+			user.TokenVersion++
+			txErr := h.db.Transaction(func(tx *gorm.DB) error {
+				if err := tx.Save(user).Error; err != nil {
+					return err
+				}
+				var revErr error
+				revoked, revErr = services.RevokeUserSessionsTx(tx, user.ID, "", now)
+				if revErr != nil {
+					return revErr
+				}
+				_, ev, sErr := services.CreateUserSessionTx(tx, user.ID, candidateTokenID, newExpiresAt, c.IP(), c.Get("User-Agent"), now)
+				if sErr != nil {
+					return sErr
+				}
+				evicted = ev
+				return nil
+			})
+			if txErr != nil {
+				log.Error().Err(txErr).Msg("UpdateProfile credential tx failed")
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+					"success": false,
+					"message": "Gagal memperbarui kredensial profil.",
+				})
+			}
+		}
+
+		services.BlacklistTokenIDs(revoked, 72*time.Hour)
+		services.BlacklistTokenIDs(evicted, 72*time.Hour)
+
+		activeStore, _ := c.Locals("store").(*models.Store)
+		if activeStore == nil {
+			activeStore = user.Store
+		}
+		signedTok, _, _, signErr := middleware.GenerateTokenWithOptions(user, activeStore, h.cfg, middleware.TokenOptions{
+			TokenID:           candidateTokenID,
+			MFAVerified:       mfaActive || (claims != nil && claims.MfaVerified),
+			AuthAt:            now,
+			AbsoluteExpiresAt: absExp,
 		})
+		if signErr != nil {
+			_ = services.RevokeSessionByTokenID(h.db, candidateTokenID)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal menerbitkan sesi baru setelah perubahan kredensial.",
+			})
+		}
+		newToken = signedTok
+		middleware.RegisterSessionFingerprint(candidateTokenID, c.IP(), c.Get("User-Agent"))
+		setSessionCookie(c, h.cfg, newToken)
+		c.Set("X-Refreshed-Token", newToken)
+	} else {
+		if err := h.db.Save(user).Error; err != nil {
+			log.Error().Err(err).Msg("UpdateProfile DB.Save failed")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal memperbarui profil.",
+			})
+		}
 	}
 
 	actorRole := user.PlatformStaffRoleLabel()
 	action := "auth.profile_updated"
 	desc := fmt.Sprintf("Pengguna %s memperbarui data profil.", user.Name)
-	if req.Password != "" {
+	if passwordWasChanged {
 		action = "auth.password_changed"
 		desc = fmt.Sprintf("Pengguna %s berhasil mengganti kata sandi akun.", user.Name)
 	}
@@ -1906,54 +2316,8 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	})
 
 	if passwordWasChanged {
-		// Enqueue real-time transactional security alert email
 		subj, body := services.BuildPasswordChangedSecurityEmail(user.Name, user.Email, c.Get("User-Agent"), c.IP())
 		_, _ = services.EnqueueEmail(user.Email, user.Name, "Catavor Keamanan", subj, body, "security_alert", fmt.Sprintf("pwd_change_%d_%d", user.ID, time.Now().Unix()))
-	}
-
-	var newToken string
-	if req.Password != "" {
-		activeStore, _ := c.Locals("store").(*models.Store)
-		if activeStore == nil {
-			activeStore = user.Store
-		}
-		var newTokenID string
-		var expiresAt time.Time
-		var err error
-		newToken, newTokenID, expiresAt, err = middleware.GenerateTokenWithID(user, activeStore, h.cfg)
-		if err == nil {
-			// Update HttpOnly session cookie
-			setSessionCookie(c, h.cfg, newToken)
-
-			// Get current token ID prior to password change
-			var currentTokenID string
-			if claims, ok := c.Locals("claims").(*middleware.JWTClaims); ok && claims != nil {
-				currentTokenID = claims.ID
-			}
-
-			// Revoke all OTHER sessions in DB and Blacklist (OWASP ASVS 4.0 V3.3.1)
-			_, _ = services.RevokeOtherSessionsForUser(h.db, user.ID, currentTokenID)
-
-			// Migrate the current session record to the new token ID (or insert if not exists)
-			now := time.Now()
-			if currentTokenID != "" {
-				res := h.db.Model(&models.UserSession{}).
-					Where("token_id = ? AND user_id = ?", currentTokenID, user.ID).
-					Updates(map[string]interface{}{
-						"token_id":       newTokenID,
-						"expires_at":     expiresAt,
-						"last_active_at": now,
-						"updated_at":     now,
-					})
-				if res.RowsAffected == 0 {
-					services.RecordUserSession(user.ID, newTokenID, expiresAt, c.IP(), c.Get("User-Agent"))
-				}
-				// Blacklist the old token ID so it cannot be re-used
-				database.BlacklistToken(currentTokenID, time.Hour)
-			} else {
-				services.RecordUserSession(user.ID, newTokenID, expiresAt, c.IP(), c.Get("User-Agent"))
-			}
-		}
 	}
 
 	resMap := fiber.Map{
@@ -2280,18 +2644,27 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 		})
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	user.EmailVerifiedAt = &now
 	user.IsPasswordChanged = true
 	user.HasCustomPassword = true
 	user.TokenVersion++
 
-	if err := h.db.Save(&user).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+	var revokedResetIDs []string
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&user).Error; err != nil {
+			return err
+		}
+		var revErr error
+		revokedResetIDs, revErr = services.RevokeUserSessionsTx(tx, user.ID, "", now)
+		return revErr
+	}); err != nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memperbarui kata sandi.",
 		})
 	}
+	services.BlacklistTokenIDs(revokedResetIDs, 72*time.Hour)
 
 	// Enqueue real-time transactional security alert email
 	subj, body := services.BuildPasswordChangedSecurityEmail(user.Name, user.Email, c.Get("User-Agent"), c.IP())
@@ -2300,7 +2673,7 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	services.RecordActivity(services.RecordActivityParams{
 		DB:          h.db,
 		UserID:      &user.ID,
-		ActorRole:   "merchant",
+		ActorRole:   user.PlatformStaffRoleLabel(),
 		ActorName:   user.Name,
 		ActorEmail:  user.Email,
 		Action:      "auth.password_reset_via_otp",
@@ -2313,10 +2686,34 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 		UserAgent:   c.Get("User-Agent"),
 	})
 
-	newToken, _ := middleware.GenerateToken(&user, user.Store, h.cfg)
-	if newToken != "" {
-		setSessionCookie(c, h.cfg, newToken)
+	_ = preloadUserStores(h.db.Preload("Store")).First(&user, user.ID).Error
+	storeList, activeStore := buildStoreSummaries(h.db, user.Stores, user.Store, "")
+
+	// Reset kata sandi melalui OTP email TIDAK boleh menerbitkan sesi penuh
+	// bagi staf platform maupun merchant yang telah mengaktifkan MFA.
+	allowResetSession, resetGateErr := h.evaluateMFASessionGate(c, &user, "password_reset_otp", activeStore.Slug, storeList, activeStore)
+	if !allowResetSession {
+		return resetGateErr
 	}
+
+	var primaryStore *models.Store
+	if len(user.Stores) > 0 {
+		primaryStore = &user.Stores[0]
+	} else {
+		primaryStore = user.Store
+	}
+
+	newToken, _, _, sessErr := h.mintDurableSession(c, &user, primaryStore, middleware.TokenOptions{
+		MFAVerified: false,
+	})
+	if sessErr != nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"code":    "SESSION_STORAGE_ERROR",
+			"message": "Kata sandi berhasil diperbarui, silakan masuk kembali melalui halaman login.",
+		})
+	}
+	setSessionCookie(c, h.cfg, newToken)
 
 	return c.JSON(fiber.Map{
 		"success": true,
