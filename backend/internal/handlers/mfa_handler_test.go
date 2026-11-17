@@ -99,15 +99,20 @@ func TestLoginRequiresMFAFactorAndNeverLeaksSessionToken(t *testing.T) {
 
 	// --- Tahap 1: password benar -> wajib mfa_required, TANPA token ---
 	status, body := postJSON(t, app, "/api/login", map[string]interface{}{
-		"email":    "mfa-owner@catavor.test",
-		"password": "RahasiaKuat123!",
-		"portal":   "merchant",
+		"email":      "mfa-owner@catavor.test",
+		"password":   "RahasiaKuat123!",
+		"portal":     "merchant",
+		"store_slug": "toko-mfa",
 	})
 	if status != fiber.StatusOK {
 		t.Fatalf("login tahap 1 harus 200 (kredensial sah), dapat %d: %v", status, body)
 	}
 	if body["mfa_required"] != true {
 		t.Fatalf("respons harus mfa_required=true, dapat %v", body["mfa_required"])
+	}
+	activeStore, _ := body["active_store"].(map[string]interface{})
+	if activeStore["slug"] != "toko-mfa" {
+		t.Fatalf("slug toko harus bertahan dalam challenge MFA, dapat %v", activeStore["slug"])
 	}
 	if tok, ok := body["token"]; ok && tok != nil && tok != "" {
 		t.Fatalf("BOCOR: token sesi terbit sebelum faktor kedua terbukti: %v", tok)
@@ -158,6 +163,10 @@ func TestLoginRequiresMFAFactorAndNeverLeaksSessionToken(t *testing.T) {
 	if status != fiber.StatusOK {
 		t.Fatalf("kode benar harus 200, dapat %d: %v", status, body)
 	}
+	verifiedStore, _ := body["active_store"].(map[string]interface{})
+	if verifiedStore["slug"] != "toko-mfa" {
+		t.Fatalf("slug toko harus dipertahankan setelah MFA, dapat %v", verifiedStore["slug"])
+	}
 	token, _ := body["token"].(string)
 	if token == "" {
 		t.Fatal("token sesi wajib terbit setelah faktor kedua terbukti")
@@ -176,9 +185,10 @@ func TestLoginRequiresMFAFactorAndNeverLeaksSessionToken(t *testing.T) {
 
 	// --- Tahap 3: backup code juga bisa menukar challenge, sekali pakai ---
 	_, body = postJSON(t, app, "/api/login", map[string]interface{}{
-		"email":    "mfa-owner@catavor.test",
-		"password": "RahasiaKuat123!",
-		"portal":   "merchant",
+		"email":      "mfa-owner@catavor.test",
+		"password":   "RahasiaKuat123!",
+		"portal":     "merchant",
+		"store_slug": "toko-mfa",
 	})
 	challenge2, _ := body["challenge"].(string)
 	if challenge2 == "" {
@@ -196,9 +206,10 @@ func TestLoginRequiresMFAFactorAndNeverLeaksSessionToken(t *testing.T) {
 
 	// Kode yang sama tidak boleh dipakai dua kali.
 	_, body = postJSON(t, app, "/api/login", map[string]interface{}{
-		"email":    "mfa-owner@catavor.test",
-		"password": "RahasiaKuat123!",
-		"portal":   "merchant",
+		"email":      "mfa-owner@catavor.test",
+		"password":   "RahasiaKuat123!",
+		"portal":     "merchant",
+		"store_slug": "toko-mfa",
 	})
 	challenge3, _ := body["challenge"].(string)
 	status, body = postJSON(t, app, "/api/auth/mfa/verify", map[string]interface{}{

@@ -404,7 +404,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		// terbit sebelum kode TOTP/backup terbukti. Challenge di bawah hanya
 		// bisa ditukar di POST /api/auth/mfa/verify.
 		now := time.Now().UTC()
-		challenge, jti, challengeExp, chErr := mfa.IssueChallenge(h.cfg.JWTSecret, user.ID, now)
+		challenge, jti, challengeExp, chErr := mfa.IssueChallenge(h.cfg.JWTSecret, user.ID, now, targetSlug)
 		if chErr != nil {
 			log.Error().Err(chErr).Uint("user_id", user.ID).Msg("mfa: gagal menerbitkan challenge")
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

@@ -94,6 +94,7 @@ import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { TabletAnalyticsView } from './TabletAnalyticsView';
 import { TabletSubscriptionModal, TabletQuotaWidget, type StoreQuotaData } from './TabletSubscriptionModal';
 import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
+import { MFASettingsView } from './MFASettingsView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
 import { TabletDangerZoneView } from './TabletDangerZoneView';
 import { TabletHelpdeskView } from './TabletHelpdeskView';
@@ -11578,6 +11579,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             {/* SUB-TAB 2: SESI & PERANGKAT TERHUBUNG */}
             {profileSubTab === 'devices' && (
               <div className="animate-fade-in">
+                <MFASettingsView token={token} apiBase="/api" showToast={(type, message) => showToast(message, type as 'success' | 'error')} />
                 <TabletConnectedDevicesView
                   token={token}
                   showToast={showToast}

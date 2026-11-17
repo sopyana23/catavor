@@ -36,6 +36,7 @@ import { initGoogleAdSense } from './utils/googleAdSense';
 import { initGoogleAnalytics } from './utils/googleAnalytics';
 import { smartBack } from './utils/navigation';
 import { ExternalLinkWarningModal } from './components/ExternalLinkWarningModal';
+import { MFAChallengeView } from './components/MFAChallengeView';
 
 const RESERVED_SLUGS = [
   'api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'ops',
@@ -247,6 +248,7 @@ export const App: React.FC = () => {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [mfaChallenge, setMfaChallenge] = useState<{ challenge: string; email: string; slug: string } | null>(null);
   const [loginRedirectPortal, setLoginRedirectPortal] = useState<string | null>(null);
 
   // Persistent device classification cookie for resilient form-factor retention across refreshes
@@ -664,6 +666,10 @@ export const App: React.FC = () => {
         })
       });
       const json = await res.json();
+      if (res.ok && json.success && json.mfa_required) {
+        setMfaChallenge({ challenge: json.challenge, email: loginEmail, slug: activeSlug || '' });
+        return;
+      }
       if (res.ok && json.token) {
         localStorage.setItem('catavor_token', json.token);
         localStorage.setItem('catavor_user', JSON.stringify(json.user || {}));
@@ -708,6 +714,36 @@ export const App: React.FC = () => {
     } finally {
       setLoginLoading(false);
     }
+  };
+
+  const handleMFAVerified = (json: any) => {
+    const pending = mfaChallenge;
+    setMfaChallenge(null);
+    if (!pending || !json?.token || !json?.user) {
+      setLoginError('Respons verifikasi tidak lengkap. Silakan login ulang.');
+      return;
+    }
+    localStorage.setItem('catavor_token', json.token);
+    localStorage.setItem('catavor_user', JSON.stringify(json.user));
+    const stores = Array.isArray(json.stores) ? json.stores.filter((s: any) => s && s.slug && !RESERVED_SLUGS.includes(s.slug.toLowerCase()) && s.dormancy_status !== 'banned' && !s.is_blacklisted) : [];
+    localStorage.setItem('catavor_stores', JSON.stringify(stores));
+    setToken(json.token);
+    setCurrentUser(json.user);
+    if (json.active_store?.store_theme || json.user?.store_theme) setStoreTheme(json.active_store?.store_theme || json.user?.store_theme);
+    const targetSlug = pending.slug || (stores.length === 1 ? stores[0].slug : null);
+    if (targetSlug) {
+      localStorage.setItem('catavor_active_slug', targetSlug);
+      try { sessionStorage.setItem('catavor_active_slug_selected', targetSlug); } catch { }
+      if (json.user?.id) saveUserActiveSlug(json.user.id, targetSlug);
+    } else {
+      localStorage.removeItem('catavor_active_slug');
+      try { sessionStorage.removeItem('catavor_active_slug_selected'); } catch { }
+    }
+    setLoginEmail('');
+    setLoginPassword('');
+    const destination = resolveAuthenticatedRedirect(json.user, targetSlug);
+    broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: json.user?.id || '0', token: json.token });
+    navigateTo(destination);
   };
 
   // Google OAuth SSO Handler
@@ -2422,6 +2458,15 @@ export const App: React.FC = () => {
   return (
     <>
       {renderContent()}
+      {mfaChallenge && (
+        <MFAChallengeView
+          challenge={mfaChallenge.challenge}
+          email={mfaChallenge.email}
+          apiBase="/api"
+          onCancel={() => { setMfaChallenge(null); setLoginError(null); }}
+          onVerified={handleMFAVerified}
+        />
+      )}
       <TabletGlobalSecurityModal />
     </>
   );

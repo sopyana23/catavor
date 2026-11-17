@@ -56,21 +56,27 @@ var (
 
 // ChallengeClaims adalah payload token MFA.
 type ChallengeClaims struct {
-	UserID  uint   `json:"uid"`
-	Purpose string `json:"purpose"`
+	UserID    uint   `json:"uid"`
+	Purpose   string `json:"purpose"`
+	StoreSlug string `json:"store_slug,omitempty"`
 	jwt.RegisteredClaims
 }
 
 // IssueChallenge membuat challenge JWT berumur pendek untuk satu user.
-func IssueChallenge(secret string, userID uint, now time.Time) (token, jti string, expiresAt time.Time, err error) {
+func IssueChallenge(secret string, userID uint, now time.Time, requestedStoreSlug ...string) (token, jti string, expiresAt time.Time, err error) {
 	if userID == 0 {
 		return "", "", time.Time{}, ErrChallengeInvalid
 	}
 	jti = fmt.Sprintf("mfa-%d-%d", userID, now.UnixNano())
 	expiresAt = now.Add(ChallengeTTL)
+	storeSlug := ""
+	if len(requestedStoreSlug) > 0 {
+		storeSlug = strings.TrimSpace(requestedStoreSlug[0])
+	}
 	claims := ChallengeClaims{
-		UserID:  userID,
-		Purpose: ChallengePurpose,
+		UserID:    userID,
+		Purpose:   ChallengePurpose,
+		StoreSlug: storeSlug,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        jti,
 			Subject:   fmt.Sprintf("%d", userID),

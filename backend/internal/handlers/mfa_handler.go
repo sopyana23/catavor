@@ -282,8 +282,19 @@ func (h *MFAHandler) VerifyChallenge(c *fiber.Ctx) error {
 		return h.fail(c, fiber.StatusUnauthorized, "MFA_CHALLENGE_INVALID", "Akun tidak ditemukan. Silakan login ulang.")
 	}
 
+	storeList, activeStore := buildStoreSummaries(h.db, full.Stores, full.Store, claims.StoreSlug)
 	var primaryStore *models.Store
-	if len(full.Stores) > 0 {
+	if activeStore.ID > 0 {
+		for i := range full.Stores {
+			if full.Stores[i].ID == activeStore.ID {
+				primaryStore = &full.Stores[i]
+				break
+			}
+		}
+		if primaryStore == nil && full.Store != nil && full.Store.ID == activeStore.ID {
+			primaryStore = full.Store
+		}
+	} else if len(full.Stores) > 0 {
 		primaryStore = &full.Stores[0]
 	} else {
 		primaryStore = full.Store
@@ -303,15 +314,35 @@ func (h *MFAHandler) VerifyChallenge(c *fiber.Ctx) error {
 
 	// SECURITY (M1): sesi tetap disimpan di cookie HttpOnly, sama seperti login.
 	setSessionCookie(c, h.cfg, token)
+
 	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "Verifikasi berhasil.",
-		"token":   token,
+		"success":                  true,
+		"message":                  "Verifikasi berhasil.",
+		"token":                    token,
+		"stores":                   storeList,
+		"stores_count":             len(storeList),
+		"active_store":             activeStore,
+		"requires_store_selection": activeStore.ID == 0 && len(storeList) > 0,
+		"is_password_changed":      full.IsPasswordChanged,
+		"has_custom_password":      full.HasCustomPassword,
 		"user": fiber.Map{
-			"id":                 full.ID,
-			"name":               full.Name,
-			"email":              full.Email,
-			"two_factor_enabled": true,
+			"id":                  full.ID,
+			"name":                full.Name,
+			"email":               full.Email,
+			"platform_role":       full.PlatformRole,
+			"is_superadmin":       full.IsSuperadmin(),
+			"is_admin":            full.IsPlatformStaff(),
+			"permissions":         services.GetRBACService().GetUserPermissions(&full),
+			"is_password_changed": full.IsPasswordChanged,
+			"has_custom_password": full.HasCustomPassword,
+			"store_slug":          activeStore.Slug,
+			"store_title":         activeStore.StoreTitle,
+			"store_theme":         activeStore.StoreTheme,
+			"store_plan":          activeStore.Plan,
+			"payment_status":      activeStore.PaymentStatus,
+			"dormancy_status":     activeStore.DormancyStatus,
+			"suspension_reason":   activeStore.SuspensionReason,
+			"is_blacklisted":      full.IsBlacklisted || activeStore.IsBlacklisted,
 		},
 	})
 }

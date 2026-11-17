@@ -165,6 +165,8 @@ import { DocumentPreviewModal, type DocumentPreviewData } from './components/Doc
 import { StoreChooserModal, type CatalogStoreItem } from './components/StoreChooserModal'
 import { DesktopCustomSelect } from './components/DesktopCustomSelect'
 import { ConnectedDevicesView } from './components/ConnectedDevicesView'
+import { MFASettingsView } from './components/MFASettingsView'
+import { MFAChallengeView } from './components/MFAChallengeView'
 import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
 import { initGoogleAnalytics } from './utils/googleAnalytics'
@@ -9091,6 +9093,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
+  const [mfaChallenge, setMfaChallenge] = useState<{ challenge: string; email: string; slug: string } | null>(null)
 
   // First-time Password Change Form State
   const [firstPasswordForm, setFirstPasswordForm] = useState({
@@ -13045,6 +13048,143 @@ Terima kasih atas perhatian dan kerja samanya.`;
     window.history.pushState(null, '', '/');
   };
 
+  // Menyelesaikan sesi login setelah kredensial valid: dipakai jalur password maupun MFA.
+  const finalizeLogin = (data: any, currentRequestedSlug: string | null) => {
+      desktopLastTokenCheckTimeRef.current = Date.now();
+      desktopVerifiedTokenRef.current = data.token;
+      localStorage.setItem('catavor_token', data.token)
+      localStorage.setItem('catavor_user', JSON.stringify(data.user))
+      if (data.stores) {
+        localStorage.setItem('catavor_stores', JSON.stringify(data.stores))
+        setUserStores(data.stores)
+      }
+      const isPassChanged = Boolean(
+        data.user?.email === 'admin@catavor.local' && (data.is_password_changed === false || data.user?.is_password_changed === false)
+          ? false
+          : true
+      );
+      localStorage.setItem('catavor_password_changed', isPassChanged ? 'true' : 'false');
+      const loginTheme = data.active_store?.store_theme || data.user?.store_theme || 'navy';
+      document.documentElement.setAttribute('data-theme', loginTheme);
+      document.body.setAttribute('data-theme', loginTheme);
+      setSettingsForm(prev => ({ ...prev, store_theme: loginTheme }));
+
+      setToken(data.token)
+      setAdminUser(data.user)
+      setIsPasswordChanged(isPassChanged)
+      setLoginForm({ email: '', password: '' })
+
+      if (isPlatformAdmin(data.user)) {
+        setStoreSlug(null);
+        setPortalTab('home');
+        setView('admin');
+        window.history.pushState({}, '', '/admin');
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+        showToast('Selamat datang di Platform Console!', 'success');
+        return;
+      }
+
+      // Case 1: Specific store login (e.g. /adidas/login or /adidas/admin)
+      if (currentRequestedSlug) {
+        sessionStorage.removeItem('catavor_auth_redirect');
+        const targetSlug = currentRequestedSlug;
+        saveUserActiveSlug(data.user.id, targetSlug);
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+        setStoreSlug(targetSlug);
+        setIsFirstTimeLogin(false);
+        setShowStoreSwitcherModal(false);
+        setPortalTab('home');
+        setView('admin');
+        setAdminTab('items');
+        window.history.pushState({}, '', `/${targetSlug}/admin/items`);
+        loadData(targetSlug);
+        showToast(`Selamat datang di ${data.active_store?.store_title || targetSlug}!`, 'success');
+        return;
+      }
+
+      // Case 2: General login from root /login
+      const availableStores = (data.stores && Array.isArray(data.stores)) ? data.stores : [];
+      if (availableStores.length === 1 && availableStores[0]?.slug) {
+        const singleSlug = availableStores[0].slug;
+        saveUserActiveSlug(data.user.id, singleSlug);
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+        setStoreSlug(singleSlug);
+        setIsFirstTimeLogin(false);
+        setShowStoreSwitcherModal(false);
+        setPortalTab('home');
+        setView('admin');
+        setAdminTab('items');
+        window.history.pushState({}, '', `/${singleSlug}/admin/items`);
+        loadData(singleSlug);
+        showToast(`Selamat datang di ${availableStores[0].store_title || singleSlug}!`, 'success');
+        return;
+      }
+
+      // Case 3: Merchant with >= 2 stores - Check if user has a remembered active store
+      const rememberedSlug = getSavedUserSlug(data.user.id);
+      if (rememberedSlug && availableStores.some((s: any) => s.slug === rememberedSlug)) {
+        saveUserActiveSlug(data.user.id, rememberedSlug);
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+        setStoreSlug(rememberedSlug);
+        setIsFirstTimeLogin(false);
+        setShowStoreSwitcherModal(false);
+        setPortalTab('home');
+        setView('admin');
+        setAdminTab('items');
+        window.history.pushState({}, '', `/${rememberedSlug}/admin/items`);
+        loadData(rememberedSlug);
+        const matchedStore = availableStores.find((s: any) => s.slug === rememberedSlug);
+        showToast(`Selamat datang kembali di ${matchedStore?.store_title || rememberedSlug}!`, 'success');
+        return;
+      }
+
+      let redirectRestored = false;
+      try {
+        const savedRedirect = sessionStorage.getItem('catavor_auth_redirect');
+        if (savedRedirect) {
+          sessionStorage.removeItem('catavor_auth_redirect');
+          const parsed = JSON.parse(savedRedirect);
+          if (parsed.path && parsed.path.includes('/admin')) {
+            window.history.pushState({}, '', parsed.path);
+            setView('admin');
+            if (parsed.tab) setAdminTab(parsed.tab);
+            if (parsed.settingsSubTab) setSettingsSubTab(parsed.settingsSubTab);
+            redirectRestored = true;
+            const pathSlug = parsed.path.split('/').filter(Boolean)[0];
+            if (pathSlug && !isReservedStoreSlug(pathSlug)) {
+              saveUserActiveSlug(data.user.id, pathSlug);
+              broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+              setStoreSlug(pathSlug);
+              loadData(pathSlug);
+            }
+          }
+        }
+      } catch (e) {}
+
+      if (!redirectRestored) {
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
+        try {
+          sessionStorage.removeItem('catavor_active_slug_selected');
+        } catch {}
+        setStoreSlug(null);
+        setIsFirstTimeLogin(true);
+        setShowStoreSwitcherModal(true);
+        setStoreChooserComplianceAlert(null);
+        document.documentElement.setAttribute('data-theme', 'navy');
+        document.body.setAttribute('data-theme', 'navy');
+        window.history.pushState({}, '', '/catalogs');
+        fetchMyStores();
+        showToast('Silakan pilih profil katalog yang ingin Anda kelola.', 'info');
+      }
+  }
+
+  const handleMFAVerified = (data: any) => {
+    const pending = mfaChallenge;
+    setMfaChallenge(null);
+    if (!pending || !data?.token || !data?.user) { setLoginError('Respons verifikasi tidak lengkap. Silakan login ulang.'); return; }
+    finalizeLogin(data, pending.slug);
+  };
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoginLoading(true)
@@ -13072,134 +13212,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       })
 
       const data = await res.json()
+      if (res.ok && data.success && data.mfa_required) {
+        setMfaChallenge({ challenge: data.challenge, email: loginForm.email, slug: currentRequestedSlug || '' })
+        return
+      }
       if (res.ok && data.success) {
-        desktopLastTokenCheckTimeRef.current = Date.now();
-        desktopVerifiedTokenRef.current = data.token;
-        localStorage.setItem('catavor_token', data.token)
-        localStorage.setItem('catavor_user', JSON.stringify(data.user))
-        if (data.stores) {
-          localStorage.setItem('catavor_stores', JSON.stringify(data.stores))
-          setUserStores(data.stores)
-        }
-        const isPassChanged = Boolean(
-          data.user?.email === 'admin@catavor.local' && (data.is_password_changed === false || data.user?.is_password_changed === false)
-            ? false
-            : true
-        );
-        localStorage.setItem('catavor_password_changed', isPassChanged ? 'true' : 'false');
-        
-        const loginTheme = data.active_store?.store_theme || data.user?.store_theme || 'navy';
-        document.documentElement.setAttribute('data-theme', loginTheme);
-        document.body.setAttribute('data-theme', loginTheme);
-        setSettingsForm(prev => ({ ...prev, store_theme: loginTheme }));
-
-        setToken(data.token)
-        setAdminUser(data.user)
-        setIsPasswordChanged(isPassChanged)
-        setLoginForm({ email: '', password: '' })
-        
-        if (isPlatformAdmin(data.user)) {
-          setStoreSlug(null);
-          setPortalTab('home');
-          setView('admin');
-          window.history.pushState({}, '', '/admin');
-          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-          showToast('Selamat datang di Platform Console!', 'success');
-          return;
-        }
-
-        // Case 1: Specific store login (e.g. /adidas/login or /adidas/admin)
-        if (currentRequestedSlug) {
-          sessionStorage.removeItem('catavor_auth_redirect');
-          const targetSlug = currentRequestedSlug;
-          saveUserActiveSlug(data.user.id, targetSlug);
-          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-          setStoreSlug(targetSlug);
-          setIsFirstTimeLogin(false);
-          setShowStoreSwitcherModal(false);
-          setPortalTab('home');
-          setView('admin');
-          setAdminTab('items');
-          window.history.pushState({}, '', `/${targetSlug}/admin/items`);
-          loadData(targetSlug);
-          showToast(`Selamat datang di ${data.active_store?.store_title || targetSlug}!`, 'success');
-          return;
-        }
-
-        // Case 2: General login from root /login
-        const availableStores = (data.stores && Array.isArray(data.stores)) ? data.stores : [];
-        if (availableStores.length === 1 && availableStores[0]?.slug) {
-          const singleSlug = availableStores[0].slug;
-          saveUserActiveSlug(data.user.id, singleSlug);
-          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-          setStoreSlug(singleSlug);
-          setIsFirstTimeLogin(false);
-          setShowStoreSwitcherModal(false);
-          setPortalTab('home');
-          setView('admin');
-          setAdminTab('items');
-          window.history.pushState({}, '', `/${singleSlug}/admin/items`);
-          loadData(singleSlug);
-          showToast(`Selamat datang di ${availableStores[0].store_title || singleSlug}!`, 'success');
-          return;
-        }
-
-        // Case 3: Merchant with >= 2 stores - Check if user has a remembered active store
-        const rememberedSlug = getSavedUserSlug(data.user.id);
-        if (rememberedSlug && availableStores.some((s: any) => s.slug === rememberedSlug)) {
-          saveUserActiveSlug(data.user.id, rememberedSlug);
-          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-          setStoreSlug(rememberedSlug);
-          setIsFirstTimeLogin(false);
-          setShowStoreSwitcherModal(false);
-          setPortalTab('home');
-          setView('admin');
-          setAdminTab('items');
-          window.history.pushState({}, '', `/${rememberedSlug}/admin/items`);
-          loadData(rememberedSlug);
-          const matchedStore = availableStores.find((s: any) => s.slug === rememberedSlug);
-          showToast(`Selamat datang kembali di ${matchedStore?.store_title || rememberedSlug}!`, 'success');
-          return;
-        }
-
-        let redirectRestored = false;
-        try {
-          const savedRedirect = sessionStorage.getItem('catavor_auth_redirect');
-          if (savedRedirect) {
-            sessionStorage.removeItem('catavor_auth_redirect');
-            const parsed = JSON.parse(savedRedirect);
-            if (parsed.path && parsed.path.includes('/admin')) {
-              window.history.pushState({}, '', parsed.path);
-              setView('admin');
-              if (parsed.tab) setAdminTab(parsed.tab);
-              if (parsed.settingsSubTab) setSettingsSubTab(parsed.settingsSubTab);
-              redirectRestored = true;
-              const pathSlug = parsed.path.split('/').filter(Boolean)[0];
-              if (pathSlug && !isReservedStoreSlug(pathSlug)) {
-                saveUserActiveSlug(data.user.id, pathSlug);
-                broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-                setStoreSlug(pathSlug);
-                loadData(pathSlug);
-              }
-            }
-          }
-        } catch (e) {}
-
-        if (!redirectRestored) {
-          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user.id, token: data.token });
-          try {
-            sessionStorage.removeItem('catavor_active_slug_selected');
-          } catch {}
-          setStoreSlug(null);
-          setIsFirstTimeLogin(true);
-          setShowStoreSwitcherModal(true);
-          setStoreChooserComplianceAlert(null);
-          document.documentElement.setAttribute('data-theme', 'navy');
-          document.body.setAttribute('data-theme', 'navy');
-          window.history.pushState({}, '', '/catalogs');
-          fetchMyStores();
-          showToast('Silakan pilih profil katalog yang ingin Anda kelola.', 'info');
-        }
+        finalizeLogin(data, currentRequestedSlug)
       } else {
         setLoginError(data.message || 'Email atau password salah.')
       }
@@ -25651,12 +25669,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                   {/* TAB 3: SESI & PERANGKAT TERHUBUNG */}
                   {profileSubTab === 'security' && (
-                    <ConnectedDevicesView
-                      token={token || ''}
-                      apiBase={API_BASE}
-                      onLogoutCurrent={handleLogout}
-                      showToast={(type, msg) => showToast(msg, type)}
-                    />
+                    <>
+                      <MFASettingsView token={token || ''} apiBase={API_BASE} showToast={(type, msg) => showToast(msg, type)} />
+                      <ConnectedDevicesView token={token || ''} apiBase={API_BASE} onLogoutCurrent={handleLogout} showToast={(type, msg) => showToast(msg, type)} />
+                    </>
                   )}
 
                   {/* TAB 4: ZONA BERBAHAYA */}
@@ -34474,6 +34490,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
       )}
 
       {/* Floating Toast Notification */}
+      {mfaChallenge && (
+        <MFAChallengeView
+          challenge={mfaChallenge.challenge}
+          email={mfaChallenge.email}
+          apiBase={API_BASE}
+          onCancel={() => { setMfaChallenge(null); setLoginError(null); }}
+          onVerified={handleMFAVerified}
+        />
+      )}
       <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />
     </>
   )
