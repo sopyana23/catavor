@@ -57,7 +57,8 @@ Playwright), jadi kegagalan jenis ini tertangkap otomatis.
 | `20261018_n53_master_categories.sql` | Seed `master_categories`. |
 | `20261018_n55_master_presets.sql` | Seed preset master. |
 | `20261031_n56_catalog_popularity_and_store_metrics.sql` | Penambahan kolom metrik toko (`view_count`, `total_actions_count`, `primary_product_type`, `is_featured`), popularitas produk (`popularity_score`), dan composite index perankingan e-commerce / online shop discovery. |
-| `20261031_n57_payment_system_enhancements.sql` | Peningkatan subsistem pembayaran: perbaikan default status 'pending', penambahan 11 kolom pendukung gateway Aulaa & kode unik manual QRIS, serta seed pengaturan default. |
+| `20261031_n57_payment_system_enhancements.sql` | Peningkatan subsistem pembayaran: perbaikan default status 'pending', penambahan 11 kolom pendukung gateway Aulaa & kode unik manual QRIS, serta seed awal untuk akun Virtual Account. |
+| `20261116_n60_user_two_factor_auth.sql` | Menambahkan kolom faktor 2FA, penyimpanan penyelesaian/lockout/challenge idempoten, serta tiket pemulihan akun. |
 
 ## Catatan N-26
 

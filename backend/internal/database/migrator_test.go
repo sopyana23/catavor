@@ -47,7 +47,8 @@ func prepareEmptySchema(t *testing.T, db *gorm.DB) {
 		// migrasi N-45 gagal dan server tidak bisa boot sama sekali. Uji ini
 		// harus mencerminkan apa yang benar-benar dibuat AutoMigrate.
 		stmts := []string{
-			`CREATE TABLE users (id BIGSERIAL PRIMARY KEY)`,
+			`CREATE TABLE users (id BIGSERIAL PRIMARY KEY, platform_role VARCHAR(50) DEFAULT 'merchant')`,
+			`CREATE TABLE user_sessions (id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL)`,
 			`CREATE TABLE stores (id BIGSERIAL PRIMARY KEY, user_id BIGINT)`,
 			`CREATE TABLE products (id BIGSERIAL PRIMARY KEY, store_id BIGINT)`,
 			`CREATE TABLE support_tickets (id BIGSERIAL PRIMARY KEY, rated_agent_id BIGINT)`,
