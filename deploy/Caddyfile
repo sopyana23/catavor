@@ -1,0 +1,55 @@
+# ==============================================================================
+# Catavor Production Reference Caddyfile (N-56)
+# Validasi sintaks: caddy validate --config deploy/Caddyfile
+# ==============================================================================
+
+{
+	servers {
+		import cloudflare-ips.caddy
+		protocols h1 h2 h3
+	}
+}
+
+catavor.com, www.catavor.com {
+	# Untuk mode Cloudflare Full (Strict) dengan Origin CA Certificate lokal, buka komentar baris tls berikut:
+	# tls /etc/ssl/catavor/origin-cert.pem /etc/ssl/catavor/origin-key.pem {
+	#     protocols tls1.2 tls1.3
+	# }
+
+	request_body {
+		max_size 15MB
+	}
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Sanitasi header IP palsu bila koneksi tidak datang dari trusted_proxies Cloudflare
+	@stream path /api/notifications/stream*
+	handle @stream {
+		reverse_proxy 127.0.0.1:8000 {
+			flush_interval -1
+			header_up Host {host}
+			header_up X-Real-IP {client_ip}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8000 {
+			header_up Host {host}
+			header_up X-Real-IP {client_ip}
+			header_up X-Forwarded-Proto {scheme}
+			transport http {
+				keepalive 60s
+				keepalive_idle_conns 64
+			}
+		}
+	}
+}

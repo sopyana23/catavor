@@ -248,8 +248,17 @@ Detail lengkap diatur pada [.agents/rules/08_data_driven_dropdown_filter_standar
 3. **Defensive Safety Auto-Reset**:
    - Wajib memasang `useEffect` auto-reset: Jika opsi filter yang aktif saat ini tidak lagi memiliki data ($count = 0$), state otomatis kembali ke default (`'all'` atau `'Semua'`).
 
+---
 
-
-
-
+## 12. Asynchronous Multi-Agent Markdown Communication & Self-Contained Notes Standard (MANDATORY)
+1. **Pusat Komunikasi Mandiri di File Markdown (*Self-Contained File*)**:
+   - Seluruh detail teknis, respons temuan audit, matriks status, dan rujukan implementasi antar-agent **WAJIB** dituliskan langsung secara mandiri dan lengkap di dalam file markdown komunikasi proyek (misal: `catatan-review-plan-faseX-YYYY-MM-DD.md` atau berkas koordinasi terkait).
+   - Dokumen markdown tersebut harus dapat dibaca dan dipahami secara utuh oleh agent lain tanpa memerlukan konteks tambahan dari luar.
+2. **Protokol Estafet Ringkas Pengguna (Haram Membebani Prompt Panjang)**:
+   - Pengguna memiliki keterbatasan untuk mengirimkan prompt teks yang panjang antar-agent.
+   - Agen **DILARANG KERAS** menyusun draf instruksi atau laporan estafet yang panjang untuk disalin oleh pengguna ke agent lain.
+   - Agen **WAJIB** menyediakan instruksi estafet super-ringkas (maksimal 1–2 kalimat pendek, contoh: *"Silakan periksa file `<path>` untuk Review Putaran X"*), karena seluruh substansi telah tersedia di dalam file markdown.
+3. **Jejak Audit Non-Destruktif (*Non-Destructive Audit Trail*)**:
+   - Dilarang keras menimpa, mengubah, atau menghapus blok catatan/evaluasi milik reviewer atau agent lain.
+   - Gunakan slot respons khusus dan perbarui tabel matriks pelacakan status secara bertahap.
 
