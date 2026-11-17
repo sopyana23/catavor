@@ -72,9 +72,11 @@ func newTestDB(t *testing.T) *gorm.DB {
 		&models.PlatformPermission{},
 		&models.PlatformRolePermission{},
 		&models.Setting{},
-		// Tabel faktor kedua: lockout durable + ledger idempotensi kegagalan.
+		// Tabel faktor kedua: completion sekali pakai + lockout durable + ledger idempotensi kegagalan + tiket recovery.
+		&models.MFAAuthCompletion{},
 		&models.MFAAccountLockout{},
 		&models.MFAChallengeFailure{},
+		&models.TwoFactorRecoveryTicket{},
 	); err != nil {
 		t.Fatalf("AutoMigrate(sqlite): %v", err)
 	}

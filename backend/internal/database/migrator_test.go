@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 
+	"catavor-backend/internal/models"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -46,17 +48,18 @@ func prepareEmptySchema(t *testing.T, db *gorm.DB) {
 		// nyata: pada instalasi baru tabel itu tidak pernah ada, sehingga
 		// migrasi N-45 gagal dan server tidak bisa boot sama sekali. Uji ini
 		// harus mencerminkan apa yang benar-benar dibuat AutoMigrate.
-		stmts := []string{
-			`CREATE TABLE users (id BIGSERIAL PRIMARY KEY, platform_role VARCHAR(50) DEFAULT 'merchant')`,
-			`CREATE TABLE user_sessions (id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL)`,
-			`CREATE TABLE stores (id BIGSERIAL PRIMARY KEY, user_id BIGINT)`,
-			`CREATE TABLE products (id BIGSERIAL PRIMARY KEY, store_id BIGINT)`,
-			`CREATE TABLE support_tickets (id BIGSERIAL PRIMARY KEY, rated_agent_id BIGINT)`,
-		}
-		for _, s := range stmts {
-			if err := db.Exec(s).Error; err != nil {
-				t.Fatalf("tabel inti uji: %v", err)
-			}
+		if err := db.AutoMigrate(
+			&models.User{},
+			&models.UserSession{},
+			&models.Store{},
+			&models.SubscriptionPlan{},
+			&models.SubscriptionOrder{},
+			&models.Category{},
+			&models.Product{},
+			&models.Setting{},
+			&models.SupportTicket{},
+		); err != nil {
+			t.Fatalf("AutoMigrate tabel inti uji: %v", err)
 		}
 	})
 }
@@ -155,7 +158,10 @@ func TestRunMigrationsBaselinesExistingSchema(t *testing.T) {
 		t.Fatalf("loadMigrations: %v", err)
 	}
 
-	// Simulasikan instalasi lama: catatan migrasi dihapus, skema tetap.
+	// Simulasikan instalasi lama: sudah ada baris user aktif dan skema terbentuk, namun schema_migrations belum ada.
+	if err := db.Exec(`INSERT INTO users (name, email, password, platform_role, created_at, updated_at) VALUES ('Legacy', 'legacy@mig.test', 'x', 'merchant', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`).Error; err != nil {
+		t.Fatalf("seed legacy user: %v", err)
+	}
 	if err := db.Migrator().DropTable(&schemaMigration{}); err != nil {
 		t.Fatalf("drop schema_migrations: %v", err)
 	}

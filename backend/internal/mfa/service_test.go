@@ -26,7 +26,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.UserSession{}, &models.MFAAccountLockout{}, &models.MFAChallengeFailure{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.UserSession{}, &models.MFAAuthCompletion{}, &models.MFAAccountLockout{}, &models.MFAChallengeFailure{}); err != nil {
 		t.Fatalf("automigrate: %v", err)
 	}
 	return db
@@ -262,5 +262,100 @@ func TestLockoutExpiresAndResets(t *testing.T) {
 	code, _ := security.GenerateTOTPCode(secret, security.TOTPStepAt(later))
 	if err := VerifyTOTPFactor(db, testKey, user, code, "jti-after-lock", later); err != nil {
 		t.Fatalf("setelah lockout berakhir kode benar harus lolos: %v", err)
+	}
+}
+
+func TestSetupTokenAndPendingEnrollmentBinding(t *testing.T) {
+	now := time.Unix(fixedUnix, 0).UTC()
+
+	setupTok, setupJTI, _, err := IssueSetupToken(testJWT, 99, 2, now)
+	if err != nil || setupJTI == "" {
+		t.Fatalf("IssueSetupToken: %v", err)
+	}
+	// Token setup tidak boleh diterima sebagai challenge MFA dan sebaliknya.
+	if _, err := ParseChallenge(testJWT, setupTok, now); err == nil {
+		t.Fatal("setup_token tidak boleh lolos ParseChallenge (audience terpisah)")
+	}
+	chTok, _, _, err := IssueChallengeWithVersion(testJWT, 99, 2, now, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseSetupToken(testJWT, chTok, now); err == nil {
+		t.Fatal("challenge token tidak boleh lolos ParseSetupToken (audience terpisah)")
+	}
+
+	pending, _, err := NewPendingSetupJTI(99, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) > 64 {
+		t.Fatalf("pending setup JTI melebihi VARCHAR(64): len=%d", len(pending))
+	}
+	if err := ValidatePendingSetupJTI(pending, 99, now); err != nil {
+		t.Fatalf("pending setup valid ditolak: %v", err)
+	}
+	if err := ValidatePendingSetupJTI(pending, 100, now); err == nil {
+		t.Fatal("pending setup milik user lain wajib ditolak")
+	}
+	if err := ValidatePendingSetupJTI(pending, 99, now.Add(PendingEnrollmentTTL+2*time.Second)); err == nil {
+		t.Fatal("pending setup kedaluwarsa wajib ditolak")
+	}
+}
+
+func TestRedeemChallengeCommitHookErrorRollsBackFactorConsumption(t *testing.T) {
+	db := newTestDB(t)
+	user, secret := enrolledUser(t, db)
+	user.TokenVersion = 1
+	db.Save(user)
+
+	now := time.Unix(fixedUnix, 0).UTC()
+	chTok, _, _, err := IssueChallengeWithVersion(testJWT, user.ID, 1, now, "toko-uji")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := ParseChallenge(testJWT, chTok, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, _ := security.GenerateTOTPCode(secret, security.TOTPStepAt(now))
+
+	// Simulasi kegagalan penyimpanan sesi di dalam commitHook -> faktor TIDAK boleh terbakar.
+	_, _, err = RedeemChallenge(db, testKey, claims, FactorTOTP, code, now, func(tx *gorm.DB, lockedUser *models.User) (uint, string, error) {
+		return 0, "", ErrStorageUnavailable
+	})
+	if err == nil {
+		t.Fatal("RedeemChallenge wajib gagal bila commitHook gagal")
+	}
+
+	var reloaded models.User
+	db.First(&reloaded, user.ID)
+	if reloaded.TwoFactorLastTOTPStep != 0 {
+		t.Fatalf("rollback gagal: TwoFactorLastTOTPStep berubah menjadi %d", reloaded.TwoFactorLastTOTPStep)
+	}
+
+	// Retry dengan kode & challenge yang sama ketika penyimpanan sesi pulih harus berhasil satu kali.
+	_, _, err = RedeemChallenge(db, testKey, claims, FactorTOTP, code, now, func(tx *gorm.DB, lockedUser *models.User) (uint, string, error) {
+		sess := models.UserSession{
+			UserID:    lockedUser.ID,
+			TokenID:   "tok-ok-1",
+			ExpiresAt: now.Add(time.Hour),
+			CreatedAt: now,
+		}
+		if err := tx.Create(&sess).Error; err != nil {
+			return 0, "", err
+		}
+		return sess.ID, sess.TokenID, nil
+	})
+	if err != nil {
+		t.Fatalf("RedeemChallenge seharusnya sukses setelah pulih: %v", err)
+	}
+
+	// Penukaran ulang JTI yang sama wajib ditolak ErrChallengeRedeemed.
+	nextCode, _ := security.GenerateTOTPCode(secret, security.TOTPStepAt(now.Add(30*time.Second)))
+	_, _, err = RedeemChallenge(db, testKey, claims, FactorTOTP, nextCode, now.Add(30*time.Second), func(tx *gorm.DB, lockedUser *models.User) (uint, string, error) {
+		return 999, "tok-never", nil
+	})
+	if err == nil {
+		t.Fatal("JTI challenge bekas tidak boleh ditukarkan ulang")
 	}
 }

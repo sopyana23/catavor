@@ -278,24 +278,47 @@ func TestEnrollmentLoopViaHTTP(t *testing.T) {
 	app := fiber.New()
 	authHandler := NewAuthHandler(cfg, db)
 	mfaHandler := NewMFAHandler(cfg, db, cfg.MFAEncryptionKey, cfg.JWTSecret, true)
-	// Middleware stub: menaruh user ke Locals seperti AuthRequired asli.
-	withUser := func(c *fiber.Ctx) error {
-		var fresh models.User
-		if err := db.First(&fresh, user.ID).Error; err != nil {
-			return c.SendStatus(fiber.StatusUnauthorized)
-		}
-		c.Locals("user", &fresh)
-		return c.Next()
-	}
+	setupAuth := middleware.AuthOrMFASetupRequired(cfg)
 
 	app.Post("/api/login", authHandler.Login)
 	app.Post("/api/auth/mfa/verify", mfaHandler.VerifyChallenge)
-	app.Get("/api/auth/mfa/status", withUser, mfaHandler.Status)
-	app.Post("/api/auth/mfa/enroll", withUser, mfaHandler.StartEnrollment)
-	app.Post("/api/auth/mfa/confirm", withUser, mfaHandler.ConfirmEnrollment)
+	app.Get("/api/auth/mfa/status", setupAuth, mfaHandler.Status)
+	app.Post("/api/auth/mfa/enroll", setupAuth, mfaHandler.StartEnrollment)
+	app.Post("/api/auth/mfa/confirm", setupAuth, mfaHandler.ConfirmEnrollment)
+
+	// Login awal untuk memperoleh sesi segar (<= 10 menit).
+	status, loginBody := postJSON(t, app, "/api/login", map[string]interface{}{
+		"email":    "enroll@catavor.test",
+		"password": "RahasiaKuat123!",
+		"portal":   "merchant",
+	})
+	if status != fiber.StatusOK {
+		t.Fatalf("login awal harus 200, dapat %d: %v", status, loginBody)
+	}
+	initialToken, _ := loginBody["token"].(string)
+	if initialToken == "" {
+		t.Fatal("login awal wajib mengembalikan token sesi")
+	}
+
+	postAuthJSON := func(path string, payload map[string]interface{}) (int, map[string]interface{}) {
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest("POST", path, bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+initialToken)
+		resp, err := app.Test(req)
+		if err != nil {
+			t.Fatalf("app.Test %s: %v", path, err)
+		}
+		defer resp.Body.Close()
+		raw, _ := io.ReadAll(resp.Body)
+		var out map[string]interface{}
+		_ = json.Unmarshal(raw, &out)
+		return resp.StatusCode, out
+	}
 
 	get := func(path string) (int, map[string]interface{}) {
 		req := httptest.NewRequest("GET", path, nil)
+		req.Header.Set("Authorization", "Bearer "+initialToken)
 		resp, err := app.Test(req)
 		if err != nil {
 			t.Fatalf("app.Test %s: %v", path, err)
@@ -317,7 +340,7 @@ func TestEnrollmentLoopViaHTTP(t *testing.T) {
 	}
 
 	// Enroll: dapat secret + otpauth URL.
-	status, body = postJSON(t, app, "/api/auth/mfa/enroll", map[string]interface{}{})
+	status, body = postAuthJSON("/api/auth/mfa/enroll", map[string]interface{}{})
 	if status != fiber.StatusOK {
 		t.Fatalf("enroll harus 200, dapat %d: %v", status, body)
 	}
@@ -343,7 +366,7 @@ func TestEnrollmentLoopViaHTTP(t *testing.T) {
 	}
 
 	// Confirm dengan kode salah: ditolak, tetap belum aktif.
-	status, _ = postJSON(t, app, "/api/auth/mfa/confirm", map[string]interface{}{"code": "000000"})
+	status, _ = postAuthJSON("/api/auth/mfa/confirm", map[string]interface{}{"code": "000000"})
 	if status != fiber.StatusUnauthorized {
 		t.Fatalf("confirm kode salah harus 401, dapat %d", status)
 	}
@@ -353,7 +376,7 @@ func TestEnrollmentLoopViaHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, body = postJSON(t, app, "/api/auth/mfa/confirm", map[string]interface{}{"code": code})
+	status, body = postAuthJSON("/api/auth/mfa/confirm", map[string]interface{}{"code": code})
 	if status != fiber.StatusOK {
 		t.Fatalf("confirm kode benar harus 200, dapat %d: %v", status, body)
 	}

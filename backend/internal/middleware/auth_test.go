@@ -25,6 +25,8 @@ func testCfg() *config.Config {
 		AppEnv:             "local",
 		JWTSecret:          "middleware-test-secret-0123456789abcdef",
 		JWTExpirationHours: 2,
+		MFAEnabled:         true,
+		MFAEncryptionKey:   "middleware-test-mfa-key-0123456789abcdef",
 	}
 }
 
@@ -36,13 +38,38 @@ func testDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("buka sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.Store{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.UserSession{}, &models.Store{}, &models.MFAAuthCompletion{}); err != nil {
 		t.Fatalf("automigrate: %v", err)
 	}
 	prev := database.DB
 	database.DB = db
 	t.Cleanup(func() { database.DB = prev })
 	return db
+}
+
+func issueDurableSessionToken(t *testing.T, db *gorm.DB, u *models.User, st *models.Store, cfg *config.Config, mfaVerified bool) (string, string) {
+	t.Helper()
+	tok, jti, exp, err := GenerateTokenWithOptions(u, st, cfg, TokenOptions{MFAVerified: mfaVerified})
+	if err != nil {
+		t.Fatalf("GenerateTokenWithOptions: %v", err)
+	}
+	now := time.Now().UTC()
+	sess := &models.UserSession{
+		UserID:       u.ID,
+		TokenID:      jti,
+		IPAddress:    "127.0.0.1",
+		DeviceName:   "Test Browser",
+		DeviceType:   "desktop",
+		LastActiveAt: now,
+		ExpiresAt:    exp,
+		IsRevoked:    false,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := db.Create(sess).Error; err != nil {
+		t.Fatalf("seed UserSession: %v", err)
+	}
+	return tok, jti
 }
 
 func newApp() *fiber.App {
@@ -296,7 +323,7 @@ func TestAuthRequired(t *testing.T) {
 		if err := db.Create(st).Error; err != nil {
 			t.Fatalf("seed store: %v", err)
 		}
-		token, _, _, _ := GenerateTokenWithID(u, st, cfg)
+		token, _ := issueDurableSessionToken(t, db, u, st, cfg, false)
 		code, body := do(t, makeApp(), func(r *http.Request) {
 			r.AddCookie(&http.Cookie{Name: SessionCookieName, Value: token})
 		})
@@ -311,7 +338,7 @@ func TestAuthRequired(t *testing.T) {
 	t.Run("bearer_sah_200", func(t *testing.T) {
 		db := testDB(t)
 		u := seedUser(t, db, nil)
-		token, _, _, _ := GenerateTokenWithID(u, nil, cfg)
+		token, _ := issueDurableSessionToken(t, db, u, nil, cfg, false)
 		code, _ := do(t, makeApp(), func(r *http.Request) {
 			r.Header.Set("Authorization", "Bearer "+token)
 		})
@@ -320,10 +347,22 @@ func TestAuthRequired(t *testing.T) {
 		}
 	})
 
+	t.Run("tanpa_baris_user_session_ditolak_401", func(t *testing.T) {
+		db := testDB(t)
+		u := seedUser(t, db, nil)
+		token, _, _, _ := GenerateTokenWithID(u, nil, cfg)
+		code, body := do(t, makeApp(), func(r *http.Request) {
+			r.Header.Set("Authorization", "Bearer "+token)
+		})
+		if code != 401 || body["code"] != "SESSION_REVOKED" {
+			t.Errorf("JWT tanpa baris UserSession durable wajib ditolak 401: got %d %v", code, body)
+		}
+	})
+
 	t.Run("akun_blacklist_403", func(t *testing.T) {
 		db := testDB(t)
 		u := seedUser(t, db, func(u *models.User) { u.IsBlacklisted = true })
-		token, _, _, _ := GenerateTokenWithID(u, nil, cfg)
+		token, _ := issueDurableSessionToken(t, db, u, nil, cfg, false)
 		code, body := do(t, makeApp(), func(r *http.Request) {
 			r.Header.Set("Authorization", "Bearer "+token)
 		})
@@ -337,20 +376,57 @@ func TestAuthRequired(t *testing.T) {
 		u := seedUser(t, db, func(u *models.User) {
 			u.IsBlacklisted = true
 			u.PlatformRole = "superadmin"
+			u.TwoFactorEnabled = true
 		})
-		token, _, _, _ := GenerateTokenWithID(u, nil, cfg)
+		token, _ := issueDurableSessionToken(t, db, u, nil, cfg, true)
 		code, _ := do(t, makeApp(), func(r *http.Request) {
 			r.Header.Set("Authorization", "Bearer "+token)
 		})
 		if code != 200 {
-			t.Errorf("staf platform tidak boleh terkunci oleh flag blacklist: got %d", code)
+			t.Errorf("staf platform ber-MFA tidak boleh terkunci oleh flag blacklist: got %d", code)
+		}
+	})
+
+	t.Run("staf_tanpa_mfa_ditolak_403", func(t *testing.T) {
+		db := testDB(t)
+		u := seedUser(t, db, func(u *models.User) {
+			u.PlatformRole = "support"
+			u.TwoFactorEnabled = false
+		})
+		token, _ := issueDurableSessionToken(t, db, u, nil, cfg, false)
+		code, body := do(t, makeApp(), func(r *http.Request) {
+			r.Header.Set("Authorization", "Bearer "+token)
+		})
+		if code != 403 || body["code"] != "MFA_SETUP_REQUIRED" {
+			t.Errorf("staf tanpa MFA wajib ditolak 403 MFA_SETUP_REQUIRED: got %d %v", code, body)
+		}
+	})
+
+	t.Run("staf_mfa_flag_mati_fail_closed_503", func(t *testing.T) {
+		db := testDB(t)
+		u := seedUser(t, db, func(u *models.User) {
+			u.PlatformRole = "finance"
+			u.TwoFactorEnabled = true
+		})
+		disabledCfg := testCfg()
+		disabledCfg.MFAEnabled = false
+		token, _ := issueDurableSessionToken(t, db, u, nil, disabledCfg, true)
+		app := newApp()
+		app.Get("/protected", AuthRequired(disabledCfg), func(c *fiber.Ctx) error {
+			return c.SendStatus(200)
+		})
+		code, body := do(t, app, func(r *http.Request) {
+			r.Header.Set("Authorization", "Bearer "+token)
+		})
+		if code != 503 || body["code"] != "MFA_SERVICE_UNAVAILABLE" {
+			t.Errorf("staf saat flag MFA mati wajib fail-closed 503: got %d %v", code, body)
 		}
 	})
 
 	t.Run("token_version_usang_401", func(t *testing.T) {
 		db := testDB(t)
 		u := seedUser(t, db, nil)
-		token, _, _, _ := GenerateTokenWithID(u, nil, cfg)
+		token, _ := issueDurableSessionToken(t, db, u, nil, cfg, false)
 		// Sesi dicabut: password berubah menaikkan token_version.
 		if err := db.Model(u).Update("token_version", u.TokenVersion+1).Error; err != nil {
 			t.Fatalf("update: %v", err)
@@ -366,7 +442,7 @@ func TestAuthRequired(t *testing.T) {
 	t.Run("user_dihapus_401", func(t *testing.T) {
 		db := testDB(t)
 		u := seedUser(t, db, nil)
-		token, _, _, _ := GenerateTokenWithID(u, nil, cfg)
+		token, _ := issueDurableSessionToken(t, db, u, nil, cfg, false)
 		if err := db.Unscoped().Delete(u).Error; err != nil {
 			t.Fatalf("delete: %v", err)
 		}
@@ -653,6 +729,17 @@ func TestSlidingSession_RotationAndHeader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign token: %v", err)
 	}
+	if err := db.Create(&models.UserSession{
+		UserID:       u.ID,
+		TokenID:      tokenID,
+		IPAddress:    "127.0.0.1",
+		DeviceName:   "Test",
+		DeviceType:   "desktop",
+		LastActiveAt: time.Now().UTC(),
+		ExpiresAt:    expiresAt,
+	}).Error; err != nil {
+		t.Fatalf("seed UserSession: %v", err)
+	}
 
 	app := newApp()
 	app.Get("/protected", AuthRequired(cfg), func(c *fiber.Ctx) error {
@@ -715,6 +802,17 @@ func TestSlidingSession_AbsoluteTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign token: %v", err)
 	}
+	if err := db.Create(&models.UserSession{
+		UserID:       u.ID,
+		TokenID:      tokenID,
+		IPAddress:    "127.0.0.1",
+		DeviceName:   "Test",
+		DeviceType:   "desktop",
+		LastActiveAt: time.Now().UTC(),
+		ExpiresAt:    expiresAt,
+	}).Error; err != nil {
+		t.Fatalf("seed UserSession: %v", err)
+	}
 
 	app := newApp()
 	app.Get("/protected", AuthRequired(cfg), func(c *fiber.Ctx) error {
@@ -747,10 +845,7 @@ func TestSlidingSession_CookieFallback(t *testing.T) {
 	u := seedUser(t, db, nil)
 
 	// Token A (valid dan fresh di cookie)
-	tokenA, _, _, err := GenerateTokenWithID(u, nil, cfg)
-	if err != nil {
-		t.Fatalf("generate tokenA: %v", err)
-	}
+	tokenA, _ := issueDurableSessionToken(t, db, u, nil, cfg, false)
 
 	// Token B (sudah expired di Bearer header)
 	claimsB := JWTClaims{
