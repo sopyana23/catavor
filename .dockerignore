@@ -11,7 +11,11 @@
 # --- Rahasia (JANGAN pernah masuk image) ---
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
+!**/.env.*.example
 *.pem
 *.key
 *.crt
@@ -46,6 +50,8 @@ backend/coverage.html
 # --- Data pengguna & runtime ---
 public/storage/
 backend/public/storage/
+storage/private/
+backend/storage/private/
 uploads/
 *.log
 

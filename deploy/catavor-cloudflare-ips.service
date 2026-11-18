@@ -1,0 +1,22 @@
+# ==============================================================================
+# Catavor Weekly Cloudflare Edge CIDR Sync — Systemd Oneshot Service (N-56)
+# Sesuaikan PROXY_TYPE=nginx atau PROXY_TYPE=caddy sesuai reverse proxy aktif.
+# ==============================================================================
+
+[Unit]
+Description=Update Cloudflare Trusted Edge Subnets for Catavor Proxy & UFW
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Environment="PROXY_TYPE=nginx"
+Environment="DEPLOY_DIR=/opt/catavor/deploy"
+Environment="CATAVOR_HEALTH_URL=http://127.0.0.1:8000/healthz"
+ExecStart=/usr/bin/env bash /opt/catavor/deploy/update-cloudflare-ips.sh
+# Opsional: buka komentar baris berikut untuk menyegarkan aturan UFW otomatis setelah daftar IP diperbarui:
+# ExecStartPost=/usr/bin/env bash /opt/catavor/deploy/setup-ufw-cloudflare.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=catavor-cf-sync

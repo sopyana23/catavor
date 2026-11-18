@@ -13,8 +13,21 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend (build, vet, test)
+    name: Backend (build, vet, race + PG17 test)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: [ '5432:5432' ]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend
@@ -37,26 +50,29 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Test (race detector + coverage)
-        # -race butuh cgo. Runner ubuntu-latest menyediakan gcc, jadi aman
-        # dijalankan di sini (tidak bisa jalan di Windows/MSYS lokal).
+      - name: Siapkan DB disposable PostgreSQL 17 untuk uji migrasi & konkurensi
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS catavor_ci_migtest;"
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS catavor_ci_pgtest;"
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE catavor_ci_migtest;"
+          psql -h 127.0.0.1 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE catavor_ci_pgtest;"
+
+      - name: Test (race detector + PostgreSQL 17 disposable + coverage)
+        # -race butuh cgo. Runner ubuntu-latest menyediakan gcc, dan dua DB
+        # disposable terpisah memastikan uji migrasi (internal/database) serta
+        # uji konkurensi/FK nyata (internal/handlers) tidak saling mengganggu.
+        env:
+          CATAVOR_MIGTEST_DSN: "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=catavor_ci_migtest sslmode=disable"
+          CATAVOR_PGTEST_DSN: "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=catavor_ci_pgtest sslmode=disable"
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
 
       - name: Tampilkan coverage
         run: go tool cover -func=coverage.out | tail -20
 
       - name: Ambang batas coverage modul kritis
-        # Ambang PER PAKET, bukan angka global. Angka global menyesatkan karena
-        # handlers/services masih rendah dan akan menyembunyikan penurunan di
-        # modul keamanan. Setiap ambang disetel sedikit di bawah nilai nyata
-        # saat ini agar build tidak merah tanpa alasan, tetapi cukup ketat
-        # untuk menangkap regresi (test yang terhapus/dinonaktifkan).
-        #
-        #   security  90.2%  -> ambang 85
-        #   models    31.4%  -> ambang 28
-        #   storage   26.1%  -> ambang 22
-        #   services   2.5%  -> ambang 2
-        #   handlers   1.4%  -> ambang 1
+        # Ambang PER PAKET agar penurunan pada modul keamanan/MFA/CLI langsung terdeteksi.
         run: |
           set -euo pipefail
           check() {
@@ -72,6 +88,8 @@ jobs:
             }'
           }
           check internal/security 85
+          check internal/mfa      42
+          check cmd/admin-cli     50
           check internal/models   28
           check internal/storage  22
           check internal/services  2
@@ -90,7 +108,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [ desktop, mobile ]
+        app: [ desktop, tablet, mobile ]
     defaults:
       run:
         working-directory: frontend/${{ matrix.app }}
@@ -101,10 +119,6 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          # Catatan: `defaults.run.working-directory` TIDAK berlaku untuk
-          # langkah `uses:`. Path harus relatif ke root repo, kalau tidak
-          # setup-node gagal mencari .nvmrc (bug yang tertangkap CI #1).
-          # Samakan dengan .nvmrc dan field "engines" di package.json.
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: frontend/${{ matrix.app }}/package-lock.json
@@ -115,16 +129,14 @@ jobs:
       - name: Typecheck
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        # WAJIB `-b`. tsconfig.json di kedua SPA hanya berisi "references",
-        # jadi `tsc --noEmit` tanpa -b tidak memeriksa satu file pun dan
-        # selalu lolos (bug nyata: 4 error pdfjs lolos lewat cara ini).
+        # WAJIB `-b`. tsconfig.json di ketiga SPA memakai project references.
         run: npx tsc -b --noEmit
 
       - name: Build
         run: npm run build
 
   security:
-    name: Security (secrets, vulns, deps)
+    name: Security (secrets, vulns, deps, ops scripts)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -136,6 +148,19 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validasi sintaks skrip operasional deploy/
+        run: |
+          set -euo pipefail
+          for s in deploy/*.sh; do
+            bash -n "$s"
+          done
+          DRY_RUN=1 bash deploy/generate-prod-secrets.sh
+          TMP_ENV="$(mktemp)"
+          trap 'rm -f "$TMP_ENV"' EXIT
+          OUT_FILE="$TMP_ENV" FORCE_OVERWRITE=1 bash deploy/generate-prod-secrets.sh
+          SKIP_LIVE_PROBES=1 ENV_FILE="$TMP_ENV" bash deploy/preflight-check.sh
+          DRY_RUN=1 ADMIN_SSH_CIDR="203.0.113.10/32" bash deploy/setup-ufw-cloudflare.sh >/dev/null
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -156,8 +181,10 @@ jobs:
 
       - name: npm audit (desktop)
         working-directory: frontend/desktop
-        # --omit=dev: hanya dependency produksi yang jadi blocker.
-        # Kerentanan di devDependency dilaporkan tapi tidak menggagalkan build.
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (tablet)
+        working-directory: frontend/tablet
         run: npm audit --omit=dev --audit-level=high
 
       - name: npm audit (mobile)
@@ -167,12 +194,9 @@ jobs:
   e2e:
     name: E2E (Playwright, desktop + mobile)
     runs-on: ubuntu-latest
-    # Suite E2E menembak server sungguhan, jadi butuh Postgres + Redis nyata.
-    # Fixture deterministik dibuat oleh backend/cmd/seed-e2e (idempoten),
-    # sehingga job ini tidak bergantung pada isi DB lokal siapa pun.
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -192,7 +216,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      # .env tidak di-commit (gitignore), jadi konfigurasi lewat env proses.
       APP_ENV: local
       PORT: '8000'
       DB_HOST: 127.0.0.1
@@ -201,10 +224,11 @@ jobs:
       DB_PASSWORD: postgres
       DB_NAME: catavor
       DB_SSLMODE: disable
-      # DB kosong: AutoMigrate wajib jalan agar tabel + migrasi ter-embed terbentuk.
       DB_AUTO_MIGRATE: 'true'
       SKIP_DB_MIGRATE: 'false'
       JWT_SECRET: ci-e2e-jwt-secret-not-for-production-0123456789abcdef
+      MFA_ENCRYPTION_KEY: ci-e2e-mfa-secret-not-for-production-fedcba9876543210
+      REDIS_ADDR: 127.0.0.1:6379
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: '6379'
       CATAVOR_ADMIN_EMAIL: e2e-admin@catavor.test
@@ -240,9 +264,6 @@ jobs:
           tail -50 /tmp/server.log
           exit 1
 
-      # Fixture HARUS setelah server jalan: skema dibuat AutoMigrate saat boot.
-      # seed_master sengaja TIDAK dipakai — ia meng-TRUNCATE seluruh tabel dan
-      # akan menghapus fixture ini.
       - name: Seed fixture E2E
         working-directory: backend
         run: |

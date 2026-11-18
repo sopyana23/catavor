@@ -94,11 +94,33 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		if err := RunMigrations(db); err != nil {
 			return nil, fmt.Errorf("migrasi SQL gagal: %w", err)
 		}
+		if err := EnsureN60MFASchema(db); err != nil {
+			return nil, fmt.Errorf("verifikasi skema N-60 MFA gagal: %w", err)
+		}
 		DB = db
 		log.Info().Msg("PostgreSQL connected successfully (DB auto-migration and seeders SKIPPED, SQL migrations applied)")
 		return db, nil
 	}
 
+	if err := BootstrapProductionSchema(db); err != nil {
+		return nil, err
+	}
+
+	DB = db
+	log.Info().Msg("PostgreSQL connected, normalized schemas auto-migrated, and GIN indexes verified successfully")
+
+	// Seed or Import Data from SQLite (hanya pada jalur DB_AUTO_MIGRATE=true)
+	seedOrImportFromSQLite(db, cfg.SQLiteSourcePath)
+	ensureStoreCategoriesPopulated(db)
+
+	return db, nil
+}
+
+// BootstrapProductionSchema membangun seluruh tabel produksi, indeks performa,
+// matriks dasar RBAC, kebijakan hukum standar, serta menerapkan seluruh migrasi SQL
+// tertanam dan skema N-60 MFA TANPA menyuntikkan akun/toko demo (seedDefaultData).
+// Ideal untuk inisialisasi awal database produksi kosong sebelum DB_AUTO_MIGRATE=false.
+func BootstrapProductionSchema(db *gorm.DB) error {
 	// Ensure critical security and verification tables exist idempotently
 	_ = db.Exec(`CREATE TABLE IF NOT EXISTS email_verification_otps (
 		id BIGSERIAL PRIMARY KEY,
@@ -112,10 +134,14 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	);`).Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_email_purpose ON email_verification_otps(email, purpose);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_otp_expires_at ON email_verification_otps(expires_at);").Error
-	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT DEFAULT 1;").Error
-	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_custom_password BOOLEAN DEFAULT FALSE;").Error
-	_ = db.Exec("UPDATE users SET has_custom_password = TRUE WHERE (google_id IS NULL OR google_id = '') AND has_custom_password = FALSE;").Error
-	_ = db.Exec("UPDATE notifications SET target_type = 'superadmin' WHERE id LIKE 'notif_resubmit_%' AND target_type = 'all';").Error
+	if db.Migrator().HasTable("users") {
+		_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT DEFAULT 1;").Error
+		_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_custom_password BOOLEAN DEFAULT FALSE;").Error
+		_ = db.Exec("UPDATE users SET has_custom_password = TRUE WHERE (google_id IS NULL OR google_id = '') AND has_custom_password = FALSE;").Error
+	}
+	if db.Migrator().HasTable("notifications") {
+		_ = db.Exec("UPDATE notifications SET target_type = 'superadmin' WHERE id LIKE 'notif_resubmit_%' AND target_type = 'all';").Error
+	}
 
 	// Idempotent creation for user_sessions table
 	_ = db.Exec(`CREATE TABLE IF NOT EXISTS user_sessions (
@@ -144,7 +170,7 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 	runPreMigrationRenames(db)
 
 	// 2. Auto-Migrate Schemas to PostgreSQL
-	err = db.AutoMigrate(
+	err := db.AutoMigrate(
 		&models.User{},
 		&models.UserSession{},
 		&models.MFAAuthCompletion{},
@@ -193,29 +219,27 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		&models.AdDailyMetric{},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to auto-migrate PostgreSQL tables: %w", err)
+		return fmt.Errorf("failed to auto-migrate PostgreSQL tables: %w", err)
 	}
 
 	// 3. Post-Migration Optimizations & Compatibility VIEWs
 	runPostMigrationOptimizations(db)
 
 	// 4. Terapkan migrasi SQL yang ditanam ke binary. Dijalankan SETELAH
-	// optimasi pasca-migrasi tetapi SEBELUM seeding, karena seed bergantung
-	// pada skema final.
+	// optimasi pasca-migrasi tetapi SEBELUM seeding akun, karena seed bergantung
+	// pada skema final dan deteksi instalasi baru bergantung pada tabel users kosong.
 	if err := RunMigrations(db); err != nil {
-		return nil, fmt.Errorf("migrasi SQL gagal: %w", err)
+		return fmt.Errorf("migrasi SQL gagal: %w", err)
+	}
+	if err := EnsureN60MFASchema(db); err != nil {
+		return fmt.Errorf("verifikasi skema N-60 MFA gagal: %w", err)
 	}
 
-	DB = db
-	log.Info().Msg("PostgreSQL connected, normalized schemas auto-migrated, and GIN indexes verified successfully")
-
-	// Seed or Import Data from SQLite
-	seedOrImportFromSQLite(db, cfg.SQLiteSourcePath)
 	seedDefaultSafeDomains(db)
 	seedDefaultPolicies(db)
 	ensureStoreCategoriesPopulated(db)
 
-	return db, nil
+	return nil
 }
 
 func seedOrImportFromSQLite(db *gorm.DB, sqlitePath string) {

@@ -7,6 +7,7 @@ useDefault = true
 description = "Global allowlist for safe templates and public OAuth client IDs"
 paths = [
   '''.*\.env\.example$''',
+  '''deploy/env\.production\.example$''',
   '''package-lock\.json''',
   '''go\.sum''',
   '''legacy/laravel/composer\.lock'''

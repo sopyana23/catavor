@@ -1,0 +1,45 @@
+# ==============================================================================
+# Catavor Enterprise Backend — Hardened Systemd Service Unit
+# Instalasi:
+#   sudo cp deploy/catavor.service /etc/systemd/system/catavor.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now catavor.service
+# ==============================================================================
+
+[Unit]
+Description=Catavor Enterprise Multi-Channel Commerce Server
+After=network-online.target postgresql.service redis-server.service redis.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=catavor
+Group=catavor
+WorkingDirectory=/opt/catavor
+Environment="SKIP_DOTENV=true"
+EnvironmentFile=/etc/catavor/.env.production
+ExecStart=/opt/catavor/bin/catavor-server
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=25s
+LimitNOFILE=65535
+
+# --- Systemd Sandboxing & Kernel Hardening ---
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+UMask=0027
+ReadWritePaths=/var/lib/catavor/storage /var/lib/catavor/private_storage
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=catavor
+
+[Install]
+WantedBy=multi-user.target

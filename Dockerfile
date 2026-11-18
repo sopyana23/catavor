@@ -1,62 +1,61 @@
 # syntax=docker/dockerfile:1
 
 # =============================================================================
-# Catavor — image produksi multi-stage
+# Catavor — Image Produksi Multi-Stage (Tri-Frontend + Hardened Distroless)
 #
-# Tahap 1-2 membangun frontend (desktop & mobile) dengan Node sesuai .nvmrc.
-# Tahap 3 mengompilasi backend Go sebagai binary statis.
-# Tahap 4 hanya memuat binary + aset statis + CA certificate, berjalan sebagai
-# user non-root, tanpa shell dan tanpa package manager.
+# Tahap 1-2 membangun ketiga frontend native (desktop, tablet, & mobile)
+# menggunakan Node sesuai .nvmrc.
+# Tahap 3 mengompilasi binary statis server utama + CLI administrasi/break-glass.
+# Tahap 4 memuat binary + bundel statis 3 form-factor + CA certificates dan
+# berjalan sebagai user nonroot (uid 65532) tanpa shell dan tanpa package manager.
 #
-# Build:
-#   docker build -t catavor:<tag> .
-#
-# Runtime wajib menyediakan: JWT_SECRET, DB_* (lihat .env.example).
-# Migrasi TIDAK dijalankan otomatis — DB_AUTO_MIGRATE=false di produksi.
+# Build produksi:
+#   docker build \
+#     --build-arg VITE_GOOGLE_CLIENT_ID="<google-client-id>" \
+#     -t catavor:prod .
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Tahap 1: dependensi frontend
-# Dipisah agar cache layer npm tidak invalid saat source berubah.
+# Tahap 1: dependensi ketiga frontend (desktop, tablet, mobile)
 # -----------------------------------------------------------------------------
 FROM node:22.13.0-bookworm-slim AS node-base
 
 WORKDIR /app
 
-# Manifest saja dulu supaya cache npm install stabil.
-# Root repo tidak punya package.json — hanya .nvmrc sebagai penanda versi.
 COPY .nvmrc ./
 COPY frontend/desktop/package.json frontend/desktop/package-lock.json ./frontend/desktop/
-COPY frontend/mobile/package.json frontend/mobile/package-lock.json ./frontend/mobile/
+COPY frontend/tablet/package.json  frontend/tablet/package-lock.json  ./frontend/tablet/
+COPY frontend/mobile/package.json  frontend/mobile/package-lock.json  ./frontend/mobile/
 
-# `npm ci` memakai lockfile apa adanya → build deterministik.
-# --no-audit/--no-fund hanya memangkas waktu, tidak mengubah isi.
 RUN cd frontend/desktop && npm ci --no-audit --no-fund \
- && cd ../mobile && npm ci --no-audit --no-fund
+ && cd ../tablet        && npm ci --no-audit --no-fund \
+ && cd ../mobile        && npm ci --no-audit --no-fund
 
 # -----------------------------------------------------------------------------
-# Tahap 2: build frontend
-# Output masuk ke frontend/<spa>/public/ sesuai konfigurasi Vite.
+# Tahap 2: build ketiga frontend native
+# Sesuai vite.config.ts masing-masing SPA, outDir berada pada /app/public/<spa>.
 # -----------------------------------------------------------------------------
 FROM node-base AS frontend-build
 
+ARG VITE_GOOGLE_CLIENT_ID=""
+ENV VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 COPY frontend/desktop/ ./frontend/desktop/
-COPY frontend/mobile/ ./frontend/mobile/
+COPY frontend/tablet/  ./frontend/tablet/
+COPY frontend/mobile/  ./frontend/mobile/
 
 RUN cd frontend/desktop && npm run build \
- && cd ../mobile && npm run build
+ && cd ../tablet        && npm run build \
+ && cd ../mobile        && npm run build
 
 # -----------------------------------------------------------------------------
-# Tahap 3: build backend
-# CGO_ENABLED=0 → binary statis, bisa jalan di image minimal tanpa libc.
-# -trimpath menghapus path build lokal dari binary (reproducible + tidak
-# membocorkan struktur direktori mesin build).
+# Tahap 3: build backend Go statis (server + admin-cli untuk operasi break-glass)
 # -----------------------------------------------------------------------------
 FROM golang:1.26-bookworm AS backend-build
 
 WORKDIR /src
 
-# Modul dulu, supaya cache `go mod download` tidak invalid saat source berubah.
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download && go mod verify
 
@@ -66,48 +65,57 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
       -trimpath \
       -ldflags="-s -w" \
       -o /out/catavor-server \
-      ./cmd/server
+      ./cmd/server \
+ && CGO_ENABLED=0 GOOS=linux go build \
+      -trimpath \
+      -ldflags="-s -w" \
+      -o /out/catavor-admin-cli \
+      ./cmd/admin-cli
 
-# Direktori storage dibuat di sini karena image distroless tidak punya shell
-# untuk `mkdir` saat runtime.
-RUN mkdir -p /tmp/storage
+# Siapkan direktori storage publik (0755) dan storage privat bukti bayar/tiket (0700)
+# karena image distroless tidak memiliki shell pada saat runtime.
+RUN mkdir -p /tmp/storage /tmp/private_storage \
+ && chmod 0755 /tmp/storage \
+ && chmod 0700 /tmp/private_storage
 
 # -----------------------------------------------------------------------------
-# Tahap 4: runtime
-# distroless/static sudah membawa CA certificate (dibutuhkan untuk HTTPS
-# keluar: Google OAuth, Sentry, S3) dan /etc/passwd dengan user nonroot.
+# Tahap 4: runtime minimal non-root
 # -----------------------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot AS runtime
 
 WORKDIR /app
 
-# Binary hasil build.
-COPY --from=backend-build /out/catavor-server /app/catavor-server
+COPY --from=backend-build /out/catavor-server    /app/catavor-server
+COPY --from=backend-build /out/catavor-admin-cli /app/catavor-admin-cli
 
-# Aset statis. Struktur dipertahankan karena config men-resolve path relatif
-# terhadap CWD: public/desktop, public/mobile.
-COPY --from=frontend-build /app/frontend/desktop/public /app/public/desktop
-COPY --from=frontend-build /app/frontend/mobile/public /app/public/mobile
+# Bundel statis Tri-Frontend (Desktop, Tablet, Mobile) hasil kompilasi Vite.
+COPY --from=frontend-build /app/public/desktop /app/public/desktop
+COPY --from=frontend-build /app/public/tablet  /app/public/tablet
+COPY --from=frontend-build /app/public/mobile  /app/public/mobile
 
-# Direktori unggahan. Di produksi sebaiknya di-mount volume atau pakai S3
-# (STORAGE_DRIVER=s3); direktori container ini hilang saat container diganti.
-# Distroless tidak punya shell dan tidak bisa membuat direktori, jadi dibuat
-# di tahap build lalu disalin dengan kepemilikan user nonroot (uid 65532).
-COPY --from=backend-build --chown=65532:65532 /tmp/storage /data/storage
+# Direktori storage milik uid/gid 65532 (nonroot).
+COPY --from=backend-build --chown=65532:65532 /tmp/storage         /data/storage
+COPY --from=backend-build --chown=65532:65532 /tmp/private_storage /data/private_storage
 
 USER nonroot:nonroot
 
+# Di dalam jaringan jembatan internal Docker, container perlu menerima koneksi
+# dari container reverse proxy (Caddy/Nginx) sehingga BIND_ADDR diset 0.0.0.0;
+# port 8000 TIDAK dipublikasikan ke 0.0.0.0 host pada docker-compose.prod.yml.
 ENV PORT=8000 \
+    BIND_ADDR=0.0.0.0 \
     APP_ENV=production \
     DB_SSLMODE=require \
+    DB_AUTO_MIGRATE=false \
     STORAGE_DRIVER=local \
-    STORAGE_LOCAL_ROOT=/data/storage
+    STORAGE_LOCAL_ROOT=/data/storage \
+    STORAGE_PRIVATE_ROOT=/data/private_storage \
+    DESKTOP_DIST_DIR=/app/public/desktop \
+    TABLET_DIST_DIR=/app/public/tablet \
+    MOBILE_DIST_DIR=/app/public/mobile
 
-# Storage sebagai volume agar unggahan bertahan antar container.
-VOLUME ["/data/storage"]
+VOLUME ["/data/storage", "/data/private_storage"]
 
 EXPOSE 8000
 
-# distroless tidak punya shell, jadi healthcheck memakai binary itself tidak
-# memungkinkan — endpoint /healthz dipantau oleh orchestrator (lihat deploy.yml).
 ENTRYPOINT ["/app/catavor-server"]

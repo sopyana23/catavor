@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"catavor-backend/internal/models"
+
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
@@ -217,4 +219,116 @@ func baselineMigrations(db *gorm.DB, files []migrationFile) error {
 		}
 		return nil
 	})
+}
+
+// EnsureN60MFASchema memastikan tabel dan kolom prasyarat MFA (N-60) benar-benar
+// terbentuk secara fisik di database, termasuk pada instalasi lama yang sebelumnya
+// melalui jalur baselineMigrations, serta menyelaraskan two_factor_enforced untuk
+// seluruh akun staf platform aktif.
+func EnsureN60MFASchema(db *gorm.DB) error {
+	const n60Version = "20261116_n60_user_two_factor_auth.sql"
+
+	needApply := !db.Migrator().HasColumn(&models.User{}, "two_factor_enabled") ||
+		!db.Migrator().HasTable("two_factor_recovery_tickets") ||
+		!db.Migrator().HasTable("mfa_auth_completions") ||
+		!db.Migrator().HasTable("mfa_account_lockouts") ||
+		!db.Migrator().HasTable("mfa_challenge_failures")
+
+	if needApply {
+		files, err := loadMigrations()
+		if err != nil {
+			return err
+		}
+		var n60 *migrationFile
+		for i := range files {
+			if files[i].version == n60Version {
+				n60 = &files[i]
+				break
+			}
+		}
+		if n60 == nil {
+			return fmt.Errorf("berkas migrasi tertanam %s tidak ditemukan", n60Version)
+		}
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			return tx.Exec(n60.body).Error
+		}); err != nil {
+			return fmt.Errorf("menerapkan skema fisik %s: %w", n60Version, err)
+		}
+		log.Info().Str("migrasi", n60Version).Msg("skema fisik N-60 MFA dipastikan terbentuk")
+	}
+
+	// Backfill idempoten: seluruh role staf platform wajib memiliki two_factor_enforced = true.
+	if err := db.Model(&models.User{}).
+		Where("LOWER(TRIM(platform_role)) IN ? AND two_factor_enforced = ?",
+			[]string{"superadmin", "admin", "compliance", "support", "finance", "content"}, false).
+		Update("two_factor_enforced", true).Error; err != nil {
+		return fmt.Errorf("backfill two_factor_enforced staf gagal: %w", err)
+	}
+
+	return nil
+}
+
+// VerifyProductionSchema memeriksa secara read-only apakah seluruh migrasi SQL
+// tertanam sudah tercatat dengan checksum yang sah DAN tabel/kolom kritis MFA
+// serta sesi benar-benar ada di database.
+func VerifyProductionSchema(db *gorm.DB) ([]string, error) {
+	files, err := loadMigrations()
+	if err != nil {
+		return nil, err
+	}
+
+	var issues []string
+	if !db.Migrator().HasTable("schema_migrations") {
+		issues = append(issues, "tabel schema_migrations belum terbentuk (jalankan admin-cli -migrate atau -bootstrap-schema)")
+	} else {
+		var applied []schemaMigration
+		if err := db.Find(&applied).Error; err != nil {
+			return nil, fmt.Errorf("membaca schema_migrations: %w", err)
+		}
+		known := make(map[string]string, len(applied))
+		for _, a := range applied {
+			known[a.Version] = a.Checksum
+		}
+		for _, f := range files {
+			sum, ok := known[f.version]
+			if !ok {
+				issues = append(issues, fmt.Sprintf("migrasi SQL belum diterapkan: %s", f.version))
+			} else if sum != f.checksum {
+				issues = append(issues, fmt.Sprintf("drift checksum migrasi SQL: %s", f.version))
+			}
+		}
+	}
+
+	requiredTables := []string{
+		"users",
+		"user_sessions",
+		"activity_logs",
+		"two_factor_recovery_tickets",
+		"mfa_auth_completions",
+		"mfa_account_lockouts",
+		"mfa_challenge_failures",
+	}
+	for _, tbl := range requiredTables {
+		if !db.Migrator().HasTable(tbl) {
+			issues = append(issues, fmt.Sprintf("tabel wajib belum ditemukan: %s", tbl))
+		}
+	}
+
+	requiredUserCols := []string{
+		"two_factor_enabled",
+		"two_factor_enforced",
+		"two_factor_secret_enc",
+		"two_factor_backup_codes_hash",
+		"two_factor_setup_jti",
+		"two_factor_last_totp_step",
+	}
+	if db.Migrator().HasTable("users") {
+		for _, col := range requiredUserCols {
+			if !db.Migrator().HasColumn(&models.User{}, col) {
+				issues = append(issues, fmt.Sprintf("kolom wajib users.%s belum ditemukan", col))
+			}
+		}
+	}
+
+	return issues, nil
 }

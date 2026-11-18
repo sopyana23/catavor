@@ -1,0 +1,18 @@
+# ==============================================================================
+# Catavor Weekly Cloudflare Edge CIDR Sync — Systemd Timer
+# Instalasi:
+#   sudo cp deploy/catavor-cloudflare-ips.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now catavor-cloudflare-ips.timer
+# ==============================================================================
+
+[Unit]
+Description=Weekly Sync of Official Cloudflare IPv4/IPv6 Edge Ranges for Catavor
+
+[Timer]
+OnCalendar=Sun *-*-* 03:15:00 UTC
+RandomizedDelaySec=1800
+Persistent=true
+Unit=catavor-cloudflare-ips.service
+
+[Install]
+WantedBy=timers.target
