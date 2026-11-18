@@ -109,9 +109,10 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 	}
 
 	isStaff := user.IsPlatformStaff()
+	canReadStaffTickets := isStaff && (user.IsSuperadmin() || services.GetRBACService().HasPermission(user, "support:tickets:read"))
 
 	baseQuery := h.db.Model(&models.SupportTicket{})
-	if !isStaff {
+	if !canReadStaffTickets {
 		baseQuery = baseQuery.Where("user_id = ?", user.ID)
 	}
 
@@ -142,7 +143,7 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 	}
 	var sgs []statusGroup
 	metricQuery := h.db.Model(&models.SupportTicket{})
-	if !isStaff {
+	if !canReadStaffTickets {
 		metricQuery = metricQuery.Where("user_id = ?", user.ID)
 	}
 	if scopedStoreID != nil {
@@ -329,11 +330,12 @@ func (h *SupportHandler) GetTicketDetails(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var ticket models.SupportTicket
 
-	// Scoped ownership check: user must own the ticket, or be platform staff (lookup by id or ticket_number)
+	// Scoped ownership check: user must own the ticket, or be platform staff with support:tickets:read
 	isStaff := user.IsPlatformStaff()
+	canReadStaffTickets := isStaff && (user.IsSuperadmin() || services.GetRBACService().HasPermission(user, "support:tickets:read"))
 
 	q := h.db.Preload("User").Preload("Store")
-	if !isStaff {
+	if !canReadStaffTickets {
 		q = q.Where("user_id = ?", user.ID)
 	}
 	if num, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64); err == nil && num > 0 {
@@ -502,15 +504,19 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	var storeID *uint
 	targetSlug := strings.TrimSpace(req.StoreSlug)
 
+	canScopeStaffStore := isStaff && (user.IsSuperadmin() ||
+		services.GetRBACService().HasPermission(user, "support:tickets:reply") ||
+		services.GetRBACService().HasPermission(user, "support:tickets:read"))
+
 	if targetSlug != "" {
 		if err := h.db.Where("slug = ?", targetSlug).First(&store).Error; err == nil && store.ID != 0 {
-			if store.UserID == user.ID || isStaff {
+			if store.UserID == user.ID || canScopeStaffStore {
 				storeID = &store.ID
 			}
 		}
 	} else if req.StoreID != nil && *req.StoreID != 0 {
 		if err := h.db.Where("id = ?", *req.StoreID).First(&store).Error; err == nil && store.ID != 0 {
-			if store.UserID == user.ID || isStaff {
+			if store.UserID == user.ID || canScopeStaffStore {
 				storeID = &store.ID
 			}
 		}
@@ -2478,8 +2484,9 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 
 	// 3. Strict RBAC & Internal-Note Confidentiality Check
 	// SECURITY: Lampiran catatan internal staf (is_internal_note = true) tidak boleh diakses
-	// ataupun di-oracle keberadaannya oleh merchant pemilik tiket sekalipun.
-	if !isStaff && (attachment.Message == nil || attachment.Message.IsInternalNote) {
+	// ataupun di-oracle keberadaannya oleh merchant pemilik tiket sekalipun atau staf tanpa izin support:tickets:read.
+	canReadSupportStaff := isStaff && (user.IsSuperadmin() || services.GetRBACService().HasPermission(user, "support:tickets:read"))
+	if !canReadSupportStaff && (attachment.Message == nil || attachment.Message.IsInternalNote) {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Lampiran dokumen tidak ditemukan.",
@@ -2493,7 +2500,7 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 			isOwner = true
 		}
 		if ticket.StoreID != nil && *ticket.StoreID > 0 {
-			if activeStore, ok := c.Locals("store").(*models.Store); ok && activeStore != nil && activeStore.ID == *ticket.StoreID {
+			if activeStore, ok := c.Locals("store").(*models.Store); ok && activeStore != nil && activeStore.ID == *ticket.StoreID && activeStore.UserID == user.ID {
 				isOwner = true
 			} else {
 				var count int64
@@ -2505,7 +2512,7 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 		}
 	}
 
-	if !isStaff && !isOwner {
+	if !canReadSupportStaff && !isOwner {
 		if !numericLookup {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"success": false,

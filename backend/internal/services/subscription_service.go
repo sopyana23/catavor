@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -1127,28 +1128,35 @@ func ResetSubscriptionOrderToPending(db *gorm.DB, orderID uint, adminID uint) (*
 }
 
 // ApproveSubscriptionOrder confirms payment and activates the subscription plan for an order
+// with strict row-level locking (clause.Locking{Strength: "UPDATE"}) inside an ACID transaction.
 func ApproveSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint) (*models.SubscriptionOrder, *StoreQuotaInfo, error) {
+	if db == nil {
+		return nil, nil, errors.New("database connection unavailable")
+	}
+
 	var order models.SubscriptionOrder
-	if err := db.First(&order, orderID).Error; err != nil {
-		return nil, nil, fmt.Errorf("invoice langganan tidak ditemukan: %w", err)
-	}
-
-	if order.PaymentStatus == "paid" {
-		quota, _ := GetStoreQuotaInfo(db, order.StoreID)
-		return &order, quota, nil
-	}
-
+	var quota *StoreQuotaInfo
 	now := time.Now().UTC()
-	order.PaymentStatus = "paid"
-	order.PaidAt = &now
-	if adminID > 0 {
-		order.ApprovedByUserID = &adminID
-	}
 
 	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
-	// Mutasi status invoice dan aktivasi paket toko wajib atomik (anti-inconsistent state)
-	var quota *StoreQuotaInfo
+	// Mutasi status invoice dan aktivasi paket toko wajib atomik dengan row lock (anti-double-extension race)
 	txErr := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&order, orderID).Error; err != nil {
+			return fmt.Errorf("invoice langganan tidak ditemukan: %w", err)
+		}
+
+		if order.PaymentStatus == "paid" {
+			var qErr error
+			quota, qErr = GetStoreQuotaInfo(tx, order.StoreID)
+			return qErr
+		}
+
+		order.PaymentStatus = "paid"
+		order.PaidAt = &now
+		if adminID > 0 {
+			order.ApprovedByUserID = &adminID
+		}
+
 		if err := tx.Save(&order).Error; err != nil {
 			return fmt.Errorf("gagal memperbarui status invoice: %w", err)
 		}

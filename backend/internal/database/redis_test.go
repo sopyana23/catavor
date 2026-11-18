@@ -70,7 +70,7 @@ func TestIsProductionEnv(t *testing.T) {
 		"  Prod  ":    true,
 		"local":       false,
 		"":            false,
-		"staging":     false,
+		"staging":     true,
 		"development": false,
 		"production2": false,
 	}

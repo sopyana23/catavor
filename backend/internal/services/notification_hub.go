@@ -317,7 +317,32 @@ func (h *NotificationHub) isClientTargetMatch(client *SSEClient, notif *models.N
 		return notif.TargetID > 0 && client.UserID == notif.TargetID
 	case "role", "platform_role", "superadmin":
 		return models.IsPlatformStaffRole(client.PlatformRole)
+	case "specific":
+		if notif.TargetRecipients == "" {
+			return false
+		}
+		type RecipientItem struct {
+			Type string `json:"type"`
+			ID   uint   `json:"id"`
+		}
+		var items []RecipientItem
+		if err := json.Unmarshal([]byte(notif.TargetRecipients), &items); err == nil && len(items) > 0 {
+			for _, item := range items {
+				if item.Type == "store" && client.StoreID > 0 && item.ID == client.StoreID {
+					return true
+				}
+				if item.Type == "user" && client.UserID > 0 && item.ID == client.UserID {
+					return true
+				}
+			}
+		}
+		return false
 	default:
-		return true
+		return false
 	}
+}
+
+// IsClientTargetMatchForTest exposes target match checking for security regression tests.
+func (h *NotificationHub) IsClientTargetMatchForTest(client *SSEClient, notif *models.Notification) bool {
+	return h.isClientTargetMatch(client, notif)
 }

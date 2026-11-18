@@ -479,14 +479,6 @@ func main() {
 	api.Post("/telemetry/search", middleware.TelemetryRateLimiter(), analyticsHandler.TrackSearchEvent)
 	api.Post("/client-logs", middleware.PublicSubmissionRateLimiter(), handlers.LogClientError)
 
-	// Public Market Intelligence & Macro Trends (Aggregated & Zero PII)
-	api.Get("/market-intelligence", analyticsHandler.GetMarketIntelligenceSummary)
-	api.Get("/market-intelligence/summary", analyticsHandler.GetMarketIntelligenceSummary)
-	api.Get("/market-intelligence/export", middleware.ExportRateLimiter(), analyticsHandler.ExportMarketIntelligenceData)
-	api.Get("/market-intelligence/trending-keywords", analyticsHandler.GetTrendingKeywords)
-	api.Get("/market-intelligence/demand-gaps", analyticsHandler.GetDemandGaps)
-	api.Get("/market-intelligence/price-benchmarks", analyticsHandler.GetCategoryPriceBenchmarks)
-
 	// Public Master Safe Domains (Ecosystem Whitelist)
 	api.Get("/safe-domains", safeDomainHandler.GetPublicSafeDomains)
 	api.Get("/public/safe-domains", safeDomainHandler.GetPublicSafeDomains)
@@ -551,6 +543,7 @@ func main() {
 		authOnly.Post("/profile", middleware.AuthRateLimiter(), authHandler.UpdateProfile)
 		authOnly.Put("/profile", middleware.AuthRateLimiter(), authHandler.UpdateProfile)
 		authOnly.Post("/profile/request-password-otp", middleware.AuthRateLimiter(), authHandler.RequestProfilePasswordOTP)
+		authOnly.Post("/profile/request-email-otp", middleware.AuthRateLimiter(), authHandler.RequestEmailChangeOTP)
 
 		// Multi-Store User Management
 		authOnly.Get("/user/stores", storeHandler.GetMyStores)
@@ -668,6 +661,14 @@ func main() {
 		guarded.Get("/analytics", analyticsHandler.GetStoreAnalytics)
 		guarded.Get("/admin/analytics/export", middleware.ExportRateLimiter(), analyticsHandler.ExportStoreAnalytics)
 		guarded.Get("/analytics/export", middleware.ExportRateLimiter(), analyticsHandler.ExportStoreAnalytics)
+
+		// Merchant Market Intelligence & Macro Trends (Aggregated, k-anonymity >= 3)
+		guarded.Get("/market-intelligence", analyticsHandler.GetMarketIntelligenceSummary)
+		guarded.Get("/market-intelligence/summary", analyticsHandler.GetMarketIntelligenceSummary)
+		guarded.Get("/market-intelligence/export", middleware.ExportRateLimiter(), analyticsHandler.ExportMarketIntelligenceData)
+		guarded.Get("/market-intelligence/trending-keywords", analyticsHandler.GetTrendingKeywords)
+		guarded.Get("/market-intelligence/demand-gaps", analyticsHandler.GetDemandGaps)
+		guarded.Get("/market-intelligence/price-benchmarks", analyticsHandler.GetCategoryPriceBenchmarks)
 		// Settings & Policies
 		// SECURITY (N-18): menulis pengaturan platform adalah wewenang "system",
 		// bukan merchant. Sebelumnya hanya dijaga StoreOwnerRequired sehingga

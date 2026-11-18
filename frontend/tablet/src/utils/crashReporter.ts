@@ -31,7 +31,7 @@ export function reportClientError(report: CrashReport): void {
   const payload = JSON.stringify({
     ...report,
     device: 'tablet',
-    url: window.location.href,
+    url: `${window.location.origin}${window.location.pathname}`,
     userAgent: navigator.userAgent,
     timestamp: new Date().toISOString()
   });

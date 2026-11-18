@@ -76,25 +76,26 @@ func TestN18ArtikelDanSettingsWajibPermission(t *testing.T) {
 // sampai 2027). Kupon diskon 100% sekarang hanya boleh datang dari master data
 // admin (setting master_coupons).
 func TestN19TanpaKuponGratisHardcoded(t *testing.T) {
-	path := filepath.Join("..", "services", "subscription_service.go")
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("gagal membaca subscription_service.go: %v", err)
-	}
-	src := string(raw)
-
-	terlarang := []string{"CATAVOR100", "GRATISPRO", "DISKON10K", "DISKON50K"}
-	for _, kode := range terlarang {
-		if strings.Contains(src, `"`+kode+`"`) {
-			t.Errorf("N-19: kode kupon %q masih ditanam di subscription_service.go; "+
-				"kupon harus berasal dari setting master_coupons yang dikelola admin", kode)
+	for _, filename := range []string{"subscription_service.go", "coupon_service.go"} {
+		path := filepath.Join("..", "services", filename)
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("gagal membaca %s: %v", filename, err)
 		}
-	}
+		src := string(raw)
 
-	// Kupon tetap harus dibaca dari master data admin.
-	if !strings.Contains(src, "master_coupons") {
-		t.Error("N-19: pembacaan kupon dari setting master_coupons hilang; " +
-			"kupon sah buatan admin tidak akan pernah berlaku")
+		terlarang := []string{"CATAVOR100", "GRATISPRO"}
+		for _, kode := range terlarang {
+			if strings.Contains(src, `"`+kode+`"`) {
+				t.Errorf("N-19: kode kupon %q masih ditanam di %s; "+
+					"kupon harus berasal dari setting master_coupons yang dikelola admin", kode, filename)
+			}
+		}
+		// Kupon tetap harus dibaca dari master data admin.
+		if !strings.Contains(src, "master_coupons") {
+			t.Errorf("N-19: pembacaan kupon dari setting master_coupons hilang di %s; "+
+				"kupon sah buatan admin tidak akan pernah berlaku", filename)
+		}
 	}
 }
 

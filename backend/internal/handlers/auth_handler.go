@@ -125,6 +125,8 @@ type GoogleAuthRequest struct {
 type UpdateProfileRequest struct {
 	Name            string `json:"name"`
 	Email           string `json:"email"`
+	NewEmailToken   string `json:"new_email_token,omitempty"`
+	NewEmailOTP     string `json:"new_email_otp,omitempty"`
 	CurrentPassword string `json:"current_password"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
@@ -1440,6 +1442,33 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 
 	// CASE A: USER ALREADY EXISTS (LOGIN FLOW)
 	if err == nil {
+		// SECURITY (N-14 & Cloudflare Audit): cegah pengambilalihan akun via Google SSO mismatch.
+		// Jika akun sudah memiliki google_id tertaut, google_id kredensial Google saat ini WAJIB cocok.
+		if user.GoogleID != nil && *user.GoogleID != "" && *user.GoogleID != googleID {
+			logAuthEvent(h.db, c, "AUTH_GOOGLE_IDENTITY_MISMATCH", "Percobaan Google SSO dengan ID Google berbeda ditolak", &user, map[string]interface{}{
+				"method":             "google_sso",
+				"stored_google_id":   *user.GoogleID,
+				"incoming_google_id": googleID,
+			})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "GOOGLE_IDENTITY_MISMATCH",
+				"message": "Autentikasi gagal: identitas akun Google tidak cocok dengan akun yang telah terdaftar.",
+			})
+		}
+		if strings.ToLower(strings.TrimSpace(user.Email)) != email {
+			logAuthEvent(h.db, c, "AUTH_GOOGLE_EMAIL_MISMATCH", "Percobaan Google SSO dengan email berbeda ditolak", &user, map[string]interface{}{
+				"method":         "google_sso",
+				"stored_email":   user.Email,
+				"incoming_email": email,
+			})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "GOOGLE_EMAIL_MISMATCH",
+				"message": "Autentikasi gagal: email akun Google tidak cocok dengan akun yang terhubung.",
+			})
+		}
+
 		// N-14: akun yang emailnya belum diverifikasi tidak boleh diambil alih
 		// lewat Google SSO. Penjagaan hanya berlaku bila akun ini BELUM pernah
 		// ditautkan ke Google (google_id kosong). Akun yang sudah punya
@@ -1641,8 +1670,8 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 	}
 
 	// CASE B: NEW USER (REGISTRATION FLOW)
-	storeName := strings.TrimSpace(req.StoreName)
-	storeSlug := cleanSlug(req.StoreSlug)
+	storeName := security.SanitizePlainText(req.StoreName, 100)
+	storeSlug := cleanSlug(security.SanitizePlainText(req.StoreSlug, 50))
 
 	if storeName == "" || storeSlug == "" {
 		regToken, _ := h.IssueGoogleRegistrationToken(email, googleID)
@@ -1660,6 +1689,20 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 				"avatar":                    avatar,
 				"google_registration_token": regToken,
 			},
+		})
+	}
+
+	if len(storeSlug) < 3 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Link username toko minimal 3 karakter.",
+		})
+	}
+
+	if IsReservedSlug(storeSlug) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Link username toko \"" + storeSlug + "\" dicadangkan untuk sistem platform.",
 		})
 	}
 
@@ -1812,6 +1855,11 @@ func claimsEmailVerified(v any) bool {
 
 // verifyGoogleCredential cryptographically validates Google ID Token or Access Token via official Google endpoints
 func verifyGoogleCredential(credentialStr string, expectedClientID string) (email, name, googleID, avatar string, err error) {
+	expectedClientID = strings.TrimSpace(expectedClientID)
+	if expectedClientID == "" {
+		return "", "", "", "", fmt.Errorf("layanan Google SSO belum dikonfigurasi pada server (GOOGLE_CLIENT_ID kosong)")
+	}
+
 	credentialStr = strings.TrimSpace(credentialStr)
 	if credentialStr == "" {
 		return "", "", "", "", fmt.Errorf("kredensial Google kosong")
@@ -2130,36 +2178,47 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
-	// Revoke current JWT token via Blacklist (Redis & Memory) and Database
-	if claims, ok := c.Locals("claims").(*middleware.JWTClaims); ok && claims != nil {
-		if claims.ID != "" {
-			ttl := 72 * time.Hour
-			if claims.ExpiresAt != nil {
-				remaining := time.Until(claims.ExpiresAt.Time)
-				if remaining > 0 {
-					ttl = remaining
-				}
-			}
-			database.BlacklistToken(claims.ID, ttl)
-			middleware.RevokeSessionFingerprint(claims.ID)
-			_ = services.RevokeSessionByTokenID(h.db, claims.ID)
+	revokeTokenStr := func(rawToken string) {
+		trimmed := strings.TrimSpace(rawToken)
+		if trimmed == "" {
+			return
 		}
-	} else {
-		// Fallback: extract optional claims if Locals not populated
-		claims := middleware.ExtractOptionalClaims(c, h.cfg)
-		if claims != nil && claims.ID != "" {
-			ttl := 72 * time.Hour
-			if claims.ExpiresAt != nil {
-				remaining := time.Until(claims.ExpiresAt.Time)
-				if remaining > 0 {
-					ttl = remaining
+		if strings.HasPrefix(strings.ToLower(trimmed), "bearer ") {
+			trimmed = strings.TrimSpace(trimmed[7:])
+		}
+		if h.cfg != nil && h.cfg.JWTSecret != "" {
+			if claims, err := middleware.ParseJWTClaims(trimmed, h.cfg.JWTSecret); err == nil && claims != nil && claims.ID != "" {
+				ttl := 72 * time.Hour
+				if claims.ExpiresAt != nil {
+					remaining := time.Until(claims.ExpiresAt.Time)
+					if remaining > 0 {
+						ttl = remaining
+					}
 				}
+				database.BlacklistToken(claims.ID, ttl)
+				middleware.RevokeSessionFingerprint(claims.ID)
+				_ = services.RevokeSessionByTokenID(h.db, claims.ID)
 			}
-			database.BlacklistToken(claims.ID, ttl)
-			middleware.RevokeSessionFingerprint(claims.ID)
-			_ = services.RevokeSessionByTokenID(h.db, claims.ID)
 		}
 	}
+
+	// Revoke current JWT token via Blacklist (Redis & Memory) and Database
+	if claims, ok := c.Locals("claims").(*middleware.JWTClaims); ok && claims != nil && claims.ID != "" {
+		ttl := 72 * time.Hour
+		if claims.ExpiresAt != nil {
+			remaining := time.Until(claims.ExpiresAt.Time)
+			if remaining > 0 {
+				ttl = remaining
+			}
+		}
+		database.BlacklistToken(claims.ID, ttl)
+		middleware.RevokeSessionFingerprint(claims.ID)
+		_ = services.RevokeSessionByTokenID(h.db, claims.ID)
+	}
+
+	// Double-revocation: ensure both cookie session and Authorization header token are revoked
+	revokeTokenStr(c.Cookies(middleware.SessionCookieName))
+	revokeTokenStr(c.Get("Authorization"))
 
 	// SECURITY (M1): hapus cookie sesi HttpOnly dan cookie registrasi Google saat logout.
 	clearSessionCookie(c, h.cfg)
@@ -2360,7 +2419,25 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			})
 		}
 		if emailChanging {
+			// Verifikasi bahwa pengguna sah memiliki akses ke alamat email baru (Anti Pre-Account Takeover)
+			emailVerified := false
+			if strings.TrimSpace(req.NewEmailToken) != "" {
+				emailVerified = services.GetOTPService().ValidateAndConsumeToken(pendingNewEmail, req.NewEmailToken, "email_change")
+			} else if strings.TrimSpace(req.NewEmailOTP) != "" {
+				if _, err := services.GetOTPService().VerifyOTP(pendingNewEmail, req.NewEmailOTP, "email_change"); err == nil {
+					emailVerified = true
+				}
+			}
+			if !emailVerified {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"code":    "EMAIL_OTP_VERIFICATION_REQUIRED",
+					"message": "Perubahan alamat email memerlukan verifikasi OTP ke alamat email baru tersebut. Silakan minta kode verifikasi email terlebih dahulu.",
+				})
+			}
 			user.Email = pendingNewEmail
+			nowUTC := time.Now().UTC()
+			user.EmailVerifiedAt = &nowUTC
 		}
 
 		mfaActive := mfa.RequiresMFA(user, h.cfg != nil && h.cfg.MFAEnabled)
@@ -3004,6 +3081,70 @@ func (h *AuthHandler) RequestProfilePasswordOTP(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": fmt.Sprintf("Kode verifikasi telah dikirimkan ke %s.", user.Email),
+	})
+}
+
+// RequestEmailChangeOTP sends an OTP to a prospective new email address to authorize an email change.
+func (h *AuthHandler) RequestEmailChangeOTP(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || user.ID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi sesi diperlukan.",
+		})
+	}
+
+	var req struct {
+		NewEmail string `json:"new_email"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data tidak valid.",
+		})
+	}
+
+	newEmail := strings.ToLower(strings.TrimSpace(req.NewEmail))
+	if !security.ValidateEmail(newEmail) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Format alamat email baru tidak valid.",
+		})
+	}
+
+	if newEmail == strings.ToLower(strings.TrimSpace(user.Email)) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Alamat email baru sama dengan alamat email saat ini.",
+		})
+	}
+
+	var cnt int64
+	h.db.Model(&models.User{}).Where("LOWER(email) = ? AND id != ?", newEmail, user.ID).Count(&cnt)
+	if cnt > 0 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Alamat email sudah digunakan oleh pengguna lain.",
+		})
+	}
+
+	_, err := services.GetOTPService().GenerateAndSendEmailChangeOTP(newEmail, user.Name)
+	if err != nil {
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"success": false,
+			"message": safeErrMsg(err, "Permintaan kode verifikasi tidak dapat diproses."),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Kode verifikasi perubahan email telah dikirimkan ke %s.", newEmail),
 	})
 }
 

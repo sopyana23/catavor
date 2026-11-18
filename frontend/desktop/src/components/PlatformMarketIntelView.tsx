@@ -240,8 +240,8 @@ export const PlatformMarketIntelView: React.FC<PlatformMarketIntelViewProps> = (
           setLastAggregatedAt(mainJson.data.generated_at);
         }
       } else {
-        // Fallback to public route if admin route requires different scope
-        const pubRes = await fetch('/api/market-intelligence');
+        // Fallback to merchant route if admin route requires different scope
+        const pubRes = await fetch('/api/market-intelligence', { headers, credentials: 'include' });
         const pubJson = await pubRes.json();
         if (pubJson.success && pubJson.data) {
           setData(pubJson.data);

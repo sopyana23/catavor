@@ -86,7 +86,7 @@ func (h *StoreHandler) isMerchantRequester(c *fiber.Ctx, store *models.Store, pr
 	if len(preExtractedClaims) > 0 && preExtractedClaims[0] != nil {
 		claims = preExtractedClaims[0]
 	} else {
-		claims = middleware.ExtractOptionalClaims(c, h.cfg)
+		claims = middleware.ExtractVerifiedOptionalClaims(c, h.db, h.cfg)
 	}
 	if claims == nil {
 		return false
@@ -259,7 +259,7 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	//   sehingga merchant/staf tidak pernah membaca varian masked dari cache publik.
 	// - Predikat Tulis (!isMerchant): Hanya merchant pemilik atau staf yang dilarang menulis cache (karena data mereka
 	//   mengandung status warning asli). Pembeli yang login menerima DTO masked (active) sehingga aman disimpan ke cache publik.
-	claims := middleware.ExtractOptionalClaims(c, h.cfg)
+	claims := middleware.ExtractVerifiedOptionalClaims(c, h.db, h.cfg)
 	isAuthRequester := claims != nil && claims.UserID > 0
 
 	profileCacheKey := fmt.Sprintf("catavor:store:%s:profile", slug)
@@ -607,7 +607,7 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		})
 	}
 
-	if store.DormancyStatus == "suspended" {
+	if store.IsSuspended || store.DormancyStatus == "suspended" {
 		return c.JSON(fiber.Map{
 			"success": true,
 			"count":   0,

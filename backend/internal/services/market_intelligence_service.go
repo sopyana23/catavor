@@ -229,8 +229,8 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 	var catRows []CatRow
 	_ = db.Raw(`
 		SELECT 
-			c.id as category_id,
-			c.name as category_name,
+			MIN(c.id) as category_id,
+			COALESCE(c.name, 'Umum') as category_name,
 			COUNT(DISTINCT p.id) as product_count,
 			COALESCE(AVG(p.price), 0) as avg_price,
 			COALESCE(SUM(pda.views), 0) as total_views,
@@ -238,8 +238,8 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 		FROM categories c
 		LEFT JOIN products p ON p.category_id = c.id AND p.is_active = true
 		LEFT JOIN product_daily_analytics pda ON pda.product_id = p.id AND pda.date >= ?
-		GROUP BY c.id, c.name
-		HAVING COUNT(DISTINCT p.id) > 0
+		GROUP BY c.name
+		HAVING COUNT(DISTINCT p.store_id) >= 3
 		ORDER BY product_count DESC
 		LIMIT 15
 	`, startDate).Scan(&catRows).Error
@@ -290,6 +290,7 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 		LEFT JOIN categories c ON c.id = p.category_id
 		WHERE p.is_active = true AND p.price > 0
 		GROUP BY p.product_type, c.name
+		HAVING COUNT(DISTINCT p.store_id) >= 3
 		ORDER BY sample_count DESC
 		LIMIT 15
 	`).Scan(&priceRows).Error

@@ -316,20 +316,24 @@ func (h *NotificationHandler) notificationVisibleTo(storeID, userID uint, storeC
 		if storeCutoff.Before(thirtyDaysAgo) {
 			storeCutoff = thirtyDaysAgo
 		}
+		targetStorePattern1 := fmt.Sprintf(`%%"id":%d,%%`, storeID)
+		targetStorePattern2 := fmt.Sprintf(`%%"id":%d}%%`, storeID)
 		q = q.Where(`(
 			(notifications.target_type = 'single_store' AND notifications.target_id = ?)
-			OR (notifications.target_type = 'specific' AND notifications.target_recipients LIKE ?)
+			OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? OR notifications.target_recipients LIKE ?))
 			OR (notifications.target_type = 'all' AND notifications.created_at >= ?)
 			OR (notifications.target_type = 'plan' AND notifications.created_at >= ?)
 			OR (notifications.target_type = 'single_user' AND notifications.target_id = ? AND notifications.created_at >= ?)
-		)`, storeID, fmt.Sprintf(`%%"id":%d%%`, storeID), storeCutoff, storeCutoff, userID, storeCutoff)
+		)`, storeID, targetStorePattern1, targetStorePattern2, storeCutoff, storeCutoff, userID, storeCutoff)
 	} else {
+		targetUserPattern1 := fmt.Sprintf(`%%"id":%d,%%`, userID)
+		targetUserPattern2 := fmt.Sprintf(`%%"id":%d}%%`, userID)
 		q = q.Where(`(
 			notifications.target_type = 'all'
 			OR (notifications.target_type = 'single_user' AND notifications.target_id = ?)
 			OR (notifications.target_type = 'single_store' AND notifications.target_id IN (SELECT id FROM stores WHERE user_id = ?))
-			OR (notifications.target_type = 'specific' AND notifications.target_recipients LIKE ?)
-		)`, userID, userID, fmt.Sprintf(`%%"id":%d%%`, userID))
+			OR (notifications.target_type = 'specific' AND (notifications.target_recipients LIKE ? OR notifications.target_recipients LIKE ?))
+		)`, userID, userID, targetUserPattern1, targetUserPattern2)
 	}
 
 	var count int64
@@ -1050,19 +1054,23 @@ func (h *NotificationHandler) SuperadminGetOne(c *fiber.Ctx) error {
 	}
 	var result BroadcastItemWithReads
 
-	err := h.DB.Table("notifications").
+	q := h.DB.Table("notifications").
 		Select(`notifications.*, COALESCE(reads.cnt, 0) as read_count`).
 		Joins(`LEFT JOIN (
 			SELECT notification_id, COUNT(id) as cnt 
 			FROM notification_reads 
 			GROUP BY notification_id
 		) reads ON reads.notification_id = notifications.id`).
-		// L1: escape wildcard. Tanpa ini, cleanID="%" mencocokkan notifikasi
-		// mana pun (ambiguous match). Dua kondisi pertama sudah exact match,
-		// yang ketiga adalah prefix lookup sehingga butuh escape.
-		Where("notifications.id = ? OR notifications.id = ? OR notifications.id LIKE ?",
-			notifID, cleanID, escapeLikePattern(cleanID)+"%").
-		First(&result).Error
+		Where("notifications.is_broadcast = ? OR notifications.created_by > 0", true)
+
+	if len(cleanID) >= 8 {
+		q = q.Where("(notifications.id = ? OR notifications.id = ? OR notifications.id LIKE ?)",
+			notifID, cleanID, escapeLikePattern(cleanID)+"%")
+	} else {
+		q = q.Where("(notifications.id = ? OR notifications.id = ?)", notifID, cleanID)
+	}
+
+	err := q.First(&result).Error
 
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Siaran tidak ditemukan"})
@@ -1087,12 +1095,17 @@ func (h *NotificationHandler) SuperadminDelete(c *fiber.Ctx) error {
 	cleanID = strings.TrimSpace(cleanID)
 
 	var notif models.Notification
-	targetID := notifID
-	// L1: escape wildcard pada prefix lookup agar "%" tidak mencocokkan sembarang notifikasi.
-	if err := h.DB.Where("id = ? OR id = ? OR id LIKE ?",
-		notifID, cleanID, escapeLikePattern(cleanID)+"%").First(&notif).Error; err == nil {
-		targetID = notif.ID
+	delQ := h.DB.Where("is_broadcast = ? OR created_by > 0", true)
+	if len(cleanID) >= 8 {
+		delQ = delQ.Where("(id = ? OR id = ? OR id LIKE ?)", notifID, cleanID, escapeLikePattern(cleanID)+"%")
+	} else {
+		delQ = delQ.Where("(id = ? OR id = ?)", notifID, cleanID)
 	}
+
+	if err := delQ.First(&notif).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Siaran tidak ditemukan"})
+	}
+	targetID := notif.ID
 
 	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
 	txErr := h.DB.Transaction(func(tx *gorm.DB) error {

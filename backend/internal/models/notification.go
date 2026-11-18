@@ -9,7 +9,7 @@ type Notification struct {
 	TargetPlanCode        string     `json:"target_plan_code" gorm:"type:varchar(64);index"`          // e.g. 'free', 'pro_starter', 'pro_business' (dynamic plan code)
 	TargetID                  uint       `json:"target_id" gorm:"index;default:0"`                        // StoreID or UserID if single target (legacy)
 	TargetName                string     `json:"target_name" gorm:"type:varchar(255)"`                   // Store Name or User Name/Email for display
-	TargetRecipients          string     `json:"target_recipients" gorm:"type:text"`                      // JSON encoded list of target recipients: [{"type":"store"|"user","id":12,"name":"..."}]
+	TargetRecipients          string     `json:"-" gorm:"type:text"`                                      // JSON encoded list of target recipients (hidden from client JSON)
 	IsBroadcast               bool       `json:"is_broadcast" gorm:"default:false;index"`                 // True if manually sent via Admin Broadcast
 	Title                     string     `json:"title" gorm:"type:varchar(255);not null"`
 	Category                  string     `json:"category" gorm:"type:varchar(32);default:'SISTEM'"`       // 'PANDUAN', 'PROMOSI', 'INVENTARIS', 'SISTEM', 'KEAMANAN', 'PENGUMUMAN', 'PEMELIHARAAN'

@@ -246,17 +246,26 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	}
 
 	// SECURITY (N-09): unggahan ke namespace platform (platform/branding,
-	// platform/partners) adalah wewenang staf platform. Sebelumnya merchant
-	// bisa mengunggah ke sana: tidak ada cek peran, dan isPlatformScope
-	// membuat berkas TIDAK dihitung kuota penyimpanan (bypass kuota), serta
-	// mencemari aset branding platform. Hapus (DeleteFile) sudah menolak,
-	// sehingga unggah harus menolak juga (simetris).
-	if isPlatformScope && !isStaffUser {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"success": false,
-			"code":    "PLATFORM_SCOPE_FORBIDDEN",
-			"message": "Unggahan aset platform hanya diizinkan untuk staf platform.",
-		})
+	// platform/partners) adalah wewenang staf platform berizin.
+	if isPlatformScope {
+		if !isStaffUser {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "PLATFORM_SCOPE_FORBIDDEN",
+				"message": "Unggahan aset platform hanya diizinkan untuk staf platform.",
+			})
+		}
+		userVal, _ := c.Locals("user").(*models.User)
+		canManagePlatform := userVal != nil && (userVal.IsSuperadmin() ||
+			services.GetRBACService().HasPermission(userVal, "system:settings:manage") ||
+			services.GetRBACService().HasPermission(userVal, "finance:settings:manage"))
+		if !canManagePlatform {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "PLATFORM_SCOPE_FORBIDDEN",
+				"message": "Akses Ditolak: Anda memerlukan izin 'system:settings:manage' atau 'finance:settings:manage' untuk mengunggah aset platform atau artikel.",
+			})
+		}
 	}
 
 	var storeID uint = 0
@@ -268,13 +277,20 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		}
 		if requestedSlug != "" {
 			var s models.Store
-			// Validasi bahwa toko dengan slug tersebut dimiliki oleh user atau diakses oleh admin
+			// Validasi bahwa toko dengan slug tersebut dimiliki oleh user atau diakses oleh superadmin
+			userVal, _ := c.Locals("user").(*models.User)
+			isSuper := userVal != nil && userVal.IsSuperadmin()
 			query := h.db.Where("LOWER(slug) = ?", strings.ToLower(requestedSlug))
-			if !isStaffUser && userID > 0 {
+			if !isSuper && userID > 0 {
 				query = query.Where("user_id = ?", userID)
 			}
 			if err := query.First(&s).Error; err == nil {
 				storeID = s.ID
+			} else if !isSuper {
+				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"success": false,
+					"message": "Akses ditolak: Anda tidak memiliki otoritas atas toko tersebut.",
+				})
 			}
 		}
 
@@ -458,6 +474,16 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 
 	var expectedPrefix string
 	if isStaffDelete && (strings.HasPrefix(ownerScopedKey, "platform/") || strings.HasPrefix(ownerScopedKey, "articles/")) {
+		userVal, _ := c.Locals("user").(*models.User)
+		canManagePlatform := userVal != nil && (userVal.IsSuperadmin() ||
+			services.GetRBACService().HasPermission(userVal, "system:settings:manage") ||
+			services.GetRBACService().HasPermission(userVal, "finance:settings:manage"))
+		if !canManagePlatform {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Akses Ditolak: Anda memerlukan izin 'system:settings:manage' atau 'finance:settings:manage' untuk menghapus aset platform atau artikel.",
+			})
+		}
 		if strings.HasPrefix(ownerScopedKey, "articles/") {
 			expectedPrefix = "articles"
 		} else {

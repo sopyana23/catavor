@@ -616,6 +616,10 @@ func ValidatePaymentProofURL(raw string) (string, error) {
 
 	// Format 1: Data URL base64 gambar
 	if strings.HasPrefix(trimmed, "data:") {
+		// Batasi panjang string data URL maksimal 3MB (~2MB ukuran payload gambar asli)
+		if len(trimmed) > 3_000_000 {
+			return "", fmt.Errorf("ukuran data URL gambar bukti pembayaran melebihi batas maksimal 2MB")
+		}
 		lower := strings.ToLower(trimmed)
 		if strings.HasPrefix(lower, "data:image/jpeg;base64,") ||
 			strings.HasPrefix(lower, "data:image/png;base64,") ||

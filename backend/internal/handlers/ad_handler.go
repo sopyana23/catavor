@@ -288,6 +288,19 @@ func (h *AdHandler) GetMyCampaigns(c *fiber.Ctx) error {
 		})
 	}
 
+	user, _ := c.Locals("user").(*models.User)
+	if user != nil && user.IsPlatformStaff() && store.UserID != user.ID {
+		canReadAds := user.IsSuperadmin() ||
+			services.GetRBACService().HasPermission(user, "finance:orders:read") ||
+			services.GetRBACService().HasPermission(user, "system:settings:manage")
+		if !canReadAds {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Akses Ditolak: Anda memerlukan izin 'finance:orders:read' untuk melihat kampanye iklan toko lain.",
+			})
+		}
+	}
+
 	var campaigns []models.AdCampaign
 	err := h.db.Preload("AdSlot").Preload("TargetProduct").Preload("Orders").
 		Where("store_id = ?", store.ID).
@@ -317,6 +330,12 @@ func (h *AdHandler) CreateCampaign(c *fiber.Ctx) error {
 		})
 	}
 	user, _ := c.Locals("user").(*models.User)
+	if user != nil && user.IsPlatformStaff() && store.UserID != user.ID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses Ditolak: Hanya pemilik toko yang sah yang dapat membuat pengajuan kampanye iklan.",
+		})
+	}
 	userID := uint(0)
 	if user != nil {
 		userID = user.ID
@@ -626,6 +645,19 @@ func (h *AdHandler) GetCampaignAnalytics(c *fiber.Ctx) error {
 			"success": false,
 			"message": "Sesi toko tidak valid.",
 		})
+	}
+
+	user, _ := c.Locals("user").(*models.User)
+	if user != nil && user.IsPlatformStaff() && store.UserID != user.ID {
+		canReadAds := user.IsSuperadmin() ||
+			services.GetRBACService().HasPermission(user, "finance:orders:read") ||
+			services.GetRBACService().HasPermission(user, "system:settings:manage")
+		if !canReadAds {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Akses Ditolak: Anda memerlukan izin 'finance:orders:read' untuk melihat analitik kampanye iklan toko lain.",
+			})
+		}
 	}
 
 	campaignIDStr := c.Params("id")

@@ -320,7 +320,7 @@ var (
 // login tidak boleh hilang saat restart. Di local/dev, fallback in-memory diizinkan.
 func isProductionEnv() bool {
 	env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
-	return env == "production" || env == "prod"
+	return env == "production" || env == "prod" || env == "staging"
 }
 
 // securityStateUnavailable menandakan state keamanan tidak tersedia (Redis down di

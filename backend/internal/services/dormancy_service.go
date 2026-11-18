@@ -103,8 +103,8 @@ func ReactivateStoreByToken(db *gorm.DB, token string) (*models.Store, error) {
 		return nil, fmt.Errorf("token reaktivasi tidak ditemukan atau sudah kedaluwarsa")
 	}
 
-	if store.DormancyStatus == "banned" || store.IsBlacklisted {
-		return nil, fmt.Errorf("toko ini telah ditangguhkan secara permanen oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
+	if store.DormancyStatus == "banned" || store.IsBlacklisted || store.IsSuspended {
+		return nil, fmt.Errorf("toko ini telah ditangguhkan atau dibekukan oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
 	}
 
 	now := time.Now().UTC()
@@ -158,8 +158,8 @@ func ReactivateStoreByID(db *gorm.DB, storeID uint) (*models.Store, error) {
 		return nil, fmt.Errorf("toko tidak ditemukan")
 	}
 
-	if store.DormancyStatus == "banned" || store.IsBlacklisted {
-		return nil, fmt.Errorf("toko ini telah ditangguhkan secara permanen oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
+	if store.DormancyStatus == "banned" || store.IsBlacklisted || store.IsSuspended {
+		return nil, fmt.Errorf("toko ini telah ditangguhkan atau dibekukan oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
 	}
 
 	now := time.Now().UTC()

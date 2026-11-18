@@ -125,6 +125,18 @@ func (h *SubscriptionHandler) GetStoreQuota(c *fiber.Ctx) error {
 	}
 	storeID := storeIDVal.(uint)
 
+	// Otorisasi granular untuk staf platform: staf tanpa izin finance:orders:read tidak boleh mengintip kuota toko lain
+	if user, ok := c.Locals("user").(*models.User); ok && user != nil && user.IsPlatformStaff() {
+		store, _ := c.Locals("store").(*models.Store)
+		isStoreOwner := store != nil && store.UserID == user.ID
+		if !isStoreOwner && !user.IsSuperadmin() && !services.GetRBACService().HasPermission(user, "finance:orders:read") {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Akses Ditolak: Anda memerlukan izin 'finance:orders:read' untuk melihat data kuota toko lain.",
+			})
+		}
+	}
+
 	quota, err := services.GetStoreQuotaInfo(h.db, storeID)
 	if err != nil {
 		log.Error().Err(err).Msg("subscription: gagal mengambil kuota toko")
@@ -423,6 +435,18 @@ func (h *SubscriptionHandler) GetOrders(c *fiber.Ctx) error {
 	}
 	storeID := storeIDVal.(uint)
 
+	// Otorisasi granular untuk staf platform: staf tanpa izin finance:orders:read tidak boleh mengintip order toko lain
+	if user, ok := c.Locals("user").(*models.User); ok && user != nil && user.IsPlatformStaff() {
+		store, _ := c.Locals("store").(*models.Store)
+		isStoreOwner := store != nil && store.UserID == user.ID
+		if !isStoreOwner && !user.IsSuperadmin() && !services.GetRBACService().HasPermission(user, "finance:orders:read") {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Akses Ditolak: Anda memerlukan izin 'finance:orders:read' untuk melihat riwayat transaksi toko lain.",
+			})
+		}
+	}
+
 	orders, err := services.GetStoreSubscriptionOrders(h.db, storeID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -489,12 +513,12 @@ func (h *SubscriptionHandler) GetOrderProof(c *fiber.Ctx) error {
 	// 2. Strict RBAC / Ownership Authorization Check (SECURITY R3-3: platform staff MUST hold finance:orders:read permission)
 	canReadAllProofs := false
 	if user.IsPlatformStaff() {
-		canReadAllProofs = services.GetRBACService().HasPermission(user, "finance:orders:read")
+		canReadAllProofs = user.IsSuperadmin() || services.GetRBACService().HasPermission(user, "finance:orders:read")
 	}
 	isOwner := user.ID == order.UserID
 
 	if !isOwner && order.StoreID > 0 {
-		if store, ok := c.Locals("store").(*models.Store); ok && store != nil && store.ID == order.StoreID {
+		if store, ok := c.Locals("store").(*models.Store); ok && store != nil && store.ID == order.StoreID && store.UserID == user.ID {
 			isOwner = true
 		} else {
 			var count int64

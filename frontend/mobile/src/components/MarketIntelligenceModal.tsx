@@ -145,10 +145,14 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
     setLoading(true);
     setError(null);
     try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const fetchOpts: RequestInit = { headers: authHeaders, credentials: 'include' };
+
       const [mainRes, trendRes, gapRes] = await Promise.all([
-        fetch(`${apiBase}/api/market-intelligence`),
-        fetch(`${apiBase}/api/market-intelligence/trending-keywords`),
-        fetch(`${apiBase}/api/market-intelligence/demand-gaps`)
+        fetch(`${apiBase}/api/market-intelligence`, fetchOpts),
+        fetch(`${apiBase}/api/market-intelligence/trending-keywords`, fetchOpts),
+        fetch(`${apiBase}/api/market-intelligence/demand-gaps`, fetchOpts)
       ]);
       const json = await mainRes.json();
       if (json.success && json.data) {
@@ -184,8 +188,10 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
   const handleDownloadCsv = async () => {
     setDownloadingCsv(true);
     try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       const downloadUrl = `${apiBase}/api/market-intelligence/export?format=csv`;
-      const res = await fetch(downloadUrl);
+      const res = await fetch(downloadUrl, { headers: authHeaders, credentials: 'include' });
       if (!res.ok) {
         throw new Error('Gagal mengunduh data CSV riset pasar.');
       }

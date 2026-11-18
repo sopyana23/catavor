@@ -12309,10 +12309,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
     }
 
-    // 2. Real Google OAuth 2.0 Popup Window (100% Real Google Authorization Window)
+    // 2. Real Google OAuth 2.0 Popup Window with State Nonce (RFC 6749 CSRF Prevention)
     const redirectUri = encodeURIComponent(window.location.origin);
     const scope = encodeURIComponent('email profile openid');
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+    const oauthState = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+    try { sessionStorage.setItem('catavor_oauth_state', oauthState); } catch (_) {}
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}&state=${oauthState}`;
     
     const width = 520;
     const height = 640;
@@ -12354,8 +12356,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
           const hash = popup.location.hash.substring(1);
           const params = new URLSearchParams(hash);
           const accessToken = params.get('access_token');
+          const returnedState = params.get('state');
+          let expectedState = '';
+          try {
+            expectedState = sessionStorage.getItem('catavor_oauth_state') || '';
+            sessionStorage.removeItem('catavor_oauth_state');
+          } catch (_) {}
           try { popup.close(); } catch (_) {}
           clearInterval(checkPopup);
+
+          if (expectedState && returnedState !== expectedState) {
+            console.error('OAuth state CSRF validation failed');
+            return;
+          }
 
           if (accessToken) {
             fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
