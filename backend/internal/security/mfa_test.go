@@ -167,3 +167,36 @@ func TestBuildOTPAuthURL(t *testing.T) {
 		}
 	}
 }
+
+func TestSealOpenMFASecretForUser_AADCrossUserBindingAndV1Compat(t *testing.T) {
+	key := "unit-test-key-material-0123456789abcdef"
+
+	sealedV2, err := SealMFASecretForUser(key, 42, rfcSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(sealedV2, "v2:") {
+		t.Fatalf("ciphertext per-user wajib berprefix v2:, dapat %q", sealedV2)
+	}
+
+	// Dekripsi untuk pemilik asli (uid=42) wajib sukses.
+	plain, err := OpenMFASecretForUser(key, 42, sealedV2)
+	if err != nil || plain != rfcSecret {
+		t.Fatalf("dekripsi v2 pemilik asli gagal: plain=%q err=%v", plain, err)
+	}
+
+	// Penyalinan ciphertext v2 ke baris user lain (uid=99) WAJIB gagal autentikasi GCM AAD.
+	if _, err := OpenMFASecretForUser(key, 99, sealedV2); err == nil {
+		t.Fatal("penyalinan ciphertext MFA v2 antar-user wajib ditolak oleh verifikasi GCM AAD")
+	}
+
+	// Kompatibilitas mundur v1: ciphertext lama tetap dapat dibaca lewat OpenMFASecretForUser.
+	legacyV1, err := SealMFASecret(key, rfcSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plainLegacy, err := OpenMFASecretForUser(key, 42, legacyV1)
+	if err != nil || plainLegacy != rfcSecret {
+		t.Fatalf("kompatibilitas mundur v1 gagal: plain=%q err=%v", plainLegacy, err)
+	}
+}

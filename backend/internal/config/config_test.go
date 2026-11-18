@@ -320,7 +320,8 @@ func envBersih(extra map[string]string) []string {
 		"PORT": true, "DB_HOST": true, "DB_PORT": true, "DB_USER": true,
 		"DB_NAME": true, "DB_PASSWORD": true, "DB_AUTO_MIGRATE": true,
 		"SKIP_DB_MIGRATE": true, "STORAGE_DIR": true, "APP_URL": true,
-		"STORAGE_PUBLIC_URL": true, fatalHelperEnv: true,
+		"STORAGE_PUBLIC_URL": true, "MFA_ENCRYPTION_KEY": true,
+		"REQUIRE_SEPARATE_MFA_KEY": true, "BIND_ADDR": true, fatalHelperEnv: true,
 	}
 	var out []string
 	for _, kv := range os.Environ() {
@@ -414,6 +415,16 @@ func TestLoadConfig_Fatal(t *testing.T) {
 			"APP_ENV": "production", "DB_SSLMODE": "require",
 			"ALLOWED_ORIGINS": "https://catavor.id", "JWT_EXPIRATION_HOURS": "72",
 		}), "JWT_EXPIRATION_HOURS > 24 jam tidak diizinkan")
+	})
+	t.Run("mfa_key_terlalu_pendek", func(t *testing.T) {
+		jalankanKasusFatal(t, base(map[string]string{
+			"MFA_ENCRYPTION_KEY": "pendek-sekali",
+		}), "MFA_ENCRYPTION_KEY terlalu pendek")
+	})
+	t.Run("mfa_key_sama_dengan_jwt_secret", func(t *testing.T) {
+		jalankanKasusFatal(t, base(map[string]string{
+			"MFA_ENCRYPTION_KEY": validSecret,
+		}), "MFA_ENCRYPTION_KEY tidak boleh identik dengan JWT_SECRET")
 	})
 }
 

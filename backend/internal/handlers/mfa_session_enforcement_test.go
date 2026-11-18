@@ -50,6 +50,7 @@ func newFullMFARoutingApp(t *testing.T, db *gorm.DB, cfg *config.Config) (*fiber
 	api.Post("/auth/register", authHandler.Register)
 	api.Post("/auth/forgot-password-reset", authHandler.ForgotPasswordReset)
 	api.Post("/auth/mfa/verify", mfaHandler.VerifyChallenge)
+	api.Post("/logout", authHandler.Logout)
 
 	// WAJIB sebelum api.Group("", AuthRequired) agar Fiber tidak mencegat dengan AuthRequired lebih dulu.
 	mfaSetupAuth := middleware.AuthOrMFASetupRequired(cfg)
@@ -62,6 +63,7 @@ func newFullMFARoutingApp(t *testing.T, db *gorm.DB, cfg *config.Config) (*fiber
 	authOnly.Get("/auth/me", authHandler.VerifyToken)
 	authOnly.Post("/auth/refresh", authHandler.RefreshToken)
 	authOnly.Put("/profile", authHandler.UpdateProfile)
+	authOnly.Post("/profile/request-password-otp", authHandler.RequestProfilePasswordOTP)
 	authOnly.Post("/user/stores/switch", storeHandler.SwitchStore)
 	authOnly.Post("/notifications/stream-ticket", notifHandler.IssueStreamTicket)
 	authOnly.Get("/notifications/probe", func(c *fiber.Ctx) error {
@@ -543,13 +545,18 @@ func TestAllSessionIssuersEnforceSharedMFAPolicy(t *testing.T) {
 	}
 	seedEnrolledMFAForUser(t, db, cfg, regUser.ID, false)
 
+	grtMFA, err := authHandler.IssueGoogleRegistrationToken(regUser.Email, regGoogleID)
+	if err != nil {
+		t.Fatalf("IssueGoogleRegistrationToken: %v", err)
+	}
 	stReg, regBody, regHdr := doJSONReq(t, app, "POST", "/api/auth/register", "", map[string]interface{}{
-		"name":       regUser.Name,
-		"email":      regUser.Email,
-		"password":   "DaftarToko#2026!",
-		"store_name": "Toko Registrasi MFA",
-		"slug":       "toko-reg-mfa",
-		"google_id":  regGoogleID,
+		"name":                      regUser.Name,
+		"email":                     regUser.Email,
+		"password":                  "DaftarToko#2026!",
+		"store_name":                "Toko Registrasi MFA",
+		"slug":                      "toko-reg-mfa",
+		"google_id":                 regGoogleID,
+		"google_registration_token": grtMFA,
 	})
 	if stReg != fiber.StatusOK || regBody["mfa_required"] != true {
 		t.Fatalf("register toko oleh user ber-MFA harus 200 mfa_required=true, dapat %d (mfa_required=%v)", stReg, regBody["mfa_required"])

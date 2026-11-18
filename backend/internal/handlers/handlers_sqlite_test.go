@@ -452,13 +452,33 @@ func TestRegister_SQLite(t *testing.T) {
 		}
 	})
 
-	t.Run("google_tanpa_token_verifikasi", func(t *testing.T) {
+	t.Run("google_id_tanpa_bukti_google_ditolak_401", func(t *testing.T) {
 		db := newTestDB(t)
 		app := newTestApp(db)
 		b := validBody()
 		delete(b, "verification_token")
 		delete(b, "password")
+		b["google_id"] = "google-uid-spoofed"
+		b["avatar"] = "https://img.example/a.png"
+		r := call(t, app, "POST", "/api/auth/register", b)
+		if r.Status != http.StatusUnauthorized {
+			t.Fatalf("google_id mentah tanpa bukti Google harus ditolak 401, dapat %d (%s)", r.Status, r.Raw)
+		}
+	})
+
+	t.Run("google_dengan_registration_token_sukses", func(t *testing.T) {
+		db := newTestDB(t)
+		app := newTestApp(db)
+		ah := NewAuthHandler(testCfg(), db)
+		grt, err := ah.IssueGoogleRegistrationToken("budi@example.com", "google-uid-1")
+		if err != nil {
+			t.Fatalf("IssueGoogleRegistrationToken: %v", err)
+		}
+		b := validBody()
+		delete(b, "verification_token")
+		delete(b, "password")
 		b["google_id"] = "google-uid-1"
+		b["google_registration_token"] = grt
 		b["avatar"] = "https://img.example/a.png"
 		r := call(t, app, "POST", "/api/auth/register", b)
 		if r.Status != http.StatusOK {

@@ -12,6 +12,7 @@ import (
 
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/mfa"
+	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 
@@ -532,6 +533,104 @@ func TestMFAPostgresConcurrencyRollbackAndSingleUse(t *testing.T) {
 		})
 		if stAfterLock != fiber.StatusTooManyRequests || bodyAfterLock["code"] != "MFA_LOCKED" {
 			t.Fatalf("setelah lockout paralel, kode sah harus 429 MFA_LOCKED, dapat %d (%v)", stAfterLock, bodyAfterLock["code"])
+		}
+	})
+
+	// --- Subtes 6: DeleteAccount & CleanupExpiredUserSessions di PostgreSQL riil dengan FK RESTRICT mfa_auth_completions ---
+	t.Run("delete_account_and_cleanup_sessions_with_pg_fk_restrict", func(t *testing.T) {
+		if err := pgDB.AutoMigrate(
+			&models.Category{},
+			&models.Product{},
+			&models.ProductVariant{},
+			&models.ProductImage{},
+			&models.Article{},
+			&models.StoreDailyAnalytics{},
+			&models.ProductDailyAnalytics{},
+			&models.StoreDailyTrafficSource{},
+			&models.NotificationRead{},
+			&models.UserPolicyAgreement{},
+			&models.SupportTicket{},
+			&models.SupportMessage{},
+			&models.SupportAttachment{},
+		); err != nil {
+			t.Fatalf("AutoMigrate tabel toko di PostgreSQL disposable gagal: %v", err)
+		}
+		authH := NewAuthHandler(cfg, pgDB)
+		app.Post("/api/user/account/delete", middleware.AuthRequired(cfg), authH.DeleteAccount)
+
+		merch := models.User{
+			Name:              "PG Delete Account MFA",
+			Email:             "pg-del-mfa@catavor.test",
+			PlatformRole:      "merchant",
+			HasCustomPassword: true,
+			IsPasswordChanged: true,
+			TokenVersion:      1,
+		}
+		if err := merch.SetPassword("HapusAkunKuat#2026!"); err != nil {
+			t.Fatal(err)
+		}
+		if err := pgDB.Create(&merch).Error; err != nil {
+			t.Fatal(err)
+		}
+		_, backupCodes := seedEnrolledMFAForUser(t, pgDB, cfg, merch.ID, false)
+
+		store := models.Store{
+			UserID:     merch.ID,
+			Slug:       "toko-pg-del",
+			StoreTitle: "Toko PG Delete",
+			Plan:       "free",
+		}
+		if err := pgDB.Create(&store).Error; err != nil {
+			t.Fatal(err)
+		}
+		prod := models.Product{
+			StoreID:     store.ID,
+			Name:        "Produk Uji Hapus PG",
+			ProductType: "physical",
+			Price:       25000,
+			IsActive:    true,
+		}
+		if err := pgDB.Create(&prod).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := pgDB.Create(&models.ProductVariant{ProductID: prod.ID, VariantName: "Standar", StockQty: 5, IsActive: true}).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := pgDB.Create(&models.ProductImage{ProductID: prod.ID, ImageURL: "https://img.example/p.jpg", IsPrimary: true}).Error; err != nil {
+			t.Fatal(err)
+		}
+
+		// Login + verifikasi MFA agar terbentuk baris user_sessions + mfa_auth_completions (FK RESTRICT).
+		_, loginBody, _ := doJSONReq(t, app, "POST", "/api/login", "", map[string]interface{}{
+			"email": merch.Email, "password": "HapusAkunKuat#2026!", "portal": "merchant",
+		})
+		chal, _ := loginBody["challenge"].(string)
+		stVer, verBody, _ := doJSONReq(t, app, "POST", "/api/auth/mfa/verify", "", map[string]interface{}{
+			"challenge": chal, "code": backupCodes[0], "factor_type": "backup_code",
+		})
+		if stVer != fiber.StatusOK {
+			t.Fatalf("verify MFA sebelum delete account harus 200, dapat %d: %v", stVer, verBody)
+		}
+		tok, _ := verBody["token"].(string)
+
+		// Tanpa mfa_code wajib ditantang 428 MFA_STEP_UP_REQUIRED.
+		stNoMFA, bodyNoMFA, _ := doJSONReq(t, app, "POST", "/api/user/account/delete", tok, map[string]interface{}{
+			"confirm_phrase": "HAPUS AKUN SAYA",
+			"password":       "HapusAkunKuat#2026!",
+		})
+		if stNoMFA != fiber.StatusPreconditionRequired || bodyNoMFA["code"] != "MFA_STEP_UP_REQUIRED" {
+			t.Fatalf("DeleteAccount ber-MFA tanpa mfa_code harus 428 MFA_STEP_UP_REQUIRED, dapat %d (%v)", stNoMFA, bodyNoMFA["code"])
+		}
+
+		// Dengan backup code kedua, penghapusan akun + toko + produk + varian + sesi + mfa_auth_completions wajib sukses 200 di PostgreSQL!
+		stDel, bodyDel, _ := doJSONReq(t, app, "POST", "/api/user/account/delete", tok, map[string]interface{}{
+			"confirm_phrase": "HAPUS AKUN SAYA",
+			"password":       "HapusAkunKuat#2026!",
+			"mfa_code":       backupCodes[1],
+			"factor_type":    "backup_code",
+		})
+		if stDel != fiber.StatusOK {
+			t.Fatalf("DeleteAccount di PostgreSQL wajib 200 tanpa melanggar FK RESTRICT maupun kolom product_variants, dapat %d: %v", stDel, bodyDel)
 		}
 	})
 }
