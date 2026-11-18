@@ -93,6 +93,7 @@ import {
   Scale
 } from 'lucide-react';
 import { TabletPolicyManager } from './TabletPolicyManager';
+import { ErrorBoundary } from './ErrorBoundary';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString } from '../utils/urlSecurity';
 import { SafeImage } from './SafeImage';
@@ -106,7 +107,7 @@ import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
 import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
 import { type UserRBACInfo, getRoleBadge, isSuperAdmin, hasPermission } from '../utils/rbac';
-import { useModalBackHandler } from '../utils/navigation';
+import { smartBack, useModalBackHandler } from '../utils/navigation';
 import { broadcastAuthEvent } from '../utils/authSync';
 
 export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
@@ -14568,11 +14569,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
                 {/* SUBTAB 5: KEBIJAKAN & LEGALITAS PLATFORM */}
                 {masterSubTab === 'policies' && (
-                  <TabletPolicyManager
-                    token={token || localStorage.getItem('catavor_token') || ''}
-                    showToast={showToast}
-                    onBack={() => handleSwitchMasterSubTab('rekber')}
-                  />
+                  <ErrorBoundary sectionName="Manajemen Kebijakan Platform">
+                    <TabletPolicyManager
+                      token={token || localStorage.getItem('catavor_token') || ''}
+                      showToast={showToast}
+                      backLabel="Master Data"
+                      onBack={() => {
+                        smartBack(() => handleSwitchMasterSubTab('rekber'));
+                      }}
+                    />
+                  </ErrorBoundary>
                 )}
               </div>
             </div>
@@ -14590,11 +14596,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               boxSizing: 'border-box',
               WebkitOverflowScrolling: 'touch'
             }}>
-              <TabletPolicyManager
-                token={token || localStorage.getItem('catavor_token') || ''}
-                showToast={showToast}
-                onBack={() => handleSwitchView('dashboard')}
-              />
+              <ErrorBoundary sectionName="Manajemen Kebijakan Platform">
+                <TabletPolicyManager
+                  token={token || localStorage.getItem('catavor_token') || ''}
+                  showToast={showToast}
+                  backLabel="Kembali"
+                  onBack={() => {
+                    smartBack(() => handleSwitchView('dashboard'));
+                  }}
+                />
+              </ErrorBoundary>
             </div>
           )}
 

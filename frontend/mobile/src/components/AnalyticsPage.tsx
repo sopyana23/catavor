@@ -319,9 +319,9 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       document.body.removeChild(a);
       window.URL.revokeObjectURL(blobUrl);
       setShowExportModal(false);
-    } catch (err: any) {
-      console.error('Export error:', err);
-      setExportError(err?.message || 'Gagal mengekspor berkas analitika. Silakan coba lagi.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal mengekspor berkas analitika. Silakan coba lagi.';
+      setExportError(msg);
     } finally {
       setIsExportingCsv(false);
     }

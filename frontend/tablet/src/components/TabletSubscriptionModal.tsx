@@ -123,6 +123,18 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   const [loading, setLoading] = useState<boolean>(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('pro_starter');
+  const [activeMiniTabPlan, setActiveMiniTabPlan] = useState<string>('pro_starter');
+  const [isTabletMini, setIsTabletMini] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 880 : false
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onResize = () => setIsTabletMini(window.innerWidth < 880);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   
   // Checkout & Payment step
   const [checkoutStep, setCheckoutStep] = useState<'plan_select' | 'payment_detail' | 'downgrade_confirm'>('plan_select');
@@ -177,11 +189,11 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
         const json = await res.json();
         const data = json.data || json;
         if (data && typeof data === 'object') {
-          setPlatformSettings((prev: any) => ({ ...prev, ...data }));
+          setPlatformSettings((prev: Record<string, string>) => ({ ...prev, ...data }));
         }
       }
-    } catch (err) {
-      console.error('Failed fetching platform settings in tablet modal:', err);
+    } catch {
+      // Abaikan kegagalan jaringan sementara pada refresh pengaturan latar belakang
     }
   }, []);
 
@@ -247,7 +259,12 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       setCheckoutStep('plan_select');
       setOrderInvoice(null);
       setPaymentProofUrl('');
-      setProofPreview(null);
+      setProofPreview((prev) => {
+        if (prev && prev.startsWith('blob:')) {
+          URL.revokeObjectURL(prev);
+        }
+        return null;
+      });
       setSenderAccountName('');
       setSenderPhone('');
       setCouponCode('');
@@ -270,22 +287,20 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
     }
   }, [isOpen, fetchPlans, fetchPlatformSettings]);
 
-  // Back button interception
+  // LIFO Back button interception for nested checkout / downgrade steps (AGENTS.md Rule 2)
+  useModalBackHandler({
+    isOpen: isOpen && checkoutStep !== 'plan_select',
+    onClose: () => setCheckoutStep('plan_select'),
+    modalId: 'tablet-subscription-substep'
+  });
+
   useEffect(() => {
-    if (!isOpen) return;
-    const handlePopState = () => {
-      if (checkoutStep === 'payment_detail' || checkoutStep === 'downgrade_confirm') {
-        setCheckoutStep('plan_select');
-      } else {
-        onClose();
+    return () => {
+      if (proofPreview && proofPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(proofPreview);
       }
     };
-    window.history.pushState({ modal: 'tablet_subscription' }, '');
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [isOpen, checkoutStep, onClose]);
+  }, [proofPreview]);
 
   if (!isOpen) return null;
 
@@ -388,7 +403,8 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       document.body.removeChild(a);
       window.URL.revokeObjectURL(blobUrl);
     } catch {
-      window.open(manualQrisImage, '_blank');
+      const win = window.open(manualQrisImage, '_blank', 'noopener,noreferrer');
+      if (win) win.opener = null;
     }
   };
 
@@ -482,7 +498,13 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       const data = await res.json();
       if (res.ok && data.success && data.url) {
         setPaymentProofUrl(data.url);
-        setProofPreview(URL.createObjectURL(file));
+        const nextBlobUrl = URL.createObjectURL(file);
+        setProofPreview((prev) => {
+          if (prev && prev.startsWith('blob:')) {
+            URL.revokeObjectURL(prev);
+          }
+          return nextBlobUrl;
+        });
         showToast('Bukti transfer berhasil diunggah', 'success');
       } else {
         throw new Error(data.message || 'Gagal mengupload bukti pembayaran.');
@@ -548,8 +570,8 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
           payment_proof_url: (finalPrice === 0 || isGateway) ? '' : paymentProofUrl,
           coupon_code: appliedCoupon ? appliedCoupon.code : '',
           redirect_url: window.location.href,
-          type: 'upgrade',
-          order_type: 'upgrade'
+          type: (currentQuota?.plan?.code === selectedPlan.code && selectedPlan.code !== 'free') ? 'renewal' : 'upgrade',
+          order_type: (currentQuota?.plan?.code === selectedPlan.code && selectedPlan.code !== 'free') ? 'renewal' : 'upgrade'
         })
       });
 
@@ -769,10 +791,60 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                 </div>
               </div>
 
-              {/* Plans Grid */}
+              {/* Interactive Segmented Tab Switcher khusus Tablet Mini (768px - 879px, AGENTS.md Rule 7.A.2) */}
+              {isTabletMini && plans.length > 0 && (
+                <div
+                  role="tablist"
+                  aria-label="Pilih paket langganan"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${plans.length}, 1fr)`,
+                    gap: '0.4rem',
+                    padding: '0.35rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  {plans.map((tp) => {
+                    const active = activeMiniTabPlan === tp.code;
+                    return (
+                      <button
+                        key={`tab-${tp.code}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        onClick={() => {
+                          setActiveMiniTabPlan(tp.code);
+                          if (tp.code !== 'free') {
+                            setSelectedPlanCode(tp.code);
+                          }
+                        }}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.45rem 0.65rem',
+                          borderRadius: '0.6rem',
+                          border: active ? '1px solid var(--primary)' : '1px solid transparent',
+                          backgroundColor: active ? 'var(--primary)' : 'transparent',
+                          color: active ? '#ffffff' : 'var(--text-secondary)',
+                          fontWeight: active ? 800 : 600,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.16s ease'
+                        }}
+                      >
+                        {tp.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Plans Grid (1 kolom lapang di Tablet Mini, 3 kolom simetris di Tablet Lebar >= 880px) */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
+                gridTemplateColumns: isTabletMini ? '1fr' : 'repeat(3, 1fr)',
                 gap: '1rem',
                 marginBottom: '1.5rem'
               }}>
@@ -784,8 +856,11 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                   };
                   const currentPlanCode = currentQuota?.plan?.code || 'free';
                   const currentRank = planRank[currentPlanCode] || 0;
+                  const visiblePlans = isTabletMini
+                    ? plans.filter(pl => pl.code === activeMiniTabPlan || (!plans.some(x => x.code === activeMiniTabPlan) && pl.code === plans[0]?.code))
+                    : plans;
 
-                  return plans.map(p => {
+                  return visiblePlans.map(p => {
                     const isSelected = selectedPlanCode === p.code;
                     const isCurrent = currentPlanCode === p.code;
                     const targetRank = planRank[p.code] || 0;

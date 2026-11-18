@@ -33,6 +33,8 @@ import {
 } from 'lucide-react';
 
 import { TabletPoliciesView, type PolicyKey } from './TabletPoliciesView';
+import { ErrorBoundary } from './ErrorBoundary';
+import { useModalBackHandler } from '../utils/navigation';
 
 export const CATALOG_TYPES_INFO = [
   {
@@ -158,6 +160,12 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
   const [selectedCatalogFormat, setSelectedCatalogFormat] = useState<string>('physical');
   const [showPolicyModal, setShowPolicyModal] = useState<boolean>(false);
   const [policyModalInitialKey, setPolicyModalInitialKey] = useState<PolicyKey>('terms');
+
+  useModalBackHandler({
+    isOpen: showPolicyModal,
+    onClose: () => setShowPolicyModal(false),
+    modalId: 'tablet-public-landing-policy-modal'
+  });
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [selectedPlanTab, setSelectedPlanTab] = useState<'free' | 'pro_starter' | 'pro_business'>('pro_starter');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
@@ -2373,6 +2381,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
       {/* Tablet Public Landing Policy Modal */}
       {showPolicyModal && (
         <div
+          onClick={() => setShowPolicyModal(false)}
           style={{
             position: 'fixed',
             inset: 0,
@@ -2386,6 +2395,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           }}
         >
           <div
+            onClick={(e) => e.stopPropagation()}
             style={{
               backgroundColor: '#0f172a',
               border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -2419,6 +2429,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 type="button"
                 onClick={() => setShowPolicyModal(false)}
                 style={{
+                  minHeight: '44px',
                   padding: '0.45rem 1rem',
                   borderRadius: '0.5rem',
                   backgroundColor: 'rgba(255, 255, 255, 0.08)',
@@ -2433,7 +2444,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
               </button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-              <TabletPoliciesView initialKey={policyModalInitialKey} />
+              <ErrorBoundary sectionName="Kebijakan Platform">
+                <TabletPoliciesView initialKey={policyModalInitialKey} />
+              </ErrorBoundary>
             </div>
           </div>
         </div>

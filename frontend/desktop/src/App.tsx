@@ -242,10 +242,12 @@ export const isReservedStoreSlug = (slug?: string | null): boolean => {
   if (!slug) return false;
   const s = slug.toLowerCase();
   const reserved = [
-    'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 
+    'api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 
     'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 
     'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 
-    'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 
+    'ketentuan-penggunaan', 'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang',
+    'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi',
+    'explore', 'directory', 'internal', 'staff', 'settings', 
     'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 
     'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'
   ];
@@ -257,7 +259,7 @@ export function getStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
   const path = window.location.pathname.toLowerCase();
   const parts = path.split('/').filter(Boolean);
-  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang', 'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
   
   if (parts.length === 0) return null;
   if (parts[0] === 'login' && parts.length > 1 && !reservedPortal.includes(parts[1])) {
@@ -279,7 +281,7 @@ export function resolveActiveStoreSlug(): string | null {
   const isInvalid = (s?: string | null) => {
     if (!s) return true;
     const clean = s.toLowerCase().trim();
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+    const reserved = ['api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang', 'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
     return reserved.includes(clean);
   };
   const fromUrl = getStoreSlug();
@@ -4083,9 +4085,11 @@ function App() {
     if (!slug) return true;
     const clean = slug.toLowerCase().trim();
     const reserved = [
-      'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin',
+      'api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin',
       'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
       'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan',
+      'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang',
+      'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi',
       'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan',
       'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan',
       'help', 'bantuan', 'support', 'superadmin', 'compliance', 'finance', 'billing', 'official',
@@ -4130,6 +4134,11 @@ function App() {
         p === '/checkout' || p.startsWith('/checkout') ||
         p === '/terms' || p === '/privacy' || p === '/acceptable-use' || p === '/acceptable_use' ||
         p === '/syarat-ketentuan' || p === '/kebijakan-privasi' || p === '/ketentuan-penggunaan' ||
+        p === '/policies' || p === '/kebijakan' || p === '/legal' ||
+        p === '/prohibited' || p === '/barang-terlarang' ||
+        p === '/subscription' || p === '/ketentuan-langganan' ||
+        p === '/transactions' || p === '/pedoman-transaksi' ||
+        p === '/moderation' || p === '/standar-moderasi' ||
         p === '/' || p === ''
       ) {
         return null;
@@ -4196,11 +4205,16 @@ function App() {
       } else if (path === '/register/step-3') {
         pathTab = isAuthenticated ? 'home' : 'register';
         pathStep = 3;
-      } else if (path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal') {
+      } else if (
+        path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal' ||
+        path === '/subscription' || path === '/ketentuan-langganan' ||
+        path === '/transactions' || path === '/pedoman-transaksi' ||
+        path === '/moderation' || path === '/standar-moderasi'
+      ) {
         pathTab = 'terms';
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         pathTab = 'privacy';
-      } else if (path === '/acceptable-use' || path === '/acceptable_use' || path === '/ketentuan-penggunaan') {
+      } else if (path === '/acceptable-use' || path === '/acceptable_use' || path === '/ketentuan-penggunaan' || path === '/prohibited' || path === '/barang-terlarang') {
         pathTab = 'acceptable_use';
       } else {
         const queryTab = urlParams.get('tab');
@@ -5606,6 +5620,12 @@ Terima kasih.`;
     return <FormattedText text={text} />;
   };
 
+  useModalBackHandler({
+    isOpen: Boolean(activePolicyModal),
+    onClose: () => setActivePolicyModal(null),
+    modalId: 'desktop-active-policy-modal'
+  });
+
   // Dedicated Full-Page Legal & Policy Renderer for Desktop
   const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
     const keyMap: Record<string, PolicyKey> = {
@@ -5613,23 +5633,30 @@ Terima kasih.`;
       privacy: 'privacy',
       acceptable_use: 'prohibited'
     };
-    const targetKey = keyMap[type] || 'terms';
+    const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase().replace(/\/+$/, '') : '';
+    const targetKey: PolicyKey =
+      (curPath === '/subscription' || curPath === '/ketentuan-langganan') ? 'subscription' :
+      (curPath === '/transactions' || curPath === '/pedoman-transaksi') ? 'transactions' :
+      (curPath === '/moderation' || curPath === '/standar-moderasi') ? 'moderation' :
+      (curPath === '/prohibited' || curPath === '/barang-terlarang') ? 'prohibited' :
+      (keyMap[type] || 'terms');
 
     return (
       <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '1.5rem 1.5rem 4rem 1.5rem' }}>
-        <PlatformPoliciesView
-          initialKey={targetKey}
-          onBack={() => {
-            if (window.history.length > 1) {
-              window.history.back();
-            } else {
-              setPortalTab('home');
-            }
-          }}
-          onOpenHelpdesk={() => {
-            setPortalTab('login');
-          }}
-        />
+        <ErrorBoundary sectionName="Kebijakan Platform">
+          <PlatformPoliciesView
+            initialKey={targetKey}
+            onBack={() => {
+              smartBack(() => {
+                setPortalTab('home');
+                window.history.replaceState({}, '', '/');
+              });
+            }}
+            onOpenHelpdesk={() => {
+              setPortalTab('login');
+            }}
+          />
+        </ErrorBoundary>
       </div>
     );
   };
@@ -5740,6 +5767,12 @@ Terima kasih.`;
   const [agreeTermsError, setAgreeTermsError] = useState<boolean>(false)
   const [agreeCheckoutTermsError, setAgreeCheckoutTermsError] = useState<boolean>(false)
   const [showQuickPolicyModal, setShowQuickPolicyModal] = useState<'terms' | 'privacy' | 'acceptable_use' | null>(null)
+
+  useModalBackHandler({
+    isOpen: Boolean(showQuickPolicyModal),
+    onClose: () => setShowQuickPolicyModal(null),
+    modalId: 'desktop-quick-policy-modal'
+  })
 
   const showToast = (
     message: string, 
@@ -10566,11 +10599,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setPortalTab('register');
           setRegisterStep(1);
         }
-      } else if (path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal') {
+      } else if (
+        path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal' ||
+        path === '/subscription' || path === '/ketentuan-langganan' ||
+        path === '/transactions' || path === '/pedoman-transaksi' ||
+        path === '/moderation' || path === '/standar-moderasi'
+      ) {
         setPortalTab('terms');
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         setPortalTab('privacy');
-      } else if (path === '/acceptable-use' || path === '/acceptable_use' || path === '/ketentuan-penggunaan') {
+      } else if (path === '/acceptable-use' || path === '/acceptable_use' || path === '/ketentuan-penggunaan' || path === '/prohibited' || path === '/barang-terlarang') {
         setPortalTab('acceptable_use');
       } else if (path === '/' || path === '') {
         setPortalTab('home');
@@ -11239,7 +11277,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return false;
     }
     const parts = path.split('/').filter(Boolean);
-    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+    const reservedPortal = ['api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang', 'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
     
     if (parts.length === 0) return false;
     if (parts.length === 1) return false;
@@ -25816,13 +25854,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
               )}
 
               {adminTab === 'policies' && (
-                <PlatformPoliciesView
-                  onOpenHelpdesk={() => {
-                    setAdminTab('help');
-                    const slug = storeSlug || getStoreSlug();
-                    if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
-                  }}
-                />
+                <ErrorBoundary sectionName="Kebijakan Platform">
+                  <PlatformPoliciesView
+                    onOpenHelpdesk={() => {
+                      setAdminTab('help');
+                      const slug = storeSlug || getStoreSlug();
+                      if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
+                    }}
+                  />
+                </ErrorBoundary>
               )}
 
               {adminTab === 'notifications' && (
@@ -32556,8 +32596,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
       {/* Global Glassmorphism Policy Modal Popup */}
       {activePolicyModal && policies[activePolicyModal] && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '680px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', borderRadius: '1.25rem', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.12)', boxShadow: '0 25px 60px rgba(0,0,0,0.7)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(10, 15, 26, 0.98) 100%)' }}>
+        <div onClick={() => setActivePolicyModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div onClick={(e) => e.stopPropagation()} className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '680px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', borderRadius: '1.25rem', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.12)', boxShadow: '0 25px 60px rgba(0,0,0,0.7)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(10, 15, 26, 0.98) 100%)' }}>
             <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(15, 23, 42, 0.95)' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#ffffff' }}>
@@ -32942,9 +32982,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
               <FormattedText text={policies[showQuickPolicyModal]?.content || 'Memuat dokumen...'} />
             </div>
 
-            <button type="button" className="btn-primary btn-full" onClick={() => setShowQuickPolicyModal(null)} style={{ marginTop: '1.25rem', padding: '0.75rem', fontSize: '0.85rem', fontWeight: 800 }}>
-              Saya Mengerti &amp; Tutup
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem', paddingTop: '0.85rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <button type="button" className="btn-primary" onClick={() => setShowQuickPolicyModal(null)} style={{ width: 'auto', padding: '0.6rem 1.35rem', fontSize: '0.85rem', fontWeight: 700, borderRadius: '0.5rem' }}>
+                Saya Mengerti &amp; Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}

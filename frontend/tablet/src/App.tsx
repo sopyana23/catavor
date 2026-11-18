@@ -35,13 +35,18 @@ import {
 import { initGoogleAdSense } from './utils/googleAdSense';
 import { initGoogleAnalytics } from './utils/googleAnalytics';
 import { smartBack } from './utils/navigation';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ExternalLinkWarningModal } from './components/ExternalLinkWarningModal';
 import { MFAChallengeView } from './components/MFAChallengeView';
 import { MFAOnboardingModal } from './components/MFAOnboardingModal';
 
 const RESERVED_SLUGS = [
-  'api', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'ops',
-  'catalogs', 'select-catalog', 'stores', 'terms', 'privacy', 'syarat-ketentuan', 'kebijakan-privasi', 'acceptable-use'
+  'api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'ops',
+  'system', 'dashboard', 'settings', 'pengaturan', 'help', 'bantuan', 'support',
+  'catalogs', 'select-catalog', 'stores',
+  'terms', 'privacy', 'syarat-ketentuan', 'kebijakan-privasi', 'acceptable-use', 'acceptable_use', 'ketentuan-penggunaan',
+  'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang',
+  'subscription', 'ketentuan-langganan', 'langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi'
 ];
 
 export const isCatalogChooserRoute = (path: string): boolean => {
@@ -323,7 +328,16 @@ export const App: React.FC = () => {
   // Dynamic Theme Sync (navy, emerald, cyberpunk, ocean, pastel, sage, nordic, cream)
   useEffect(() => {
     // Platform pages (public landing, login, register, platform admin, policies) always use the platform default theme ('navy')
-    const isPlatformPage = currentPath === '/' || currentPath === '/login' || currentPath === '/register' || currentPath.startsWith('/register/') || currentPath === '/checkout' || currentPath.startsWith('/admin') || currentPath === '/terms' || currentPath === '/privacy' || currentPath === '/syarat-ketentuan' || currentPath === '/kebijakan-privasi' || currentPath === '/acceptable-use';
+    const isPlatformPage =
+      currentPath === '/' || currentPath === '/login' || currentPath === '/register' || currentPath.startsWith('/register/') ||
+      currentPath === '/checkout' || currentPath.startsWith('/admin') ||
+      currentPath === '/terms' || currentPath === '/privacy' || currentPath === '/syarat-ketentuan' || currentPath === '/kebijakan-privasi' ||
+      currentPath === '/acceptable-use' || currentPath === '/acceptable_use' || currentPath === '/ketentuan-penggunaan' ||
+      currentPath === '/policies' || currentPath === '/kebijakan' || currentPath === '/legal' ||
+      currentPath === '/prohibited' || currentPath === '/barang-terlarang' ||
+      currentPath === '/subscription' || currentPath === '/ketentuan-langganan' ||
+      currentPath === '/transactions' || currentPath === '/pedoman-transaksi' ||
+      currentPath === '/moderation' || currentPath === '/standar-moderasi';
     const resolvedTheme = isPlatformPage ? 'navy' : (storeTheme || 'navy');
     document.documentElement.setAttribute('data-theme', resolvedTheme);
     document.body.setAttribute('data-theme', resolvedTheme);
@@ -1123,6 +1137,7 @@ export const App: React.FC = () => {
     currentPath === '/terms' || currentPath === '/syarat-ketentuan' ||
     currentPath === '/privacy' || currentPath === '/kebijakan-privasi' ||
     currentPath === '/acceptable-use' || currentPath === '/acceptable_use' || currentPath === '/ketentuan-penggunaan' ||
+    currentPath === '/prohibited' || currentPath === '/barang-terlarang' ||
     currentPath === '/policies' || currentPath === '/kebijakan' || currentPath === '/legal' ||
     currentPath === '/subscription' || currentPath === '/ketentuan-langganan' ||
     currentPath === '/transactions' || currentPath === '/pedoman-transaksi' ||
@@ -2000,7 +2015,7 @@ export const App: React.FC = () => {
   if (isPolicyRoute) {
     const policyKey: 'terms' | 'prohibited' | 'privacy' | 'moderation' | 'transactions' | 'subscription' =
       (currentPath === '/privacy' || currentPath === '/kebijakan-privasi') ? 'privacy' :
-      (currentPath === '/acceptable-use' || currentPath === '/acceptable_use' || currentPath === '/ketentuan-penggunaan') ? 'prohibited' :
+      (currentPath === '/acceptable-use' || currentPath === '/acceptable_use' || currentPath === '/ketentuan-penggunaan' || currentPath === '/prohibited' || currentPath === '/barang-terlarang') ? 'prohibited' :
       (currentPath === '/subscription' || currentPath === '/ketentuan-langganan') ? 'subscription' :
       (currentPath === '/transactions' || currentPath === '/pedoman-transaksi') ? 'transactions' :
       (currentPath === '/moderation' || currentPath === '/standar-moderasi') ? 'moderation' : 'terms';
@@ -2076,7 +2091,9 @@ export const App: React.FC = () => {
         </header>
 
         <main style={{ padding: '1rem 0 3rem 0' }}>
-          <TabletPoliciesView initialKey={policyKey} />
+          <ErrorBoundary sectionName="Kebijakan Platform">
+            <TabletPoliciesView initialKey={policyKey} />
+          </ErrorBoundary>
         </main>
       </div>
     );

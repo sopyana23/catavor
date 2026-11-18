@@ -107,6 +107,7 @@ import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPrevie
 import { DesktopCustomSelect, type SelectOption } from './DesktopCustomSelect';
 import { PlatformMarketIntelView } from './PlatformMarketIntelView';
 import { PlatformPolicyManager } from './PlatformPolicyManager';
+import { ErrorBoundary } from './ErrorBoundary';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { SafeImage } from './SafeImage';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
@@ -19059,16 +19060,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
           {/* SUB-VIEW 5: MASTER KEBIJAKAN & LEGALITAS PLATFORM */}
           {masterSubView === 'policies' && (
-            <PlatformPolicyManager
-              token={token || localStorage.getItem('catavor_token') || ''}
-              isDark={isDark}
-              theme={theme}
-              onBack={() => {
-                setMasterSubView('menu');
-                updatePlatformUrl('master_data', null, null);
-              }}
-              onNotify={(msg, type) => setToastMsg({ text: msg, type: type || 'success' })}
-            />
+            <ErrorBoundary sectionName="Manajemen Kebijakan Platform">
+              <PlatformPolicyManager
+                token={token || localStorage.getItem('catavor_token') || ''}
+                isDark={isDark}
+                theme={theme}
+                backLabel="Kembali ke Master Data"
+                onBack={() => {
+                  smartBack(() => {
+                    setMasterSubView('menu');
+                    updatePlatformUrl('master_data', null, null);
+                  });
+                }}
+                onNotify={(msg, type) => setToastMsg({ text: msg, type: type || 'success' })}
+              />
+            </ErrorBoundary>
           )}
         </div>
       )}
@@ -19076,16 +19082,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* DIRECT TOP-LEVEL VIEW: KEBIJAKAN & LEGALITAS PLATFORM */}
       {activeView === 'policies' && canAccessMasterData && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <PlatformPolicyManager
-            token={token || localStorage.getItem('catavor_token') || ''}
-            isDark={isDark}
-            theme={theme}
-            onBack={() => {
-              handleSwitchView('dashboard');
-              updatePlatformUrl('dashboard', null, null);
-            }}
-            onNotify={(msg, type) => setToastMsg({ text: msg, type: type || 'success' })}
-          />
+          <ErrorBoundary sectionName="Manajemen Kebijakan Platform">
+            <PlatformPolicyManager
+              token={token || localStorage.getItem('catavor_token') || ''}
+              isDark={isDark}
+              theme={theme}
+              backLabel="Kembali"
+              onBack={() => {
+                smartBack(() => {
+                  handleSwitchView('dashboard');
+                  updatePlatformUrl('dashboard', null, null);
+                });
+              }}
+              onNotify={(msg, type) => setToastMsg({ text: msg, type: type || 'success' })}
+            />
+          </ErrorBoundary>
         </div>
       )}
 

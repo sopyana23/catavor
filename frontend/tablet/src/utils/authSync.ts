@@ -92,7 +92,9 @@ export const isReservedStoreSlug = (slug?: string | null): boolean => {
     'api', 'sanctum', 'desktop', 'mobile', 'tablet', 'assets', 'login', 'register', 'checkout',
     'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
     'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi',
-    'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings',
+    'ketentuan-penggunaan', 'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang',
+    'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi',
+    'explore', 'directory', 'internal', 'staff', 'settings',
     'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription',
     'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'
   ];

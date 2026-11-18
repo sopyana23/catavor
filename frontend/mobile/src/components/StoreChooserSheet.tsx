@@ -375,9 +375,11 @@ export const StoreChooserSheet: React.FC<StoreChooserSheetProps> = ({
           if (!complianceAlert) return null;
           const bSlug = complianceAlert.bannedSlug;
           const RESERVED = [
-            'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin',
+            'api', 'sanctum', 'desktop', 'mobile', 'tablet', 'assets', 'login', 'register', 'checkout', 'admin',
             'catavor', 'catafor', 'katavor', 'katafor', 'platform', 'system', 'ops', 'dashboard',
             'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi',
+            'ketentuan-penggunaan', 'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang',
+            'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi',
             'explore', 'directory', 'settings', 'notifications', 'articles', 'subscription', 'langganan',
             'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'
           ];

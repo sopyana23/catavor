@@ -106,6 +106,7 @@ import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { AdminStoresManagement } from './AdminStoresManagement';
 import { MobileMarketIntelView } from './MobileMarketIntelView';
 import { MobilePolicyManager } from './MobilePolicyManager';
+import { ErrorBoundary } from './ErrorBoundary';
 import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from '../utils/urlSecurity';
@@ -120,7 +121,7 @@ export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
   rekber_template_fauna: "Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:\n\n*Satwa/Hewan:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
 };
 import { apiClient } from '../utils/apiClient';
-import { useModalBackHandler, useIsAnyModalOpen } from '../utils/navigation';
+import { smartBack, useModalBackHandler, useIsAnyModalOpen } from '../utils/navigation';
 import { MobileCustomSelect, type MobileSelectOption } from './MobileCustomSelect';
 import appLogoImg from '../assets/logo.png';
 import { APP_LOGO_BASE64 } from '../assets/logoBase64';
@@ -17022,16 +17023,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
           {/* SUB-VIEW 5: MASTER KEBIJAKAN & LEGALITAS PLATFORM */}
           {masterSubView === 'policies' && (
-            <MobilePolicyManager
-              token={token || localStorage.getItem('catavor_token') || ''}
-              isDark={isDark}
-              theme={theme}
-              onBack={() => {
-                setMasterSubView('menu');
-                updatePlatformUrl('master_data', null, null);
-              }}
-              showToast={(msg, type) => setToastMsg({ text: msg, type: type || 'success' })}
-            />
+            <ErrorBoundary sectionName="Manajemen Kebijakan Platform">
+              <MobilePolicyManager
+                token={token || localStorage.getItem('catavor_token') || ''}
+                isDark={isDark}
+                theme={theme}
+                backLabel="Master Data"
+                onBack={() => {
+                  smartBack(() => {
+                    setMasterSubView('menu');
+                    updatePlatformUrl('master_data', null, null);
+                  });
+                }}
+                showToast={(msg, type) => setToastMsg({ text: msg, type: type || 'success' })}
+              />
+            </ErrorBoundary>
           )}
         </div>
       )}
@@ -17039,16 +17045,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* DIRECT TOP-LEVEL VIEW: KEBIJAKAN & LEGALITAS PLATFORM */}
       {activeView === 'policies' && canAccessMasterData && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          <MobilePolicyManager
-            token={token || localStorage.getItem('catavor_token') || ''}
-            isDark={isDark}
-            theme={theme}
-            onBack={() => {
-              handleSwitchView('dashboard');
-              updatePlatformUrl('dashboard', null, null);
-            }}
-            showToast={(msg, type) => setToastMsg({ text: msg, type: type || 'success' })}
-          />
+          <ErrorBoundary sectionName="Manajemen Kebijakan Platform">
+            <MobilePolicyManager
+              token={token || localStorage.getItem('catavor_token') || ''}
+              isDark={isDark}
+              theme={theme}
+              backLabel="Kembali"
+              onBack={() => {
+                smartBack(() => {
+                  handleSwitchView('dashboard');
+                  updatePlatformUrl('dashboard', null, null);
+                });
+              }}
+              showToast={(msg, type) => setToastMsg({ text: msg, type: type || 'success' })}
+            />
+          </ErrorBoundary>
         </div>
       )}
 

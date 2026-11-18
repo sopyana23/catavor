@@ -117,7 +117,7 @@ export function getActiveStoreSlug(): string | null {
   try {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'catalogs', 'stores'];
+    const reserved = ['api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang', 'subscription', 'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi', 'catalogs', 'select-catalog', 'stores'];
     if (parts.length > 0 && !reserved.includes(parts[0])) {
       return parts[0];
     }

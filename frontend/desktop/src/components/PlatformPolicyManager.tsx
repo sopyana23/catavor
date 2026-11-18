@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Scale,
   ShieldAlert,
@@ -18,19 +18,41 @@ import {
   History,
   Check,
   AlertTriangle,
-  Info,
-  Calendar,
   Sparkles,
-  ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight
 } from 'lucide-react';
-import { PlatformPoliciesView, type PolicyKey, type PolicyArticle } from './PlatformPoliciesView';
+import {
+  PlatformPoliciesView,
+  type PolicyKey,
+  type PolicyArticle,
+  type DraftPolicyOverride
+} from './PlatformPoliciesView';
+import {
+  FALLBACK_POLICY_SECTIONS,
+  type PolicyAuditLogItem
+} from '../utils/policyShared';
+import { DesktopCustomSelect, type SelectOption } from './DesktopCustomSelect';
+import { useModalBackHandler } from '../utils/navigation';
+
+export interface PlatformPolicyTheme {
+  surface: string;
+  card: string;
+  border: string;
+  textPrimary: string;
+  textSecondary: string;
+  cardShadow?: string;
+}
 
 export interface PlatformPolicyManagerProps {
   token: string;
   isDark: boolean;
-  theme: any;
+  theme: PlatformPolicyTheme;
   onBack: () => void;
+  backLabel?: string;
   onNotify: (msg: string, type?: 'success' | 'error') => void;
 }
 
@@ -47,19 +69,14 @@ interface EditablePolicyDoc {
   requiresAcceptance: boolean;
 }
 
-interface AuditLogEntry {
-  id: number;
-  policy_type: string;
-  action: string;
-  old_version: string;
-  new_version: string;
-  change_summary: string;
-  admin_email: string;
-  admin_ip: string;
-  created_at: string;
+interface PolicyMetadataEntry {
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties; strokeWidth?: number }>;
+  defaultCategory: string;
+  defaultBadge: string;
 }
 
-const POLICY_METADATA: Record<PolicyKey, { label: string; icon: any; defaultCategory: string; defaultBadge: string }> = {
+const POLICY_METADATA: Record<PolicyKey, PolicyMetadataEntry> = {
   terms: { label: 'Syarat & Ketentuan', icon: Scale, defaultCategory: 'Ketentuan Umum & Kedudukan Hukum', defaultBadge: 'Dokumen Perjanjian Pengelola' },
   prohibited: { label: 'Komoditas Terlarang', icon: ShieldAlert, defaultCategory: 'Kepatuhan Mutlak (Zero Tolerance)', defaultBadge: 'Wajib Dipatuhi Pengelola' },
   privacy: { label: 'Kebijakan Privasi & B2B', icon: Lock, defaultCategory: 'Kepatuhan UU No. 27 Tahun 2022 (PDP)', defaultBadge: 'Standar Perlindungan Privasi' },
@@ -68,11 +85,38 @@ const POLICY_METADATA: Record<PolicyKey, { label: string; icon: any; defaultCate
   subscription: { label: 'Langganan & Kuota', icon: CreditCard, defaultCategory: 'Model Layanan Bisnis & Kuota', defaultBadge: 'Ketentuan Komersial Merchant' }
 };
 
+const CHANGE_TYPE_OPTIONS: SelectOption[] = [
+  { value: 'minor', label: 'MINOR (Perbaikan Redaksional / Penjelasan)' },
+  { value: 'major', label: 'MAJOR (Perubahan Substansial / Regulasi Baru)' }
+];
+
+const PER_PAGE_OPTIONS: SelectOption[] = [
+  { value: '10', label: '10 baris' },
+  { value: '25', label: '25 baris' },
+  { value: '50', label: '50 baris' },
+  { value: '100', label: '100 baris' }
+];
+
+async function authFetchJson(url: string, propToken: string, init?: RequestInit) {
+  const activeToken = propToken || (typeof localStorage !== 'undefined' ? localStorage.getItem('catavor_token') || '' : '');
+  const headers = new Headers(init?.headers || {});
+  if (activeToken && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${activeToken}`);
+  }
+  const res = await fetch(url, { ...init, headers });
+  const refreshed = res.headers.get('X-Refreshed-Token');
+  if (refreshed && typeof localStorage !== 'undefined') {
+    localStorage.setItem('catavor_token', refreshed);
+  }
+  return res.json();
+}
+
 export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
   token,
   isDark,
   theme,
   onBack,
+  backLabel = 'Kembali',
   onNotify
 }) => {
   const [selectedKey, setSelectedKey] = useState<PolicyKey>('terms');
@@ -81,6 +125,17 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+
+  const notifyRef = useRef(onNotify);
+  notifyRef.current = onNotify;
+
+  useModalBackHandler({
+    isOpen: showResetModal,
+    onClose: () => {
+      if (!isResetting) setShowResetModal(false);
+    },
+    modalId: 'desktop-policy-reset-modal'
+  });
 
   // Global Legal Settings State
   const [legalEntityName, setLegalEntityName] = useState('PT Catavor Media Digital');
@@ -102,97 +157,131 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
     requiresAcceptance: false
   });
 
-  // Audit Logs State
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  // Server-Side Paginated Audit Logs State (AGENTS.md Rule 7.C.1)
+  const [auditLogs, setAuditLogs] = useState<PolicyAuditLogItem[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [auditPage, setAuditPage] = useState<number>(1);
+  const [auditPerPage, setAuditPerPage] = useState<number>(25);
+  const [auditTotal, setAuditTotal] = useState<number>(0);
+  const [auditTotalPages, setAuditTotalPages] = useState<number>(1);
+  const [quickJumpInput, setQuickJumpInput] = useState<string>('');
 
-  // Load Policies and Settings
+  // Load Policies and Settings (stable callback: parent scroll/render never resets draft!)
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const settingsHeaders: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
       const [policiesRes, settingsRes, publicSettingsRes] = await Promise.all([
         fetch('/api/policies').then(r => r.json()).catch(() => null),
-        fetch(token ? '/api/admin/settings' : '/api/settings', { headers: settingsHeaders }).then(r => r.json()).catch(() => null),
+        token ? authFetchJson('/api/admin/settings', token).catch(() => null) : fetch('/api/settings').then(r => r.json()).catch(() => null),
         fetch('/api/settings/public').then(r => r.json()).catch(() => null)
       ]);
 
-      const sData = (settingsRes && settingsRes.success && settingsRes.data) 
-        ? settingsRes.data 
-        : (publicSettingsRes && publicSettingsRes.success ? publicSettingsRes.data : null);
+      const sData =
+        settingsRes && settingsRes.success && settingsRes.data
+          ? settingsRes.data
+          : publicSettingsRes && publicSettingsRes.success
+          ? publicSettingsRes.data
+          : null;
 
       if (sData) {
-        if (sData.legal_entity_name) setLegalEntityName(sData.legal_entity_name);
-        if (sData.legal_jurisdiction) setLegalJurisdiction(sData.legal_jurisdiction);
-        if (sData.legal_warning_banner) setLegalWarningBanner(sData.legal_warning_banner);
+        if (sData.legal_entity_name) setLegalEntityName(String(sData.legal_entity_name));
+        if (sData.legal_jurisdiction) setLegalJurisdiction(String(sData.legal_jurisdiction));
+        if (sData.legal_warning_banner) setLegalWarningBanner(String(sData.legal_warning_banner));
       }
 
-      if (policiesRes && policiesRes.success && policiesRes.data) {
-        const raw = policiesRes.data[selectedKey];
-        if (raw) {
-          let articles: PolicyArticle[] = [];
-          let category = POLICY_METADATA[selectedKey].defaultCategory;
-          let badge = POLICY_METADATA[selectedKey].defaultBadge;
-          let summary = '';
+      const fallbackDoc = FALLBACK_POLICY_SECTIONS.find(f => f.key === selectedKey) || FALLBACK_POLICY_SECTIONS[0];
 
-          if (raw.sections) {
-            let s = raw.sections;
-            if (typeof s === 'string') {
-              try { s = JSON.parse(s); } catch {}
-            }
-            if (s && typeof s === 'object') {
-              if (Array.isArray(s.articles)) articles = s.articles;
-              if (s.category) category = s.category;
-              if (s.badge) badge = s.badge;
-              if (s.summary) summary = s.summary;
+      if (policiesRes && policiesRes.success && policiesRes.data && policiesRes.data[selectedKey]) {
+        const raw = policiesRes.data[selectedKey];
+        let articles: PolicyArticle[] = fallbackDoc.articles;
+        let category = POLICY_METADATA[selectedKey].defaultCategory;
+        let badge = POLICY_METADATA[selectedKey].defaultBadge;
+        let summary = fallbackDoc.summary;
+
+        if (raw.sections) {
+          let parsed: unknown = raw.sections;
+          if (typeof parsed === 'string') {
+            try {
+              parsed = JSON.parse(parsed);
+            } catch {
+              parsed = null;
             }
           }
-
-          setEditableDoc({
-            type: selectedKey,
-            title: raw.title || '',
-            category,
-            badge,
-            summary,
-            version: raw.version || 'v2.0',
-            articles,
-            changeType: 'minor',
-            summaryOfChanges: '',
-            requiresAcceptance: raw.requires_acceptance || false
-          });
+          if (parsed && typeof parsed === 'object') {
+            const sec = parsed as Record<string, unknown>;
+            if (Array.isArray(sec.articles) && sec.articles.length > 0) {
+              articles = (sec.articles as Array<Record<string, unknown>>).map((a, idx) => ({
+                number: typeof a?.number === 'string' && a.number.trim() ? a.number : `Pasal ${idx + 1}`,
+                heading: typeof a?.heading === 'string' ? a.heading : '',
+                content: typeof a?.content === 'string' ? a.content : '',
+                highlights: Array.isArray(a?.highlights) ? a.highlights.map(h => String(h ?? '')) : []
+              }));
+            }
+            if (typeof sec.category === 'string' && sec.category.trim()) category = sec.category;
+            if (typeof sec.badge === 'string' && sec.badge.trim()) badge = sec.badge;
+            if (typeof sec.summary === 'string' && sec.summary.trim()) summary = sec.summary;
+          }
         }
+
+        setEditableDoc({
+          type: selectedKey,
+          title: raw.title ? String(raw.title) : fallbackDoc.title,
+          category,
+          badge,
+          summary,
+          version: raw.version ? String(raw.version) : 'v2.0',
+          articles,
+          changeType: raw.change_type === 'major' ? 'major' : 'minor',
+          summaryOfChanges: '',
+          requiresAcceptance: Boolean(raw.requires_acceptance)
+        });
+      } else {
+        setEditableDoc({
+          type: selectedKey,
+          title: fallbackDoc.title,
+          category: fallbackDoc.category,
+          badge: fallbackDoc.badge,
+          summary: fallbackDoc.summary,
+          version: fallbackDoc.version || 'v2.0',
+          articles: fallbackDoc.articles,
+          changeType: 'minor',
+          summaryOfChanges: '',
+          requiresAcceptance: false
+        });
       }
     } catch {
-      onNotify('Gagal memuat konfigurasi kebijakan dari server.', 'error');
+      notifyRef.current('Gagal memuat konfigurasi kebijakan dari server.', 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedKey, onNotify]);
+  }, [selectedKey, token]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Load Audit Trail Logs
+  // Load Paginated Audit Trail Logs
   const fetchAuditLogs = useCallback(async () => {
     if (!token) return;
     setIsLoadingLogs(true);
     try {
-      const res = await fetch('/api/admin/settings/policy-audit-logs', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const json = await res.json();
+      const json = await authFetchJson(
+        `/api/admin/settings/policy-audit-logs?page=${auditPage}&per_page=${auditPerPage}`,
+        token
+      );
       if (json && json.success && Array.isArray(json.data)) {
-        setAuditLogs(json.data);
+        setAuditLogs(json.data as PolicyAuditLogItem[]);
+        const total = typeof json.total === 'number' ? json.total : json.data.length;
+        const pages = typeof json.total_pages === 'number' ? Math.max(1, json.total_pages) : Math.max(1, Math.ceil(total / auditPerPage));
+        setAuditTotal(total);
+        setAuditTotalPages(pages);
       }
     } catch {
       // Graceful
     } finally {
       setIsLoadingLogs(false);
     }
-  }, [token]);
+  }, [token, auditPage, auditPerPage]);
 
   useEffect(() => {
     if (activeTab === 'audit') {
@@ -200,36 +289,44 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
     }
   }, [activeTab, fetchAuditLogs]);
 
+  const draftOverride: DraftPolicyOverride = useMemo(
+    () => ({
+      key: selectedKey,
+      title: editableDoc.title,
+      version: editableDoc.version,
+      category: editableDoc.category,
+      badge: editableDoc.badge,
+      summary: editableDoc.summary,
+      articles: editableDoc.articles
+    }),
+    [selectedKey, editableDoc]
+  );
+
   // Save Global Legal Settings
   const handleSaveGlobalSettings = async () => {
     if (!token) {
-      onNotify('Autentikasi diperlukan.', 'error');
+      notifyRef.current('Autentikasi diperlukan.', 'error');
       return;
     }
     setIsSavingGlobalSettings(true);
     try {
-      const body = {
-        legal_entity_name: legalEntityName,
-        legal_jurisdiction: legalJurisdiction,
-        legal_warning_banner: legalWarningBanner
-      };
-      const res = await fetch('/api/admin/settings', {
+      const data = await authFetchJson('/api/admin/settings', token, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(body)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          legal_entity_name: legalEntityName,
+          legal_jurisdiction: legalJurisdiction,
+          legal_warning_banner: legalWarningBanner
+        })
       });
-      const data = await res.json();
       if (data && data.success) {
-        onNotify('Pengaturan identitas legal platform berhasil disimpan.', 'success');
+        notifyRef.current('Pengaturan identitas legal platform berhasil disimpan.', 'success');
         window.dispatchEvent(new CustomEvent('catavor_policies_updated'));
       } else {
-        onNotify(data?.message || 'Gagal menyimpan pengaturan legal.', 'error');
+        notifyRef.current(data?.message || 'Gagal menyimpan pengaturan legal.', 'error');
       }
     } catch {
-      onNotify('Terjadi kesalahan jaringan saat menyimpan pengaturan legal.', 'error');
+      notifyRef.current('Terjadi kesalahan jaringan saat menyimpan pengaturan legal.', 'error');
     } finally {
       setIsSavingGlobalSettings(false);
     }
@@ -252,7 +349,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
     }));
   };
 
-  const handleUpdateArticle = (index: number, field: keyof PolicyArticle, value: any) => {
+  const handleUpdateArticle = (index: number, field: keyof PolicyArticle, value: string | string[]) => {
     setEditableDoc(prev => {
       const updated = [...prev.articles];
       updated[index] = { ...updated[index], [field]: value };
@@ -261,10 +358,10 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
   };
 
   const handleDeleteArticle = (index: number) => {
-    setEditableDoc(prev => {
-      const updated = prev.articles.filter((_, i) => i !== index);
-      return { ...prev, articles: updated };
-    });
+    setEditableDoc(prev => ({
+      ...prev,
+      articles: prev.articles.filter((_, i) => i !== index)
+    }));
   };
 
   const handleMoveArticle = (index: number, direction: 'up' | 'down') => {
@@ -313,15 +410,15 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
   // Save Policy to Backend
   const handleSavePolicy = async () => {
     if (!token) {
-      onNotify('Autentikasi admin diperlukan.', 'error');
+      notifyRef.current('Autentikasi admin diperlukan.', 'error');
       return;
     }
     if (!editableDoc.title.trim()) {
-      onNotify('Judul dokumen kebijakan tidak boleh kosong.', 'error');
+      notifyRef.current('Judul dokumen kebijakan tidak boleh kosong.', 'error');
       return;
     }
     if (editableDoc.articles.length === 0) {
-      onNotify('Dokumen kebijakan wajib memiliki minimal 1 pasal.', 'error');
+      notifyRef.current('Dokumen kebijakan wajib memiliki minimal 1 pasal.', 'error');
       return;
     }
 
@@ -345,26 +442,22 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
         requires_acceptance: editableDoc.requiresAcceptance
       };
 
-      const res = await fetch('/api/admin/settings/policies', {
+      const json = await authFetchJson('/api/admin/settings/policies', token, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const json = await res.json();
 
       if (json && json.success) {
-        onNotify(`Kebijakan ${editableDoc.title} berhasil diperbarui ke ${payload.version}!`, 'success');
+        notifyRef.current(`Kebijakan ${editableDoc.title} berhasil diperbarui ke ${payload.version}.`, 'success');
         window.dispatchEvent(new CustomEvent('catavor_policies_updated'));
         fetchData();
         if (activeTab === 'audit') fetchAuditLogs();
       } else {
-        onNotify(json?.message || 'Gagal menyimpan pembaruan kebijakan.', 'error');
+        notifyRef.current(json?.message || 'Gagal menyimpan pembaruan kebijakan.', 'error');
       }
     } catch {
-      onNotify('Terjadi kesalahan jaringan saat menyimpan kebijakan.', 'error');
+      notifyRef.current('Terjadi kesalahan jaringan saat menyimpan kebijakan.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -375,35 +468,50 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
     if (!token) return;
     setIsResetting(true);
     try {
-      const res = await fetch('/api/admin/settings/policies/reset-defaults', {
+      const json = await authFetchJson('/api/admin/settings/policies/reset-defaults', token, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: resetAll ? 'all' : selectedKey })
       });
-      const json = await res.json();
       if (json && json.success) {
-        onNotify(resetAll ? 'Seluruh 6 dokumen kebijakan berhasil direset ke standar resmi Catavor v2.0!' : `Dokumen ${POLICY_METADATA[selectedKey].label} berhasil direset ke standar resmi!`, 'success');
+        notifyRef.current(
+          resetAll
+            ? 'Seluruh 6 dokumen kebijakan berhasil direset ke standar resmi Catavor v2.0.'
+            : `Dokumen ${POLICY_METADATA[selectedKey].label} berhasil direset ke standar resmi.`,
+          'success'
+        );
         setShowResetModal(false);
         window.dispatchEvent(new CustomEvent('catavor_policies_updated'));
         fetchData();
         if (activeTab === 'audit') fetchAuditLogs();
       } else {
-        onNotify(json?.message || 'Gagal mereset kebijakan.', 'error');
+        notifyRef.current(json?.message || 'Gagal mereset kebijakan.', 'error');
       }
     } catch {
-      onNotify('Terjadi kesalahan jaringan saat mereset kebijakan.', 'error');
+      notifyRef.current('Terjadi kesalahan jaringan saat mereset kebijakan.', 'error');
     } finally {
       setIsResetting(false);
     }
   };
 
+  const pageNumbers = useMemo(() => {
+    const pages: number[] = [];
+    const start = Math.max(1, auditPage - 2);
+    const end = Math.min(auditTotalPages, start + 4);
+    const adjustedStart = Math.max(1, end - 4);
+    for (let p = adjustedStart; p <= end; p++) {
+      pages.push(p);
+    }
+    return pages;
+  }, [auditPage, auditTotalPages]);
+
+  const startEntry = auditTotal === 0 ? 0 : (auditPage - 1) * auditPerPage + 1;
+  const endEntry = Math.min(auditTotal, auditPage * auditPerPage);
+
   const SelectedIcon = POLICY_METADATA[selectedKey].icon;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: '1440px', margin: '0 auto' }}>
       {/* 1. Header Box */}
       <div
         style={{
@@ -427,7 +535,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.45rem',
-              padding: '0.45rem 0.75rem',
+              padding: '0.45rem 0.85rem',
               borderRadius: '0.75rem',
               backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
               border: `1px solid ${theme.border}`,
@@ -437,16 +545,16 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
               fontWeight: 600
             }}
           >
-            <ArrowLeft size={15} />
-            <span>Kembali ke Master Data</span>
+            <ArrowLeft size={15} strokeWidth={1.75} />
+            <span>{backLabel}</span>
           </button>
           <div>
             <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Scale size={20} style={{ color: '#10b981' }} />
+              <Scale size={20} strokeWidth={1.75} style={{ color: '#10b981' }} />
               <span>Kebijakan, Regulasi &amp; Legalitas Platform</span>
             </h2>
             <p style={{ margin: 0, fontSize: '0.76rem', color: theme.textSecondary }}>
-              Kelola 6 pilar kebijakan resmi Catavor, susunan pasal terstruktur, pratinjau publik, dan riwayat audit SOC 2.
+              Kelola 6 pilar kebijakan resmi Catavor, susunan pasal terstruktur, pratinjau publik real-time, dan riwayat audit SOC 2.
             </p>
           </div>
         </div>
@@ -469,13 +577,14 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
               fontWeight: 700
             }}
           >
-            <RotateCcw size={14} />
+            <RotateCcw size={14} strokeWidth={1.75} />
             <span>Reset ke Standar Resmi</span>
           </button>
 
           <button
             type="button"
             onClick={fetchData}
+            disabled={isLoading}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -485,12 +594,12 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
               backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
               border: `1px solid ${theme.border}`,
               color: theme.textPrimary,
-              cursor: 'pointer',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
               fontSize: '0.78rem',
               fontWeight: 600
             }}
           >
-            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} strokeWidth={1.75} className={isLoading ? 'animate-spin' : ''} />
             <span>Segarkan</span>
           </button>
         </div>
@@ -510,7 +619,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Building2 size={18} style={{ color: '#2563eb' }} />
+            <Building2 size={18} strokeWidth={1.75} style={{ color: '#2563eb' }} />
             <div>
               <span style={{ fontSize: '0.86rem', fontWeight: 800, color: theme.textPrimary, display: 'block' }}>
                 Identitas Hukum &amp; Banner Peringatan Kepatuhan Platform
@@ -529,6 +638,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.45rem',
+              width: 'auto',
               padding: '0.45rem 0.95rem',
               borderRadius: '0.65rem',
               backgroundColor: '#2563eb',
@@ -540,7 +650,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
               opacity: isSavingGlobalSettings ? 0.7 : 1
             }}
           >
-            <Save size={14} />
+            <Save size={14} strokeWidth={1.75} />
             <span>{isSavingGlobalSettings ? 'Menyimpan...' : 'Simpan Identitas Hukum'}</span>
           </button>
         </div>
@@ -618,11 +728,11 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
         </div>
       </div>
 
-      {/* 3. 6-Pillar Selector Tabs */}
+      {/* 3. 6-Pillar Multi-Column Grid Cards (Desktop Native) */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
           gap: '0.55rem'
         }}
       >
@@ -663,7 +773,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                   flexShrink: 0
                 }}
               >
-                <Icon size={16} />
+                <Icon size={16} strokeWidth={1.75} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ fontSize: '0.8rem', fontWeight: isSelected ? 800 : 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -705,7 +815,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
             cursor: 'pointer'
           }}
         >
-          <FileEdit size={15} />
+          <FileEdit size={15} strokeWidth={1.75} />
           <span>Editor Pasal Terstruktur</span>
         </button>
 
@@ -726,7 +836,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
             cursor: 'pointer'
           }}
         >
-          <Eye size={15} />
+          <Eye size={15} strokeWidth={1.75} />
           <span>Pratinjau Langsung (Live Preview)</span>
         </button>
 
@@ -739,7 +849,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
             gap: '0.45rem',
             padding: '0.45rem 1rem',
             borderRadius: '0.65rem',
-            backgroundColor: activeTab === 'audit' ? '#8b5cf6' : 'transparent',
+            backgroundColor: activeTab === 'audit' ? '#475569' : 'transparent',
             color: activeTab === 'audit' ? '#ffffff' : theme.textSecondary,
             border: 'none',
             fontSize: '0.82rem',
@@ -747,7 +857,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
             cursor: 'pointer'
           }}
         >
-          <History size={15} />
+          <History size={15} strokeWidth={1.75} />
           <span>Riwayat Versi (Audit Trail)</span>
         </button>
       </div>
@@ -768,13 +878,13 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-              <SelectedIcon size={18} style={{ color: '#10b981' }} />
+              <SelectedIcon size={18} strokeWidth={1.75} style={{ color: '#10b981' }} />
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
                 Metadata Dokumen: {POLICY_METADATA[selectedKey].label}
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
               <div>
                 <label style={{ fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, display: 'block', marginBottom: '0.25rem' }}>
                   Judul Lengkap Dokumen
@@ -883,7 +993,8 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.4rem',
-                  padding: '0.45rem 0.85rem',
+                  width: 'auto',
+                  padding: '0.45rem 0.9rem',
                   borderRadius: '0.65rem',
                   backgroundColor: '#10b981',
                   color: '#ffffff',
@@ -893,7 +1004,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                <Plus size={14} />
+                <Plus size={14} strokeWidth={1.75} />
                 <span>Tambah Pasal Baru</span>
               </button>
             </div>
@@ -919,7 +1030,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                       onChange={e => handleUpdateArticle(aIdx, 'number', e.target.value)}
                       placeholder="Pasal 1"
                       style={{
-                        width: '90px',
+                        width: '95px',
                         padding: '0.4rem 0.6rem',
                         borderRadius: '0.5rem',
                         backgroundColor: theme.card,
@@ -965,7 +1076,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                       }}
                       title="Geser ke Atas"
                     >
-                      <ChevronUp size={14} />
+                      <ChevronUp size={14} strokeWidth={1.75} />
                     </button>
                     <button
                       type="button"
@@ -982,7 +1093,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                       }}
                       title="Geser ke Bawah"
                     >
-                      <ChevronDown size={14} />
+                      <ChevronDown size={14} strokeWidth={1.75} />
                     </button>
                     <button
                       type="button"
@@ -997,7 +1108,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                       }}
                       title="Hapus Pasal"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={14} strokeWidth={1.75} />
                     </button>
                   </div>
                 </div>
@@ -1024,32 +1135,36 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                   />
                 </div>
 
-                {/* Highlights List */}
+                {/* Highlights List (Rule 6: Vector Lucide Check icon, Zero Unicode '✓') */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#10b981' }}>
-                      Poin Sorotan Kepatuhan (Checklist Bullets)
+                      Poin Sorotan Kepatuhan ({art.highlights?.length || 0})
                     </span>
                     <button
                       type="button"
                       onClick={() => handleAddHighlight(aIdx)}
                       style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
                         fontSize: '0.7rem',
                         fontWeight: 700,
                         color: '#10b981',
                         background: 'none',
                         border: 'none',
                         cursor: 'pointer',
-                        padding: 0
+                        padding: '0.15rem 0'
                       }}
                     >
-                      + Tambah Butir
+                      <Plus size={13} strokeWidth={1.75} />
+                      <span>Tambah Butir</span>
                     </button>
                   </div>
 
                   {(art.highlights || []).map((hl, hlIdx) => (
                     <div key={hlIdx} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <span style={{ color: '#10b981', fontSize: '0.8rem' }}>✓</span>
+                      <Check size={14} strokeWidth={1.75} style={{ color: '#10b981', flexShrink: 0 }} />
                       <input
                         type="text"
                         value={hl}
@@ -1074,11 +1189,13 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                           border: 'none',
                           color: '#ef4444',
                           cursor: 'pointer',
-                          padding: '0.2rem'
+                          padding: '0.25rem',
+                          display: 'flex',
+                          alignItems: 'center'
                         }}
                         title="Hapus Butir"
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={13} strokeWidth={1.75} />
                       </button>
                     </div>
                   ))}
@@ -1100,13 +1217,13 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Sparkles size={18} style={{ color: '#10b981' }} />
+              <Sparkles size={18} strokeWidth={1.75} style={{ color: '#10b981' }} />
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
                 Publikasikan Versi Baru &amp; Catat Jejak Audit
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', alignItems: 'end' }}>
               <div>
                 <label style={{ fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, display: 'block', marginBottom: '0.25rem' }}>
                   Nomor Versi Baru
@@ -1118,7 +1235,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                   placeholder="v2.1"
                   style={{
                     width: '100%',
-                    padding: '0.5rem 0.75rem',
+                    padding: '0.55rem 0.75rem',
                     borderRadius: '0.55rem',
                     backgroundColor: theme.card,
                     border: `1px solid ${theme.border}`,
@@ -1135,31 +1252,19 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                 <label style={{ fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, display: 'block', marginBottom: '0.25rem' }}>
                   Tingkat Perubahan (Change Type)
                 </label>
-                <select
+                <DesktopCustomSelect
                   value={editableDoc.changeType}
-                  onChange={e => setEditableDoc(prev => ({ ...prev, changeType: e.target.value as any }))}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '0.55rem',
-                    backgroundColor: theme.card,
-                    border: `1px solid ${theme.border}`,
-                    color: theme.textPrimary,
-                    fontSize: '0.8rem',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="minor">MINOR (Perbaikan Redaksional / Penjelasan)</option>
-                  <option value="major">MAJOR (Perubahan Substansial / Regulasi Baru)</option>
-                </select>
+                  onChange={(val) => setEditableDoc(prev => ({ ...prev, changeType: val === 'major' ? 'major' : 'minor' }))}
+                  options={CHANGE_TYPE_OPTIONS}
+                  ariaLabel="Pilih tingkat perubahan kebijakan"
+                />
               </div>
 
               <div>
                 <label style={{ fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, display: 'block', marginBottom: '0.25rem' }}>
                   Persetujuan Ulang Merchant
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginTop: '0.45rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', minHeight: '38px' }}>
                   <input
                     type="checkbox"
                     checked={editableDoc.requiresAcceptance}
@@ -1205,6 +1310,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.5rem',
+                  width: 'auto',
                   padding: '0.65rem 1.35rem',
                   borderRadius: '0.75rem',
                   backgroundColor: '#10b981',
@@ -1217,7 +1323,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                   opacity: isSaving ? 0.7 : 1
                 }}
               >
-                <Save size={16} />
+                <Save size={16} strokeWidth={1.75} />
                 <span>{isSaving ? 'Menyimpan & Menerbitkan...' : `Publikasikan Versi Baru (${editableDoc.version})`}</span>
               </button>
             </div>
@@ -1225,7 +1331,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
         </div>
       )}
 
-      {/* 5. SUB-MODE 2: LIVE PREVIEW */}
+      {/* 5. SUB-MODE 2: LIVE PREVIEW (Renders Unsaved Draft Real-Time) */}
       {activeTab === 'preview' && (
         <div
           style={{
@@ -1246,23 +1352,23 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Eye size={16} style={{ color: '#2563eb' }} />
+              <Eye size={16} strokeWidth={1.75} style={{ color: '#2563eb' }} />
               <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#ffffff' }}>
-                Pratinjau Langsung Tampilan Merchant &amp; Pengunjung Publik
+                Pratinjau Langsung Draf ({POLICY_METADATA[selectedKey].label})
               </span>
             </div>
             <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-              Mode Tampilan Dinamis Real-Time
+              Menampilkan perubahan draf secara real-time sebelum dipublikasikan
             </span>
           </div>
 
           <div style={{ padding: '1rem' }}>
-            <PlatformPoliciesView initialKey={selectedKey} />
+            <PlatformPoliciesView initialKey={selectedKey} draftOverride={draftOverride} />
           </div>
         </div>
       )}
 
-      {/* 5. SUB-MODE 3: AUDIT TRAIL */}
+      {/* 5. SUB-MODE 3: AUDIT TRAIL WITH ENTERPRISE PAGINATION BAR */}
       {activeTab === 'audit' && (
         <div
           style={{
@@ -1275,9 +1381,9 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
             gap: '0.85rem'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <History size={18} style={{ color: '#8b5cf6' }} />
+              <History size={18} strokeWidth={1.75} style={{ color: '#64748b' }} />
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
                 Jejak Audit Perubahan Kebijakan (SOC 2 Policy Audit Trail)
               </span>
@@ -1285,16 +1391,23 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
             <button
               type="button"
               onClick={fetchAuditLogs}
+              disabled={isLoadingLogs}
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
                 fontSize: '0.75rem',
-                color: '#8b5cf6',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
+                color: theme.textPrimary,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                border: `1px solid ${theme.border}`,
+                padding: '0.35rem 0.75rem',
+                borderRadius: '0.5rem',
+                cursor: isLoadingLogs ? 'not-allowed' : 'pointer',
                 fontWeight: 700
               }}
             >
-              Segarkan Log
+              <RefreshCw size={13} strokeWidth={1.75} className={isLoadingLogs ? 'animate-spin' : ''} />
+              <span>Segarkan Log</span>
             </button>
           </div>
 
@@ -1307,64 +1420,245 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
               Belum ada riwayat perubahan kebijakan yang tercatat.
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${theme.border}`, color: theme.textSecondary, textAlign: 'left' }}>
-                    <th style={{ padding: '0.65rem 0.75rem' }}>Waktu</th>
-                    <th style={{ padding: '0.65rem 0.75rem' }}>Tipe Dokumen</th>
-                    <th style={{ padding: '0.65rem 0.75rem' }}>Aksi</th>
-                    <th style={{ padding: '0.65rem 0.75rem' }}>Versi Baru</th>
-                    <th style={{ padding: '0.65rem 0.75rem' }}>Ringkasan Perubahan</th>
-                    <th style={{ padding: '0.65rem 0.75rem' }}>Admin / Email</th>
-                    <th style={{ padding: '0.65rem 0.75rem' }}>IP Address</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditLogs.map(log => (
-                    <tr key={log.id} style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` }}>
-                      <td style={{ padding: '0.65rem 0.75rem', color: theme.textSecondary, whiteSpace: 'nowrap' }}>
-                        {new Date(log.created_at).toLocaleString('id-ID')}
-                      </td>
-                      <td style={{ padding: '0.65rem 0.75rem', fontWeight: 700, color: theme.textPrimary }}>
-                        {log.policy_type}
-                      </td>
-                      <td style={{ padding: '0.65rem 0.75rem' }}>
-                        <span style={{
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '0.35rem',
-                          fontSize: '0.68rem',
-                          fontWeight: 800,
-                          backgroundColor: log.action === 'reset_defaults' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                          color: log.action === 'reset_defaults' ? '#ef4444' : '#10b981'
-                        }}>
-                          {log.action}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.65rem 0.75rem', fontWeight: 700, color: theme.textPrimary }}>
-                        {log.new_version || '-'}
-                      </td>
-                      <td style={{ padding: '0.65rem 0.75rem', color: theme.textPrimary, maxWidth: '300px' }}>
-                        {log.change_summary || '-'}
-                      </td>
-                      <td style={{ padding: '0.65rem 0.75rem', color: theme.textSecondary }}>
-                        {log.admin_email || 'System'}
-                      </td>
-                      <td style={{ padding: '0.65rem 0.75rem', color: theme.textSecondary, fontFamily: 'monospace' }}>
-                        {log.admin_ip || '-'}
-                      </td>
+            <>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${theme.border}`, color: theme.textSecondary, textAlign: 'left' }}>
+                      <th style={{ padding: '0.65rem 0.75rem' }}>Waktu</th>
+                      <th style={{ padding: '0.65rem 0.75rem' }}>Tipe Dokumen</th>
+                      <th style={{ padding: '0.65rem 0.75rem' }}>Aksi</th>
+                      <th style={{ padding: '0.65rem 0.75rem' }}>Versi Baru</th>
+                      <th style={{ padding: '0.65rem 0.75rem' }}>Ringkasan Perubahan</th>
+                      <th style={{ padding: '0.65rem 0.75rem' }}>Admin / Email</th>
+                      <th style={{ padding: '0.65rem 0.75rem' }}>IP Address</th>
                     </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.map(log => (
+                      <tr key={log.id} style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` }}>
+                        <td style={{ padding: '0.65rem 0.75rem', color: theme.textSecondary, whiteSpace: 'nowrap' }}>
+                          {new Date(log.created_at).toLocaleString('id-ID')}
+                        </td>
+                        <td style={{ padding: '0.65rem 0.75rem', fontWeight: 700, color: theme.textPrimary }}>
+                          {log.policy_type}
+                        </td>
+                        <td style={{ padding: '0.65rem 0.75rem' }}>
+                          <span
+                            style={{
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '0.35rem',
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              backgroundColor: log.action === 'reset_defaults' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                              color: log.action === 'reset_defaults' ? '#ef4444' : '#10b981'
+                            }}
+                          >
+                            {log.action}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.65rem 0.75rem', fontWeight: 700, color: theme.textPrimary }}>
+                          {log.new_version || '-'}
+                        </td>
+                        <td style={{ padding: '0.65rem 0.75rem', color: theme.textPrimary, maxWidth: '320px' }}>
+                          {log.change_summary || '-'}
+                        </td>
+                        <td style={{ padding: '0.65rem 0.75rem', color: theme.textSecondary }}>
+                          {log.admin_email || 'System'}
+                        </td>
+                        <td style={{ padding: '0.65rem 0.75rem', color: theme.textSecondary, fontFamily: 'monospace' }}>
+                          {log.admin_ip || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Enterprise Comprehensive Data Table Pagination Bar (AGENTS.md Rule 7.C.1) */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                  paddingTop: '0.85rem',
+                  borderTop: `1px solid ${theme.border}`,
+                  fontSize: '0.76rem',
+                  color: theme.textSecondary
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div style={{ width: '125px' }}>
+                    <DesktopCustomSelect
+                      value={String(auditPerPage)}
+                      onChange={(val) => {
+                        setAuditPerPage(Number(val) || 25);
+                        setAuditPage(1);
+                      }}
+                      options={PER_PAGE_OPTIONS}
+                      ariaLabel="Baris per halaman"
+                    />
+                  </div>
+                  <span>
+                    Menampilkan <strong style={{ color: theme.textPrimary }}>{startEntry} – {endEntry}</strong> dari{' '}
+                    <strong style={{ color: theme.textPrimary }}>{auditTotal}</strong> data
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    disabled={auditPage <= 1}
+                    onClick={() => setAuditPage(1)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.2rem',
+                      padding: '0.35rem 0.6rem',
+                      borderRadius: '0.45rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: 'transparent',
+                      color: theme.textPrimary,
+                      fontSize: '0.74rem',
+                      cursor: auditPage <= 1 ? 'not-allowed' : 'pointer',
+                      opacity: auditPage <= 1 ? 0.4 : 1
+                    }}
+                  >
+                    <ChevronsLeft size={13} strokeWidth={1.75} />
+                    <span>Awal</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={auditPage <= 1}
+                    onClick={() => setAuditPage(p => Math.max(1, p - 1))}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.2rem',
+                      padding: '0.35rem 0.6rem',
+                      borderRadius: '0.45rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: 'transparent',
+                      color: theme.textPrimary,
+                      fontSize: '0.74rem',
+                      cursor: auditPage <= 1 ? 'not-allowed' : 'pointer',
+                      opacity: auditPage <= 1 ? 0.4 : 1
+                    }}
+                  >
+                    <ChevronLeft size={13} strokeWidth={1.75} />
+                    <span>Sebelumnya</span>
+                  </button>
+
+                  {pageNumbers.map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setAuditPage(p)}
+                      style={{
+                        minWidth: '30px',
+                        padding: '0.35rem 0.55rem',
+                        borderRadius: '0.45rem',
+                        border: `1px solid ${p === auditPage ? '#10b981' : theme.border}`,
+                        backgroundColor: p === auditPage ? '#10b981' : 'transparent',
+                        color: p === auditPage ? '#ffffff' : theme.textPrimary,
+                        fontWeight: p === auditPage ? 800 : 600,
+                        fontSize: '0.74rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {p}
+                    </button>
                   ))}
-                </tbody>
-              </table>
-            </div>
+
+                  <button
+                    type="button"
+                    disabled={auditPage >= auditTotalPages}
+                    onClick={() => setAuditPage(p => Math.min(auditTotalPages, p + 1))}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.2rem',
+                      padding: '0.35rem 0.6rem',
+                      borderRadius: '0.45rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: 'transparent',
+                      color: theme.textPrimary,
+                      fontSize: '0.74rem',
+                      cursor: auditPage >= auditTotalPages ? 'not-allowed' : 'pointer',
+                      opacity: auditPage >= auditTotalPages ? 0.4 : 1
+                    }}
+                  >
+                    <span>Selanjutnya</span>
+                    <ChevronRight size={13} strokeWidth={1.75} />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={auditPage >= auditTotalPages}
+                    onClick={() => setAuditPage(auditTotalPages)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.2rem',
+                      padding: '0.35rem 0.6rem',
+                      borderRadius: '0.45rem',
+                      border: `1px solid ${theme.border}`,
+                      backgroundColor: 'transparent',
+                      color: theme.textPrimary,
+                      fontSize: '0.74rem',
+                      cursor: auditPage >= auditTotalPages ? 'not-allowed' : 'pointer',
+                      opacity: auditPage >= auditTotalPages ? 0.4 : 1
+                    }}
+                  >
+                    <span>Akhir</span>
+                    <ChevronsRight size={13} strokeWidth={1.75} />
+                  </button>
+
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const target = parseInt(quickJumpInput, 10);
+                      if (!isNaN(target) && target >= 1 && target <= auditTotalPages) {
+                        setAuditPage(target);
+                        setQuickJumpInput('');
+                      }
+                    }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.35rem' }}
+                  >
+                    <span>Ke hal:</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={auditTotalPages}
+                      value={quickJumpInput}
+                      onChange={e => setQuickJumpInput(e.target.value)}
+                      placeholder={String(auditPage)}
+                      style={{
+                        width: '54px',
+                        padding: '0.3rem 0.45rem',
+                        borderRadius: '0.4rem',
+                        border: `1px solid ${theme.border}`,
+                        backgroundColor: theme.card,
+                        color: theme.textPrimary,
+                        fontSize: '0.74rem',
+                        outline: 'none'
+                      }}
+                    />
+                  </form>
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
 
-      {/* 6. Reset Confirmation Modal */}
+      {/* 6. Reset Confirmation Centered Modal (Desktop Native) */}
       {showResetModal && (
         <div
+          onClick={() => {
+            if (!isResetting) setShowResetModal(false);
+          }}
           style={{
             position: 'fixed',
             inset: 0,
@@ -1378,11 +1672,12 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
           }}
         >
           <div
+            onClick={(e) => e.stopPropagation()}
             style={{
               backgroundColor: theme.surface,
               borderRadius: '1rem',
               border: `1.5px solid ${theme.border}`,
-              maxWidth: '480px',
+              maxWidth: '500px',
               width: '100%',
               padding: '1.5rem',
               display: 'flex',
@@ -1405,28 +1700,29 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                   flexShrink: 0
                 }}
               >
-                <AlertTriangle size={20} />
+                <AlertTriangle size={20} strokeWidth={1.75} />
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: theme.textPrimary }}>
                   Konfirmasi Reset ke Standar Resmi
                 </h3>
                 <span style={{ fontSize: '0.74rem', color: theme.textSecondary }}>
-                  Tindakan ini akan mengembalikan dokumen kebijakan ke template standar resmi Catavor v2.0.
+                  Tindakan ini menerbitkan versi baru berisi template resmi Catavor v2.0 dengan menjaga histori versi sebelumnya.
                 </span>
               </div>
             </div>
 
             <p style={{ margin: 0, fontSize: '0.8rem', color: theme.textSecondary, lineHeight: 1.55 }}>
-              Pilih apakah Anda ingin mereset <strong>hanya dokumen {POLICY_METADATA[selectedKey].label}</strong> atau <strong>seluruh 6 pilar kebijakan platform</strong>. Tindakan ini akan dicatat ke dalam log audit SOC 2.
+              Pilih apakah Anda ingin mereset <strong>hanya dokumen {POLICY_METADATA[selectedKey].label}</strong> atau <strong>seluruh 6 pilar kebijakan platform</strong>. Tindakan ini dicatat ke dalam log audit SOC 2.
             </p>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => setShowResetModal(false)}
                 disabled={isResetting}
                 style={{
+                  width: 'auto',
                   padding: '0.5rem 0.95rem',
                   borderRadius: '0.55rem',
                   backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
@@ -1434,7 +1730,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                   border: `1px solid ${theme.border}`,
                   fontSize: '0.78rem',
                   fontWeight: 600,
-                  cursor: 'pointer'
+                  cursor: isResetting ? 'not-allowed' : 'pointer'
                 }}
               >
                 Batal
@@ -1445,6 +1741,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                 onClick={() => handleResetDefaults(false)}
                 disabled={isResetting}
                 style={{
+                  width: 'auto',
                   padding: '0.5rem 0.95rem',
                   borderRadius: '0.55rem',
                   backgroundColor: 'rgba(245, 158, 11, 0.15)',
@@ -1463,6 +1760,7 @@ export const PlatformPolicyManager: React.FC<PlatformPolicyManagerProps> = ({
                 onClick={() => handleResetDefaults(true)}
                 disabled={isResetting}
                 style={{
+                  width: 'auto',
                   padding: '0.5rem 0.95rem',
                   borderRadius: '0.55rem',
                   backgroundColor: '#ef4444',

@@ -100,6 +100,7 @@ import { TabletAuditLogsView } from './TabletAuditLogsView';
 import { TabletDangerZoneView } from './TabletDangerZoneView';
 import { TabletHelpdeskView } from './TabletHelpdeskView';
 import { TabletPoliciesView } from './TabletPoliciesView';
+import { ErrorBoundary } from './ErrorBoundary';
 import { TabletProductFilterSheet, type TabletProductFilterValues } from './TabletProductFilterSheet';
 import { TabletScrollableFilterTags, type FilterTagItem } from './TabletScrollableFilterTags';
 import { TabletCustomSelect } from './TabletCustomSelect';
@@ -12658,9 +12659,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 9: KEBIJAKAN & KETENTUAN PLATFORM (TABLET NATIVE VIEW)
             =================================================================== */}
         {activeTab === 'policies' && (
-          <TabletPoliciesView
-            onOpenHelpdesk={() => setActiveTab('help')}
-          />
+          <ErrorBoundary sectionName="Kebijakan Platform">
+            <TabletPoliciesView
+              onOpenHelpdesk={() => setActiveTab('help')}
+            />
+          </ErrorBoundary>
         )}
 
         {/* ===================================================================

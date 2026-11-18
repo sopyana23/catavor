@@ -227,10 +227,12 @@ export const isReservedStoreSlug = (slug?: string | null): boolean => {
   if (!slug) return false;
   const s = slug.toLowerCase();
   const reserved = [
-    'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin',
+    'api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin',
     'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
     'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi',
-    'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings',
+    'ketentuan-penggunaan', 'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang',
+    'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi',
+    'explore', 'directory', 'internal', 'staff', 'settings',
     'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription',
     'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'
   ];
@@ -282,7 +284,7 @@ function getStoreSlug(): string | null {
   if (typeof window === 'undefined') return null;
   const path = window.location.pathname.toLowerCase();
   const parts = path.split('/').filter(Boolean);
-  const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+  const reservedPortal = ['api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang', 'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
 
   if (parts.length === 0) return null;
   if (parts[0] === 'login' && parts.length > 1 && !reservedPortal.includes(parts[1])) {
@@ -304,7 +306,7 @@ function resolveActiveStoreSlug(): string | null {
   const isInvalid = (s?: string | null) => {
     if (!s) return true;
     const clean = s.toLowerCase().trim();
-    const reserved = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+    const reserved = ['api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang', 'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
     return reserved.includes(clean);
   };
   const fromUrl = getStoreSlug();
@@ -4098,9 +4100,11 @@ function App() {
     if (!slug) return true;
     const clean = slug.toLowerCase().trim();
     const reserved = [
-      'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin',
+      'api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin',
       'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
       'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan',
+      'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang',
+      'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi',
       'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan',
       'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan',
       'help', 'bantuan', 'support', 'superadmin', 'compliance', 'finance', 'billing', 'official',
@@ -4143,6 +4147,13 @@ function App() {
         p === '/login' ||
         p === '/register' || p.startsWith('/register/') ||
         p === '/checkout' || p.startsWith('/checkout') ||
+        p === '/terms' || p === '/privacy' || p === '/acceptable-use' || p === '/acceptable_use' ||
+        p === '/syarat-ketentuan' || p === '/kebijakan-privasi' || p === '/ketentuan-penggunaan' ||
+        p === '/policies' || p === '/kebijakan' || p === '/legal' ||
+        p === '/prohibited' || p === '/barang-terlarang' ||
+        p === '/subscription' || p === '/ketentuan-langganan' ||
+        p === '/transactions' || p === '/pedoman-transaksi' ||
+        p === '/moderation' || p === '/standar-moderasi' ||
         p === '/' || p === ''
       ) {
         return null;
@@ -4236,11 +4247,16 @@ function App() {
       } else if (path === '/register/step-3') {
         pathTab = isAuthenticated ? 'home' : 'register';
         pathStep = 3;
-      } else if (path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal') {
+      } else if (
+        path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal' ||
+        path === '/subscription' || path === '/ketentuan-langganan' ||
+        path === '/transactions' || path === '/pedoman-transaksi' ||
+        path === '/moderation' || path === '/standar-moderasi'
+      ) {
         pathTab = 'terms';
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         pathTab = 'privacy';
-      } else if (path === '/acceptable-use' || path === '/acceptable_use' || path === '/ketentuan-penggunaan') {
+      } else if (path === '/acceptable-use' || path === '/acceptable_use' || path === '/ketentuan-penggunaan' || path === '/prohibited' || path === '/barang-terlarang') {
         pathTab = 'acceptable_use';
       } else {
         const queryTab = urlParams.get('tab');
@@ -5432,23 +5448,30 @@ Terima kasih.`;
       privacy: 'privacy',
       acceptable_use: 'prohibited'
     };
-    const targetKey = keyMap[type] || 'terms';
+    const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase().replace(/\/+$/, '') : '';
+    const targetKey: PolicyKey =
+      (curPath === '/subscription' || curPath === '/ketentuan-langganan') ? 'subscription' :
+      (curPath === '/transactions' || curPath === '/pedoman-transaksi') ? 'transactions' :
+      (curPath === '/moderation' || curPath === '/standar-moderasi') ? 'moderation' :
+      (curPath === '/prohibited' || curPath === '/barang-terlarang') ? 'prohibited' :
+      (keyMap[type] || 'terms');
 
     return (
       <div style={{ maxWidth: '850px', margin: '0 auto', padding: '1rem 0.75rem 4rem 0.75rem' }}>
-        <MobilePoliciesView
-          initialKey={targetKey}
-          onBack={() => {
-            if (window.history.length > 1) {
-              window.history.back();
-            } else {
-              setPortalTab('home');
-            }
-          }}
-          onOpenHelpdesk={() => {
-            setPortalTab('login');
-          }}
-        />
+        <ErrorBoundary sectionName="Kebijakan Platform">
+          <MobilePoliciesView
+            initialKey={targetKey}
+            onBack={() => {
+              smartBack(() => {
+                setPortalTab('home');
+                window.history.replaceState({}, '', '/');
+              });
+            }}
+            onOpenHelpdesk={() => {
+              setPortalTab('login');
+            }}
+          />
+        </ErrorBoundary>
       </div>
     );
   };
@@ -6143,6 +6166,35 @@ Terima kasih.`;
   const [agreeTermsError, setAgreeTermsError] = useState<boolean>(false)
   const [agreeCheckoutTermsError, setAgreeCheckoutTermsError] = useState<boolean>(false)
   const [showQuickPolicyModal, setShowQuickPolicyModal] = useState<'terms' | 'privacy' | 'acceptable_use' | null>(null)
+  const [quickPolicyDragY, setQuickPolicyDragY] = useState<number>(0)
+  const [isQuickPolicyDragging, setIsQuickPolicyDragging] = useState<boolean>(false)
+  const [isClosingQuickPolicy, setIsClosingQuickPolicy] = useState<boolean>(false)
+  const quickPolicyTouchStartY = useRef<number>(0)
+  const quickPolicyDragYRef = useRef<number>(0)
+
+  useEffect(() => {
+    quickPolicyDragYRef.current = quickPolicyDragY
+  }, [quickPolicyDragY])
+
+  const closeQuickPolicySheet = useCallback(() => {
+    setIsClosingQuickPolicy(true)
+    setIsQuickPolicyDragging(false)
+    setTimeout(() => {
+      setShowQuickPolicyModal(null)
+      setIsClosingQuickPolicy(false)
+      setQuickPolicyDragY(0)
+    }, 280)
+  }, [])
+
+  useModalBackHandler({
+    isOpen: Boolean(showQuickPolicyModal),
+    onClose: () => {
+      setShowQuickPolicyModal(null)
+      setIsClosingQuickPolicy(false)
+      setQuickPolicyDragY(0)
+    },
+    modalId: 'mobile-quick-policy-sheet'
+  })
   const [faunasPage, setFaunasPage] = useState(1)
   const [itemsPage, setItemsPage] = useState<number>(1)
   const [logoUploading, setLogoUploading] = useState<boolean>(false)
@@ -11053,11 +11105,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
           return;
         }
-      } else if (path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal') {
+      } else if (
+        path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal' ||
+        path === '/subscription' || path === '/ketentuan-langganan' ||
+        path === '/transactions' || path === '/pedoman-transaksi' ||
+        path === '/moderation' || path === '/standar-moderasi'
+      ) {
         setPortalTab('terms');
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         setPortalTab('privacy');
-      } else if (path === '/acceptable-use' || path === '/acceptable_use' || path === '/ketentuan-penggunaan') {
+      } else if (path === '/acceptable-use' || path === '/acceptable_use' || path === '/ketentuan-penggunaan' || path === '/prohibited' || path === '/barang-terlarang') {
         setPortalTab('acceptable_use');
       } else if (path === '/' || path === '') {
         setPortalTab('home');
@@ -11435,13 +11492,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
     if (parts.length <= 1) return true;
 
     const reservedPortal = [
-      'api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'admin',
+      'api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin',
       'catavor', 'catafor', 'katavor', 'katafor', 'catabor', 'katabor',
       'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy',
       'acceptable_use', 'acceptable-use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan',
+      'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang',
+      'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi',
       'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan',
       'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan',
-      'help', 'bantuan', 'support'
+      'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'
     ];
 
     if (!reservedPortal.includes(parts[0])) {
@@ -11830,7 +11889,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return false;
     }
     const parts = path.split('/').filter(Boolean);
-    const reservedPortal = ['api', 'sanctum', 'desktop', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
+    const reservedPortal = ['api', 'sanctum', 'desktop', 'tablet', 'mobile', 'assets', 'login', 'register', 'checkout', 'admin', 'platform', 'system', 'ops', 'dashboard', 'terms', 'privacy', 'acceptable-use', 'acceptable_use', 'syarat-ketentuan', 'kebijakan-privasi', 'ketentuan-penggunaan', 'policies', 'kebijakan', 'legal', 'prohibited', 'barang-terlarang', 'ketentuan-langganan', 'transactions', 'pedoman-transaksi', 'moderation', 'standar-moderasi', 'explore', 'directory', 'internal', 'staff', 'settings', 'pengaturan', 'notifications', 'notifikasi', 'articles', 'artikel', 'subscription', 'langganan', 'help', 'bantuan', 'support', 'catalogs', 'select-catalog', 'stores'];
 
     if (parts.length === 0) return false;
     if (parts.length === 1) return false;
@@ -29395,14 +29454,17 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setAdminSubTab('menu');
-                                        const slug = getStoreSlug();
-                                        if (slug) window.history.replaceState({}, '', `/${slug}/admin`);
+                                        smartBack(() => {
+                                          setAdminSubTab('menu');
+                                          const slug = getStoreSlug();
+                                          if (slug) window.history.replaceState({}, '', `/${slug}/admin`);
+                                        });
                                       }}
                                       style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         gap: '0.4rem',
+                                        minHeight: '44px',
                                         padding: '0.5rem 0.85rem',
                                         borderRadius: '0.5rem',
                                         backgroundColor: 'var(--bg-deep)',
@@ -29414,16 +29476,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       }}
                                     >
                                       <ArrowLeft size={14} />
-                                      <span>Kembali ke Menu</span>
+                                      <span>Kembali</span>
                                     </button>
                                   </div>
-                                  <MobilePoliciesView
-                                    onOpenHelpdesk={() => {
-                                      setAdminSubTab('help');
-                                      const slug = getStoreSlug();
-                                      if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
-                                    }}
-                                  />
+                                  <ErrorBoundary sectionName="Kebijakan Platform">
+                                    <MobilePoliciesView
+                                      onOpenHelpdesk={() => {
+                                        setAdminSubTab('help');
+                                        const slug = getStoreSlug();
+                                        if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
+                                      }}
+                                    />
+                                  </ErrorBoundary>
                                 </div>
                               )}
 
@@ -34304,29 +34368,113 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       })()}
 
 
-      {/* QUICK POLICY POPOVER MODAL FOR FORMS */}
+      {/* QUICK POLICY SLIDE-UP BOTTOM SHEET FOR FORMS (AGENTS.md Rule 7.A.3 Compliant) */}
       {showQuickPolicyModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setShowQuickPolicyModal(null)}>
-          <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '440px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', padding: '1.25rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.15)', background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(9, 14, 26, 0.99) 100%)', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '0.85rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <ShieldCheck size={18} style={{ color: 'var(--primary)' }} />
-                <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#ffffff' }}>
+        <div
+          onClick={closeQuickPolicySheet}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: isClosingQuickPolicy ? 'rgba(0, 0, 0, 0)' : 'rgba(2, 6, 23, 0.78)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 9500,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            transition: 'background-color 0.25s ease'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              borderTopLeftRadius: '1.25rem',
+              borderTopRightRadius: '1.25rem',
+              borderTop: '1px solid rgba(255, 255, 255, 0.14)',
+              backgroundColor: '#0f172a',
+              boxShadow: '0 -18px 48px rgba(0, 0, 0, 0.7)',
+              transform: isClosingQuickPolicy
+                ? 'translateY(100%)'
+                : `translateY(${quickPolicyDragY}px)`,
+              transition: isQuickPolicyDragging
+                ? 'none'
+                : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              willChange: 'transform',
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+            }}
+          >
+            {/* Clean Drag Handle + Header (Zero 'X' button per AGENTS.md Rule 7.A.3) */}
+            <div
+              onTouchStart={(e) => {
+                quickPolicyTouchStartY.current = e.touches[0].clientY;
+                setIsQuickPolicyDragging(true);
+              }}
+              onTouchMove={(e) => {
+                const delta = e.touches[0].clientY - quickPolicyTouchStartY.current;
+                setQuickPolicyDragY(delta < 0 ? delta * 0.18 : delta);
+              }}
+              onTouchEnd={() => {
+                setIsQuickPolicyDragging(false);
+                if (quickPolicyDragYRef.current >= 70) {
+                  closeQuickPolicySheet();
+                } else {
+                  setQuickPolicyDragY(0);
+                }
+              }}
+              style={{
+                touchAction: 'none',
+                userSelect: 'none',
+                cursor: 'grab',
+                padding: '0.65rem 1.25rem 0.85rem 1.25rem',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+              }}
+            >
+              <div
+                style={{
+                  width: '40px',
+                  height: '4px',
+                  borderRadius: '999px',
+                  backgroundColor: 'rgba(148, 163, 184, 0.45)',
+                  margin: '0 auto 0.75rem auto'
+                }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ShieldCheck size={18} strokeWidth={1.75} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff' }}>
                   {showQuickPolicyModal === 'terms' ? 'Syarat & Ketentuan' : showQuickPolicyModal === 'privacy' ? 'Kebijakan Privasi' : 'Ketentuan Penggunaan'}
                 </span>
               </div>
-              <button type="button" onClick={() => setShowQuickPolicyModal(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: '0.2rem', display: 'flex', alignItems: 'center' }}>
-                <X size={18} />
-              </button>
             </div>
 
-            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.25rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                overscrollBehavior: 'contain',
+                padding: '1rem 1.25rem',
+                fontSize: '0.82rem',
+                color: '#cbd5e1',
+                lineHeight: 1.65
+              }}
+            >
               <FormattedText text={policies[showQuickPolicyModal]?.content || ''} />
             </div>
 
-            <button type="button" className="btn-primary btn-full" onClick={() => setShowQuickPolicyModal(null)} style={{ marginTop: '1rem', padding: '0.65rem', fontSize: '0.8rem', fontWeight: 800 }}>
-              Saya Mengerti &amp; Tutup
-            </button>
+            <div style={{ padding: '0.85rem 1.25rem 1rem 1.25rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <button
+                type="button"
+                className="btn-primary btn-full"
+                onClick={closeQuickPolicySheet}
+                style={{ minHeight: '46px', padding: '0.7rem 1rem', fontSize: '0.84rem', fontWeight: 800, borderRadius: '0.65rem' }}
+              >
+                Saya Mengerti &amp; Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}
