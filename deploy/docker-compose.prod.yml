@@ -18,7 +18,7 @@ name: catavor-prod
 
 services:
   postgres:
-    image: postgres:17-bookworm
+    image: postgres:17.12-bookworm
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-catavor_app}
@@ -59,7 +59,7 @@ services:
       - no-new-privileges:true
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4-alpine
     restart: unless-stopped
     command:
       - redis-server

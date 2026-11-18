@@ -18,7 +18,7 @@
 # -----------------------------------------------------------------------------
 # Tahap 1: dependensi ketiga frontend (desktop, tablet, mobile)
 # -----------------------------------------------------------------------------
-FROM node:22.13.0-bookworm-slim AS node-base
+FROM node:22.23.5-bookworm-slim AS node-base
 
 WORKDIR /app
 
@@ -52,7 +52,7 @@ RUN cd frontend/desktop && npm run build \
 # -----------------------------------------------------------------------------
 # Tahap 3: build backend Go statis (server + admin-cli untuk operasi break-glass)
 # -----------------------------------------------------------------------------
-FROM golang:1.26-bookworm AS backend-build
+FROM golang:1.26.11-bookworm AS backend-build
 
 WORKDIR /src
 

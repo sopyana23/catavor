@@ -468,6 +468,8 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = React.m
             cMapUrl: `${assetBase}cmaps/`,
             cMapPacked: true,
             standardFontDataUrl: `${assetBase}standard_fonts/`,
+            enableXfa: false,
+            maxImageSize: 16777216,
           });
 
           const loadedPdf = await loadingTask.promise;

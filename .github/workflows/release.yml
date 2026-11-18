@@ -64,12 +64,13 @@ jobs:
           cache: npm
           cache-dependency-path: |
             frontend/desktop/package-lock.json
+            frontend/tablet/package-lock.json
             frontend/mobile/package-lock.json
 
       - name: Frontend typecheck & build
         run: |
           set -e
-          for spa in desktop mobile; do
+          for spa in desktop tablet mobile; do
             echo "::group::frontend/$spa"
             cd "frontend/$spa"
             npm ci --no-audit --no-fund
