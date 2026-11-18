@@ -374,3 +374,27 @@ func TelemetryRateLimiter() fiber.Handler {
 	})
 }
 
+// ExportRateLimiter limits heavy data export operations (CSV/JSON/ZIP)
+// Allows up to 10 exports per minute per IP to prevent CPU/IO saturation
+func ExportRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        10,
+		Expiration: 1 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP() + "_export"
+		},
+		Next: func(c *fiber.Ctx) bool {
+			ip := c.IP()
+			return ip == "127.0.0.1" || ip == "::1" || ip == "" || ip == "localhost"
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"code":    "RATE_LIMIT_EXCEEDED",
+				"message": "Terlalu banyak permintaan unduhan ekspor data. Silakan tunggu 1 menit sebelum mencoba kembali.",
+			})
+		},
+	})
+}
+
+

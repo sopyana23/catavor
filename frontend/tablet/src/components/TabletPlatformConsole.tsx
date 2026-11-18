@@ -89,8 +89,10 @@ import {
   ImageOff,
   Power,
   Edit2,
-  Percent
+  Percent,
+  Scale
 } from 'lucide-react';
+import { TabletPolicyManager } from './TabletPolicyManager';
 import { RichTextarea, FormattedText } from './RichTextarea';
 import { checkUrlSecurity, cleanDomainString } from '../utils/urlSecurity';
 import { SafeImage } from './SafeImage';
@@ -301,6 +303,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(t)) return 'automation';
     if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'b2b'].includes(t)) return 'market_intel';
     if (['monetization', 'iklan', 'ads', 'google'].includes(t)) return 'monetization';
+    if (['policies', 'policy', 'kebijakan', 'legal', 'settings', 'setting', 'terms', 'aturan'].includes(t)) return 'policies';
     if (['master-data', 'master_data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(t)) return 'master-data';
     if (['audit', 'logs', 'activity', 'jejak'].includes(t)) return 'audit';
     return 'dashboard';
@@ -408,6 +411,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         return { title: 'Mesin Otomatisasi & Bot Worker', subtitle: 'Pemantauan status daemon dan background job' };
       case 'monetization':
         return { title: 'Monetisasi & Integrasi Google', subtitle: 'Pengaturan Google AdSense, ads.txt dan GA4' };
+      case 'policies':
+        return { title: 'Kebijakan & Legalitas Platform', subtitle: '6 pilar regulasi, editor pasal terstruktur, dan banner legal' };
       case 'master-data':
         return { title: 'Master Data', subtitle: 'Whitelist domain aman, template CS, dan proteksi rekber syariah' };
       case 'audit':
@@ -3036,16 +3041,18 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: MASTER DATA (Rekber, Domains, CS Templates)
   // =========================================================================
-  const [masterSubTab, setMasterSubTab] = useState<'rekber' | 'domains' | 'templates' | 'contact'>(() => {
+  const [masterSubTab, setMasterSubTab] = useState<'rekber' | 'domains' | 'templates' | 'contact' | 'policies'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const sub = params.get('sub');
+      const sub = (params.get('sub') || '').toLowerCase();
+      const tab = (params.get('tab') || params.get('view') || '').toLowerCase();
+      if (['policies', 'policy', 'kebijakan', 'legal'].includes(sub) || ['policies', 'policy', 'kebijakan', 'legal'].includes(tab)) return 'policies';
       if (sub === 'domains' || sub === 'templates' || sub === 'rekber' || sub === 'contact') return sub;
     }
     return 'rekber';
   });
 
-  const handleSwitchMasterSubTab = (sub: 'rekber' | 'domains' | 'templates' | 'contact') => {
+  const handleSwitchMasterSubTab = (sub: 'rekber' | 'domains' | 'templates' | 'contact' | 'policies') => {
     setMasterSubTab(sub);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
@@ -3105,15 +3112,17 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     const handleMasterPopState = () => {
       if (typeof window === 'undefined' || window.__catavor_is_modal_popping) return;
       const params = new URLSearchParams(window.location.search);
-      const sub = params.get('sub');
-      const tab = params.get('tab') || params.get('view');
-      if (sub === 'domains' || sub === 'templates' || sub === 'rekber' || sub === 'contact') {
-        setMasterSubTab(sub);
-      } else if (['contact', 'kontak'].includes(String(tab).toLowerCase())) {
+      const sub = (params.get('sub') || '').toLowerCase();
+      const tab = (params.get('tab') || params.get('view') || '').toLowerCase();
+      if (['policies', 'policy', 'kebijakan', 'legal'].includes(sub) || ['policies', 'policy', 'kebijakan', 'legal'].includes(tab)) {
+        setMasterSubTab('policies');
+      } else if (sub === 'domains' || sub === 'templates' || sub === 'rekber' || sub === 'contact') {
+        setMasterSubTab(sub as any);
+      } else if (['contact', 'kontak'].includes(tab)) {
         setMasterSubTab('contact');
-      } else if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(String(tab).toLowerCase())) {
+      } else if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(tab)) {
         setMasterSubTab('domains');
-      } else if (['templates', 'canned'].includes(String(tab).toLowerCase())) {
+      } else if (['templates', 'canned'].includes(tab)) {
         setMasterSubTab('templates');
       }
     };
@@ -4829,6 +4838,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       { key: 'automation', label: 'Mesin Otomatisasi', desc: 'Status bot & scheduler', icon: Cpu, color: '#f97316', visible: canAccessAutomation },
                       { key: 'market_intel', label: 'Riset Pasar B2B', desc: 'Tren Hype & Demand Gap', icon: TrendingUp, color: '#10b981', visible: canAccessMarketIntel },
                       { key: 'monetization', label: 'Monetisasi & Iklan', desc: 'Google AdSense & GA4', icon: DollarSign, color: '#eab308', visible: canAccessMonetization },
+                      { key: 'policies', label: 'Kebijakan & Legalitas', desc: '6 pilar regulasi & banner legal', icon: Scale, color: '#10b981', visible: canAccessMasterData },
                       { key: 'master-data', label: 'Master Data', desc: 'Whitelist domain aman, template CS, dan proteksi rekber', icon: Layers, color: '#10b981', visible: canAccessMasterData },
                       { key: 'audit', label: 'Audit Trail', desc: 'Log aktivitas forensik sistem', icon: History, color: '#64748b', visible: canAccessAudit }
                     ].filter(mod => (mod as any).visible !== false).map(mod => {
@@ -13264,6 +13274,39 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   <Phone size={17} />
                   <span>Kontak Resmi Platform</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSwitchMasterSubTab('policies')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.55rem 1.15rem',
+                    borderRadius: '0.75rem',
+                    border: `1.5px solid ${masterSubTab === 'policies' ? '#10b981' : 'var(--border-light)'}`,
+                    backgroundColor: masterSubTab === 'policies' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                    color: masterSubTab === 'policies' ? '#10b981' : 'var(--text-muted)',
+                    fontSize: '0.82rem',
+                    fontWeight: masterSubTab === 'policies' ? 800 : 600,
+                    cursor: 'pointer',
+                    minHeight: '44px',
+                    transition: 'all 0.18s ease'
+                  }}
+                >
+                  <Scale size={17} />
+                  <span>Kebijakan &amp; Legalitas</span>
+                  <span style={{
+                    fontSize: '0.65rem',
+                    padding: '0.1rem 0.45rem',
+                    borderRadius: '999px',
+                    fontWeight: 700,
+                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                    color: '#10b981'
+                  }}>
+                    6 Dokumen
+                  </span>
+                </button>
               </div>
 
               {/* Subtab Content Area */}
@@ -14522,7 +14565,36 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* SUBTAB 5: KEBIJAKAN & LEGALITAS PLATFORM */}
+                {masterSubTab === 'policies' && (
+                  <TabletPolicyManager
+                    token={token || localStorage.getItem('catavor_token') || ''}
+                    showToast={showToast}
+                    onBack={() => handleSwitchMasterSubTab('rekber')}
+                  />
+                )}
               </div>
+            </div>
+          )}
+
+          {/* TAB: DIRECT KEBIJAKAN & LEGALITAS PLATFORM */}
+          {activeView === 'policies' && canAccessMasterData && (
+            <div style={{
+              height: '100%',
+              overflowY: 'auto',
+              padding: '1.25rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.15rem',
+              boxSizing: 'border-box',
+              WebkitOverflowScrolling: 'touch'
+            }}>
+              <TabletPolicyManager
+                token={token || localStorage.getItem('catavor_token') || ''}
+                showToast={showToast}
+                onBack={() => handleSwitchView('dashboard')}
+              />
             </div>
           )}
 

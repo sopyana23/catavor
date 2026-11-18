@@ -64,6 +64,21 @@ func TestEmailBuilders_EscapeUserInput(t *testing.T) {
 		{"NewDeviceLogin", func() (string, string) {
 			return BuildNewDeviceLoginSecurityEmail(payloadXSS, payloadXSS, payloadXSS, payloadXSS)
 		}},
+		{"SubscriptionDowngradeScheduled", func() (string, string) {
+			return BuildSubscriptionDowngradeScheduledEmail(payloadXSS, payloadXSS, payloadXSS, payloadXSS, payloadXSS)
+		}},
+		{"SubscriptionDowngradeCancelled", func() (string, string) {
+			return BuildSubscriptionDowngradeCancelledEmail(payloadXSS, payloadXSS, payloadXSS, payloadXSS)
+		}},
+		{"SubscriptionRenewalReminderH3", func() (string, string) {
+			return BuildSubscriptionRenewalReminderH3Email(payloadXSS, payloadXSS, payloadXSS, payloadXSS, payloadXSS)
+		}},
+		{"SubscriptionTransitionExecuted", func() (string, string) {
+			return BuildSubscriptionTransitionExecutedEmail(payloadXSS, payloadXSS, 15, 3, payloadXSS)
+		}},
+		{"SubscriptionGracePeriod", func() (string, string) {
+			return BuildSubscriptionGracePeriodEmail(payloadXSS, payloadXSS, payloadXSS, payloadXSS)
+		}},
 	}
 
 	for _, b := range builders {

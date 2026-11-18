@@ -275,7 +275,9 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
   const [isExportingCsv, setIsExportingCsv] = useState<boolean>(false);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [exportPeriod, setExportPeriod] = useState<'7d' | '30d' | '90d' | 'all'>('all');
-  const [exportType, setExportType] = useState<'full' | 'products' | 'daily'>('full');
+  const [exportType, setExportType] = useState<'package' | 'daily' | 'products' | 'traffic_sources' | 'audience' | 'hourly'>('package');
+  const [applyActiveFilters, setApplyActiveFilters] = useState<boolean>(true);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Scalable Dimensional Sheet & Filter State
   const [dimensionSheetOpen, setDimensionSheetOpen] = useState(false);
@@ -431,26 +433,55 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
   const handleExportStoreCsv = async (p = exportPeriod, t = exportType) => {
     try {
       setIsExportingCsv(true);
-      const res = await fetch(`/api/admin/analytics/export?period=${p}&type=${t}`, {
+      setExportError(null);
+      let url = `/api/admin/analytics/export?period=${p}&type=${t}`;
+      if (t === 'products' && applyActiveFilters) {
+        if (selectedProductType && selectedProductType !== 'all') {
+          url += `&product_type=${encodeURIComponent(selectedProductType)}`;
+        }
+        if (debouncedSearch) {
+          url += `&search=${encodeURIComponent(debouncedSearch)}`;
+        }
+        if (productSort) {
+          url += `&sort=${encodeURIComponent(productSort)}`;
+        }
+      }
+
+      const res = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Store-Slug': storeSlug
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {})
         }
       });
-      if (!res.ok) throw new Error('Gagal mengekspor data');
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || 'Gagal mengekspor data analitika');
+      }
+
+      let filename = `catavor-analytics-${storeSlug || 'store'}-${t}-${p}-${new Date().toISOString().slice(0, 10)}.${t === 'package' ? 'zip' : 'csv'}`;
+      const disposition = res.headers.get('content-disposition');
+      if (disposition && disposition.includes('filename=')) {
+        const matches = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (matches && matches[1]) {
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
+      const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `catavor-analytics-${storeSlug || 'store'}-${t}-${p}-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.href = blobUrl;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(blobUrl);
       setShowExportModal(false);
-      showToast?.('Laporan CSV berhasil diunduh!');
-    } catch {
-      showToast?.('Gagal mengekspor laporan CSV', 'error');
+      showToast?.(t === 'package' ? 'Arsip ZIP analitika berhasil diunduh!' : 'Laporan CSV berhasil diunduh!');
+    } catch (err: any) {
+      const msg = err?.message || 'Gagal mengekspor berkas analitika';
+      setExportError(msg);
+      showToast?.(msg, 'error');
     } finally {
       setIsExportingCsv(false);
     }
@@ -3484,27 +3515,45 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
 
               <div>
                 <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem' }}>
-                  2. Pilih Jenis Laporan
+                  2. Pilih Format & Cakupan Data
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {[
                     {
-                      key: 'full',
+                      key: 'package',
                       badge: 'Rekomendasi Utama',
-                      title: 'Laporan Lengkap Terpadu (All-in-One)',
-                      desc: 'Ringkasan eksekutif, tabel tren harian, dan rincian performa seluruh produk katalog.'
-                    },
-                    {
-                      key: 'products',
-                      badge: 'Performa Item',
-                      title: 'Rincian Performa Katalog Item Saja',
-                      desc: 'ID, Nama item, tipe katalog, harga, total tayangan, klik WA, marketplace, rekber, dan CTR %.'
+                      title: 'Paket Lengkap Semua Data (.ZIP)',
+                      desc: 'Arsip ZIP berisi 5 berkas CSV modular lengkap (Tren Harian, Performa Item, Sumber Trafik, Dimensi Audiens, dan Jam Ramai) beserta Ringkasan Eksekutif.'
                     },
                     {
                       key: 'daily',
-                      badge: 'Tren Trafik',
-                      title: 'Rekapitulasi Kunjungan & Konversi Harian',
-                      desc: 'Riwayat tanggal, jumlah pengunjung toko, peminat WhatsApp, dan rasio konversi harian.'
+                      badge: 'Tren Harian',
+                      title: 'Tren Kunjungan & Keterlibatan Harian (.CSV)',
+                      desc: 'Riwayat tanggal, pengunjung unik, tayangan toko & produk, pantulan (bounces), klik WA, marketplace, rekber, video, dan rasio konversi.'
+                    },
+                    {
+                      key: 'products',
+                      badge: 'Performa Produk',
+                      title: 'Rincian Performa Katalog Item (.CSV)',
+                      desc: 'ID, nama produk, tipe katalog, kategori, harga, status, tayangan, klik kontak (WA/Marketplace/Rekber), video, dan CTR %.'
+                    },
+                    {
+                      key: 'traffic_sources',
+                      badge: 'Atribusi Kanal',
+                      title: 'Sumber Trafik & Saluran Rujukan (.CSV)',
+                      desc: 'Kanal pengunjung (Instagram, TikTok, WhatsApp, Google Search, Marketplace, Direct), tayangan, pengunjung unik, dan konversi.'
+                    },
+                    {
+                      key: 'audience',
+                      badge: 'Segmentasi Pengunjung',
+                      title: 'Dimensi Demografi & Teknologi Audiens (.CSV)',
+                      desc: 'Distribusi perangkat (Desktop/Mobile/Tablet), sistem operasi, browser, kota/lokasi, dan kampanye promosi.'
+                    },
+                    {
+                      key: 'hourly',
+                      badge: 'Pola Waktu',
+                      title: 'Peta Distribusi Jam Sibuk 24 Jam (.CSV)',
+                      desc: 'Distribusi kunjungan per jam (00:00 - 23:00) untuk menentukan waktu tayang dan promosi paling efektif.'
                     }
                   ].map((tOpt) => {
                     const isSelected = exportType === tOpt.key;
@@ -3570,6 +3619,67 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
                 </div>
               </div>
 
+              {/* Sub-option if Products chosen: Apply UI Active Filters */}
+              {exportType === 'products' && (
+                <div
+                  style={{
+                    padding: '0.8rem 1rem',
+                    borderRadius: '0.6rem',
+                    backgroundColor: 'var(--bg-deep)',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.65rem'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    id="tablet-apply-filters-cb"
+                    checked={applyActiveFilters}
+                    onChange={(e) => setApplyActiveFilters(e.target.checked)}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      accentColor: 'var(--primary)',
+                      marginTop: '2px',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <label htmlFor="tablet-apply-filters-cb" style={{ fontSize: '0.74rem', color: 'var(--text-primary)', lineHeight: 1.4, cursor: 'pointer' }}>
+                    <strong>Terapkan filter katalog aktif saat ini:</strong> Ekspor hanya item yang sesuai dengan tipe{' '}
+                    <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
+                      {selectedProductType === 'all' ? 'Semua Tipe' : selectedProductType}
+                    </span>
+                    {debouncedSearch ? (
+                      <>
+                        {' '}dan kata kunci pencarian <span style={{ color: 'var(--primary)', fontWeight: 700 }}>"{debouncedSearch}"</span>
+                      </>
+                    ) : ''}
+                    {' '}(Urutan: <strong>{productSort}</strong>).
+                  </label>
+                </div>
+              )}
+
+              {/* Error Alert if any */}
+              {exportError && (
+                <div
+                  style={{
+                    padding: '0.7rem 0.95rem',
+                    borderRadius: '0.6rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.55rem'
+                  }}
+                >
+                  <AlertCircle size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.74rem', color: '#ef4444', lineHeight: 1.35 }}>
+                    {exportError}
+                  </span>
+                </div>
+              )}
+
               {/* Excel Compatibility Callout */}
               <div
                 style={{
@@ -3584,7 +3694,7 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
               >
                 <CheckCircle2 size={16} style={{ color: '#10b981', flexShrink: 0 }} />
                 <span style={{ fontSize: '0.74rem', color: 'var(--text-primary)', lineHeight: 1.35 }}>
-                  <strong>Kompatibilitas Penuh Microsoft Excel:</strong> Dilengkapi header <strong>UTF-8 BOM</strong> otomatis agar kolom dan teks langsung rapi saat dibuka di Excel Windows/Mac.
+                  <strong>Kompatibilitas Penuh Microsoft Excel:</strong> Dilengkapi header <strong>UTF-8 BOM</strong> otomatis dan sanitasi RFC 4180 agar kolom dan angka langsung rapi saat dibuka di Excel Windows/Mac.
                 </span>
               </div>
             </div>
@@ -3639,7 +3749,7 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
                 }}
               >
                 <Download size={15} className={isExportingCsv ? 'animate-spin' : ''} />
-                <span>{isExportingCsv ? 'Menyiapkan Berkas...' : 'Unduh Berkas CSV'}</span>
+                <span>{isExportingCsv ? 'Menyiapkan Berkas...' : exportType === 'package' ? 'Unduh Paket ZIP' : 'Unduh Berkas CSV'}</span>
               </button>
             </div>
           </div>

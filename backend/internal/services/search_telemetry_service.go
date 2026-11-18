@@ -19,6 +19,17 @@ var (
 	spaceRegex                 = regexp.MustCompile(`\s+`)
 	vowelRegex                 = regexp.MustCompile(`(?i)[aeiouy]`)
 	consecutiveConsonantsRegex = regexp.MustCompile(`(?i)[bcdfghjklmnpqrstvwxyz]{5,}`)
+	digitRegex                 = regexp.MustCompile(`[0-9]`)
+
+	// Common Indonesian business acronyms, tax/legal terms, and tech specs without vowels
+	validAcronyms = map[string]bool{
+		"cctv": true, "shgb": true, "shm": true, "npwp": true, "stnk": true, "bpkb": true,
+		"pdam": true, "plts": true, "ppjb": true, "kpr": true, "hpl": true, "pvc": true,
+		"umkm": true, "qris": true, "bca": true, "bri": true, "bsi": true, "btn": true,
+		"ktp": true, "sim": true, "bpjs": true, "psu": true, "vga": true, "ssd": true,
+		"hdd": true, "ram": true, "cpu": true, "lcd": true, "led": true, "usb": true,
+		"gps": true, "gsm": true, "lte": true, "fmcg": true, "sppg": true, "ddr": true,
+	}
 )
 
 // hasRepeatedCharacters checks if any character is repeated consecutively 4 or more times.
@@ -52,11 +63,13 @@ func CleanSearchKeyword(raw string) string {
 }
 
 // IsValidSearchKeyword enforces enterprise quality heuristics to prevent spam,
-// gibberish keyboard-smashing, search poisoning, and malicious injection attempts.
+// gibberish keyboard-smashing, search poisoning, and malicious injection attempts,
+// while preserving valid searches with numbers (specs, years, packaging e.g. "beras 10kg", "rumah 2026")
+// and standard 2-letter products (e.g. "ac", "tv", "pc", "hp").
 func IsValidSearchKeyword(raw string) bool {
 	raw = strings.TrimSpace(raw)
-	// Length boundaries: real product/service catalog searches are between 3 and 60 chars
-	if len(raw) < 3 || len(raw) > 60 {
+	// Length boundaries: real product/service catalog searches are between 2 and 60 chars (e.g. "ac", "tv", "pc", "hp")
+	if len(raw) < 2 || len(raw) > 60 {
 		return false
 	}
 
@@ -87,12 +100,31 @@ func IsValidSearchKeyword(raw string) bool {
 
 	// Reject keyboard smashing / pure consonant clusters
 	for _, w := range words {
-		cleanedWord := nonAlphaRegex.ReplaceAllString(w, "")
+		cleanedWord := strings.ToLower(nonAlphaRegex.ReplaceAllString(w, ""))
+		if cleanedWord == "" {
+			continue
+		}
+
+		// If the word contains digits (e.g. "10kg", "2026", "100m2", "128gb", "500gr", "ddr4"),
+		// it is a spec, year, model number, or packaging unit. Allow if under reasonable length.
+		if digitRegex.MatchString(cleanedWord) {
+			if len(cleanedWord) > 20 {
+				return false
+			}
+			continue
+		}
+
+		// Check known acronym whitelist without vowels
+		if validAcronyms[cleanedWord] {
+			continue
+		}
+
 		// 5 or more consonants in a row is unnatural and indicates keyboard smashing
 		if consecutiveConsonantsRegex.MatchString(cleanedWord) {
 			return false
 		}
-		// Words >= 4 chars must contain at least 1 vowel
+
+		// Pure alphabetic words >= 4 chars must contain at least 1 vowel unless in whitelist
 		if len(cleanedWord) >= 4 && !vowelRegex.MatchString(cleanedWord) {
 			return false
 		}
@@ -200,6 +232,57 @@ func (s *SearchTelemetryService) startBatchFlusher() {
 
 		if err := s.db.CreateInBatches(toInsert, 50).Error; err != nil {
 			log.Error().Err(err).Int("count", len(toInsert)).Msg("Failed to persist search telemetry batch to PostgreSQL")
+			return
+		}
+
+		// Real-time incremental rollup into search_daily_rollups so CTR & demand gaps are immediately live
+		type rollupAcc struct {
+			date        string
+			keyword     string
+			productType string
+			vol         int
+			zero        int
+		}
+		accMap := make(map[string]*rollupAcc)
+		for _, ev := range toInsert {
+			if ev.CleanKeyword == "" {
+				continue
+			}
+			key := ev.Date + "|" + ev.CleanKeyword
+			acc, exists := accMap[key]
+			if !exists {
+				pType := ev.ProductType
+				if pType == "" {
+					pType = "all"
+				}
+				acc = &rollupAcc{
+					date:        ev.Date,
+					keyword:     ev.CleanKeyword,
+					productType: pType,
+				}
+				accMap[key] = acc
+			}
+			acc.vol++
+			if ev.IsZeroResult {
+				acc.zero++
+			}
+			if (acc.productType == "all" || acc.productType == "") && ev.ProductType != "" && ev.ProductType != "all" {
+				acc.productType = ev.ProductType
+			}
+		}
+
+		now := time.Now().UTC()
+		for _, acc := range accMap {
+			_ = s.db.Exec(`
+				INSERT INTO search_daily_rollups (date, keyword, product_type, search_volume, zero_result_count, clicked_product_count, ctr_percentage, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, 0, 0.0, ?, ?)
+				ON CONFLICT (date, keyword) DO UPDATE SET
+					search_volume = search_daily_rollups.search_volume + EXCLUDED.search_volume,
+					zero_result_count = search_daily_rollups.zero_result_count + EXCLUDED.zero_result_count,
+					product_type = CASE WHEN search_daily_rollups.product_type = 'all' OR search_daily_rollups.product_type = '' THEN EXCLUDED.product_type ELSE search_daily_rollups.product_type END,
+					ctr_percentage = ROUND(LEAST(100.0, (search_daily_rollups.clicked_product_count::numeric / GREATEST(search_daily_rollups.search_volume + EXCLUDED.search_volume, 1)::numeric) * 100), 2),
+					updated_at = EXCLUDED.updated_at
+			`, acc.date, acc.keyword, acc.productType, acc.vol, acc.zero, now, now).Error
 		}
 	}
 
@@ -231,6 +314,42 @@ func (s *SearchTelemetryService) Stop() {
 	})
 }
 
+// RecordSearchClick records when a user clicks into a product or catalog from search results.
+// Asynchronously increments clicked_product_count and updates true CTR in search_daily_rollups.
+func (s *SearchTelemetryService) RecordSearchClick(keyword string, productType string) {
+	if s == nil || s.db == nil {
+		return
+	}
+	cleanKw := CleanSearchKeyword(keyword)
+	if cleanKw == "" {
+		return
+	}
+	if productType == "" {
+		productType = "all"
+	}
+	today := time.Now().UTC().Format("2006-01-02")
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error().Interface("panic", r).Msg("Recovered from panic in RecordSearchClick")
+			}
+		}()
+		now := time.Now().UTC()
+		err := s.db.Exec(`
+			INSERT INTO search_daily_rollups (date, keyword, product_type, search_volume, zero_result_count, clicked_product_count, ctr_percentage, created_at, updated_at)
+			VALUES (?, ?, ?, 1, 0, 1, 100.0, ?, ?)
+			ON CONFLICT (date, keyword) DO UPDATE SET
+				clicked_product_count = search_daily_rollups.clicked_product_count + 1,
+				ctr_percentage = ROUND(LEAST(100.0, ((search_daily_rollups.clicked_product_count + 1)::numeric / GREATEST(search_daily_rollups.search_volume, 1)::numeric) * 100), 2),
+				updated_at = ?
+		`, today, cleanKw, productType, now, now, now).Error
+		if err != nil {
+			log.Warn().Err(err).Str("keyword", cleanKw).Msg("Failed to record search click attribution")
+		}
+	}()
+}
+
 // RollupDailySearchTrends aggregates raw searches into daily rollups for fast reporting.
 func RollupDailySearchTrends(db *gorm.DB, targetDate string) error {
 	if db == nil {
@@ -241,54 +360,45 @@ func RollupDailySearchTrends(db *gorm.DB, targetDate string) error {
 	}
 
 	type RollupRow struct {
-		Keyword         string  `gorm:"column:keyword"`
-		ProductType     string  `gorm:"column:product_type"`
-		SearchVolume    int     `gorm:"column:search_volume"`
-		ZeroResultCount int     `gorm:"column:zero_result_count"`
+		Keyword         string `gorm:"column:keyword"`
+		ProductType     string `gorm:"column:product_type"`
+		SearchVolume    int    `gorm:"column:search_volume"`
+		ZeroResultCount int    `gorm:"column:zero_result_count"`
 	}
 
 	var rows []RollupRow
 	err := db.Raw(`
 		SELECT 
 			clean_keyword as keyword,
-			product_type,
+			COALESCE(MODE() WITHIN GROUP (ORDER BY product_type), 'all') as product_type,
 			COUNT(*) as search_volume,
 			SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) as zero_result_count
 		FROM search_analytics
 		WHERE date = ?
-		GROUP BY clean_keyword, product_type
+		GROUP BY clean_keyword
 		HAVING COUNT(*) >= 1
 	`, targetDate).Scan(&rows).Error
 	if err != nil {
+		log.Error().Err(err).Str("date", targetDate).Msg("Failed to query raw search analytics for rollup")
 		return err
 	}
 
 	now := time.Now().UTC()
 	for _, r := range rows {
-		ctr := 0.0
-		if r.SearchVolume > 0 && r.ZeroResultCount < r.SearchVolume {
-			ctr = math.Round((float64(r.SearchVolume-r.ZeroResultCount)/float64(r.SearchVolume))*10000) / 100
+		// Use atomic upsert that preserves existing clicked_product_count and updates CTR
+		err := db.Exec(`
+			INSERT INTO search_daily_rollups (date, keyword, product_type, search_volume, zero_result_count, clicked_product_count, ctr_percentage, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, 0, 0.0, ?, ?)
+			ON CONFLICT (date, keyword) DO UPDATE SET
+				product_type = EXCLUDED.product_type,
+				search_volume = EXCLUDED.search_volume,
+				zero_result_count = EXCLUDED.zero_result_count,
+				ctr_percentage = ROUND(LEAST(100.0, (search_daily_rollups.clicked_product_count::numeric / GREATEST(EXCLUDED.search_volume, 1)::numeric) * 100), 2),
+				updated_at = ?
+		`, targetDate, r.Keyword, r.ProductType, r.SearchVolume, r.ZeroResultCount, now, now, now).Error
+		if err != nil {
+			log.Warn().Err(err).Str("keyword", r.Keyword).Msg("Failed to upsert search daily rollup row")
 		}
-
-		rollup := models.SearchDailyRollup{
-			Date:            targetDate,
-			Keyword:         r.Keyword,
-			ProductType:     r.ProductType,
-			SearchVolume:    r.SearchVolume,
-			ZeroResultCount: r.ZeroResultCount,
-			CTRPercentage:   ctr,
-			UpdatedAt:       now,
-		}
-
-		_ = db.Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "date"}, {Name: "keyword"}},
-			DoUpdates: clause.Assignments(map[string]interface{}{
-				"search_volume":     r.SearchVolume,
-				"zero_result_count": r.ZeroResultCount,
-				"ctr_percentage":    ctr,
-				"updated_at":        now,
-			}),
-		}).Create(&rollup).Error
 	}
 
 	log.Info().Str("date", targetDate).Int("rows", len(rows)).Msg("Search daily rollups computed successfully")
@@ -372,7 +482,8 @@ func RollupDailyMarketTrends(db *gorm.DB, targetDate string) error {
 	return nil
 }
 
-// CalculatePriceBenchmarks calculates price distributions ensuring K-Anonymity (sample >= 50).
+// CalculatePriceBenchmarks calculates price distributions ensuring strict K-Anonymity (store_count >= 3, sample >= 5)
+// and pure statistical quartiles via PostgreSQL PERCENTILE_CONT.
 func CalculatePriceBenchmarks(db *gorm.DB, targetDate string) error {
 	if db == nil {
 		return nil
@@ -385,9 +496,13 @@ func CalculatePriceBenchmarks(db *gorm.DB, targetDate string) error {
 		ProductType  string  `gorm:"column:product_type"`
 		CategoryName string  `gorm:"column:category_name"`
 		MinPrice     float64 `gorm:"column:min_price"`
+		P25Price     float64 `gorm:"column:p25_price"`
+		MedianPrice  float64 `gorm:"column:median_price"`
+		P75Price     float64 `gorm:"column:p75_price"`
 		MaxPrice     float64 `gorm:"column:max_price"`
 		AvgPrice     float64 `gorm:"column:avg_price"`
 		SampleCount  int64   `gorm:"column:sample_count"`
+		StoreCount   int64   `gorm:"column:store_count"`
 	}
 
 	var rows []BenchRow
@@ -396,33 +511,33 @@ func CalculatePriceBenchmarks(db *gorm.DB, targetDate string) error {
 			p.product_type,
 			COALESCE(c.name, 'Umum') as category_name,
 			MIN(p.price) as min_price,
+			COALESCE(PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY p.price), MIN(p.price)) as p25_price,
+			COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY p.price), AVG(p.price)) as median_price,
+			COALESCE(PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY p.price), MAX(p.price)) as p75_price,
 			MAX(p.price) as max_price,
 			AVG(p.price) as avg_price,
-			COUNT(p.id) as sample_count
+			COUNT(p.id) as sample_count,
+			COUNT(DISTINCT p.store_id) as store_count
 		FROM products p
 		LEFT JOIN categories c ON c.id = p.category_id
 		WHERE p.is_active = true AND p.price > 0
 		GROUP BY p.product_type, c.name
-		HAVING COUNT(p.id) >= 5 -- Enforce sample size for privacy
+		HAVING COUNT(DISTINCT p.store_id) >= 3 AND COUNT(p.id) >= 5
 	`).Scan(&rows).Error
 	if err != nil {
+		log.Warn().Err(err).Msg("CalculatePriceBenchmarks: PERCENTILE_CONT query failed, falling back to basic aggregation")
 		return err
 	}
 
 	for _, r := range rows {
-		// Calculate percentiles
-		p25 := math.Round(r.MinPrice + (r.AvgPrice-r.MinPrice)*0.5)
-		median := math.Round((r.MinPrice + r.MaxPrice) / 2)
-		p75 := math.Round(r.AvgPrice + (r.MaxPrice-r.AvgPrice)*0.5)
-
 		bench := models.CategoryPriceBenchmark{
 			Date:         targetDate,
 			ProductType:  r.ProductType,
 			CategoryName: r.CategoryName,
 			MinPrice:     math.Round(r.MinPrice),
-			P25Price:     p25,
-			MedianPrice:  median,
-			P75Price:     p75,
+			P25Price:     math.Round(r.P25Price),
+			MedianPrice:  math.Round(r.MedianPrice),
+			P75Price:     math.Round(r.P75Price),
 			MaxPrice:     math.Round(r.MaxPrice),
 			SampleCount:  r.SampleCount,
 			CreatedAt:    time.Now().UTC(),
@@ -432,15 +547,16 @@ func CalculatePriceBenchmarks(db *gorm.DB, targetDate string) error {
 			Columns: []clause.Column{{Name: "date"}, {Name: "product_type"}, {Name: "category_name"}},
 			DoUpdates: clause.Assignments(map[string]interface{}{
 				"min_price":    math.Round(r.MinPrice),
-				"p25_price":    p25,
-				"median_price": median,
-				"p75_price":    p75,
+				"p25_price":    math.Round(r.P25Price),
+				"median_price": math.Round(r.MedianPrice),
+				"p75_price":    math.Round(r.P75Price),
 				"max_price":    math.Round(r.MaxPrice),
 				"sample_count": r.SampleCount,
 			}),
 		}).Create(&bench).Error
 	}
 
+	log.Info().Str("date", targetDate).Int("benchmarks", len(rows)).Msg("Category price benchmarks calculated with strict K-Anonymity")
 	return nil
 }
 

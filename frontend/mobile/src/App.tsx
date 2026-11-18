@@ -166,6 +166,7 @@ import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './util
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { OfficialContactSheet } from './components/OfficialContactSheet'
+import { MobilePoliciesView, type PolicyKey } from './components/MobilePoliciesView'
 import { normalizeNotification, getMobileNotificationDescription } from './utils/notificationHelpers'
 import {
   getSavedUserSlug,
@@ -4235,7 +4236,7 @@ function App() {
       } else if (path === '/register/step-3') {
         pathTab = isAuthenticated ? 'home' : 'register';
         pathStep = 3;
-      } else if (path === '/terms' || path === '/syarat-ketentuan') {
+      } else if (path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal') {
         pathTab = 'terms';
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         pathTab = 'privacy';
@@ -5306,48 +5307,7 @@ Terima kasih.`;
   // Helper to cleanly format Markdown policy content into React Elements
   const renderFormattedPolicyContent = (text: string) => {
     if (!text) return null;
-    const lines = text.split('\n');
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {lines.map((line, idx) => {
-          const trimmed = line.trim();
-          if (!trimmed) return null;
-
-          // Check for headings: ### Header Title or ## Header Title or # Header Title
-          if (trimmed.startsWith('#')) {
-            const headerText = trimmed.replace(/^#+\s*/, '');
-            return (
-              <div key={idx} style={{ marginTop: idx > 0 ? '0.85rem' : '0.2rem', marginBottom: '0.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                  <span style={{ width: '4px', height: '16px', borderRadius: '4px', background: '#2563eb', flexShrink: 0 }} />
-                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    {headerText}
-                  </h4>
-                </div>
-              </div>
-            );
-          }
-
-          // Check for list items: - item or • item
-          if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
-            const itemText = trimmed.replace(/^[-•]\s*/, '');
-            return (
-              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', paddingLeft: '0.6rem', color: '#475569', fontSize: '0.82rem', lineHeight: '1.6' }}>
-                <span style={{ color: '#2563eb', fontSize: '0.9rem', lineHeight: '1.4', flexShrink: 0, fontWeight: 'bold' }}>•</span>
-                <span>{itemText}</span>
-              </div>
-            );
-          }
-
-          // Regular paragraph text
-          return (
-            <p key={idx} style={{ margin: 0, color: '#475569', fontSize: '0.82rem', lineHeight: '1.65' }}>
-              {trimmed}
-            </p>
-          );
-        })}
-      </div>
-    );
+    return <FormattedText text={text} />;
   };
 
   // Universal Mobile Footer with Clean Modern Commerce Styling
@@ -5467,38 +5427,28 @@ Terima kasih.`;
 
   // Dedicated Full-Page Legal & Policy Renderer for Mobile
   const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
-    const policy = policies[type] || {
-      title: 'Kebijakan Layanan',
-      version: 'v1.0.0',
-      content: 'Memuat kebijakan...'
+    const keyMap: Record<string, PolicyKey> = {
+      terms: 'terms',
+      privacy: 'privacy',
+      acceptable_use: 'prohibited'
     };
-
-    const effectiveDateStr = formatPolicyEffectiveDate(policy.effective_date || policy.updated_at);
+    const targetKey = keyMap[type] || 'terms';
 
     return (
-      <div style={{ maxWidth: '850px', margin: '0 auto', padding: '2rem 1.25rem 4rem 1.25rem', animation: 'fadeIn 0.3s ease-in-out' }}>
-        {/* Document Header Panel */}
-        <div style={{ marginBottom: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#2563eb', background: '#eff6ff', padding: '0.15rem 0.5rem', borderRadius: '999px', border: '1px solid #bfdbfe' }}>
-              DOKUMEN RESMI
-            </span>
-            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-              Catavor
-            </span>
-          </div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.02em', margin: '0 0 0.35rem 0' }}>
-            {policy.title}
-          </h1>
-          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
-            Terakhir diperbarui: <strong>{effectiveDateStr}</strong>
-          </p>
-        </div>
-
-        {/* Main Formatted Content Card */}
-        <div className="portal-card" style={{ padding: '1.75rem 1.35rem' }}>
-          {renderFormattedPolicyContent(policy.content)}
-        </div>
+      <div style={{ maxWidth: '850px', margin: '0 auto', padding: '1rem 0.75rem 4rem 0.75rem' }}>
+        <MobilePoliciesView
+          initialKey={targetKey}
+          onBack={() => {
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              setPortalTab('home');
+            }
+          }}
+          onOpenHelpdesk={() => {
+            setPortalTab('login');
+          }}
+        />
       </div>
     );
   };
@@ -11103,7 +11053,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
           return;
         }
-      } else if (path === '/terms' || path === '/syarat-ketentuan') {
+      } else if (path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal') {
         setPortalTab('terms');
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         setPortalTab('privacy');
@@ -23932,7 +23882,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               if (selectedTicket) return { title: `Tiket #${selectedTicket.id}`, subtitle: '' };
                               return { title: 'Pusat Bantuan', subtitle: '' };
                             case 'policies':
-                              return { title: 'Dashboard Admin', subtitle: '' };
+                              return { title: 'Ketentuan & Kebijakan', subtitle: 'Pedoman Regulasi Platform' };
                             case 'notifications':
                               if (selectedNotification) {
                                 return {
@@ -27158,7 +27108,44 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         </span>
                                       </button>
 
-                                      {/* 9. Hak Akses RBAC (Superadmin Only) */}
+                                      {/* 9. Kebijakan & Ketentuan Platform */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setAdminSubTab('policies');
+                                          const slug = getStoreSlug();
+                                          if (slug) window.history.pushState({}, '', `/${slug}/admin/policies`);
+                                        }}
+                                        style={{
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          alignItems: 'center',
+                                          gap: '0.35rem',
+                                          background: 'none',
+                                          border: 'none',
+                                          padding: 0,
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        <div style={{
+                                          width: '44px',
+                                          height: '44px',
+                                          borderRadius: '0.75rem',
+                                          backgroundColor: 'var(--bg-deep)',
+                                          border: '1px solid var(--border-light)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: 'var(--primary)'
+                                        }}>
+                                          <Scale size={20} />
+                                        </div>
+                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                                          Kebijakan
+                                        </span>
+                                      </button>
+
+                                      {/* 10. Hak Akses RBAC (Superadmin Only) */}
                                       {isSuperAdmin(adminUser) && (
                                         <button
                                           type="button"
@@ -29403,22 +29390,40 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               )}
 
                               {adminSubTab === 'policies' && (
-                                <div className="glass-panel animate-fade-in" style={{ padding: '2rem 1.25rem', textAlign: 'center', borderRadius: '1rem' }}>
-                                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', lineHeight: 1.5 }}>
-                                    Pedoman legal dan kebijakan platform tersedia di halaman publik dan pendaftaran akun.
-                                  </p>
-                                  <button
-                                    type="button"
-                                    className="btn-primary"
-                                    onClick={() => {
-                                      setAdminSubTab('menu');
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAdminSubTab('menu');
+                                        const slug = getStoreSlug();
+                                        if (slug) window.history.replaceState({}, '', `/${slug}/admin`);
+                                      }}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem',
+                                        padding: '0.5rem 0.85rem',
+                                        borderRadius: '0.5rem',
+                                        backgroundColor: 'var(--bg-deep)',
+                                        border: '1px solid var(--border-light)',
+                                        color: 'var(--text-secondary)',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      <ArrowLeft size={14} />
+                                      <span>Kembali ke Menu</span>
+                                    </button>
+                                  </div>
+                                  <MobilePoliciesView
+                                    onOpenHelpdesk={() => {
+                                      setAdminSubTab('help');
                                       const slug = getStoreSlug();
-                                      if (slug) window.history.replaceState({}, '', `/${slug}/admin`);
+                                      if (slug) window.history.pushState({}, '', `/${slug}/admin/help`);
                                     }}
-                                    style={{ marginTop: '1rem', padding: '0.55rem 1.25rem', fontSize: '0.8rem', fontWeight: 700 }}
-                                  >
-                                    Kembali ke Menu Dashboard
-                                  </button>
+                                  />
                                 </div>
                               )}
 
@@ -34310,11 +34315,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   {showQuickPolicyModal === 'terms' ? 'Syarat & Ketentuan' : showQuickPolicyModal === 'privacy' ? 'Kebijakan Privasi' : 'Ketentuan Penggunaan'}
                 </span>
               </div>
-              <button type="button" onClick={() => setShowQuickPolicyModal(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.1rem', cursor: 'pointer' }}>✕</button>
+              <button type="button" onClick={() => setShowQuickPolicyModal(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: '0.2rem', display: 'flex', alignItems: 'center' }}>
+                <X size={18} />
+              </button>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.25rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
-              {renderFormattedPolicyContent(policies[showQuickPolicyModal]?.content || '')}
+              <FormattedText text={policies[showQuickPolicyModal]?.content || ''} />
             </div>
 
             <button type="button" className="btn-primary btn-full" onClick={() => setShowQuickPolicyModal(null)} style={{ marginTop: '1rem', padding: '0.65rem', fontSize: '0.8rem', fontWeight: 800 }}>

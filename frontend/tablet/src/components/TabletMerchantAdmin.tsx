@@ -3826,6 +3826,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           showDotInRail: totalHelpUnread > 0
         },
         {
+          key: 'policies',
+          label: 'Ketentuan & Kebijakan',
+          icon: Scale
+        },
+        {
           key: 'notifications',
           label: 'Pusat Notifikasi',
           icon: Bell,
@@ -12650,34 +12655,12 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         )}
 
         {/* ===================================================================
-            TAB 9: REDIRECT/NOTICE FOR RETIRED POLICIES TAB
+            TAB 9: KEBIJAKAN & KETENTUAN PLATFORM (TABLET NATIVE VIEW)
             =================================================================== */}
         {activeTab === 'policies' && (
-          <div style={{ padding: '2.5rem', textAlign: 'center' }}>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Pedoman legal dan kebijakan platform kini tersedia di halaman publik dan pendaftaran akun.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('items');
-                if (storeSlug) window.history.replaceState({}, '', `/${storeSlug}/admin`);
-              }}
-              style={{
-                marginTop: '1rem',
-                padding: '0.6rem 1.25rem',
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                backgroundColor: 'var(--primary)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.5rem',
-                cursor: 'pointer'
-              }}
-            >
-              Kembali ke Kelola Produk
-            </button>
-          </div>
+          <TabletPoliciesView
+            onOpenHelpdesk={() => setActiveTab('help')}
+          />
         )}
 
         {/* ===================================================================
