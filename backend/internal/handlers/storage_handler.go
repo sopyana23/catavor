@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	_ "golang.org/x/image/webp"
+
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/middleware"
@@ -119,7 +121,7 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 		category = "products"
 	}
 
-	isPlatformScope := category == "platform_partners" || category == "platform_branding" || category == "platform_payments"
+	isPlatformScope := category == "platform_partners" || category == "platform_branding" || category == "platform_payments" || category == "articles"
 
 	// Check if store is suspended/banned: allow support & billing proofs, block catalog changes
 	if store, ok := c.Locals("store").(*models.Store); ok && store != nil {
@@ -167,6 +169,16 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 				"message": "Dokumen PDF hanya diizinkan untuk lampiran tiket bantuan.",
 			})
 		}
+		// Tolak dokumen PDF yang menyematkan action/skrip aktif berbahaya (/JavaScript, /JS, /Launch, /OpenAction)
+		lowerPDF := bytes.ToLower(fileBytes)
+		for _, badToken := range [][]byte{[]byte("/javascript"), []byte("/js"), []byte("/launch"), []byte("/openaction"), []byte("/richmedia")} {
+			if bytes.Contains(lowerPDF, badToken) {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"success": false,
+					"message": "Dokumen PDF ditolak karena memuat skrip atau aksi otomatis yang tidak aman.",
+				})
+			}
+		}
 		contentType = "application/pdf"
 		ext = ".pdf"
 		buf = bytes.NewBuffer(fileBytes)
@@ -182,6 +194,15 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": "Format file tidak valid. Hanya file gambar asli (JPG, PNG, WEBP, GIF) yang diperbolehkan.",
+			})
+		}
+
+		// 2b. Anti-Decompression Bomb Guard: baca header dimensi sebelum alokasi piksel penuh di RAM
+		cfgImg, _, cfgErr := image.DecodeConfig(bytes.NewReader(fileBytes))
+		if cfgErr != nil || cfgImg.Width <= 0 || cfgImg.Height <= 0 || cfgImg.Width > 8192 || cfgImg.Height > 8192 || int64(cfgImg.Width)*int64(cfgImg.Height) > 36_000_000 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Dimensi atau format header gambar tidak valid (maksimal 8192x8192 piksel).",
 			})
 		}
 
@@ -436,9 +457,20 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 	}
 
 	var expectedPrefix string
-	if isStaffDelete && strings.HasPrefix(ownerScopedKey, "platform/") {
-		expectedPrefix = "platform"
+	if isStaffDelete && (strings.HasPrefix(ownerScopedKey, "platform/") || strings.HasPrefix(ownerScopedKey, "articles/")) {
+		if strings.HasPrefix(ownerScopedKey, "articles/") {
+			expectedPrefix = "articles"
+		} else {
+			expectedPrefix = "platform"
+		}
 	} else if store != nil && store.ID > 0 {
+		// Merchant tidak boleh menghapus bukti pembayaran billing karena menjadi barang bukti audit finansial
+		if !isStaffDelete && (isPrivate || strings.Contains(strings.ToLower(ownerScopedKey), "/billing/")) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Berkas bukti pembayaran dan dokumen privat audit tidak dapat dihapus secara mandiri.",
+			})
+		}
 		expectedPrefix = fmt.Sprintf("stores/%d", store.ID)
 	} else {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{

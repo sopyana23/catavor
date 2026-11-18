@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net/http"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
 	"catavor-backend/internal/storage"
 
@@ -551,15 +553,48 @@ func (h *SubscriptionHandler) GetOrderProof(c *fiber.Ctx) error {
 		})
 	}
 
-	// 5. Clean up Storage Key and prepare candidate paths (SECURITY: N-61 reject path traversal & colon/drive patterns)
-	cleanKey := strings.TrimLeft(filepath.ToSlash(proofURL), "/")
-	cleanKey = strings.TrimPrefix(cleanKey, "storage/")
-	cleanKey = strings.TrimLeft(cleanKey, "/")
-
-	if cleanKey == "" || strings.Contains(cleanKey, "..") || filepath.IsAbs(cleanKey) || strings.Contains(cleanKey, ":") {
+	// 5. Clean up Storage Key and re-validate namespace & tenant ownership at read-time
+	// (SECURITY: N-61 + N-59 Defense-in-Depth against poisoned/legacy DB rows & SVG XSS)
+	validatedProof, proofValErr := security.ValidatePaymentProofURL(proofURL)
+	if proofValErr != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Format path berkas bukti pembayaran tidak valid.",
+		})
+	}
+	cleanKey := strings.TrimLeft(filepath.ToSlash(validatedProof), "/")
+	cleanKey = strings.TrimPrefix(cleanKey, "storage/")
+	cleanKey = strings.TrimLeft(cleanKey, "/")
+
+	if cleanKey == "" || strings.Contains(cleanKey, "..") || filepath.IsAbs(cleanKey) || strings.Contains(cleanKey, ":") || strings.Contains(cleanKey, "\\") {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Format path berkas bukti pembayaran tidak valid.",
+		})
+	}
+
+	// Enforce tenant ownership prefix on stored key so an order can NEVER read another store's/user's proof
+	lowerSubKey := strings.TrimPrefix(strings.ToLower(cleanKey), "private/")
+	if strings.HasPrefix(lowerSubKey, "stores/") {
+		expectedStorePrefix := fmt.Sprintf("stores/%d/billing/", order.StoreID)
+		if order.StoreID == 0 || !strings.HasPrefix(lowerSubKey, expectedStorePrefix) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"message": "Berkas bukti pembayaran tidak sesuai dengan identitas toko pesanan.",
+			})
+		}
+	} else if strings.HasPrefix(lowerSubKey, "billing/users/") {
+		expectedUserPrefix := fmt.Sprintf("billing/users/%d/", order.UserID)
+		if order.UserID == 0 || !strings.HasPrefix(lowerSubKey, expectedUserPrefix) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"message": "Berkas bukti pembayaran tidak sesuai dengan identitas pengguna pesanan.",
+			})
+		}
+	} else {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Namespace berkas bukti pembayaran tidak diizinkan.",
 		})
 	}
 
@@ -571,6 +606,18 @@ func (h *SubscriptionHandler) GetOrderProof(c *fiber.Ctx) error {
 		candidateKeys = append(candidateKeys, storage.PrivateKeyPrefix+cleanKey)
 	}
 
+	setSafeProofHeaders := func(cType string, isAttachment bool) {
+		c.Set("Content-Type", cType)
+		c.Set("Cache-Control", "private, max-age=3600")
+		c.Set("X-Content-Type-Options", "nosniff")
+		c.Set("Content-Security-Policy", "sandbox; default-src 'none'")
+		if isAttachment {
+			c.Set("Content-Disposition", "attachment; filename=\"bukti-pembayaran\"")
+		} else {
+			c.Set("Content-Disposition", "inline; filename=\"bukti-pembayaran\"")
+		}
+	}
+
 	// Try retrieval from configured storage service (Cloudflare R2 / S3 / MinIO / Local)
 	if h.storage != nil {
 		for _, key := range candidateKeys {
@@ -579,16 +626,11 @@ func (h *SubscriptionHandler) GetOrderProof(c *fiber.Ctx) error {
 			}
 			rc, cType, _, err := h.storage.Get(c.Context(), key)
 			if err == nil && rc != nil {
-				data, readErr := io.ReadAll(rc)
+				data, readErr := io.ReadAll(io.LimitReader(rc, 12*1024*1024))
 				_ = rc.Close()
 				if readErr == nil && len(data) > 0 {
-					if cType == "" {
-						cType = detectOrderProofContentType(key)
-					}
-					c.Set("Content-Type", cType)
-					c.Set("Cache-Control", "private, max-age=3600")
-					c.Set("X-Content-Type-Options", "nosniff")
-					c.Set("Content-Disposition", "inline; filename=\"bukti-pembayaran\"")
+					safeType, forceAttachment := normalizeOrderProofContentType(cType, key, data)
+					setSafeProofHeaders(safeType, forceAttachment)
 					return c.Send(data)
 				}
 			}
@@ -613,19 +655,13 @@ func (h *SubscriptionHandler) GetOrderProof(c *fiber.Ctx) error {
 		for _, key := range candidateKeys {
 			relKey := strings.TrimPrefix(key, storage.PrivateKeyPrefix)
 			if cand, ok := resolveInsideRoot(root, relKey); ok && isRegularFile(cand) {
-				cType := detectOrderProofContentType(cand)
-				c.Set("Content-Type", cType)
-				c.Set("Cache-Control", "private, max-age=3600")
-				c.Set("X-Content-Type-Options", "nosniff")
-				c.Set("Content-Disposition", "inline; filename=\"bukti-pembayaran\"")
+				safeType, forceAttachment := normalizeOrderProofContentType("", cand, nil)
+				setSafeProofHeaders(safeType, forceAttachment)
 				return c.SendFile(cand)
 			}
 			if cand, ok := resolveInsideRoot(root, key); ok && isRegularFile(cand) {
-				cType := detectOrderProofContentType(cand)
-				c.Set("Content-Type", cType)
-				c.Set("Cache-Control", "private, max-age=3600")
-				c.Set("X-Content-Type-Options", "nosniff")
-				c.Set("Content-Disposition", "inline; filename=\"bukti-pembayaran\"")
+				safeType, forceAttachment := normalizeOrderProofContentType("", cand, nil)
+				setSafeProofHeaders(safeType, forceAttachment)
 				return c.SendFile(cand)
 			}
 		}
@@ -637,21 +673,30 @@ func (h *SubscriptionHandler) GetOrderProof(c *fiber.Ctx) error {
 	})
 }
 
-func detectOrderProofContentType(path string) string {
+func normalizeOrderProofContentType(rawMime, path string, sample []byte) (string, bool) {
+	if len(sample) > 0 {
+		limit := len(sample)
+		if limit > 512 {
+			limit = 512
+		}
+		sniffed := strings.ToLower(http.DetectContentType(sample[:limit]))
+		switch sniffed {
+		case "image/jpeg", "image/png", "image/webp", "image/gif":
+			return sniffed, false
+		}
+		return "application/octet-stream", true
+	}
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
 	case ".png":
-		return "image/png"
+		return "image/png", false
 	case ".webp":
-		return "image/webp"
-	case ".svg":
-		return "image/svg+xml"
-	case ".pdf":
-		return "application/pdf"
+		return "image/webp", false
 	case ".jpg", ".jpeg":
-		return "image/jpeg"
+		return "image/jpeg", false
 	}
-	return "image/jpeg"
+	// Never serve .svg or .pdf inline on payment proofs
+	return "application/octet-stream", true
 }
 
 // CancelDowngrade cancels any scheduled downgrade for the authenticated store

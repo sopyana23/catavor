@@ -3,10 +3,12 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"catavor-backend/internal/config"
+	"catavor-backend/internal/database"
 	"catavor-backend/internal/mfa"
 	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
@@ -100,8 +102,18 @@ func (h *MFAHandler) requireFreshAuth(c *fiber.Ctx, user *models.User, inlinePas
 	}
 
 	pwd := strings.TrimSpace(inlinePassword)
-	if pwd != "" && user != nil && (user.HasCustomPassword || user.Password != "") && user.CheckPassword(pwd) {
-		return true
+	if pwd != "" && user != nil && (user.HasCustomPassword || user.Password != "") {
+		lockIdent := strings.ToLower(strings.TrimSpace(user.Email))
+		if locked, retryRem := database.IsAccountLoginLocked(lockIdent); locked {
+			_ = h.fail(c, fiber.StatusTooManyRequests, "ACCOUNT_LOCKED",
+				fmt.Sprintf("Terlalu banyak percobaan kata sandi salah. Silakan tunggu %d detik sebelum mencoba kembali.", int(retryRem.Seconds())+1))
+			return false
+		}
+		if user.CheckPassword(pwd) {
+			database.ResetLoginFailures(lockIdent)
+			return true
+		}
+		database.RecordLoginFailure(lockIdent)
 	}
 
 	_ = h.fail(c, fiber.StatusUnauthorized, "REAUTH_REQUIRED",
@@ -202,7 +214,7 @@ func (h *MFAHandler) StartEnrollment(c *fiber.Ctx) error {
 	if err != nil {
 		return h.fail(c, fiber.StatusInternalServerError, "MFA_SECRET_ERROR", "Gagal membuat secret.")
 	}
-	sealed, err := security.SealMFASecret(h.keyMat, secret)
+	sealed, err := security.SealMFASecretForUser(h.keyMat, user.ID, secret)
 	if err != nil {
 		return h.fail(c, fiber.StatusInternalServerError, "MFA_SEAL_ERROR", "Gagal menyiapkan secret.")
 	}
@@ -286,6 +298,12 @@ func (h *MFAHandler) ConfirmEnrollment(c *fiber.Ctx) error {
 		return h.fail(c, fiber.StatusUnprocessableEntity, "CODE_REQUIRED", "Kode verifikasi wajib diisi.")
 	}
 
+	if locked, _, lErr := mfa.LockoutState(h.db, user.ID, now); lErr != nil {
+		return h.fail(c, fiber.StatusServiceUnavailable, "MFA_SAVE_ERROR", "Gagal memeriksa status keamanan faktor kedua.")
+	} else if locked {
+		return h.fail(c, fiber.StatusTooManyRequests, "MFA_LOCKED", "Terlalu banyak percobaan gagal. Coba lagi beberapa saat.")
+	}
+
 	codes, hashes, err := security.GenerateBackupCodes(h.keyMat, 10)
 	if err != nil {
 		return h.fail(c, fiber.StatusInternalServerError, "MFA_BACKUP_ERROR", "Gagal membuat kode cadangan.")
@@ -310,18 +328,33 @@ func (h *MFAHandler) ConfirmEnrollment(c *fiber.Ctx) error {
 	}
 
 	var (
-		errStatus int
-		errCode   string
-		errMsg    string
-		revoked   []string
-		evicted   []string
-		finalUser models.User
+		errStatus         int
+		errCode           string
+		errMsg            string
+		failedSetupJTI    string
+		recordCodeFailure bool
+		revoked           []string
+		evicted           []string
+		finalUser         models.User
 	)
 
 	txErr := h.db.Transaction(func(tx *gorm.DB) error {
 		var locked models.User
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&locked, user.ID).Error; err != nil {
 			return err
+		}
+
+		var lockRow models.MFAAccountLockout
+		lockRes := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("user_id = ?", locked.ID).
+			Limit(1).
+			Find(&lockRow)
+		if lockRes.Error != nil {
+			return lockRes.Error
+		}
+		if lockRes.RowsAffected > 0 && lockRow.LockedUntil != nil && now.Before(*lockRow.LockedUntil) {
+			errStatus, errCode, errMsg = fiber.StatusTooManyRequests, "MFA_LOCKED", "Terlalu banyak percobaan gagal. Coba lagi beberapa saat."
+			return errors.New(errCode)
 		}
 
 		if locked.TwoFactorEnabled {
@@ -335,6 +368,17 @@ func (h *MFAHandler) ConfirmEnrollment(c *fiber.Ctx) error {
 		}
 
 		pendingJTI := strings.TrimSpace(*locked.TwoFactorSetupJTI)
+		var priorFails int64
+		if err := tx.Model(&models.MFAChallengeFailure{}).
+			Where("token_jti = ?", pendingJTI).
+			Count(&priorFails).Error; err != nil {
+			return err
+		}
+		if priorFails >= mfa.MaxChallengeFailures {
+			errStatus, errCode, errMsg = fiber.StatusUnauthorized, "MFA_SETUP_EXPIRED", "Batas percobaan konfirmasi pendaftaran MFA terlampaui. Silakan mulai ulang pendaftaran."
+			return errors.New(errCode)
+		}
+
 		if strings.TrimSpace(req.SetupJTI) != "" && strings.TrimSpace(req.SetupJTI) != pendingJTI {
 			errStatus, errCode, errMsg = fiber.StatusConflict, "MFA_SETUP_MISMATCH", "Identitas pendaftaran faktor kedua sudah tidak berlaku. Mulai ulang pendaftaran."
 			return errors.New(errCode)
@@ -366,13 +410,15 @@ func (h *MFAHandler) ConfirmEnrollment(c *fiber.Ctx) error {
 			completionJTI = setupClaims.ID
 		}
 
-		secret, err := security.OpenMFASecret(h.keyMat, *locked.TwoFactorSecretEnc)
+		secret, err := security.OpenMFASecretForUser(h.keyMat, locked.ID, *locked.TwoFactorSecretEnc)
 		if err != nil {
 			errStatus, errCode, errMsg = fiber.StatusInternalServerError, "MFA_SECRET_CORRUPT", "Secret tidak bisa dibaca. Ulangi pendaftaran."
 			return errors.New(errCode)
 		}
 		step, err := security.VerifyTOTP(secret, code, now)
 		if err != nil || step <= locked.TwoFactorLastTOTPStep {
+			failedSetupJTI = pendingJTI
+			recordCodeFailure = true
 			errStatus, errCode, errMsg = fiber.StatusUnauthorized, "MFA_CODE_INVALID", "Kode verifikasi salah atau sudah kedaluwarsa."
 			return errors.New(errCode)
 		}
@@ -445,6 +491,18 @@ func (h *MFAHandler) ConfirmEnrollment(c *fiber.Ctx) error {
 	})
 
 	if txErr != nil {
+		if recordCodeFailure && failedSetupJTI != "" {
+			lockedNow, burned, recErr := mfa.RecordEnrollmentFailure(h.db, h.keyMat, failedSetupJTI, code, user.ID, now)
+			if recErr != nil {
+				return h.fail(c, fiber.StatusServiceUnavailable, "MFA_SAVE_ERROR", "Gagal mencatat percobaan verifikasi faktor kedua.")
+			}
+			if lockedNow {
+				return h.fail(c, fiber.StatusTooManyRequests, "MFA_LOCKED", "Terlalu banyak kode salah. Faktor kedua sementara dikunci.")
+			}
+			if burned {
+				return h.fail(c, fiber.StatusUnauthorized, "MFA_SETUP_EXPIRED", "Batas percobaan konfirmasi pendaftaran MFA terlampaui. Silakan pindai ulang QR baru.")
+			}
+		}
 		if errStatus != 0 {
 			return h.fail(c, errStatus, errCode, errMsg)
 		}

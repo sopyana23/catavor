@@ -681,7 +681,7 @@ func RedeemChallenge(
 			if verifiedUser.TwoFactorSecretEnc == nil || strings.TrimSpace(*verifiedUser.TwoFactorSecretEnc) == "" {
 				return ErrNotEnrolled
 			}
-			secret, err := security.OpenMFASecret(keyMaterial, *verifiedUser.TwoFactorSecretEnc)
+			secret, err := security.OpenMFASecretForUser(keyMaterial, verifiedUser.ID, *verifiedUser.TwoFactorSecretEnc)
 			if err != nil {
 				return err
 			}
@@ -869,7 +869,7 @@ func VerifyStepUpAndMutate(
 		totpMatched := false
 		var totpReplay bool
 		if tryTOTP && u.TwoFactorSecretEnc != nil && strings.TrimSpace(*u.TwoFactorSecretEnc) != "" {
-			secret, err := security.OpenMFASecret(keyMaterial, *u.TwoFactorSecretEnc)
+			secret, err := security.OpenMFASecretForUser(keyMaterial, u.ID, *u.TwoFactorSecretEnc)
 			if err != nil {
 				return err
 			}
@@ -996,7 +996,7 @@ func VerifyTOTPFactor(db *gorm.DB, keyMaterial string, user *models.User, code, 
 		return ErrFactorLocked
 	}
 
-	secret, err := security.OpenMFASecret(keyMaterial, *user.TwoFactorSecretEnc)
+	secret, err := security.OpenMFASecretForUser(keyMaterial, user.ID, *user.TwoFactorSecretEnc)
 	if err != nil {
 		return err
 	}
@@ -1124,6 +1124,26 @@ func VerifyBackupCodeFactor(db *gorm.DB, keyMaterial string, user *models.User, 
 	updated := string(encoded)
 	user.TwoFactorBackupCodesHash = &updated
 	return nil
+}
+
+// RecordEnrollmentFailure mencatat percobaan konfirmasi TOTP yang gagal secara
+// durable dan membakar two_factor_setup_jti bila percobaan pada setup_jti tersebut
+// mencapai MaxChallengeFailures (3x), serta mengunci akun pada ambang MaxFailedAttempts (5x).
+func RecordEnrollmentFailure(db *gorm.DB, keyMaterial, setupJTI, submittedCode string, userID uint, now time.Time) (lockedNow bool, burnedSetup bool, err error) {
+	lockedNow, jtiExhausted, err := recordFailureAtomic(db, keyMaterial, setupJTI, FactorTOTP, submittedCode, userID, now)
+	if err != nil {
+		return false, false, err
+	}
+	if jtiExhausted {
+		_ = db.Model(&models.User{}).
+			Where("id = ? AND two_factor_enabled = ? AND two_factor_setup_jti = ?", userID, false, setupJTI).
+			Updates(map[string]interface{}{
+				"two_factor_setup_jti":  nil,
+				"two_factor_secret_enc": nil,
+			}).Error
+		burnedSetup = true
+	}
+	return lockedNow, burnedSetup, nil
 }
 
 // EncodeBackupCodeHashes menyimpan hash dalam bentuk JSON array agar konsisten

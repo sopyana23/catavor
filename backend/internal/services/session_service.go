@@ -36,6 +36,20 @@ func runBackground(task string, fn func()) {
 	fn()
 }
 
+func sanitizeSessionIP(ip string) string {
+	clean := strings.TrimSpace(ip)
+	if clean == "" {
+		return "0.0.0.0"
+	}
+	if idx := strings.Index(clean, ","); idx != -1 {
+		clean = strings.TrimSpace(clean[:idx])
+	}
+	if len(clean) > 64 {
+		clean = clean[:64]
+	}
+	return clean
+}
+
 // CreateUserSessionTx menulis baris sesi aktif di dalam transaksi yang sedang
 // berjalan. Semua error database dipropagasikan agar pemanggil dapat fail-closed
 // sebelum menerbitkan token atau cookie. Mengembalikan daftar token_id lama
@@ -51,10 +65,7 @@ func CreateUserSessionTx(tx *gorm.DB, userID uint, tokenID string, expiresAt tim
 		now = time.Now().UTC()
 	}
 
-	cleanIP := strings.TrimSpace(ip)
-	if cleanIP == "" {
-		cleanIP = "0.0.0.0"
-	}
+	cleanIP := sanitizeSessionIP(ip)
 
 	var evictedTokens []string
 	var activeCount int64
@@ -243,7 +254,7 @@ func touchUserSession(tokenID string, ip string) {
 		Where("token_id = ? AND is_revoked = false AND last_active_at < ?", tokenID, threshold).
 		Updates(map[string]interface{}{
 			"last_active_at": now,
-			"ip_address":     ip,
+			"ip_address":     sanitizeSessionIP(ip),
 			"updated_at":     now,
 		}).Error
 }
@@ -327,6 +338,7 @@ func RevokeOtherSessionsForUser(db *gorm.DB, userID uint, currentTokenID string)
 }
 
 // CleanupExpiredUserSessions deletes user session records that have been expired for more than 30 days.
+// Cleans up referencing MFAAuthCompletion rows first so PostgreSQL FK RESTRICT never blocks cleanup.
 func CleanupExpiredUserSessions(db *gorm.DB) (int64, error) {
 	if db == nil {
 		db = database.DB
@@ -334,7 +346,11 @@ func CleanupExpiredUserSessions(db *gorm.DB) (int64, error) {
 	if db == nil {
 		return 0, nil
 	}
-	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
+	thirtyDaysAgo := time.Now().UTC().AddDate(0, 0, -30)
+	if db.Migrator().HasTable(&models.MFAAuthCompletion{}) {
+		subQuery := db.Model(&models.UserSession{}).Select("id").Where("expires_at < ?", thirtyDaysAgo)
+		_ = db.Where("expires_at < ? OR session_id IN (?)", thirtyDaysAgo, subQuery).Delete(&models.MFAAuthCompletion{}).Error
+	}
 	res := db.Where("expires_at < ?", thirtyDaysAgo).Delete(&models.UserSession{})
 	if res.Error != nil {
 		return 0, res.Error

@@ -1,6 +1,11 @@
 package handlers
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,31 +46,35 @@ type LoginRequest struct {
 }
 
 type RegisterRequest struct {
-	Name                 string  `json:"name"`
-	Email                string  `json:"email"`
-	Password             string  `json:"password"`
-	VerificationToken    string  `json:"verification_token"`
-	StoreSlug            string  `json:"store_slug"`
-	Slug                 string  `json:"slug"`
-	StoreName            string  `json:"store_name"`
-	StoreTitle           string  `json:"store_title"`
-	GoogleID             string  `json:"google_id"`
-	Avatar               string  `json:"avatar"`
-	Plan                 string  `json:"plan"`
-	BillingCycle         string  `json:"billing_cycle"`
-	PaymentMethod        string  `json:"payment_method"`
-	PaymentMode          string  `json:"payment_mode"`
-	PaymentStatus        string  `json:"payment_status"`
-	PaymentProofURL      string  `json:"payment_proof_url"`
-	PaymentNote          string  `json:"payment_note"`
-	SenderAccountName    string  `json:"sender_account_name"`
-	SenderPhone          string  `json:"sender_phone"`
-	CouponCode           string  `json:"coupon_code"`
-	AmountPaid           float64 `json:"amount_paid"`
-	WhatsappNumber       string  `json:"whatsapp_number"`
-	RegistrationTimezone string  `json:"registration_timezone"`
-	Timezone             string  `json:"timezone"`
-	WebsiteHP            string  `json:"website_hp,omitempty"` // Anti-bot honeypot field
+	Name                    string  `json:"name"`
+	Email                   string  `json:"email"`
+	Password                string  `json:"password"`
+	VerificationToken       string  `json:"verification_token"`
+	GoogleRegistrationToken string  `json:"google_registration_token,omitempty"`
+	Credential              string  `json:"credential,omitempty"`
+	IDToken                 string  `json:"id_token,omitempty"`
+	Token                   string  `json:"token,omitempty"`
+	StoreSlug               string  `json:"store_slug"`
+	Slug                    string  `json:"slug"`
+	StoreName               string  `json:"store_name"`
+	StoreTitle              string  `json:"store_title"`
+	GoogleID                string  `json:"google_id"`
+	Avatar                  string  `json:"avatar"`
+	Plan                    string  `json:"plan"`
+	BillingCycle            string  `json:"billing_cycle"`
+	PaymentMethod           string  `json:"payment_method"`
+	PaymentMode             string  `json:"payment_mode"`
+	PaymentStatus           string  `json:"payment_status"`
+	PaymentProofURL         string  `json:"payment_proof_url"`
+	PaymentNote             string  `json:"payment_note"`
+	SenderAccountName       string  `json:"sender_account_name"`
+	SenderPhone             string  `json:"sender_phone"`
+	CouponCode              string  `json:"coupon_code"`
+	AmountPaid              float64 `json:"amount_paid"`
+	WhatsappNumber          string  `json:"whatsapp_number"`
+	RegistrationTimezone    string  `json:"registration_timezone"`
+	Timezone                string  `json:"timezone"`
+	WebsiteHP               string  `json:"website_hp,omitempty"` // Anti-bot honeypot field
 }
 
 type CheckEmailRequest struct {
@@ -92,6 +102,9 @@ type ForgotPasswordResetRequest struct {
 	NewPassword     string `json:"new_password"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
+	MFACode         string `json:"mfa_code,omitempty"`
+	Code            string `json:"code,omitempty"`
+	FactorType      string `json:"factor_type,omitempty"`
 }
 
 type GoogleAuthRequest struct {
@@ -233,6 +246,105 @@ type AuthHandler struct {
 	db             *gorm.DB
 	storage        storage.StorageService
 	googleVerifier GoogleCredentialVerifier
+}
+
+const googleRegCookieName = "catavor_google_reg"
+const googleRegTokenTTL = 30 * time.Minute
+
+// IssueGoogleRegistrationToken menerbitkan bukti HMAC-SHA256 berumur 30 menit bahwa
+// GoogleAuth baru saja memverifikasi kepemilikan email + googleID secara kriptografis.
+func (h *AuthHandler) IssueGoogleRegistrationToken(email, googleID string) (string, error) {
+	cleanEmail := strings.ToLower(strings.TrimSpace(email))
+	cleanGID := strings.TrimSpace(googleID)
+	secret := ""
+	if h.cfg != nil {
+		secret = strings.TrimSpace(h.cfg.JWTSecret)
+	}
+	if cleanEmail == "" || cleanGID == "" || secret == "" {
+		return "", errors.New("google registration token: parameter tidak lengkap")
+	}
+	exp := time.Now().UTC().Add(googleRegTokenTTL).Unix()
+	payload := fmt.Sprintf("%s|%s|%d", cleanEmail, cleanGID, exp)
+	payloadB64 := base64.RawURLEncoding.EncodeToString([]byte(payload))
+	mac := hmac.New(sha256.New, []byte("catavor-google-reg-v1|"+secret))
+	mac.Write([]byte(payloadB64))
+	sig := hex.EncodeToString(mac.Sum(nil))
+	return "grt_" + payloadB64 + "." + sig, nil
+}
+
+func (h *AuthHandler) verifyGoogleRegistrationToken(rawToken, expectedEmail, expectedGoogleID string) (string, bool) {
+	trimmed := strings.TrimSpace(rawToken)
+	raw, ok := strings.CutPrefix(trimmed, "grt_")
+	if !ok {
+		return "", false
+	}
+	parts := strings.Split(raw, ".")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", false
+	}
+	secret := ""
+	if h.cfg != nil {
+		secret = strings.TrimSpace(h.cfg.JWTSecret)
+	}
+	if secret == "" {
+		return "", false
+	}
+	mac := hmac.New(sha256.New, []byte("catavor-google-reg-v1|"+secret))
+	mac.Write([]byte(parts[0]))
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+	if subtle.ConstantTimeCompare([]byte(strings.ToLower(parts[1])), []byte(expectedSig)) != 1 {
+		return "", false
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return "", false
+	}
+	fields := strings.Split(string(decoded), "|")
+	if len(fields) != 3 {
+		return "", false
+	}
+	tokEmail, tokGID, expStr := fields[0], fields[1], fields[2]
+	expUnix, err := strconv.ParseInt(expStr, 10, 64)
+	if err != nil || time.Now().UTC().Unix() > expUnix {
+		return "", false
+	}
+	if !strings.EqualFold(tokEmail, strings.TrimSpace(expectedEmail)) {
+		return "", false
+	}
+	if strings.TrimSpace(expectedGoogleID) != "" && tokGID != strings.TrimSpace(expectedGoogleID) {
+		return "", false
+	}
+	return tokGID, tokGID != ""
+}
+
+func setGoogleRegCookie(c *fiber.Ctx, cfg *config.Config, token string) {
+	if token == "" {
+		return
+	}
+	secure := c.Secure() || (cfg != nil && cfg.AppEnv != "local" && cfg.AppEnv != "development" && cfg.AppEnv != "")
+	c.Cookie(&fiber.Cookie{
+		Name:     googleRegCookieName,
+		Value:    token,
+		Path:     "/",
+		HTTPOnly: true,
+		Secure:   secure,
+		SameSite: "Lax",
+		Expires:  time.Now().UTC().Add(googleRegTokenTTL),
+	})
+}
+
+func clearGoogleRegCookie(c *fiber.Ctx, cfg *config.Config) {
+	secure := c.Secure() || (cfg != nil && cfg.AppEnv != "local" && cfg.AppEnv != "development" && cfg.AppEnv != "")
+	c.Cookie(&fiber.Cookie{
+		Name:     googleRegCookieName,
+		Value:    "",
+		Path:     "/",
+		HTTPOnly: true,
+		Secure:   secure,
+		SameSite: "Lax",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+	})
 }
 
 func NewAuthHandler(cfg *config.Config, db *gorm.DB, strg ...storage.StorageService) *AuthHandler {
@@ -679,11 +791,14 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Check if this registration is authenticating via Google SSO:
-	// 1. Client explicitly passes req.GoogleID
-	// 2. An existing user with this email in the database is already linked to Google
-	// 3. Current active session token belongs to a Google-authenticated user
-	isGoogleAuth := strings.TrimSpace(req.GoogleID) != ""
+	// SECURITY: Klaim registrasi Google SSO WAJIB dibuktikan secara kriptografis melalui salah satu:
+	// 1. Token registrasi Google bertanda tangan HMAC (google_registration_token / cookie catavor_google_reg),
+	// 2. Kredensial Google langsung (credential / id_token / token) yang diverifikasi ke Google,
+	// 3. Sesi login aktif yang valid (Authorization / cookie catavor_session) milik user Google dengan email yang sama.
+	// Mengirim "google_id" mentah di body JSON tanpa bukti kriptografis DITOLAK 401 untuk mencegah
+	// bypass kebijakan kata sandi, bypass verifikasi email OTP, dan pengambilalihan akun tanpa toko.
+	claimedGoogle := strings.TrimSpace(req.GoogleID) != ""
+	isGoogleAuth := false
 	var existingUser models.User
 	var targetUser models.User
 	userFound := false
@@ -691,31 +806,88 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	if req.Email != "" {
 		if err := h.db.Preload("Store").Where("LOWER(email) = ?", strings.ToLower(req.Email)).First(&existingUser).Error; err == nil {
 			userFound = true
-			if existingUser.GoogleID != nil && *existingUser.GoogleID != "" {
-				isGoogleAuth = true
-				if req.GoogleID == "" {
-					req.GoogleID = *existingUser.GoogleID
+		}
+	}
+
+	// Bukti A: google_registration_token dari respons GoogleAuth atau cookie HttpOnly catavor_google_reg
+	candidateGRT := strings.TrimSpace(req.GoogleRegistrationToken)
+	if candidateGRT == "" && strings.HasPrefix(strings.TrimSpace(req.VerificationToken), "grt_") {
+		candidateGRT = strings.TrimSpace(req.VerificationToken)
+	}
+	if candidateGRT == "" {
+		candidateGRT = strings.TrimSpace(c.Cookies(googleRegCookieName))
+	}
+	if candidateGRT != "" {
+		if verifiedGID, ok := h.verifyGoogleRegistrationToken(candidateGRT, req.Email, req.GoogleID); ok {
+			isGoogleAuth = true
+			req.GoogleID = verifiedGID
+		}
+	}
+
+	// Bukti B: Kredensial OAuth/ID Token Google langsung pada body request
+	if !isGoogleAuth {
+		rawCred := strings.TrimSpace(req.Credential)
+		if rawCred == "" {
+			rawCred = strings.TrimSpace(req.IDToken)
+		}
+		if rawCred == "" {
+			rawCred = strings.TrimSpace(req.Token)
+		}
+		if rawCred != "" && h.googleVerifier != nil {
+			expectedClientID := ""
+			if h.cfg != nil {
+				expectedClientID = h.cfg.GoogleClientID
+			}
+			if gEmail, gName, gSub, gAvatar, gErr := h.googleVerifier(rawCred, expectedClientID); gErr == nil && strings.EqualFold(gEmail, req.Email) && gSub != "" {
+				if req.GoogleID == "" || req.GoogleID == gSub {
+					isGoogleAuth = true
+					req.GoogleID = gSub
+					if req.Name == "" && gName != "" {
+						req.Name = security.SanitizePlainText(gName, 100)
+					}
+					if req.Avatar == "" && gAvatar != "" {
+						req.Avatar = gAvatar
+					}
 				}
 			}
 		}
 	}
 
+	// Bukti C: Sesi aktif yang sudah terautentikasi milik akun Google yang sama
 	if !isGoogleAuth {
-		if claims := middleware.ExtractOptionalClaims(c, h.cfg); claims != nil && claims.UserID > 0 {
-			var sessionUser models.User
-			if h.db.Preload("Store").First(&sessionUser, claims.UserID).Error == nil {
-				if sessionUser.GoogleID != nil && *sessionUser.GoogleID != "" {
-					isGoogleAuth = true
-					if req.GoogleID == "" {
+		if claims := middleware.ExtractOptionalClaims(c, h.cfg); claims != nil && claims.UserID > 0 && claims.ID != "" && !database.IsTokenBlacklisted(claims.ID) {
+			var activeSessCount int64
+			if !h.db.Migrator().HasTable(&models.UserSession{}) {
+				activeSessCount = 1
+			} else {
+				h.db.Model(&models.UserSession{}).
+					Where("token_id = ? AND user_id = ? AND is_revoked = false AND expires_at > ?", claims.ID, claims.UserID, time.Now().UTC()).
+					Count(&activeSessCount)
+			}
+			if activeSessCount > 0 {
+				var sessionUser models.User
+				if h.db.Preload("Store").First(&sessionUser, claims.UserID).Error == nil &&
+					!sessionUser.IsBlacklisted &&
+					sessionUser.TokenVersion == claims.TokenVersion &&
+					strings.EqualFold(sessionUser.Email, req.Email) &&
+					sessionUser.GoogleID != nil && *sessionUser.GoogleID != "" {
+					if req.GoogleID == "" || req.GoogleID == *sessionUser.GoogleID {
+						isGoogleAuth = true
 						req.GoogleID = *sessionUser.GoogleID
-					}
-					if !userFound && strings.EqualFold(sessionUser.Email, req.Email) {
 						existingUser = sessionUser
 						userFound = true
 					}
 				}
 			}
 		}
+	}
+
+	if claimedGoogle && !isGoogleAuth {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"code":    "GOOGLE_VERIFICATION_REQUIRED",
+			"message": "Sesi verifikasi Google tidak valid atau telah kedaluwarsa. Silakan ulangi masuk dengan Google.",
+		})
 	}
 
 	// Bypass password validation completely for Google SSO users
@@ -911,6 +1083,14 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 					"success": false,
 					"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
+				})
+			}
+			// Tolak pengaitan Google ID baru ke akun yang sebelumnya sudah punya Google ID berbeda
+			if existingUser.GoogleID != nil && *existingUser.GoogleID != "" && *existingUser.GoogleID != req.GoogleID {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"code":    "GOOGLE_IDENTITY_MISMATCH",
+					"message": "Identitas akun Google tidak cocok dengan akun terdaftar.",
 				})
 			}
 			targetUser = existingUser
@@ -1137,6 +1317,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		WhatsappNumber: newStore.WhatsappNumber,
 	}
 
+	clearGoogleRegCookie(c, h.cfg)
 	allowRegSession, regGateErr := h.evaluateMFASessionGate(c, &targetUser, "register", newStore.Slug, []StoreSummary{singleSummary}, singleSummary)
 	if !allowRegSession {
 		return regGateErr
@@ -1420,8 +1601,15 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		})
 
 		setSessionCookie(c, h.cfg, token)
+		var existingGRT string
+		if len(storeList) == 0 && user.GoogleID != nil && *user.GoogleID != "" {
+			if tok, gErr := h.IssueGoogleRegistrationToken(user.Email, *user.GoogleID); gErr == nil {
+				existingGRT = tok
+				setGoogleRegCookie(c, h.cfg, tok)
+			}
+		}
 
-		return c.JSON(fiber.Map{
+		respMap := fiber.Map{
 			"success":                  true,
 			"is_new_user":              false,
 			"message":                  "Login Google berhasil!",
@@ -1445,7 +1633,11 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 				"store_plan":          activeStore.Plan,
 				"payment_status":      activeStore.PaymentStatus,
 			},
-		})
+		}
+		if existingGRT != "" {
+			respMap["google_registration_token"] = existingGRT
+		}
+		return c.JSON(respMap)
 	}
 
 	// CASE B: NEW USER (REGISTRATION FLOW)
@@ -1453,16 +1645,20 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 	storeSlug := cleanSlug(req.StoreSlug)
 
 	if storeName == "" || storeSlug == "" {
+		regToken, _ := h.IssueGoogleRegistrationToken(email, googleID)
+		setGoogleRegCookie(c, h.cfg, regToken)
 		return c.JSON(fiber.Map{
-			"success":             true,
-			"is_new_user":         true,
-			"requires_store_info": true,
-			"message":             "Otentikasi Google berhasil! Silakan tentukan Nama Toko dan Link Username Anda.",
+			"success":                   true,
+			"is_new_user":               true,
+			"requires_store_info":       true,
+			"google_registration_token": regToken,
+			"message":                   "Otentikasi Google berhasil! Silakan tentukan Nama Toko dan Link Username Anda.",
 			"google_data": fiber.Map{
-				"name":      name,
-				"email":     email,
-				"google_id": googleID,
-				"avatar":    avatar,
+				"name":                      name,
+				"email":                     email,
+				"google_id":                 googleID,
+				"avatar":                    avatar,
+				"google_registration_token": regToken,
 			},
 		})
 	}
@@ -1621,14 +1817,19 @@ func verifyGoogleCredential(credentialStr string, expectedClientID string) (emai
 		return "", "", "", "", fmt.Errorf("kredensial Google kosong")
 	}
 
-	client := &http.Client{Timeout: 8 * time.Second}
+	client := &http.Client{
+		Timeout: 8 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 
-	// 1. Validate ID Token using Google TokenInfo endpoint (verifies Google's RSA signature and expiry)
+	// 1. Validate ID Token using Google TokenInfo endpoint (verifies Google's RSA signature, issuer, audience, and expiry)
 	tURL := "https://oauth2.googleapis.com/tokeninfo?id_token=" + url.QueryEscape(credentialStr)
 	resp, tErr := client.Get(tURL)
 	if tErr == nil && resp.StatusCode == http.StatusOK {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		_ = resp.Body.Close()
 		var gMap struct {
 			Email         string `json:"email"`
 			EmailVerified any    `json:"email_verified"`
@@ -1636,32 +1837,54 @@ func verifyGoogleCredential(credentialStr string, expectedClientID string) (emai
 			Sub           string `json:"sub"`
 			Picture       string `json:"picture"`
 			Aud           string `json:"aud"`
+			Iss           string `json:"iss"`
 		}
-		if err := json.Unmarshal(body, &gMap); err == nil && gMap.Email != "" {
-			if expectedClientID != "" && gMap.Aud != "" && gMap.Aud != expectedClientID {
+		if err := json.Unmarshal(body, &gMap); err == nil && gMap.Email != "" && gMap.Sub != "" {
+			if expectedClientID != "" && gMap.Aud != expectedClientID {
 				return "", "", "", "", fmt.Errorf("token Google audience tidak cocok dengan konfigurasi aplikasi")
 			}
-			// N-14: email dari Google wajib sudah terverifikasi. Tanpa cek ini,
-			// alamat email yang belum diverifikasi Google bisa dipakai untuk
-			// mengambil alih akun yang emailnya sama.
+			if gMap.Iss != "" && gMap.Iss != "https://accounts.google.com" && gMap.Iss != "accounts.google.com" {
+				return "", "", "", "", fmt.Errorf("issuer token Google tidak valid")
+			}
 			if !claimsEmailVerified(gMap.EmailVerified) {
 				return "", "", "", "", fmt.Errorf("email Google belum terverifikasi")
 			}
 			return strings.ToLower(strings.TrimSpace(gMap.Email)), gMap.Name, gMap.Sub, gMap.Picture, nil
 		}
-	}
-	if resp != nil {
+	} else if resp != nil {
 		_ = resp.Body.Close()
 	}
 
-	// 2. Fallback: Validate OAuth2 Access Token using Google UserInfo endpoint
+	// 2. Fallback: Validate OAuth2 Access Token — WAJIB periksa audience (aud/azp) lewat tokeninfo
+	// terlebih dahulu bila GOOGLE_CLIENT_ID dikonfigurasi, agar access token dari aplikasi OAuth pihak ketiga
+	// tidak dapat dipakai menembus autentikasi Catavor (RFC 9700 / Confused Deputy Prevention).
+	if expectedClientID != "" {
+		atURL := "https://oauth2.googleapis.com/tokeninfo?access_token=" + url.QueryEscape(credentialStr)
+		atResp, atErr := client.Get(atURL)
+		if atErr != nil || atResp == nil || atResp.StatusCode != http.StatusOK {
+			if atResp != nil {
+				_ = atResp.Body.Close()
+			}
+			return "", "", "", "", fmt.Errorf("access token Google tidak valid")
+		}
+		atBody, _ := io.ReadAll(io.LimitReader(atResp.Body, 64*1024))
+		_ = atResp.Body.Close()
+		var atInfo struct {
+			Aud string `json:"aud"`
+			Azp string `json:"azp"`
+		}
+		if json.Unmarshal(atBody, &atInfo) != nil || (atInfo.Aud != expectedClientID && atInfo.Azp != expectedClientID) {
+			return "", "", "", "", fmt.Errorf("access token Google bukan diterbitkan untuk aplikasi ini")
+		}
+	}
+
 	uReq, uErr := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v3/userinfo", nil)
 	if uErr == nil {
 		uReq.Header.Set("Authorization", "Bearer "+credentialStr)
 		uResp, err := client.Do(uReq)
 		if err == nil && uResp.StatusCode == http.StatusOK {
-			defer uResp.Body.Close()
-			uBody, _ := io.ReadAll(uResp.Body)
+			uBody, _ := io.ReadAll(io.LimitReader(uResp.Body, 64*1024))
+			_ = uResp.Body.Close()
 			var uMap struct {
 				Email         string `json:"email"`
 				EmailVerified any    `json:"email_verified"`
@@ -1669,15 +1892,13 @@ func verifyGoogleCredential(credentialStr string, expectedClientID string) (emai
 				Sub           string `json:"sub"`
 				Picture       string `json:"picture"`
 			}
-			if err := json.Unmarshal(uBody, &uMap); err == nil && uMap.Email != "" {
-				// N-14: sama seperti jalur ID token, email wajib terverifikasi.
+			if err := json.Unmarshal(uBody, &uMap); err == nil && uMap.Email != "" && uMap.Sub != "" {
 				if !claimsEmailVerified(uMap.EmailVerified) {
 					return "", "", "", "", fmt.Errorf("email Google belum terverifikasi")
 				}
 				return strings.ToLower(strings.TrimSpace(uMap.Email)), uMap.Name, uMap.Sub, uMap.Picture, nil
 			}
-		}
-		if uResp != nil {
+		} else if uResp != nil {
 			_ = uResp.Body.Close()
 		}
 	}
@@ -1940,8 +2161,9 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		}
 	}
 
-	// SECURITY (M1): hapus cookie sesi HttpOnly saat logout.
+	// SECURITY (M1): hapus cookie sesi HttpOnly dan cookie registrasi Google saat logout.
 	clearSessionCookie(c, h.cfg)
+	clearGoogleRegCookie(c, h.cfg)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -2037,8 +2259,21 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	passwordWasChanged := false
 	otpReauthed := false
 	passwordReauthed := false
-	if strings.TrimSpace(req.CurrentPassword) != "" && (user.HasCustomPassword || user.Password != "") && user.CheckPassword(req.CurrentPassword) {
-		passwordReauthed = true
+	if strings.TrimSpace(req.CurrentPassword) != "" && (user.HasCustomPassword || user.Password != "") {
+		lockIdent := strings.ToLower(strings.TrimSpace(originalEmail))
+		if locked, retryRem := database.IsAccountLoginLocked(lockIdent); locked {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"code":    "ACCOUNT_LOCKED",
+				"message": fmt.Sprintf("Terlalu banyak percobaan kata sandi salah. Silakan tunggu %d detik sebelum mencoba kembali.", int(retryRem.Seconds())+1),
+			})
+		}
+		if user.CheckPassword(req.CurrentPassword) {
+			database.ResetLoginFailures(lockIdent)
+			passwordReauthed = true
+		} else {
+			database.RecordLoginFailure(lockIdent)
+		}
 	}
 
 	if req.Password != "" {
@@ -2526,23 +2761,24 @@ func (h *AuthHandler) ForgotPasswordRequest(c *fiber.Ctx) error {
 		})
 	}
 
+	const uniformRecoveryMsg = "Jika email terdaftar, instruksi pemulihan telah dikirimkan ke kotak masuk Anda."
+
 	var user models.User
 	if err := h.db.Where("LOWER(email) = ?", reqEmail).First(&user).Error; err != nil {
-		// Return success message even if not found to prevent user enumeration
+		// Return uniform message even if not found to prevent user enumeration (N-17)
 		return c.JSON(fiber.Map{
 			"success": true,
-			"message": "Jika email terdaftar, instruksi pemulihan telah dikirimkan ke kotak masuk Anda.",
+			"message": uniformRecoveryMsg,
 		})
 	}
 
-	// N-17: akun blacklisted tidak boleh dibedakan dari email tak terdaftar —
-	// sebelumnya 403 "Akun ini telah dinonaktifkan" vs 200 membuat status
-	// penangguhan sebuah akun dapat dipetakan dari luar.
-	if user.IsBlacklisted {
-		log.Warn().Str("ip", c.IP()).Msg("ForgotPasswordRequest: akun blacklisted (respons disamarkan)")
+	// N-17 + Staff Protection: akun blacklisted maupun staf pengelola platform tidak boleh
+	// dibedakan dari email tak terdaftar dan staf platform tidak boleh di-reset via OTP publik 1FA.
+	if user.IsBlacklisted || user.IsPlatformStaff() {
+		log.Warn().Str("ip", c.IP()).Bool("staff", user.IsPlatformStaff()).Msg("ForgotPasswordRequest: ditahan & respons disamarkan")
 		return c.JSON(fiber.Map{
 			"success": true,
-			"message": "Jika email terdaftar, instruksi pemulihan telah dikirimkan ke kotak masuk Anda.",
+			"message": uniformRecoveryMsg,
 		})
 	}
 
@@ -2556,7 +2792,7 @@ func (h *AuthHandler) ForgotPasswordRequest(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Kode OTP pemulihan kata sandi telah dikirimkan ke email Anda.",
+		"message": uniformRecoveryMsg,
 	})
 }
 
@@ -2618,6 +2854,17 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Pengguna tidak ditemukan.",
+		})
+	}
+
+	// SECURITY: Akun staf platform & akun dengan TwoFactorEnforced tanpa MFA aktif TIDAK BOLEH
+	// di-reset lewat alur OTP email publik (karena akan menerbitkan setup_token kepada pengambil alih email
+	// atau menimpa kata sandi akun istimewa melalui 1FA). Pemulihan staf wajib melalui Superadmin.
+	if user.IsPlatformStaff() || (user.TwoFactorEnforced && !user.TwoFactorEnabled) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "STAFF_RECOVERY_RESTRICTED",
+			"message": "Pemulihan kata sandi untuk akun pengelola platform wajib melalui Superadmin.",
 		})
 	}
 
@@ -2722,7 +2969,8 @@ func (h *AuthHandler) ForgotPasswordReset(c *fiber.Ctx) error {
 	})
 }
 
-// RequestProfilePasswordOTP sends a password recovery OTP for the authenticated user (or provided email).
+// RequestProfilePasswordOTP sends a password recovery OTP strictly for the authenticated session user.
+// SECURITY (N-17): tidak lagi menerima lookup email tanpa sesi agar tidak membocorkan status registrasi/ban akun.
 func (h *AuthHandler) RequestProfilePasswordOTP(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -2730,38 +2978,11 @@ func (h *AuthHandler) RequestProfilePasswordOTP(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	var user *models.User
-	if u, ok := c.Locals("user").(*models.User); ok && u != nil {
-		user = u
-	} else {
-		claims := middleware.ExtractOptionalClaims(c, h.cfg)
-		if claims != nil && claims.UserID > 0 {
-			var u models.User
-			if err := h.db.First(&u, claims.UserID).Error; err == nil {
-				user = &u
-			}
-		}
-		if user == nil {
-			var bodyReq struct {
-				Email string `json:"email"`
-			}
-			if err := c.BodyParser(&bodyReq); err != nil || bodyReq.Email == "" {
-				_ = json.Unmarshal(c.Body(), &bodyReq)
-			}
-			reqEmail := strings.TrimSpace(strings.ToLower(bodyReq.Email))
-			if reqEmail != "" {
-				var u models.User
-				if err := h.db.Where("LOWER(email) = ?", reqEmail).First(&u).Error; err == nil {
-					user = &u
-				}
-			}
-		}
-	}
-
-	if user == nil || user.ID == 0 || user.Email == "" {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || user.ID == 0 || user.Email == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
-			"message": "Sesi tidak valid atau pengguna tidak ditemukan.",
+			"message": "Autentikasi sesi diperlukan.",
 		})
 	}
 
@@ -2798,6 +3019,9 @@ type DeleteAccountRequest struct {
 	ConfirmPhrase string `json:"confirm_phrase"`
 	Confirmation  string `json:"confirmation,omitempty"`
 	Password      string `json:"password"`
+	MFACode       string `json:"mfa_code,omitempty"`
+	Code          string `json:"code,omitempty"`
+	FactorType    string `json:"factor_type,omitempty"`
 }
 
 // DeleteAccount handles permanent deletion of user account and all owned catalogs (Right to Erasure)
@@ -2814,6 +3038,16 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 			"success": false,
 			"message": "Autentikasi diperlukan.",
 		})
+	}
+
+	if user.IsSuperadmin() {
+		var superCount int64
+		if err := h.db.Model(&models.User{}).Where("LOWER(TRIM(platform_role)) = ?", "superadmin").Count(&superCount).Error; err != nil || superCount <= 1 {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Akun Superadmin terakhir tidak dapat dihapus secara mandiri.",
+			})
+		}
 	}
 
 	var req DeleteAccountRequest
@@ -2837,14 +3071,26 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 		})
 	}
 
-	// 2. Validate password if user has password
+	// 2. Validate password if user has password (guarded by brute-force lockout)
 	if user.HasCustomPassword && user.Password != "" {
+		lockIdent := strings.ToLower(strings.TrimSpace(user.Email))
+		if locked, retryRem := database.IsAccountLoginLocked(lockIdent); locked {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"code":    "ACCOUNT_LOCKED",
+				"message": fmt.Sprintf("Terlalu banyak percobaan kata sandi salah. Silakan tunggu %d detik sebelum mencoba kembali.", int(retryRem.Seconds())+1),
+			})
+		}
 		if req.Password == "" || !user.CheckPassword(req.Password) {
+			if req.Password != "" {
+				database.RecordLoginFailure(lockIdent)
+			}
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": "Kata sandi akun yang Anda masukkan salah.",
 			})
 		}
+		database.ResetLoginFailures(lockIdent)
 	}
 
 	cfg := h.cfg
@@ -2852,78 +3098,179 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 		cfg = config.LoadConfig()
 	}
 
-	// 3. Find all stores owned by user and hard-delete their media
-	var stores []models.Store
-	h.db.Where("user_id = ?", user.ID).Find(&stores)
-
-	tx := h.db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	// 2b. Enforce MFA step-up when MFA is active/required on the account
+	now := time.Now().UTC()
+	if mfa.RequiresMFA(user, cfg != nil && cfg.MFAEnabled) {
+		if !user.TwoFactorEnabled {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "MFA_SETUP_REQUIRED",
+				"message": "Wajib mengaktifkan MFA sebelum menghapus akun.",
+			})
 		}
-	}()
-
-	for _, s := range stores {
-		_ = tx.Where("store_id = ?", s.ID).Delete(&models.ProductVariant{}).Error
-		_ = tx.Where("store_id = ?", s.ID).Delete(&models.ProductImage{}).Error
-		_ = tx.Where("store_id = ?", s.ID).Delete(&models.Product{}).Error
-		_ = tx.Where("store_id = ?", s.ID).Delete(&models.Category{}).Error
-		_ = tx.Where("store_id = ?", s.ID).Delete(&models.Article{}).Error
-		_ = tx.Where("store_id = ?", s.ID).Delete(&models.StoreDailyAnalytics{}).Error
-		_ = tx.Where("store_id = ?", s.ID).Delete(&models.ProductDailyAnalytics{}).Error
-		_ = tx.Where("store_id = ?", s.ID).Delete(&models.StoreDailyTrafficSource{}).Error
-		_ = tx.Where("store_id = ?", s.ID).Delete(&models.NotificationRead{}).Error
-		_ = tx.Where("store_id = ?", s.ID).Delete(&models.ActivityLog{}).Error
-		_ = tx.Delete(&s).Error
-
-		// Cloud & Disk physical media cleanup (Rule 4 & UU PDP)
-		if h.storage != nil {
-			_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("stores/%d/", s.ID))
-			_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/stores/%d/", s.ID))
+		mfaCode := strings.TrimSpace(req.MFACode)
+		if mfaCode == "" {
+			mfaCode = strings.TrimSpace(req.Code)
 		}
-		if cfg.StorageLocalRoot != "" {
-			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", s.ID)))
-			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", s.ID)))
+		if mfaCode == "" {
+			return c.Status(fiber.StatusPreconditionRequired).JSON(fiber.Map{
+				"success": false,
+				"code":    "MFA_STEP_UP_REQUIRED",
+				"message": "Masukkan kode 6 digit authenticator atau kode cadangan untuk mengonfirmasi penghapusan akun.",
+			})
+		}
+		_, stepErr := mfa.VerifyStepUpAndMutate(
+			h.db,
+			cfg.MFAEncryptionKey,
+			user.ID,
+			mfaCode,
+			req.FactorType,
+			fmt.Sprintf("delacc-%d", user.ID),
+			now,
+			func(tx *gorm.DB, lockedUser *models.User, usedFactor string) error {
+				return nil
+			},
+		)
+		if stepErr != nil {
+			switch {
+			case errors.Is(stepErr, mfa.ErrFactorLocked):
+				return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+					"success": false,
+					"code":    "MFA_LOCKED",
+					"message": "Terlalu banyak kode salah. Faktor kedua sementara dikunci.",
+				})
+			case errors.Is(stepErr, mfa.ErrReplay):
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"code":    "MFA_CODE_REUSED",
+					"message": "Kode faktor kedua sudah pernah digunakan. Tunggu kode berikutnya.",
+				})
+			default:
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"success": false,
+					"code":    "MFA_CODE_INVALID",
+					"message": "Kode verifikasi faktor kedua salah.",
+				})
+			}
 		}
 	}
 
-	// Purge user's private billing receipts from cloud
-	if h.storage != nil {
-		_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/billing/users/%d/", user.ID))
-	}
-
-	// Delete user sessions & agreements
-	_ = tx.Where("user_id = ?", user.ID).Delete(&models.UserSession{}).Error
-	_ = tx.Where("user_id = ?", user.ID).Delete(&models.UserPolicyAgreement{}).Error
-
-	// Clean up user's support tickets and physical media attachments under UU PDP / GDPR Right to Erasure
+	// 3. Clean up user's support tickets and physical media attachments under UU PDP / GDPR Right to Erasure
 	_, _, _ = services.PurgeUserTicketsAndAttachments(h.db, h.storage, user.ID)
 
-	// Invalidate tokens in memory/Redis
-	user.TokenVersion += 10
-	_ = tx.Save(&user).Error
+	// 4. Find all stores owned by user & collect active session IDs to blacklist post-commit
+	var stores []models.Store
+	h.db.Where("user_id = ?", user.ID).Find(&stores)
+	var activeSess []models.UserSession
+	h.db.Select("token_id").Where("user_id = ?", user.ID).Find(&activeSess)
 
-	// Delete user record
-	if err := tx.Delete(&user).Error; err != nil {
-		tx.Rollback()
+	if txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		for _, s := range stores {
+			productIDs := tx.Unscoped().Model(&models.Product{}).Select("id").Where("store_id = ?", s.ID)
+			if err := tx.Unscoped().Where("product_id IN (?)", productIDs).Delete(&models.ProductVariant{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Unscoped().Where("product_id IN (?)", productIDs).Delete(&models.ProductImage{}).Error; err != nil {
+				return err
+			}
+			for _, storeModel := range []interface{}{
+				&models.Product{},
+				&models.Category{},
+				&models.Article{},
+				&models.StoreDailyAnalytics{},
+				&models.ProductDailyAnalytics{},
+				&models.StoreDailyTrafficSource{},
+				&models.NotificationRead{},
+				&models.ActivityLog{},
+			} {
+				if err := tx.Unscoped().Where("store_id = ?", s.ID).Delete(storeModel).Error; err != nil {
+					return err
+				}
+			}
+			if err := tx.Unscoped().Delete(&s).Error; err != nil {
+				return err
+			}
+		}
+
+		// Delete MFA records BEFORE UserSession & User to satisfy PostgreSQL FK RESTRICT on mfa_auth_completions.session_id
+		if tx.Migrator().HasTable(&models.MFAAuthCompletion{}) {
+			sessIDs := tx.Unscoped().Model(&models.UserSession{}).Select("id").Where("user_id = ?", user.ID)
+			if err := tx.Unscoped().Where("user_id = ? OR session_id IN (?)", user.ID, sessIDs).Delete(&models.MFAAuthCompletion{}).Error; err != nil {
+				return err
+			}
+		}
+		if tx.Migrator().HasTable(&models.MFAChallengeFailure{}) {
+			if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.MFAChallengeFailure{}).Error; err != nil {
+				return err
+			}
+		}
+		if tx.Migrator().HasTable(&models.MFAAccountLockout{}) {
+			if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.MFAAccountLockout{}).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.UserSession{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.UserPolicyAgreement{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.NotificationRead{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.ActivityLog{}).Error; err != nil {
+			return err
+		}
+
+		user.TokenVersion += 10
+		if err := tx.Model(&models.User{}).Where("id = ?", user.ID).Update("token_version", user.TokenVersion).Error; err != nil {
+			return err
+		}
+
+		return tx.Unscoped().Delete(&user).Error
+	}); txErr != nil {
+		log.Error().Err(txErr).Uint("user_id", user.ID).Msg("DeleteAccount: transaksi penghapusan akun gagal")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal menghapus data akun dari basis data.",
 		})
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal menyelesaikan transaksi penghapusan akun.",
-		})
+	// 5. Post-commit physical storage cleanup (Multi-Layer Rollback per AGENTS.md Rule 10)
+	for _, s := range stores {
+		if h.storage != nil {
+			_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("stores/%d/", s.ID))
+			_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/stores/%d/", s.ID))
+		}
+		if cfg != nil && cfg.StorageLocalRoot != "" {
+			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", s.ID)))
+			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", s.ID)))
+		}
+		if cfg != nil && cfg.StoragePrivateRoot != "" {
+			_ = os.RemoveAll(filepath.Join(cfg.StoragePrivateRoot, "stores", fmt.Sprintf("%d", s.ID)))
+		}
+	}
+	if h.storage != nil {
+		_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/billing/users/%d/", user.ID))
+	}
+	if cfg != nil && cfg.StoragePrivateRoot != "" {
+		_ = os.RemoveAll(filepath.Join(cfg.StoragePrivateRoot, "billing", "users", fmt.Sprintf("%d", user.ID)))
 	}
 
-	// Blacklist current token if present
+	// Blacklist all user session JTIs + clear browser cookies
+	for _, s := range activeSess {
+		if s.TokenID != "" {
+			database.BlacklistToken(s.TokenID, 72*time.Hour)
+			middleware.RevokeSessionFingerprint(s.TokenID)
+		}
+	}
 	if claims, ok := c.Locals("claims").(*middleware.JWTClaims); ok && claims != nil && claims.ID != "" {
 		database.BlacklistToken(claims.ID, 72*time.Hour)
 		middleware.RevokeSessionFingerprint(claims.ID)
 	}
+	clearSessionCookie(c, cfg)
+	clearGoogleRegCookie(c, cfg)
 
 	return c.JSON(fiber.Map{
 		"success": true,

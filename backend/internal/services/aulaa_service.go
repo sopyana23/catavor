@@ -94,6 +94,10 @@ var (
 		mustParseCIDR("255.255.255.255/32"),  // Limited Broadcast
 		mustParseCIDR("64:ff9b::/96"),        // IPv4/IPv6 translation NAT64 (RFC 6052)
 		mustParseCIDR("64:ff9b:1::/48"),      // Local-Use IPv4/IPv6 translation (RFC 8215)
+		mustParseCIDR("192.88.99.0/24"),      // 6to4 Relay Anycast (RFC 7526)
+		mustParseCIDR("2002::/16"),           // 6to4 IPv4-embedded IPv6 (RFC 3056 — mencegah ::/16 -> 127.0.0.1)
+		mustParseCIDR("2001::/32"),           // Teredo tunneling (RFC 4380)
+		mustParseCIDR("2001:db8::/32"),       // Documentation IPv6 (RFC 3849)
 	}
 )
 
@@ -399,7 +403,7 @@ func CheckAulaaPaymentStatus(cfg AulaaConfig, paymentID string) (*AulaaPaymentSt
 	}
 
 	cleanBase := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
-	endpoint := fmt.Sprintf("%s/payments/%s", cleanBase, cleanPaymentID)
+	endpoint := fmt.Sprintf("%s/payments/%s", cleanBase, url.PathEscape(cleanPaymentID))
 	httpReq, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("gagal membuat request cek status: %w", err)
@@ -497,7 +501,7 @@ func CancelAulaaPayment(cfg AulaaConfig, paymentID string) error {
 	}
 
 	cleanBase := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
-	endpoint := fmt.Sprintf("%s/payments/%s/cancel", cleanBase, cleanPaymentID)
+	endpoint := fmt.Sprintf("%s/payments/%s/cancel", cleanBase, url.PathEscape(cleanPaymentID))
 	httpReq, err := http.NewRequest(http.MethodPost, endpoint, nil)
 	if err != nil {
 		return fmt.Errorf("gagal membuat request cancel payment: %w", err)

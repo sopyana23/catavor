@@ -3,8 +3,11 @@ package services
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"html"
 	"math/big"
 	"strings"
 	"time"
@@ -15,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type OTPService struct {
@@ -106,10 +110,11 @@ func (s *OTPService) generateAndSendOTP(email string, recipientName string, purp
 		return "", fmt.Errorf("gagal menyimpan kode verifikasi")
 	}
 
-	// 5. Construct Beautiful Modern HTML Email Template
+	// 5. Construct Beautiful Modern HTML Email Template (escape recipientName against HTML injection)
 	if recipientName == "" {
 		recipientName = "Pengelola Katalog"
 	}
+	safeRecipientName := html.EscapeString(recipientName)
 
 	htmlBody := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="id">
@@ -173,7 +178,7 @@ func (s *OTPService) generateAndSendOTP(email string, recipientName string, purp
     </tr>
   </table>
 </body>
-</html>`, subject, recipientName, introText, otpCode, time.Now().Year())
+</html>`, subject, safeRecipientName, introText, otpCode, time.Now().Year())
 
 	// 6. Send the Email via SMTP Service (Gracefully logs if SMTP is not configured).
 	// Tetap async, tetapi recover dipasang di dalam goroutine: panic di
@@ -186,7 +191,7 @@ func (s *OTPService) generateAndSendOTP(email string, recipientName string, purp
 	return otpCode, nil
 }
 
-// VerifyOTP verifies a user-submitted OTP code against the database.
+// VerifyOTP verifies a user-submitted OTP code against the database atomically under row lock.
 // If valid, returns a one-time verification token (valid for 15 minutes) to finalize the transaction.
 func (s *OTPService) VerifyOTP(email string, code string, purpose string) (string, error) {
 	cleanedEmail := strings.TrimSpace(strings.ToLower(email))
@@ -196,43 +201,60 @@ func (s *OTPService) VerifyOTP(email string, code string, purpose string) (strin
 		return "", fmt.Errorf("email dan kode verifikasi wajib diisi")
 	}
 
-	var record models.EmailVerificationOTP
-	err := s.db.Where("email = ? AND purpose = ?", cleanedEmail, purpose).
-		Order("created_at DESC").
-		First(&record).Error
-
-	if err != nil {
-		return "", fmt.Errorf("kode verifikasi tidak ditemukan atau belum pernah diminta")
-	}
-
-	// Check expiration
-	if time.Now().After(record.ExpiresAt) {
-		_ = s.db.Delete(&record)
-		return "", fmt.Errorf("kode verifikasi telah kedaluwarsa. Silakan minta kode baru")
-	}
-
-	// Check maximum attempts (Max 3 failed attempts)
-	if record.Attempts >= 3 {
-		_ = s.db.Delete(&record)
-		return "", fmt.Errorf("batas percobaan salah telah terlampaui. Silakan minta kode baru")
-	}
-
-	// Verify Hash
 	providedHash := hashOTP(cleanedCode)
-	if record.OTPHash != providedHash {
-		// Increment attempts
-		record.Attempts++
-		s.db.Save(&record)
-		remaining := 3 - record.Attempts
-		return "", fmt.Errorf("kode verifikasi salah. Sisa kesempatan: %d kali", remaining)
+	var verificationToken string
+	var userFacingErr error
+
+	txErr := s.db.Transaction(func(tx *gorm.DB) error {
+		var record models.EmailVerificationOTP
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("email = ? AND purpose = ?", cleanedEmail, purpose).
+			Order("created_at DESC").
+			First(&record).Error
+		if err != nil {
+			userFacingErr = fmt.Errorf("kode verifikasi tidak ditemukan atau belum pernah diminta")
+			return nil
+		}
+
+		// Check expiration
+		if time.Now().After(record.ExpiresAt) {
+			_ = tx.Delete(&record).Error
+			userFacingErr = fmt.Errorf("kode verifikasi telah kedaluwarsa. Silakan minta kode baru")
+			return nil
+		}
+
+		// Check maximum attempts (Max 3 failed attempts)
+		if record.Attempts >= 3 {
+			_ = tx.Delete(&record).Error
+			userFacingErr = fmt.Errorf("batas percobaan salah telah terlampaui. Silakan minta kode baru")
+			return nil
+		}
+
+		// Constant-time hash comparison + durable attempt increment inside committed transaction
+		if subtle.ConstantTimeCompare([]byte(record.OTPHash), []byte(providedHash)) != 1 {
+			record.Attempts++
+			if saveErr := tx.Save(&record).Error; saveErr != nil {
+				return saveErr
+			}
+			remaining := 3 - record.Attempts
+			userFacingErr = fmt.Errorf("kode verifikasi salah. Sisa kesempatan: %d kali", remaining)
+			return nil
+		}
+
+		// Generate one-time verification token and clear OTPHash so the same OTP cannot mint a second token
+		verificationToken = "vt_" + uuid.New().String()
+		record.Token = verificationToken
+		record.OTPHash = "consumed:" + uuid.New().String()
+		record.ExpiresAt = time.Now().Add(15 * time.Minute)
+		return tx.Save(&record).Error
+	})
+
+	if txErr != nil {
+		return "", errors.New("gagal memverifikasi kode")
 	}
-
-	// Generate one-time verification token
-	verificationToken := "vt_" + uuid.New().String()
-	record.Token = verificationToken
-	record.ExpiresAt = time.Now().Add(15 * time.Minute) // Give 15 mins to complete form
-	s.db.Save(&record)
-
+	if userFacingErr != nil {
+		return "", userFacingErr
+	}
 	return verificationToken, nil
 }
 

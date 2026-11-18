@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -505,6 +506,12 @@ func (h *ProductHandler) Store(c *fiber.Ctx) error {
 			"message": fmt.Sprintf("Jumlah foto melebihi batas maksimal (%d foto per produk).", maxImages),
 		})
 	}
+	if err := validateStoreScopedProductMedia(store.ID, product.ImageURL, galleryImages); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
 
 	// Actor context for audit log
 	userVal := c.Locals("user")
@@ -866,6 +873,12 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 			"message": fmt.Sprintf("Jumlah foto melebihi batas maksimal (%d foto per produk).", maxImages),
 		})
 	}
+	if err := validateStoreScopedProductMedia(store.ID, req.ImageURL, updateGallery); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
 
 	// Actor context for audit log
 	userVal := c.Locals("user")
@@ -1007,7 +1020,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 	}
 
 	for oldImg := range oldImagesMap {
-		if !newImagesMap[oldImg] {
+		if !newImagesMap[oldImg] && isOwnedStoreMediaKey(store.ID, oldImg) {
 			var otherProdCount int64
 			h.db.Model(&models.Product{}).Where("deleted_at IS NULL AND id != ? AND image_url = ?", product.ID, oldImg).Count(&otherProdCount)
 			var otherGalleryCount int64
@@ -1193,6 +1206,63 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Produk berhasil dihapus dari katalog.",
 	})
+}
+
+// isOwnedStoreMediaKey memverifikasi bahwa URL/key penyimpanan internal benar-benar
+// milik direktori katalog toko aktif (stores/<storeID>/) dan bukan billing/privat/platform/toko lain.
+func isOwnedStoreMediaKey(storeID uint, rawURL string) bool {
+	if storeID == 0 {
+		return false
+	}
+	key := strings.ToLower(strings.TrimLeft(filepath.ToSlash(services.ExtractStorageKey(rawURL)), "/"))
+	if key == "" || strings.Contains(key, "..") || strings.Contains(key, "\\") {
+		return false
+	}
+	expectedPrefix := fmt.Sprintf("stores/%d/", storeID)
+	if !strings.HasPrefix(key, expectedPrefix) {
+		return false
+	}
+	if strings.HasPrefix(key, expectedPrefix+"billing/") {
+		return false
+	}
+	return true
+}
+
+// validateStoreScopedProductMedia memastikan bahwa bila URL foto merujuk ke namespace
+// penyimpanan internal Catavor (/storage/..., stores/..., platform/..., private/..., billing/..., support/...),
+// berkas tersebut wajib berada di bawah stores/<storeID>/ milik toko pengelola sendiri.
+func validateStoreScopedProductMedia(storeID uint, primaryURL string, gallery []string) error {
+	checkOne := func(raw string) error {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			return nil
+		}
+		lower := strings.ToLower(filepath.ToSlash(trimmed))
+		key := strings.ToLower(strings.TrimLeft(filepath.ToSlash(services.ExtractStorageKey(trimmed)), "/"))
+		isInternal := strings.HasPrefix(lower, "/storage/") ||
+			strings.HasPrefix(lower, "storage/") ||
+			strings.Contains(lower, "/storage/") ||
+			strings.HasPrefix(key, "stores/") ||
+			strings.HasPrefix(key, "platform/") ||
+			strings.HasPrefix(key, "private/") ||
+			strings.HasPrefix(key, "billing/") ||
+			strings.HasPrefix(key, "support/") ||
+			strings.HasPrefix(key, "articles/") ||
+			strings.HasPrefix(key, "ad_proofs/")
+		if isInternal && !isOwnedStoreMediaKey(storeID, trimmed) {
+			return fmt.Errorf("URL foto produk tidak sah: hanya berkas katalog milik toko Anda sendiri yang diizinkan")
+		}
+		return nil
+	}
+	if err := checkOne(primaryURL); err != nil {
+		return err
+	}
+	for _, g := range gallery {
+		if err := checkOne(g); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func formatRupiahInt(n int) string {

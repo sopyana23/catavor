@@ -2256,14 +2256,26 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 		})
 	}
 
-	// 2. Validate password for users with custom password
+	// 2. Validate password for users with custom password (guarded by account brute-force lockout)
 	if user.HasCustomPassword && user.Password != "" {
+		lockIdent := strings.ToLower(strings.TrimSpace(user.Email))
+		if locked, retryRem := database.IsAccountLoginLocked(lockIdent); locked {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"code":    "ACCOUNT_LOCKED",
+				"message": fmt.Sprintf("Terlalu banyak percobaan kata sandi salah. Silakan tunggu %d detik sebelum mencoba kembali.", int(retryRem.Seconds())+1),
+			})
+		}
 		if req.Password == "" || !user.CheckPassword(req.Password) {
+			if req.Password != "" {
+				database.RecordLoginFailure(lockIdent)
+			}
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": "Kata sandi akun yang Anda masukkan salah.",
 			})
 		}
+		database.ResetLoginFailures(lockIdent)
 	}
 
 	// 3. Multi-Tenant Storage & Database Purge Transaction (AGENTS.md Rule 4)
@@ -2294,8 +2306,8 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 	// PostgreSQL ter-abort, membuat DELETE toko selalu 500.
 	// Sub-query dipakai (bukan daftar ID di memori) agar tetap benar
 	// untuk toko dengan jumlah produk besar.
-	productIDs := tx.Model(&models.Product{}).Select("id").Where("store_id = ?", store.ID)
-	if err := tx.Where("product_id IN (?)", productIDs).Delete(&models.ProductVariant{}).Error; err != nil {
+	productIDs := tx.Unscoped().Model(&models.Product{}).Select("id").Where("store_id = ?", store.ID)
+	if err := tx.Unscoped().Where("product_id IN (?)", productIDs).Delete(&models.ProductVariant{}).Error; err != nil {
 		tx.Rollback()
 		log.Error().Err(err).Uint("store_id", store.ID).Str("tabel", "product_variants").
 			Msg("gagal membersihkan data toko; transaksi dibatalkan")
@@ -2304,7 +2316,7 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 			"message": "Gagal menghapus data katalog: pembersihan product_variants gagal.",
 		})
 	}
-	if err := tx.Where("product_id IN (?)", productIDs).Delete(&models.ProductImage{}).Error; err != nil {
+	if err := tx.Unscoped().Where("product_id IN (?)", productIDs).Delete(&models.ProductImage{}).Error; err != nil {
 		tx.Rollback()
 		log.Error().Err(err).Uint("store_id", store.ID).Str("tabel", "product_images").
 			Msg("gagal membersihkan data toko; transaksi dibatalkan")
@@ -2328,7 +2340,7 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 		{"activity_logs", &models.ActivityLog{}},
 	}
 	for _, p := range purge {
-		if err := tx.Where("store_id = ?", store.ID).Delete(p.model).Error; err != nil {
+		if err := tx.Unscoped().Where("store_id = ?", store.ID).Delete(p.model).Error; err != nil {
 			tx.Rollback()
 			log.Error().Err(err).Uint("store_id", store.ID).Str("tabel", p.label).
 				Msg("gagal membersihkan data toko; transaksi dibatalkan")
@@ -2340,7 +2352,7 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 	}
 
 	// Delete store record
-	if err := tx.Delete(&store).Error; err != nil {
+	if err := tx.Unscoped().Delete(&store).Error; err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,

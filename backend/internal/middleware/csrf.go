@@ -47,17 +47,14 @@ func CSRFProtection(allowedOrigins []string) fiber.Handler {
 
 		origin := strings.ToLower(strings.TrimSpace(c.Get("Origin")))
 
-		// Sebagian klien mengirim "null" (sandbox iframe / redirect lintas-origin).
-		// Jangan pernah dianggap sah bila ada cookie sesi.
+		// Sandboxed iframe / lintas-origin redirect mengirim Origin: "null".
+		// Tolak langsung tanpa pernah fallback ke Referer agar tidak bisa di-bypass.
 		if origin == "null" {
-			origin = ""
-			if c.Get("Referer") == "" {
-				return rejectCSRF(c, "origin 'null' tidak diizinkan untuk permintaan yang mengubah data")
-			}
+			return rejectCSRF(c, "origin 'null' tidak diizinkan untuk permintaan yang mengubah data")
 		}
 
 		if origin == "" {
-			// Fallback ke Referer bila Origin tidak ada.
+			// Fallback ke Referer hanya bila header Origin memang tidak dikirim sama sekali.
 			if ref := c.Get("Referer"); ref != "" {
 				if u, err := url.Parse(ref); err == nil && u.Scheme != "" && u.Host != "" {
 					origin = strings.ToLower(u.Scheme + "://" + u.Host)
@@ -79,11 +76,16 @@ func CSRFProtection(allowedOrigins []string) fiber.Handler {
 			return c.Next()
 		}
 
-		// Same-origin check: Origin harus cocok dengan Host permintaan (host[:port]).
-		// Ini menangani deployment yang tidak mengisi ALLOWED_ORIGINS secara manual.
-		host := strings.ToLower(c.Hostname())
-		if u, err := url.Parse(origin); err == nil && (strings.EqualFold(u.Host, host) || strings.EqualFold(u.Hostname(), host)) {
-			return c.Next()
+		// Same-origin check: Origin wajib memiliki host[:port] yang persis sama dengan
+		// Host permintaan, serta wajib ber-skema https bila permintaan tiba lewat TLS/HTTPS.
+		host := strings.ToLower(strings.TrimSpace(string(c.Request().Host())))
+		if host == "" {
+			host = strings.ToLower(c.Hostname())
+		}
+		if u, err := url.Parse(origin); err == nil && strings.EqualFold(u.Host, host) {
+			if !c.Secure() || strings.EqualFold(u.Scheme, "https") {
+				return c.Next()
+			}
 		}
 
 		log.Warn().

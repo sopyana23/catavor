@@ -18,6 +18,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/hkdf"
 )
 
 // Nilai parameter TOTP mengikuti RFC 6238 dengan SHA-1/6 digit/30 detik —
@@ -122,10 +124,85 @@ func VerifyTOTP(secret, code string, now time.Time) (int64, error) {
 	return 0, ErrInvalidTOTPCode
 }
 
-// deriveKey menurunkan kunci 32 byte dari material kunci apa pun.
+// deriveKey menurunkan kunci 32 byte dari material kunci apa pun (kompatibilitas v1).
 func deriveKey(material string) []byte {
 	sum := sha256.Sum256([]byte(material))
 	return sum[:]
+}
+
+// deriveHKDFKey menurunkan kunci 32 byte via RFC 5869 HKDF-SHA256 dengan info domain terisolasi.
+func deriveHKDFKey(material, info string) ([]byte, error) {
+	r := hkdf.New(sha256.New, []byte(material), []byte("catavor-mfa-aead-salt-v2"), []byte(info))
+	key := make([]byte, 32)
+	if _, err := io.ReadFull(r, key); err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
+// SealMFASecretForUser mengenkripsi secret TOTP menggunakan kunci turunan HKDF-SHA256
+// dan mengikat userID ke dalam AES-256-GCM Additional Authenticated Data (AAD) ("v2:...").
+// Penyalinan ciphertext antar-baris pengguna di database akan langsung gagal autentikasi tag GCM.
+func SealMFASecretForUser(keyMaterial string, userID uint, plaintext string) (string, error) {
+	if userID == 0 {
+		return SealMFASecret(keyMaterial, plaintext)
+	}
+	key, err := deriveHKDFKey(keyMaterial, "catavor-mfa-totp-secret-v2")
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+	aad := []byte(fmt.Sprintf("catavor-mfa-v2|uid:%d", userID))
+	sealed := gcm.Seal(nonce, nonce, []byte(plaintext), aad)
+	return "v2:" + base64Std.EncodeToString(sealed), nil
+}
+
+// OpenMFASecretForUser mendekripsi output SealMFASecretForUser ("v2:...") dengan verifikasi AAD userID,
+// serta mendukung pembacaan mundur ("v1:...") agar secret yang sudah terenkripsi sebelumnya tetap valid.
+func OpenMFASecretForUser(keyMaterial string, userID uint, stored string) (string, error) {
+	if rawV2, ok := strings.CutPrefix(stored, "v2:"); ok {
+		if userID == 0 {
+			return "", ErrMFADecrypt
+		}
+		sealed, err := base64Std.DecodeString(rawV2)
+		if err != nil {
+			return "", ErrMFADecrypt
+		}
+		key, err := deriveHKDFKey(keyMaterial, "catavor-mfa-totp-secret-v2")
+		if err != nil {
+			return "", ErrMFADecrypt
+		}
+		block, err := aes.NewCipher(key)
+		if err != nil {
+			return "", ErrMFADecrypt
+		}
+		gcm, err := cipher.NewGCM(block)
+		if err != nil {
+			return "", ErrMFADecrypt
+		}
+		if len(sealed) < gcm.NonceSize() {
+			return "", ErrMFADecrypt
+		}
+		nonce, ciphertext := sealed[:gcm.NonceSize()], sealed[gcm.NonceSize():]
+		aad := []byte(fmt.Sprintf("catavor-mfa-v2|uid:%d", userID))
+		plain, err := gcm.Open(nil, nonce, ciphertext, aad)
+		if err != nil {
+			return "", ErrMFADecrypt
+		}
+		return string(plain), nil
+	}
+	return OpenMFASecret(keyMaterial, stored)
 }
 
 // SealMFASecret mengenkripsi secret TOTP dengan AES-256-GCM. Output berbentuk

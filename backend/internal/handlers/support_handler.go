@@ -487,17 +487,15 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validasi lampiran tiket (SECURITY: N-65 Cegah IDOR lampiran dokumen sensitif antar-tenant)
-	for _, att := range req.Attachments {
-		if _, err := validateSupportAttachmentKey(att.StorageKey, att.FileURL); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"success": false,
-				"message": fmt.Sprintf("Lampiran tiket tidak valid: %s", err.Error()),
-			})
-		}
-	}
-
 	isStaff := user.IsPlatformStaff()
+
+	// Validasi lampiran tiket (SECURITY: N-65 Cegah IDOR lampiran dokumen sensitif antar-tenant & re-binding)
+	if err := h.validateSupportAttachmentsBatch(req.Attachments, isStaff); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Lampiran tiket tidak valid: %s", err.Error()),
+		})
+	}
 
 	// Resolve targeted store context (Store-Scoped Best Practice)
 	var store models.Store
@@ -699,14 +697,12 @@ func (h *SupportHandler) ReplyTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validasi lampiran tiket (SECURITY: N-65 Cegah IDOR lampiran dokumen sensitif antar-tenant)
-	for _, att := range req.Attachments {
-		if _, err := validateSupportAttachmentKey(att.StorageKey, att.FileURL); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"success": false,
-				"message": fmt.Sprintf("Lampiran balasan tiket tidak valid: %s", err.Error()),
-			})
-		}
+	// Validasi lampiran tiket (SECURITY: N-65 Cegah IDOR lampiran dokumen sensitif antar-tenant & re-binding)
+	if err := h.validateSupportAttachmentsBatch(req.Attachments, user.IsPlatformStaff()); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Lampiran balasan tiket tidak valid: %s", err.Error()),
+		})
 	}
 
 	now := time.Now().UTC()
@@ -1124,14 +1120,12 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validasi lampiran tiket (SECURITY: N-65 Cegah IDOR lampiran dokumen sensitif antar-tenant)
-	for _, att := range req.Attachments {
-		if _, err := validateSupportAttachmentKey(att.StorageKey, att.FileURL); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"success": false,
-				"message": fmt.Sprintf("Lampiran balasan staf tidak valid: %s", err.Error()),
-			})
-		}
+	// Validasi lampiran tiket (SECURITY: N-65 Cegah IDOR lampiran dokumen sensitif antar-tenant & re-binding)
+	if err := h.validateSupportAttachmentsBatch(req.Attachments, true); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Lampiran balasan staf tidak valid: %s", err.Error()),
+		})
 	}
 
 	now := time.Now().UTC()
@@ -2448,22 +2442,28 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 
 	var attachment models.SupportAttachment
 	var found bool
+	var numericLookup bool
+	isStaff := user.IsPlatformStaff()
 
 	// 1. Try lookup by primary key ID
 	if attID, err := strconv.ParseUint(idStr, 10, 64); err == nil && attID > 0 {
+		numericLookup = true
 		if err := h.db.Preload("Message.Ticket").First(&attachment, attID).Error; err == nil {
 			found = true
 		}
 	}
 
-	// 2. Fallback lookup by storage_key / file_url. Input user WAJIB di-escape:
-	// tanpa ini, "%" atau "_" yang dikirim penyerang menjadi wildcard dan bisa
-	// mencocokkan lampiran milik tiket lain (L1: ambiguous lookup).
-	if !found && idStr != "" {
-		escaped := escapeLikePattern(idStr)
+	// 2. Fallback lookup by exact storage_key / file_url (SECURITY N-65: anti blind substring LIKE oracle).
+	// Sebelumnya LIKE '%...%' mengizinkan probing karakter demi karakter via perbedaan status 403 vs 404.
+	if !found && idStr != "" && !strings.ContainsAny(idStr, "%_*\\") && len(idStr) <= 255 {
+		cleanLookup := strings.TrimLeft(filepath.ToSlash(strings.TrimSpace(idStr)), "/")
+		privCandidate := cleanLookup
+		if !strings.HasPrefix(privCandidate, storage.PrivateKeyPrefix) {
+			privCandidate = storage.PrivateKeyPrefix + privCandidate
+		}
 		if err := h.db.Preload("Message.Ticket").
-			Where("storage_key LIKE ? ESCAPE '\\' OR file_url LIKE ? ESCAPE '\\'",
-				"%"+escaped+"%", "%"+escaped+"%").
+			Where("storage_key = ? OR storage_key = ? OR file_url = ? OR file_url = ?",
+				cleanLookup, privCandidate, idStr, "/storage/"+cleanLookup).
 			First(&attachment).Error; err == nil {
 			found = true
 		}
@@ -2476,8 +2476,15 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. Strict RBAC Authorization Check
-	isStaff := user.IsPlatformStaff()
+	// 3. Strict RBAC & Internal-Note Confidentiality Check
+	// SECURITY: Lampiran catatan internal staf (is_internal_note = true) tidak boleh diakses
+	// ataupun di-oracle keberadaannya oleh merchant pemilik tiket sekalipun.
+	if !isStaff && (attachment.Message == nil || attachment.Message.IsInternalNote) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Lampiran dokumen tidak ditemukan.",
+		})
+	}
 
 	isOwner := false
 	if attachment.Message != nil && attachment.Message.Ticket != nil {
@@ -2499,6 +2506,12 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	}
 
 	if !isStaff && !isOwner {
+		if !numericLookup {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"message": "Lampiran dokumen tidak ditemukan.",
+			})
+		}
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": "Akses ditolak: Anda tidak memiliki izin untuk melihat atau mengunduh dokumen lampiran ini.",
@@ -2720,6 +2733,37 @@ func validateSupportAttachmentKey(rawKey, cleanURL string) (string, error) {
 	}
 
 	return storageKey, nil
+}
+
+// validateSupportAttachmentsBatch memvalidasi sekumpulan lampiran tiket terhadap:
+// 1. Whitelist namespace (validateSupportAttachmentKey),
+// 2. Isolasi peran (non-staff DILARANG mengikat prefix private/support/staff/),
+// 3. Anti-rebinding / anti-duplikasi (storage_key yang sudah terikat ke tiket lain ditolak).
+func (h *SupportHandler) validateSupportAttachmentsBatch(attachments []AttachmentPayload, isStaff bool) error {
+	seenInRequest := make(map[string]struct{}, len(attachments))
+	for _, att := range attachments {
+		storageKey, err := validateSupportAttachmentKey(att.StorageKey, att.FileURL)
+		if err != nil {
+			return err
+		}
+		lowerKey := strings.ToLower(storageKey)
+		if !isStaff && strings.HasPrefix(lowerKey, "private/support/staff/") {
+			return errors.New("namespace lampiran staf hanya diizinkan untuk petugas platform")
+		}
+		if _, dup := seenInRequest[lowerKey]; dup {
+			return errors.New("lampiran duplikat tidak diizinkan dalam satu pengiriman")
+		}
+		seenInRequest[lowerKey] = struct{}{}
+		if h.db != nil {
+			var existingCount int64
+			if err := h.db.Model(&models.SupportAttachment{}).
+				Where("LOWER(storage_key) = ?", lowerKey).
+				Count(&existingCount).Error; err == nil && existingCount > 0 {
+				return errors.New("kunci lampiran sudah terikat pada pesan lain")
+			}
+		}
+	}
+	return nil
 }
 
 // buildSupportAttachment menyusun record lampiran dari payload klien.

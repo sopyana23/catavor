@@ -241,6 +241,7 @@ type S3StorageService struct {
 	bucket        string
 	publicBaseURL string
 	localRoot     string
+	privateRoot   string
 }
 
 func NewS3StorageService(cfg *config.Config) (*S3StorageService, error) {
@@ -301,12 +302,47 @@ func NewS3StorageService(cfg *config.Config) (*S3StorageService, error) {
 		}
 	}
 
+	if cfg.StoragePrivateRoot != "" {
+		_ = os.MkdirAll(cfg.StoragePrivateRoot, 0700)
+	}
+
 	return &S3StorageService{
 		client:        client,
 		bucket:        cfg.S3Bucket,
 		publicBaseURL: publicBaseURL,
 		localRoot:     cfg.StorageLocalRoot,
+		privateRoot:   cfg.StoragePrivateRoot,
 	}, nil
+}
+
+// resolveMirrorPath memetakan key S3 ke direktori lokal yang tepat:
+// key berawalan "private/" WAJIB diarahkan ke StoragePrivateRoot (0700) dan
+// TIDAK PERNAH bocor ke dalam StorageLocalRoot (public/storage) yang dilayani statis.
+func (s *S3StorageService) resolveMirrorPath(cleanKey string) (string, os.FileMode, bool) {
+	if cleanKey == "" || strings.Contains(cleanKey, "..") || filepath.IsAbs(cleanKey) || strings.Contains(cleanKey, ":") || strings.Contains(cleanKey, "\\") {
+		return "", 0, false
+	}
+	root := s.localRoot
+	relKey := cleanKey
+	dirPerm := os.FileMode(0755)
+	if IsPrivateKey(cleanKey) {
+		root = s.privateRoot
+		relKey = strings.TrimPrefix(cleanKey, PrivateKeyPrefix)
+		dirPerm = 0700
+	}
+	if root == "" || relKey == "" {
+		return "", 0, false
+	}
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return "", 0, false
+	}
+	cand := filepath.Clean(filepath.Join(absRoot, filepath.FromSlash(relKey)))
+	prefix := absRoot + string(os.PathSeparator)
+	if !strings.HasPrefix(strings.ToLower(cand), strings.ToLower(prefix)) {
+		return "", 0, false
+	}
+	return cand, dirPerm, true
 }
 
 func (s *S3StorageService) Upload(ctx context.Context, key string, r io.Reader, size int64, contentType string) (string, error) {
@@ -333,15 +369,20 @@ func (s *S3StorageService) Upload(ctx context.Context, key string, r io.Reader, 
 			},
 		})
 		if err == nil {
-			// Mirror copy ke disk lokal untuk ketersediaan instan dan cadangan offline
-			if isSeeker && s.localRoot != "" {
-				targetPath := filepath.Join(s.localRoot, filepath.FromSlash(cleanKey))
-				if mkErr := os.MkdirAll(filepath.Dir(targetPath), 0755); mkErr == nil {
-					if out, crErr := os.Create(targetPath); crErr == nil {
-						if _, skErr := seeker.Seek(0, io.SeekStart); skErr == nil {
-							_, _ = io.Copy(out, seeker)
+			// Mirror copy ke disk lokal (publik ke localRoot, privat ke privateRoot 0700)
+			if isSeeker {
+				if targetPath, dirPerm, ok := s.resolveMirrorPath(cleanKey); ok {
+					if mkErr := os.MkdirAll(filepath.Dir(targetPath), dirPerm); mkErr == nil {
+						filePerm := os.FileMode(0644)
+						if dirPerm == 0700 {
+							filePerm = 0600
 						}
-						_ = out.Close()
+						if out, crErr := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, filePerm); crErr == nil {
+							if _, skErr := seeker.Seek(0, io.SeekStart); skErr == nil {
+								_, _ = io.Copy(out, seeker)
+							}
+							_ = out.Close()
+						}
 					}
 				}
 			}
@@ -369,18 +410,23 @@ func (s *S3StorageService) Upload(ctx context.Context, key string, r io.Reader, 
 	}
 
 	// Resilient fallback: bila Cloud Storage tidak dapat dijangkau setelah retry,
-	// simpan salinan lokal ke StorageLocalRoot agar aksi pengguna tidak gagal fatal.
-	if isSeeker && s.localRoot != "" {
-		targetPath := filepath.Join(s.localRoot, filepath.FromSlash(cleanKey))
-		if mkErr := os.MkdirAll(filepath.Dir(targetPath), 0755); mkErr == nil {
-			if out, crErr := os.Create(targetPath); crErr == nil {
-				if _, skErr := seeker.Seek(0, io.SeekStart); skErr == nil {
-					_, _ = io.Copy(out, seeker)
-					_ = out.Close()
-					log.Warn().Err(lastErr).Str("key", cleanKey).Msg("Cloud storage unavailable; saved to local storage mirror successfully")
-					return s.GetURL(cleanKey), nil
+	// simpan salinan lokal ke root yang sesuai (publik -> localRoot, privat -> privateRoot 0700).
+	if isSeeker {
+		if targetPath, dirPerm, ok := s.resolveMirrorPath(cleanKey); ok {
+			if mkErr := os.MkdirAll(filepath.Dir(targetPath), dirPerm); mkErr == nil {
+				filePerm := os.FileMode(0644)
+				if dirPerm == 0700 {
+					filePerm = 0600
 				}
-				_ = out.Close()
+				if out, crErr := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, filePerm); crErr == nil {
+					if _, skErr := seeker.Seek(0, io.SeekStart); skErr == nil {
+						_, _ = io.Copy(out, seeker)
+						_ = out.Close()
+						log.Warn().Err(lastErr).Str("key", cleanKey).Msg("Cloud storage unavailable; saved to local storage mirror successfully")
+						return s.GetURL(cleanKey), nil
+					}
+					_ = out.Close()
+				}
 			}
 		}
 	}
@@ -390,8 +436,7 @@ func (s *S3StorageService) Upload(ctx context.Context, key string, r io.Reader, 
 
 func (s *S3StorageService) Delete(ctx context.Context, key string) error {
 	cleanKey := strings.TrimLeft(filepath.ToSlash(key), "/")
-	if s.localRoot != "" {
-		targetPath := filepath.Join(s.localRoot, filepath.FromSlash(cleanKey))
+	if targetPath, _, ok := s.resolveMirrorPath(cleanKey); ok {
 		_ = os.Remove(targetPath)
 		_ = os.Remove(targetPath + ".fiber.gz")
 	}

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"net/netip"
 	"net/url"
 	"strings"
 	"time"
@@ -119,13 +120,13 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 		scriptHashes := scriptSrcHashes()
 		csp := "default-src 'self'; " +
 			"script-src 'self' " + scriptHashes +
-			"https://cdn.jsdelivr.net https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://*.instagram.com https://accounts.google.com https://*.google.com https://*.adtrafficquality.google https://*.googletagmanager.com https://*.googlesyndication.com https://*.googleadservices.com https://*.doubleclick.net https://*.google-analytics.com; " +
+			"https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://*.instagram.com https://accounts.google.com https://*.google.com https://*.adtrafficquality.google https://*.googletagmanager.com https://*.googlesyndication.com https://*.googleadservices.com https://*.doubleclick.net https://*.google-analytics.com; " +
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 			"font-src 'self' https://fonts.gstatic.com data:; " +
 			"img-src " + imgSrc + "; " +
 			"frame-src 'self' https://www.youtube.com https://*.youtube.com https://www.youtube-nocookie.com https://*.youtube-nocookie.com https://www.tiktok.com https://*.tiktok.com https://www.instagram.com https://*.instagram.com https://accounts.google.com https://*.google.com https://*.doubleclick.net https://*.googlesyndication.com https://*.adtrafficquality.google https://*.googleadservices.com; " +
 			"connect-src " + connectSrc + "; " +
-			"object-src 'none'; base-uri 'self';"
+			"frame-ancestors 'self'; form-action 'self'; object-src 'none'; base-uri 'self';"
 		c.Set("Content-Security-Policy", csp)
 
 		// Set HSTS only if in production/secure
@@ -159,9 +160,14 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 		}
 	}
 
-	// Daftar origin untuk pemeriksaan CSRF (dipisah koma -> slice).
+	// Daftar origin untuk pemeriksaan CSRF: hanya masukkan origin terkonfigurasi
+	// di non-local agar localhost tidak ikut masuk daftar izin CSRF di produksi.
+	csrfSource := allowedOrigins
+	if cfg.AppEnv != "local" && cfg.AppEnv != "development" && cfg.AppEnv != "" {
+		csrfSource = configuredOrigins
+	}
 	csrfOrigins := make([]string, 0, 8)
-	for _, o := range strings.Split(allowedOrigins, ",") {
+	for _, o := range strings.Split(csrfSource, ",") {
 		if t := strings.TrimSpace(o); t != "" {
 			csrfOrigins = append(csrfOrigins, t)
 		}
@@ -224,6 +230,57 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 	})
 }
 
+func isProductionRateLimitEnv() bool {
+	if config.AppConfig == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(config.AppConfig.AppEnv)) {
+	case "production", "prod", "staging":
+		return true
+	default:
+		return false
+	}
+}
+
+func canonicalAuthLimitBucket(rawPath string) string {
+	norm := strings.ToLower(strings.TrimRight(rawPath, "/"))
+	switch norm {
+	case "/api/login", "/api/auth/login":
+		return "/api/auth/login"
+	case "/api/register", "/api/auth/register":
+		return "/api/auth/register"
+	case "/api/send-register-otp", "/api/auth/send-registration-otp":
+		return "/api/auth/send-registration-otp"
+	case "/api/verify-register-otp", "/api/auth/verify-registration-otp":
+		return "/api/auth/verify-registration-otp"
+	case "/api/forgot-password", "/api/auth/forgot-password-request":
+		return "/api/auth/forgot-password-request"
+	case "/api/reset-password", "/api/auth/forgot-password-reset":
+		return "/api/auth/forgot-password-reset"
+	case "/api/check-email", "/api/auth/check-email":
+		return "/api/auth/check-email"
+	default:
+		return norm
+	}
+}
+
+func canonicalRateLimitIP(rawIP string) string {
+	ip := strings.TrimSpace(rawIP)
+	if idx := strings.Index(ip, ","); idx != -1 {
+		ip = strings.TrimSpace(ip[:idx])
+	}
+	if addr, err := netip.ParseAddr(ip); err == nil {
+		addr = addr.Unmap()
+		if addr.Is6() {
+			if pfx, pErr := addr.Prefix(64); pErr == nil {
+				return pfx.Masked().Addr().String() + "/64"
+			}
+		}
+		return addr.String()
+	}
+	return ip
+}
+
 // GlobalAPIRateLimiter provides Layer-7 DoS protection across public API routes
 func GlobalAPIRateLimiter() fiber.Handler {
 	return limiter.New(limiter.Config{
@@ -231,12 +288,12 @@ func GlobalAPIRateLimiter() fiber.Handler {
 		Max:        300, // 300 requests per minute per IP for normal SPA usage
 		Expiration: 1 * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
-			return c.IP() + "_global_api"
+			return canonicalRateLimitIP(c.IP()) + "_global_api"
 		},
 		Next: func(c *fiber.Ctx) bool {
 			ip := c.IP()
-			// Exclude localhost / loopback in development to avoid 429 lockouts during multi-tab testing
-			if ip == "127.0.0.1" || ip == "::1" || ip == "" || ip == "localhost" {
+			// Exclude localhost / loopback ONLY outside production/staging
+			if !isProductionRateLimitEnv() && (ip == "127.0.0.1" || ip == "::1" || ip == "" || ip == "localhost") {
 				return true
 			}
 			path := c.Path()
@@ -262,8 +319,7 @@ func AuthRateLimiter() fiber.Handler {
 		Max:        20,
 		Expiration: 1 * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
-			normPath := strings.ToLower(strings.TrimRight(c.Path(), "/"))
-			return c.IP() + "_" + normPath
+			return canonicalRateLimitIP(c.IP()) + "_" + canonicalAuthLimitBucket(c.Path())
 		},
 		LimitReached: func(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
@@ -281,7 +337,7 @@ func PublicSubmissionRateLimiter() fiber.Handler {
 		Max:        15,
 		Expiration: 1 * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
-			return c.IP() + "_pub_submit"
+			return canonicalRateLimitIP(c.IP()) + "_pub_submit"
 		},
 		LimitReached: func(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
@@ -301,12 +357,12 @@ func TelemetryRateLimiter() fiber.Handler {
 		Max:        180, // 180 requests per minute per IP for dynamic user browsing
 		Expiration: 1 * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
-			return c.IP() + "_telemetry"
+			return canonicalRateLimitIP(c.IP()) + "_telemetry"
 		},
 		Next: func(c *fiber.Ctx) bool {
 			ip := c.IP()
-			// Exclude localhost / loopback in development to avoid lockouts during testing
-			return ip == "127.0.0.1" || ip == "::1" || ip == "" || ip == "localhost"
+			// Exclude localhost / loopback ONLY outside production/staging
+			return !isProductionRateLimitEnv() && (ip == "127.0.0.1" || ip == "::1" || ip == "" || ip == "localhost")
 		},
 		LimitReached: func(c *fiber.Ctx) error {
 			// Graceful degradation: return 202 Accepted (silent drop) rather than 429 error

@@ -412,7 +412,8 @@ func (s *RBACService) CreateStaffUser(params CreateStaffParams) (*models.User, e
 
 	name := strings.TrimSpace(params.Name)
 	email := strings.ToLower(strings.TrimSpace(params.Email))
-	password := strings.TrimSpace(params.Password)
+	// NIST SP 800-63B §5.1.1.2: jangan pernah men-trim whitespace pada password pengguna
+	password := params.Password
 	roleSlug := strings.ToLower(strings.TrimSpace(params.RoleSlug))
 
 	if name == "" {
@@ -525,6 +526,8 @@ func (s *RBACService) RevokeStaffRole(targetUserID uint, actor *models.User) err
 	oldRole := targetUser.PlatformRole
 	_ = oldRole
 	targetUser.PlatformRole = "merchant"
+	targetUser.TwoFactorEnforced = false
+	targetUser.TokenVersion++
 	if err := s.db.Save(&targetUser).Error; err != nil {
 		return err
 	}

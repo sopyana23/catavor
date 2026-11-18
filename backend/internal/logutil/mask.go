@@ -62,7 +62,7 @@ func MaskName(name string) string {
 	return string(runes[0]) + "***" + string(runes[runeLen-1])
 }
 
-// SanitizeLogSnippet membatasi panjang teks (berbasis UTF-8 rune) dan mereduksi baris liar pada log mentah.
+// SanitizeLogSnippet membatasi panjang teks (berbasis UTF-8 rune) dan membersihkan karakter kontrol pada log mentah.
 func SanitizeLogSnippet(input string, maxLen int) string {
 	trimmed := strings.TrimSpace(input)
 	if maxLen > 0 {
@@ -71,5 +71,14 @@ func SanitizeLogSnippet(input string, maxLen int) string {
 			trimmed = string(runes[:maxLen]) + "..."
 		}
 	}
-	return strings.ReplaceAll(trimmed, "\n", " ")
+	var b strings.Builder
+	b.Grow(len(trimmed))
+	for _, r := range trimmed {
+		if r == '\n' || r == '\r' || r == '\t' {
+			b.WriteByte(' ')
+		} else if r >= 32 && r != 127 {
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,11 +12,13 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/crypto/hkdf"
 )
 
 type Config struct {
-	Port   string
-	AppEnv string
+	Port     string
+	BindAddr string
+	AppEnv   string
 	// TrustedProxies: daftar peer yang boleh menetapkan X-Forwarded-For.
 	// Lihat catatan N-15 di LoadConfig.
 	TrustedProxies []string
@@ -236,8 +239,19 @@ func LoadConfig() *Config {
 	hstsIncludeSub := !strings.EqualFold(strings.TrimSpace(getEnv("HSTS_INCLUDE_SUBDOMAINS", "true")), "false")
 	hstsPreload := strings.EqualFold(strings.TrimSpace(getEnv("HSTS_PRELOAD", "false")), "true")
 
+	defaultBindAddr := "0.0.0.0"
+	if appEnv == "production" || appEnv == "prod" || appEnv == "staging" {
+		// SECURITY (N-56): di production/staging proses Go secara default hanya listen
+		// pada loopback 127.0.0.1 agar trafik luar wajib melewati reverse proxy / WAF edge.
+		defaultBindAddr = "127.0.0.1"
+	}
+	bindAddr := strings.TrimSpace(getEnv("BIND_ADDR", defaultBindAddr))
+
+	mfaKey := resolveMFAKey(jwtSecret, appEnv)
+
 	AppConfig = &Config{
 		Port:               port,
+		BindAddr:           bindAddr,
 		AppEnv:             appEnv,
 		TrustedProxies:     trustedProxies,
 		AppURL:             appURL,
@@ -253,7 +267,7 @@ func LoadConfig() *Config {
 		SkipDBMigrate:      skipDBMigrate,
 		JWTSecret:          jwtSecret,
 		JWTExpirationHours: jwtHours,
-		MFAEncryptionKey:   resolveMFAKey(jwtSecret),
+		MFAEncryptionKey:   mfaKey,
 		// Default aktif. Endpoint MFA hanya berguna bagi akun yang mendaftar
 		// sendiri, jadi menyalakannya tidak memaksa siapa pun.
 		MFAEnabled:            resolveMFAEnabled(),
@@ -285,11 +299,35 @@ func LoadConfig() *Config {
 }
 
 // resolveMFAKey menentukan material kunci enkripsi MFA. Prioritas: env
-// MFA_ENCRYPTION_KEY, lalu turunan dari JWT_SECRET dengan domain separation
-// agar kunci enkripsi tidak identik dengan kunci tanda tangan token.
-func resolveMFAKey(jwtSecret string) string {
+// MFA_ENCRYPTION_KEY (wajib >= 32 karakter dan tidak boleh identik dengan JWT_SECRET),
+// lalu turunan kriptografis RFC 5869 HKDF-SHA256 dengan domain separation.
+func resolveMFAKey(jwtSecret, appEnv string) string {
 	if explicit := strings.TrimSpace(os.Getenv("MFA_ENCRYPTION_KEY")); explicit != "" {
+		if len(explicit) < 32 {
+			log.Fatal().
+				Int("length", len(explicit)).
+				Msg("MFA_ENCRYPTION_KEY terlalu pendek (minimal 32 karakter / 256-bit). Gunakan 'openssl rand -hex 32'.")
+		}
+		if explicit == jwtSecret {
+			log.Fatal().
+				Msg("MFA_ENCRYPTION_KEY tidak boleh identik dengan JWT_SECRET (wajib pemisahan kunci kriptografis).")
+		}
 		return explicit
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("REQUIRE_SEPARATE_MFA_KEY")), "true") {
+		log.Fatal().
+			Str("environment", strings.ToUpper(appEnv)).
+			Msg("MFA_ENCRYPTION_KEY wajib di-set secara terpisah dari JWT_SECRET ketika REQUIRE_SEPARATE_MFA_KEY=true.")
+	}
+	if appEnv == "production" || appEnv == "prod" || appEnv == "staging" {
+		log.Warn().
+			Str("environment", strings.ToUpper(appEnv)).
+			Msg("MFA_ENCRYPTION_KEY belum di-set terpisah; menurunkan kunci via HKDF-SHA256. Disarankan set MFA_ENCRYPTION_KEY mandiri untuk rotasi kunci terisolasi.")
+	}
+	reader := hkdf.New(sha256.New, []byte(jwtSecret), []byte("catavor-mfa-hkdf-salt-v1"), []byte("catavor-mfa-envelope"))
+	derived := make([]byte, 32)
+	if _, err := io.ReadFull(reader, derived); err == nil {
+		return hex.EncodeToString(derived)
 	}
 	sum := sha256.Sum256([]byte("catavor-mfa-envelope|" + jwtSecret))
 	return hex.EncodeToString(sum[:])

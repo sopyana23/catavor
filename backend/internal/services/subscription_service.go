@@ -678,6 +678,9 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		paymentStatus = "paid"
 		now := time.Now().UTC()
 		paidAt = &now
+		// SECURITY (N-61 Defense-in-Depth): Pesanan gratis/kupon 100% tidak pernah memiliki
+		// bukti transfer manual. Kosongkan agar input liar tidak tersimpan dan dibaca GetOrderProof.
+		req.PaymentProofURL = ""
 	} else if paymentMode == "manual_qris" || paymentMode == "manual_bank" {
 		// Kode unik 3-digit hanya ditambahkan pada transfer bank manual untuk verifikasi mutasi rekening
 		// Untuk pembayaran QRIS manual, tidak perlu kode unik nominal tambahan
@@ -713,6 +716,10 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 			paymentStatus = "pending_verification"
 		}
 	} else if paymentMode == "gateway_aulaa" {
+		// SECURITY (N-61): Jalur payment gateway tidak menerima bukti transfer manual dari klien.
+		// Jangan pernah menyimpan req.PaymentProofURL mentah ke DB karena dapat menyelundupkan
+		// storage key privat tenant lain untuk dieksfiltrasi via GetOrderProof.
+		req.PaymentProofURL = ""
 		gatewayProvider = "aulaa"
 		aulaaCfg := GetAulaaConfig(db)
 		// Only invoke Aulaa if API key is configured and not dummy placeholder
@@ -754,6 +761,8 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 				gatewayRawResponse = datatypes.JSON(rawB)
 			}
 		}
+	} else if paymentMode != "manual_qris" && paymentMode != "manual_bank" {
+		req.PaymentProofURL = ""
 	}
 
 	orderType := req.Type
@@ -1087,16 +1096,17 @@ func HardDeleteFile(rawURL string, strg ...storage.StorageService) (int64, error
 		}
 	}
 
-	// 2. Also remove from local disk if file or gzip twin exists locally
+	// 2. Also remove from local disk if file or gzip twin exists locally (strictly confined inside storage root)
 	var freedBytes int64 = 0
-	storageRoot := GetStorageRoot()
-	if storageRoot != "" {
-		diskPath := filepath.Join(storageRoot, filepath.FromSlash(cleanKey))
-		if fi, err := os.Stat(diskPath); err == nil && !fi.IsDir() {
-			freedBytes = fi.Size()
-			_ = os.Remove(diskPath)
+	if absRoot, ok := GetStorageRootAbs(); ok {
+		relKey := strings.TrimPrefix(cleanKey, storage.PrivateKeyPrefix)
+		if diskPath, safe := ResolveInsideRoot(absRoot, relKey); safe {
+			if fi, err := os.Stat(diskPath); err == nil && !fi.IsDir() {
+				freedBytes = fi.Size()
+				_ = os.Remove(diskPath)
+			}
+			_ = os.Remove(diskPath + ".fiber.gz")
 		}
-		_ = os.Remove(diskPath + ".fiber.gz")
 	}
 
 	return freedBytes, nil

@@ -107,7 +107,15 @@ func LogClientError(c *fiber.Ctx) error {
 		if len(tags) > 5 {
 			tags = tags[:5]
 		}
-		ev = ev.Strs("tags", tags)
+		cleanTags := make([]string, 0, len(tags))
+		for _, tag := range tags {
+			if ct := clipClientLog(tag, 64); ct != "" {
+				cleanTags = append(cleanTags, ct)
+			}
+		}
+		if len(cleanTags) > 0 {
+			ev = ev.Strs("tags", cleanTags)
+		}
 	}
 	if stack := clipClientLog(req.Stack, maxClientLogStack); stack != "" {
 		ev = ev.Str("stack", stack)

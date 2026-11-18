@@ -860,10 +860,17 @@ func seedDefaultData(db *gorm.DB) {
 	initialPassword := randomSeedPassword()
 	_ = adminUser.SetPassword(initialPassword)
 	if err := db.Create(&adminUser).Error; err == nil {
-		log.Warn().
-			Str("email", adminUser.Email).
-			Str("password_sementara", initialPassword).
-			Msg("Akun administrator awal dibuat dengan password acak — ganti segera setelah login pertama")
+		isLocal := config.AppConfig == nil || config.AppConfig.AppEnv == "" || config.AppConfig.AppEnv == "local" || config.AppConfig.AppEnv == "development"
+		if isLocal {
+			log.Warn().
+				Str("email", adminUser.Email).
+				Str("password_sementara", initialPassword).
+				Msg("Akun administrator awal dibuat dengan password acak (mode lokal) — ganti segera setelah login pertama")
+		} else {
+			log.Warn().
+				Str("email", adminUser.Email).
+				Msg("Akun administrator awal dibuat dengan password acak terenkripsi — password tidak dicetak ke log produksi; gunakan reset kredensial terotorisasi")
+		}
 	}
 
 	defaultClasses, _ := json.Marshal([]string{"Pakaian & Busana", "Aksesoris & Fashion", "Gadget & Elektronik", "Kebutuhan Rumah Tangga", "Kerajinan Tangan"})

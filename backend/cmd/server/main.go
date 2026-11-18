@@ -59,6 +59,7 @@ func main() {
 		DisableStartupMessage:   false,
 		ProxyHeader:             fiber.HeaderXForwardedFor,
 		EnableTrustedProxyCheck: true,
+		EnableIPValidation:      true,
 		// N-15: daftar ini sebelumnya di-hardcode ke "127.0.0.1","::1" plus
 		// seluruh RFC1918, sehingga header X-Forwarded-For dapat dipalsukan dari
 		// jaringan lokal dan rate limiter berbasis IP bisa dilewati. Sekarang
@@ -234,13 +235,20 @@ func main() {
 	// ber-otorisasi (GET /api/support/attachments/:id). Tolak path traversal
 	// serta segmen private/, support/, dan billing/ di SEMUA kedalaman path.
 	app.Use("/storage", func(c *fiber.Ctx) error {
-		raw := strings.TrimPrefix(c.Path(), "/storage")
-		rel := strings.ToLower(strings.TrimLeft(raw, "/\\"))
+		// SECURITY (ST-01, N-58): tolak karakter pemisah terenkode (%5c, %2f, %2e, backslash)
+		// pada raw URI sebelum app.Static di Windows menafsirkannya sebagai pemisah direktori.
+		rawURI := strings.ToLower(string(c.Request().URI().PathOriginal()))
+		if strings.Contains(rawURI, "%5c") || strings.Contains(rawURI, "%2f") || strings.Contains(rawURI, "%2e") || strings.Contains(rawURI, "\\") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
+		}
+		raw := strings.ReplaceAll(strings.TrimPrefix(c.Path(), "/storage"), "\\", "/")
+		rel := strings.ToLower(strings.TrimLeft(raw, "/"))
 		if strings.Contains(rel, "..") || filepath.IsAbs(rel) || strings.Contains(rel, ":") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
 		}
-		for _, seg := range []string{"private/", "support/", "billing/"} {
-			if strings.HasPrefix(rel, seg) || strings.Contains(rel, "/"+seg) || strings.Contains(rel, "\\"+seg) {
+		for _, seg := range strings.Split(rel, "/") {
+			switch seg {
+			case "private", "support", "billing", "ad_proofs":
 				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
 			}
 		}
@@ -256,7 +264,7 @@ func main() {
 		// Prioritaskan Cloud Storage (Cloudflare R2 / S3), dengan fallback otomatis ke disk lokal
 		// (StorageLocalRoot) bila berkas belum tersinkron atau dibuat secara lokal (misal QRIS admin, seeding, aset bawaan).
 		app.Get("/storage/*", func(c *fiber.Ctx) error {
-			rawPath := strings.TrimPrefix(c.Path(), "/storage")
+			rawPath := strings.ReplaceAll(strings.TrimPrefix(c.Path(), "/storage"), "\\", "/")
 			cleanKey := strings.TrimLeft(rawPath, "/")
 			if cleanKey == "" {
 				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Path berkas tidak valid."})
@@ -267,8 +275,9 @@ func main() {
 			if strings.Contains(lowerKey, "..") || filepath.IsAbs(lowerKey) || strings.Contains(lowerKey, ":") {
 				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
 			}
-			for _, seg := range []string{"private/", "support/", "billing/"} {
-				if strings.HasPrefix(lowerKey, seg) || strings.Contains(lowerKey, "/"+seg) || strings.Contains(lowerKey, "\\"+seg) {
+			for _, seg := range strings.Split(lowerKey, "/") {
+				switch seg {
+				case "private", "support", "billing", "ad_proofs":
 					return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Berkas tidak ditemukan."})
 				}
 			}
@@ -276,13 +285,20 @@ func main() {
 			// 1. Coba ambil dari Cloud Storage (R2 / S3)
 			rc, contentType, _, err := storageService.Get(c.Context(), cleanKey)
 			if err == nil {
-				data, readErr := io.ReadAll(rc)
+				data, readErr := io.ReadAll(io.LimitReader(rc, 25*1024*1024))
 				_ = rc.Close()
 				if readErr == nil {
-					isPDF := strings.EqualFold(filepath.Ext(cleanKey), ".pdf") || strings.EqualFold(contentType, "application/pdf")
-					if isPDF {
+					ext := strings.ToLower(filepath.Ext(cleanKey))
+					isActiveDoc := ext == ".pdf" || ext == ".svg" ||
+						strings.EqualFold(contentType, "application/pdf") ||
+						strings.EqualFold(contentType, "image/svg+xml")
+					if isActiveDoc {
 						safeBase := strings.ReplaceAll(filepath.Base(cleanKey), `"`, `_`)
-						c.Set("Content-Type", "application/pdf")
+						if ext == ".svg" || strings.EqualFold(contentType, "image/svg+xml") {
+							c.Set("Content-Type", "image/svg+xml")
+						} else {
+							c.Set("Content-Type", "application/pdf")
+						}
 						c.Set("Content-Disposition", `attachment; filename="`+safeBase+`"`)
 						c.Set("Content-Security-Policy", "sandbox; default-src 'none'")
 					} else {
@@ -294,30 +310,33 @@ func main() {
 				}
 			}
 
-			// 2. Fallback ke Disk Lokal (StorageLocalRoot) bila berkas ada di filesystem
-			cleanRel := filepath.FromSlash(cleanKey)
-			if !filepath.IsAbs(cleanRel) && !strings.Contains(cleanRel, "..") {
-				localPath := filepath.Join(cfg.StorageLocalRoot, cleanRel)
-				if fi, statErr := os.Stat(localPath); statErr == nil && !fi.IsDir() {
-					ext := strings.ToLower(filepath.Ext(localPath))
-					switch ext {
-					case ".jpg", ".jpeg":
-						c.Set("Content-Type", "image/jpeg")
-					case ".png":
-						c.Set("Content-Type", "image/png")
-					case ".webp":
-						c.Set("Content-Type", "image/webp")
-					case ".svg":
-						c.Set("Content-Type", "image/svg+xml")
-					case ".pdf":
-						safeBase := strings.ReplaceAll(filepath.Base(localPath), `"`, `_`)
-						c.Set("Content-Type", "application/pdf")
-						c.Set("Content-Disposition", `attachment; filename="`+safeBase+`"`)
-						c.Set("Content-Security-Policy", "sandbox; default-src 'none'")
+			// 2. Fallback ke Disk Lokal (StorageLocalRoot) bila berkas ada di filesystem (strictly confined inside StorageLocalRoot)
+			if absLocalRoot, ok := services.GetStorageRootAbs(); ok {
+				if localPath, safe := services.ResolveInsideRoot(absLocalRoot, cleanKey); safe {
+					if fi, statErr := os.Stat(localPath); statErr == nil && !fi.IsDir() {
+						ext := strings.ToLower(filepath.Ext(localPath))
+						switch ext {
+						case ".jpg", ".jpeg":
+							c.Set("Content-Type", "image/jpeg")
+						case ".png":
+							c.Set("Content-Type", "image/png")
+						case ".webp":
+							c.Set("Content-Type", "image/webp")
+						case ".svg":
+							safeBase := strings.ReplaceAll(filepath.Base(localPath), `"`, `_`)
+							c.Set("Content-Type", "image/svg+xml")
+							c.Set("Content-Disposition", `attachment; filename="`+safeBase+`"`)
+							c.Set("Content-Security-Policy", "sandbox; default-src 'none'")
+						case ".pdf":
+							safeBase := strings.ReplaceAll(filepath.Base(localPath), `"`, `_`)
+							c.Set("Content-Type", "application/pdf")
+							c.Set("Content-Disposition", `attachment; filename="`+safeBase+`"`)
+							c.Set("Content-Security-Policy", "sandbox; default-src 'none'")
+						}
+						c.Set("Cache-Control", "public, max-age=86400")
+						c.Set("X-Content-Type-Options", "nosniff")
+						return c.SendFile(localPath)
 					}
-					c.Set("Cache-Control", "public, max-age=86400")
-					c.Set("X-Content-Type-Options", "nosniff")
-					return c.SendFile(localPath)
 				}
 			}
 
@@ -498,7 +517,10 @@ func main() {
 	api.Post("/forgot-password", middleware.AuthRateLimiter(), authHandler.ForgotPasswordRequest)
 	api.Post("/auth/forgot-password-reset", middleware.AuthRateLimiter(), authHandler.ForgotPasswordReset)
 	api.Post("/reset-password", middleware.AuthRateLimiter(), authHandler.ForgotPasswordReset)
-	api.Post("/profile/request-password-otp", middleware.AuthRateLimiter(), authHandler.RequestProfilePasswordOTP)
+	// Logout dipasang di luar AuthRequired agar cookie sesi yang sudah kedaluwarsa,
+	// dicabut, atau tertahan MFA tetap selalu dibersihkan dari browser.
+	api.Post("/logout", middleware.AuthRateLimiter(), authHandler.Logout)
+	api.Post("/auth/logout", middleware.AuthRateLimiter(), authHandler.Logout)
 
 	// Public Slug Availability Checking
 	api.Get("/check-slug/:slug", storeHandler.CheckSlug)
@@ -520,9 +542,8 @@ func main() {
 		// Manajemen faktor kedua: penonaktifan wajib sesi penuh aktif (bukan setup_token).
 		authOnly.Post("/auth/mfa/disable", middleware.AuthRateLimiter(), mfaHandler.Disable)
 		authOnly.Post("/auth/refresh", authHandler.RefreshToken)
-		authOnly.Post("/logout", authHandler.Logout)
-		authOnly.Post("/profile", authHandler.UpdateProfile)
-		authOnly.Put("/profile", authHandler.UpdateProfile)
+		authOnly.Post("/profile", middleware.AuthRateLimiter(), authHandler.UpdateProfile)
+		authOnly.Put("/profile", middleware.AuthRateLimiter(), authHandler.UpdateProfile)
 		authOnly.Post("/profile/request-password-otp", middleware.AuthRateLimiter(), authHandler.RequestProfilePasswordOTP)
 
 		// Multi-Store User Management
@@ -538,10 +559,10 @@ func main() {
 		authOnly.Post("/user/sessions/revoke-others", sessionHandler.RevokeOtherSessions)
 
 		// Danger Zone: Single Store & Entire User Account Deletion
-		authOnly.Delete("/stores/:id", storeHandler.DeleteStore)
-		authOnly.Post("/stores/:id/delete", storeHandler.DeleteStore)
-		authOnly.Delete("/user/account", authHandler.DeleteAccount)
-		authOnly.Post("/user/account/delete", authHandler.DeleteAccount)
+		authOnly.Delete("/stores/:id", middleware.AuthRateLimiter(), storeHandler.DeleteStore)
+		authOnly.Post("/stores/:id/delete", middleware.AuthRateLimiter(), storeHandler.DeleteStore)
+		authOnly.Delete("/user/account", middleware.AuthRateLimiter(), authHandler.DeleteAccount)
+		authOnly.Post("/user/account/delete", middleware.AuthRateLimiter(), authHandler.DeleteAccount)
 
 		// Dynamic Notifications & Real-Time SSE (User-Level Rights: Available during suspension/appeal)
 		authOnly.Get("/notifications", notificationHandler.GetNotifications)
@@ -624,7 +645,7 @@ func main() {
 		guardedMutations.Post("/subscription/cancel-downgrade", subscriptionHandler.CancelDowngrade)
 		guardedMutations.Post("/subscription/custom-domain", subscriptionHandler.UpdateCustomDomain)
 		guardedMutations.Post("/subscription/order", subscriptionHandler.CreateOrder)
-		guardedMutations.Post("/subscription/verify-coupon", subscriptionHandler.VerifyCoupon)
+		guardedMutations.Post("/subscription/verify-coupon", middleware.AuthRateLimiter(), subscriptionHandler.VerifyCoupon)
 		guardedMutations.Post("/subscription/orders/:id/sync", paymentHandler.SyncOrderStatus)
 		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
 		guarded.Get("/subscription/orders/:id/proof", subscriptionHandler.GetOrderProof)
@@ -694,9 +715,9 @@ func main() {
 	adminApi := api.Group("/admin", middleware.AuthRequired(cfg), middleware.RequireAdmin(cfg), middleware.RequireMFACompleted(cfg))
 	{
 		// System Bot & Automation Engine Monitoring & Sandbox
-		adminApi.Get("/automation/status", notificationHandler.GetAutomationStatus)
-		adminApi.Get("/automation/logs", notificationHandler.GetAutomationLogs)
-		adminApi.Post("/automation/trigger", notificationHandler.TriggerAutomationBot)
+		adminApi.Get("/automation/status", middleware.RequirePermission(cfg, "system:settings:manage"), notificationHandler.GetAutomationStatus)
+		adminApi.Get("/automation/logs", middleware.RequirePermission(cfg, "system:settings:manage"), notificationHandler.GetAutomationLogs)
+		adminApi.Post("/automation/trigger", middleware.RequirePermission(cfg, "system:settings:manage"), notificationHandler.TriggerAutomationBot)
 
 		// Dynamic RBAC Matrix & Staff Management (Superadmin / Staff Governance)
 		adminApi.Get("/rbac/me", rbacHandler.GetMyPermissions)
@@ -737,14 +758,14 @@ func main() {
 		adminApi.Get("/notifications/:id", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminGetOne)
 		adminApi.Post("/notifications/broadcast", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminBroadcast)
 		adminApi.Delete("/notifications/:id", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminDelete)
-		adminApi.Get("/stores/search", notificationHandler.SearchStores)
-		adminApi.Get("/users/search", notificationHandler.SearchUsers)
+		adminApi.Get("/stores/search", middleware.RequireAnyPermission(cfg, "content:broadcast:send", "support:tickets:read", "finance:orders:read", "compliance:reports:manage", "system:admins:manage"), notificationHandler.SearchStores)
+		adminApi.Get("/users/search", middleware.RequireAnyPermission(cfg, "content:broadcast:send", "support:tickets:read", "finance:orders:read", "compliance:reports:manage", "system:admins:manage"), notificationHandler.SearchUsers)
 
 		// Store Management / Directory Catalog Profiles (Server-Side Paginated & Filtered)
-		adminApi.Get("/stores", storeHandler.AdminListStores)
-		adminApi.Get("/stores/:id", storeHandler.AdminGetStoreDetail)
-		adminApi.Get("/products/export", catalogExportHandler.ExportProducts)
-		adminApi.Get("/catalog/export", catalogExportHandler.ExportCatalog)
+		adminApi.Get("/stores", middleware.RequireAnyPermission(cfg, "compliance:reports:manage", "compliance:dormancy:manage", "support:tickets:read", "finance:orders:read", "system:settings:manage"), storeHandler.AdminListStores)
+		adminApi.Get("/stores/:id", middleware.RequireAnyPermission(cfg, "compliance:reports:manage", "compliance:dormancy:manage", "support:tickets:read", "finance:orders:read", "system:settings:manage"), storeHandler.AdminGetStoreDetail)
+		adminApi.Get("/products/export", middleware.RequireAnyPermission(cfg, "compliance:reports:manage", "audit:logs:read", "system:settings:manage"), catalogExportHandler.ExportProducts)
+		adminApi.Get("/catalog/export", middleware.RequireAnyPermission(cfg, "compliance:reports:manage", "audit:logs:read", "system:settings:manage"), catalogExportHandler.ExportCatalog)
 
 		// Monetization, Rekber Syariah & Platform Settings
 		// SECURITY (N-12): settings mengubah konfigurasi platform (monetisasi, iklan,
@@ -798,7 +819,11 @@ func main() {
 	app.Get("/*", spaHandler.ServeSPA)
 
 	// 10. Graceful Shutdown & Server Listen
-	listenAddr := fmt.Sprintf("0.0.0.0:%s", cfg.Port)
+	bindHost := strings.TrimSpace(cfg.BindAddr)
+	if bindHost == "" {
+		bindHost = "0.0.0.0"
+	}
+	listenAddr := fmt.Sprintf("%s:%s", bindHost, cfg.Port)
 	useTLS := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
 	scheme := "http"
 	if useTLS {
