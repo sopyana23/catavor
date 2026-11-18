@@ -508,8 +508,32 @@ func SeedPlatformPolicies(db *gorm.DB, overwriteExisting bool) error {
 				return err
 			}
 			log.Info().Str("type", def.Type).Str("version", def.Version).Msg("Default policy seeded")
-		} else if err == nil && (overwriteExisting || len(existing.Sections) < 10 || existing.Version == "v1.0" || existing.Version == "v1.5.0") {
-			// Upgrade or overwrite
+		} else if err == nil && overwriteExisting {
+			// Append-only versioned reset: deactivate previous active version and insert fresh baseline row
+			if err := db.Model(&models.PolicyVersion{}).Where("type = ? AND is_active = ?", def.Type, true).Update("is_active", false).Error; err != nil {
+				return err
+			}
+			newPolicy := models.PolicyVersion{
+				Type:               def.Type,
+				Title:              def.Title,
+				Version:            def.Version,
+				Content:            markdownContent,
+				Sections:           datatypes.JSON(sectionsJSON),
+				SummaryOfChanges:   def.SummaryOfChanges,
+				ChangeType:         def.ChangeType,
+				EffectiveDate:      now,
+				IsActive:           true,
+				RequiresAcceptance: def.RequiresAcceptance,
+				CreatedBy:          1,
+				CreatedAt:          now,
+				UpdatedAt:          now,
+			}
+			if err := db.Create(&newPolicy).Error; err != nil {
+				log.Error().Err(err).Str("type", def.Type).Msg("Failed to create reset policy version")
+				return err
+			}
+		} else if err == nil && (existing.Version == "v1.0" || existing.Version == "v1.5.0") {
+			// Boot-time upgrade only for legacy v1.0/v1.5.0 defaults (never overwrite custom admin versions!)
 			existing.Title = def.Title
 			existing.Version = def.Version
 			existing.Content = markdownContent
@@ -519,10 +543,10 @@ func SeedPlatformPolicies(db *gorm.DB, overwriteExisting bool) error {
 			existing.RequiresAcceptance = def.RequiresAcceptance
 			existing.UpdatedAt = now
 			if err := db.Save(&existing).Error; err != nil {
-				log.Error().Err(err).Str("type", def.Type).Msg("Failed to upgrade policy version")
+				log.Error().Err(err).Str("type", def.Type).Msg("Failed to upgrade legacy policy version")
 				return err
 			}
-			log.Info().Str("type", def.Type).Str("version", def.Version).Msg("Default policy upgraded to rich structured format")
+			log.Info().Str("type", def.Type).Str("version", def.Version).Msg("Legacy default policy upgraded to structured format")
 		}
 	}
 

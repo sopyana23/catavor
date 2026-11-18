@@ -557,16 +557,44 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 		}
 	}
 	totalPriceEvents := incCount + decCount
-	incRatio := 50.0
-	decRatio := 50.0
+	incRatio := 0.0
+	decRatio := 0.0
 	if totalPriceEvents > 0 {
 		incRatio = math.Round((float64(incCount)/float64(totalPriceEvents))*1000) / 10
 		decRatio = math.Round((float64(decCount)/float64(totalPriceEvents))*1000) / 10
 	}
+
+	// Empirical sold-out velocity (average days from listing creation to sold_out update over last 30 days; 0 if no samples).
+	soldOutVelocityDays := 0.0
+	type soldOutSample struct {
+		CreatedAt time.Time `gorm:"column:created_at"`
+		UpdatedAt time.Time `gorm:"column:updated_at"`
+	}
+	var soldSamples []soldOutSample
+	cutoff30d := time.Now().UTC().AddDate(0, 0, -30)
+	if err := db.Model(&models.Product{}).
+		Select("created_at, updated_at").
+		Where("conservation_status = ? AND updated_at >= ?", "sold_out", cutoff30d).
+		Order("updated_at DESC").
+		Limit(500).
+		Find(&soldSamples).Error; err == nil && len(soldSamples) > 0 {
+		totalDays := 0.0
+		validSamples := 0
+		for _, sm := range soldSamples {
+			if !sm.CreatedAt.IsZero() && !sm.UpdatedAt.Before(sm.CreatedAt) {
+				totalDays += sm.UpdatedAt.Sub(sm.CreatedAt).Hours() / 24.0
+				validSamples++
+			}
+		}
+		if validSamples > 0 {
+			soldOutVelocityDays = math.Round((totalDays/float64(validSamples))*10) / 10
+		}
+	}
+
 	summary.SupplySideDynamics = SupplyDynamicsMetrics{
 		PriceIncreaseRatio:     incRatio,
 		PriceDecreaseRatio:     decRatio,
-		SoldOutVelocityAvgDays: 14.5,
+		SoldOutVelocityAvgDays: soldOutVelocityDays,
 		NewListings30D:         newListings,
 	}
 
@@ -635,7 +663,7 @@ func sanitizeMarketCSVCell(s string) string {
 		return ""
 	}
 	switch trimmed[0] {
-	case '=', '+', '-', '@', '\t', '\r':
+	case '=', '+', '-', '@', '|':
 		return "'" + trimmed
 	}
 	return trimmed

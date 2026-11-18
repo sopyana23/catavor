@@ -133,10 +133,17 @@ func IsValidSearchKeyword(raw string) bool {
 	return true
 }
 
+type searchClickEvent struct {
+	date        string
+	keyword     string
+	productType string
+}
+
 // SearchTelemetryService provides non-blocking buffered ingestion of search queries and demand gaps.
 type SearchTelemetryService struct {
 	db            *gorm.DB
 	telemetryChan chan models.SearchAnalytics
+	clickChan     chan searchClickEvent
 	closeOnce     sync.Once
 	stopChan      chan struct{}
 }
@@ -152,11 +159,13 @@ func InitSearchTelemetryService(db *gorm.DB) *SearchTelemetryService {
 		svc := &SearchTelemetryService{
 			db:            db,
 			telemetryChan: make(chan models.SearchAnalytics, 5000),
+			clickChan:     make(chan searchClickEvent, 2048),
 			stopChan:      make(chan struct{}),
 		}
 		go svc.startBatchFlusher()
+		go svc.startClickWorker()
 		globalTelemetryService = svc
-		log.Info().Msg("SearchTelemetryService initialized with 5000-slot non-blocking channel buffer")
+		log.Info().Msg("SearchTelemetryService initialized with bounded search & click channels")
 	})
 	return globalTelemetryService
 }
@@ -314,8 +323,43 @@ func (s *SearchTelemetryService) Stop() {
 	})
 }
 
+func (s *SearchTelemetryService) startClickWorker() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error().Interface("panic", r).Msg("Recovered from panic in SearchTelemetryService click worker")
+			go s.startClickWorker()
+		}
+	}()
+	for {
+		select {
+		case <-s.stopChan:
+			return
+		case ev := <-s.clickChan:
+			s.persistSearchClick(ev)
+		}
+	}
+}
+
+func (s *SearchTelemetryService) persistSearchClick(ev searchClickEvent) {
+	if s == nil || s.db == nil {
+		return
+	}
+	now := time.Now().UTC()
+	err := s.db.Exec(`
+		INSERT INTO search_daily_rollups (date, keyword, product_type, search_volume, zero_result_count, clicked_product_count, ctr_percentage, created_at, updated_at)
+		VALUES (?, ?, ?, 1, 0, 1, 100.0, ?, ?)
+		ON CONFLICT (date, keyword) DO UPDATE SET
+			clicked_product_count = search_daily_rollups.clicked_product_count + 1,
+			ctr_percentage = ROUND(LEAST(100.0, ((search_daily_rollups.clicked_product_count + 1)::numeric / GREATEST(search_daily_rollups.search_volume, 1)::numeric) * 100), 2),
+			updated_at = ?
+	`, ev.date, ev.keyword, ev.productType, now, now, now).Error
+	if err != nil {
+		log.Warn().Err(err).Str("keyword", ev.keyword).Msg("Failed to record search click attribution")
+	}
+}
+
 // RecordSearchClick records when a user clicks into a product or catalog from search results.
-// Asynchronously increments clicked_product_count and updates true CTR in search_daily_rollups.
+// Uses a bounded non-blocking channel instead of spawning unbounded goroutines per click.
 func (s *SearchTelemetryService) RecordSearchClick(keyword string, productType string) {
 	if s == nil || s.db == nil {
 		return
@@ -327,27 +371,20 @@ func (s *SearchTelemetryService) RecordSearchClick(keyword string, productType s
 	if productType == "" {
 		productType = "all"
 	}
-	today := time.Now().UTC().Format("2006-01-02")
-
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Error().Interface("panic", r).Msg("Recovered from panic in RecordSearchClick")
-			}
-		}()
-		now := time.Now().UTC()
-		err := s.db.Exec(`
-			INSERT INTO search_daily_rollups (date, keyword, product_type, search_volume, zero_result_count, clicked_product_count, ctr_percentage, created_at, updated_at)
-			VALUES (?, ?, ?, 1, 0, 1, 100.0, ?, ?)
-			ON CONFLICT (date, keyword) DO UPDATE SET
-				clicked_product_count = search_daily_rollups.clicked_product_count + 1,
-				ctr_percentage = ROUND(LEAST(100.0, ((search_daily_rollups.clicked_product_count + 1)::numeric / GREATEST(search_daily_rollups.search_volume, 1)::numeric) * 100), 2),
-				updated_at = ?
-		`, today, cleanKw, productType, now, now, now).Error
-		if err != nil {
-			log.Warn().Err(err).Str("keyword", cleanKw).Msg("Failed to record search click attribution")
-		}
-	}()
+	ev := searchClickEvent{
+		date:        time.Now().UTC().Format("2006-01-02"),
+		keyword:     cleanKw,
+		productType: productType,
+	}
+	if s.clickChan == nil {
+		s.persistSearchClick(ev)
+		return
+	}
+	select {
+	case s.clickChan <- ev:
+	default:
+		log.Warn().Str("keyword", cleanKw).Msg("Search click buffer full; click attribution dropped safely")
+	}
 }
 
 // RollupDailySearchTrends aggregates raw searches into daily rollups for fast reporting.

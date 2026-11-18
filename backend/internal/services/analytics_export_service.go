@@ -49,6 +49,47 @@ func escapeLikeQuery(s string) string {
 	return s
 }
 
+// canonicalExportPeriodCode normalizes user input to a strict filename-safe token.
+func canonicalExportPeriodCode(period string) string {
+	switch strings.ToLower(strings.TrimSpace(period)) {
+	case "7d":
+		return "7d"
+	case "90d":
+		return "90d"
+	case "all", "all-time", "alltime":
+		return "all"
+	default:
+		return "30d"
+	}
+}
+
+func sanitizeExportSlug(raw string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(strings.TrimSpace(raw)) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		}
+	}
+	out := b.String()
+	if out == "" {
+		return "store"
+	}
+	if len(out) > 60 {
+		return out[:60]
+	}
+	return out
+}
+
+func formatLabelWords(raw string) string {
+	words := strings.Fields(raw)
+	for i, w := range words {
+		if len(w) > 0 {
+			words[i] = strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
+		}
+	}
+	return strings.Join(words, " ")
+}
+
 // parseExportPeriod parses period string into days and isAllTime flag
 func parseExportPeriod(period string) (days int, isAllTime bool, label string) {
 	p := strings.ToLower(strings.TrimSpace(period))
@@ -99,12 +140,17 @@ func ExportDailyMetricsCSV(w io.Writer, store *models.Store, period string, days
 		query = query.Where("date >= ?", startDate)
 	}
 
-	var records []models.StoreDailyAnalytics
-	if err := query.Order("date DESC").Find(&records).Error; err != nil {
+	sqlRows, err := query.Model(&models.StoreDailyAnalytics{}).Order("date DESC").Rows()
+	if err != nil {
 		return fmt.Errorf("failed to fetch daily records: %w", err)
 	}
+	defer sqlRows.Close()
 
-	for _, r := range records {
+	for sqlRows.Next() {
+		var r models.StoreDailyAnalytics
+		if err := db.ScanRows(sqlRows, &r); err != nil {
+			return fmt.Errorf("failed to scan daily record: %w", err)
+		}
 		directWa := r.DirectWaClicks
 		if directWa == 0 && r.WaClicks > 0 {
 			directWa = r.WaClicks
@@ -146,6 +192,10 @@ func ExportDailyMetricsCSV(w io.Writer, store *models.Store, period string, days
 		}
 
 		if err := csvWriter.Write(row); err != nil {
+			return err
+		}
+		csvWriter.Flush()
+		if err := csvWriter.Error(); err != nil {
 			return err
 		}
 	}
@@ -299,8 +349,17 @@ func ExportTrafficSourcesCSV(w io.Writer, store *models.Store, period string, da
 		query = query.Where("date >= ?", startDate)
 	}
 
-	var records []models.StoreDailyTrafficSource
-	if err := query.Find(&records).Error; err != nil {
+	type trafficGroupRow struct {
+		Source         string `gorm:"column:source"`
+		Views          int    `gorm:"column:views"`
+		UniqueVisitors int    `gorm:"column:unique_visitors"`
+		TotalActions   int    `gorm:"column:total_actions"`
+	}
+	var records []trafficGroupRow
+	if err := query.Model(&models.StoreDailyTrafficSource{}).
+		Select("source, COALESCE(SUM(views), 0) as views, COALESCE(SUM(unique_visitors), 0) as unique_visitors, COALESCE(SUM(total_actions), 0) as total_actions").
+		Group("source").
+		Find(&records).Error; err != nil {
 		return fmt.Errorf("failed to fetch traffic sources: %w", err)
 	}
 
@@ -333,7 +392,7 @@ func ExportTrafficSourcesCSV(w io.Writer, store *models.Store, period string, da
 		}
 		name, exists := sourceLabels[s]
 		if !exists {
-			name = strings.Title(s)
+			name = formatLabelWords(s)
 		}
 
 		if _, found := aggMap[s]; !found {
@@ -468,7 +527,7 @@ func ExportAudienceDimensionsCSV(w io.Writer, store *models.Store, period string
 
 		typeLabel := dimTypeLabels[r.DimensionType]
 		if typeLabel == "" {
-			typeLabel = strings.Title(r.DimensionType)
+			typeLabel = formatLabelWords(r.DimensionType)
 		}
 
 		tot := typeTotals[r.DimensionType]
@@ -707,72 +766,58 @@ atau diproses otomatis menggunakan Python/Pandas dan tools BI.
 	return zipWriter.Close()
 }
 
-// GetAnalyticsExportMetadata determines the HTTP filename and Content-Type header
+// GetAnalyticsExportMetadata determines the HTTP filename and Content-Type header.
+// SECURITY (SEC-08): Canonicalizes period and store slug to prevent Content-Disposition parameter injection.
 func GetAnalyticsExportMetadata(store *models.Store, reportType string, period string) (filename string, contentType string) {
-	pClean := strings.ToLower(strings.TrimSpace(period))
-	if pClean == "" {
-		pClean = "30d"
+	pClean := canonicalExportPeriodCode(period)
+	safeSlug := "store"
+	if store != nil {
+		safeSlug = sanitizeExportSlug(store.Slug)
 	}
 	dateStr := time.Now().Format("20060102")
 
 	switch strings.ToLower(strings.TrimSpace(reportType)) {
 	case "daily":
-		return fmt.Sprintf("catavor-analytics-%s-daily-%s-%s.csv", store.Slug, pClean, dateStr), "text/csv; charset=utf-8"
+		return fmt.Sprintf("catavor-analytics-%s-daily-%s-%s.csv", safeSlug, pClean, dateStr), "text/csv; charset=utf-8"
 	case "products":
-		return fmt.Sprintf("catavor-analytics-%s-products-%s.csv", store.Slug, dateStr), "text/csv; charset=utf-8"
+		return fmt.Sprintf("catavor-analytics-%s-products-%s.csv", safeSlug, dateStr), "text/csv; charset=utf-8"
 	case "traffic_sources", "sources":
-		return fmt.Sprintf("catavor-analytics-%s-traffic-sources-%s-%s.csv", store.Slug, pClean, dateStr), "text/csv; charset=utf-8"
+		return fmt.Sprintf("catavor-analytics-%s-traffic-sources-%s-%s.csv", safeSlug, pClean, dateStr), "text/csv; charset=utf-8"
 	case "audience", "dimensions":
-		return fmt.Sprintf("catavor-analytics-%s-audience-%s-%s.csv", store.Slug, pClean, dateStr), "text/csv; charset=utf-8"
+		return fmt.Sprintf("catavor-analytics-%s-audience-%s-%s.csv", safeSlug, pClean, dateStr), "text/csv; charset=utf-8"
 	case "hourly", "heatmap":
-		return fmt.Sprintf("catavor-analytics-%s-hourly-traffic-%s-%s.csv", store.Slug, pClean, dateStr), "text/csv; charset=utf-8"
+		return fmt.Sprintf("catavor-analytics-%s-hourly-traffic-%s-%s.csv", safeSlug, pClean, dateStr), "text/csv; charset=utf-8"
 	case "package", "zip", "full", "all":
 		fallthrough
 	default:
-		return fmt.Sprintf("catavor-analytics-%s-package-%s-%s.zip", store.Slug, pClean, dateStr), "application/zip"
+		return fmt.Sprintf("catavor-analytics-%s-package-%s-%s.zip", safeSlug, pClean, dateStr), "application/zip"
 	}
 }
 
 // ExecuteAnalyticsExport dispatches to the requested export generator
 func ExecuteAnalyticsExport(w io.Writer, store *models.Store, reportType string, period string, filter ProductExportFilter, db *gorm.DB) (filename string, contentType string, err error) {
 	days, isAllTime, _ := parseExportPeriod(period)
-	pClean := strings.ToLower(strings.TrimSpace(period))
-	if pClean == "" {
-		pClean = "30d"
-	}
-	dateStr := time.Now().Format("20060102")
+	filename, contentType = GetAnalyticsExportMetadata(store, reportType, period)
 
 	switch strings.ToLower(strings.TrimSpace(reportType)) {
 	case "daily":
-		filename = fmt.Sprintf("catavor-analytics-%s-daily-%s-%s.csv", store.Slug, pClean, dateStr)
-		contentType = "text/csv; charset=utf-8"
 		err = ExportDailyMetricsCSV(w, store, period, days, isAllTime, db)
 
 	case "products":
-		filename = fmt.Sprintf("catavor-analytics-%s-products-%s.csv", store.Slug, dateStr)
-		contentType = "text/csv; charset=utf-8"
 		err = ExportProductsPerformanceCSV(w, store, filter, db)
 
 	case "traffic_sources", "sources":
-		filename = fmt.Sprintf("catavor-analytics-%s-traffic-sources-%s-%s.csv", store.Slug, pClean, dateStr)
-		contentType = "text/csv; charset=utf-8"
 		err = ExportTrafficSourcesCSV(w, store, period, days, isAllTime, db)
 
 	case "audience", "dimensions":
-		filename = fmt.Sprintf("catavor-analytics-%s-audience-%s-%s.csv", store.Slug, pClean, dateStr)
-		contentType = "text/csv; charset=utf-8"
 		err = ExportAudienceDimensionsCSV(w, store, period, days, isAllTime, db)
 
 	case "hourly", "heatmap":
-		filename = fmt.Sprintf("catavor-analytics-%s-hourly-traffic-%s-%s.csv", store.Slug, pClean, dateStr)
-		contentType = "text/csv; charset=utf-8"
 		err = ExportHourlyHeatmapCSV(w, store, period, days, isAllTime, db)
 
 	case "package", "zip", "full", "all":
 		fallthrough
 	default:
-		filename = fmt.Sprintf("catavor-analytics-%s-package-%s-%s.zip", store.Slug, pClean, dateStr)
-		contentType = "application/zip"
 		err = ExportFullAnalyticsZip(w, store, period, days, isAllTime, filter, db)
 	}
 

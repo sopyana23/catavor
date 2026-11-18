@@ -64,6 +64,30 @@ func (h *CatalogExportHandler) resolveStore(c *fiber.Ctx, user *models.User, sto
 	return nil
 }
 
+// canStaffInspectTenantStore enforces RBAC permissions when a platform staff member
+// inspects or exports data belonging to another merchant's store (SEC-02).
+func canStaffInspectTenantStore(db *gorm.DB, user *models.User, store *models.Store) bool {
+	if user == nil || store == nil {
+		return false
+	}
+	if !user.IsPlatformStaff() {
+		return true
+	}
+	if store.UserID != 0 && store.UserID == user.ID {
+		return true
+	}
+	if user.IsSuperadmin() {
+		return true
+	}
+	rbac := services.GetRBACServiceForDB(db)
+	for _, perm := range []string{"compliance:reports:manage", "audit:logs:read", "system:settings:manage"} {
+		if rbac.HasPermission(user, perm) {
+			return true
+		}
+	}
+	return false
+}
+
 // ExportProducts handles dedicated catalog items export (CSV & JSON items only, without store backup metadata)
 func (h *CatalogExportHandler) ExportProducts(c *fiber.Ctx) error {
 	if h.db == nil {
@@ -81,6 +105,13 @@ func (h *CatalogExportHandler) ExportProducts(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": "Akses ditolak: Profil katalog tidak ditemukan.",
+		})
+	}
+	if !canStaffInspectTenantStore(h.db, user, store) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "FORBIDDEN_PERMISSION",
+			"message": "Akses Ditolak: Anda tidak memiliki izin audit/kepatuhan untuk mengekspor katalog toko ini.",
 		})
 	}
 
@@ -202,6 +233,13 @@ func (h *CatalogExportHandler) ExportCatalog(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"message": "Akses ditolak: Profil katalog tidak ditemukan.",
+		})
+	}
+	if !canStaffInspectTenantStore(h.db, user, store) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "FORBIDDEN_PERMISSION",
+			"message": "Akses Ditolak: Anda tidak memiliki izin audit/kepatuhan untuk mengekspor cadangan toko ini.",
 		})
 	}
 

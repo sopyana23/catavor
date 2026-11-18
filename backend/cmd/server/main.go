@@ -137,15 +137,21 @@ func main() {
 
 	// Start Background Subscription Lifecycle Worker (Runs on boot and every 1 hour)
 	go func() {
-		if err := services.ProcessSubscriptionLifecycle(database.DB); err != nil {
-			log.Warn().Err(err).Msg("Initial subscription lifecycle check failed")
+		runSafeSubscriptionCycle := func(label string) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Interface("panic", r).Str("stage", label).Msg("Recovered panic in subscription lifecycle worker")
+				}
+			}()
+			if err := services.ProcessSubscriptionLifecycle(database.DB); err != nil {
+				log.Warn().Err(err).Str("stage", label).Msg("Subscription lifecycle check failed")
+			}
 		}
+		runSafeSubscriptionCycle("boot")
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 		for range ticker.C {
-			if err := services.ProcessSubscriptionLifecycle(database.DB); err != nil {
-				log.Warn().Err(err).Msg("Subscription lifecycle periodic check failed")
-			}
+			runSafeSubscriptionCycle("periodic")
 		}
 	}()
 
@@ -427,8 +433,8 @@ func main() {
 	api := app.Group("/api", middleware.GlobalAPIRateLimiter())
 
 	// Catalog Data Portability & Export (Must precede :id wildcard to prevent route shadowing)
-	api.Get("/products/export", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), catalogExportHandler.ExportProducts)
-	api.Get("/catalog/items/export", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), catalogExportHandler.ExportProducts)
+	api.Get("/products/export", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), middleware.ExportRateLimiter(), catalogExportHandler.ExportProducts)
+	api.Get("/catalog/items/export", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), middleware.ExportRateLimiter(), catalogExportHandler.ExportProducts)
 
 	// Public Modern Product & Category Endpoints
 	api.Get("/products", productHandler.Index)
@@ -476,7 +482,7 @@ func main() {
 	// Public Market Intelligence & Macro Trends (Aggregated & Zero PII)
 	api.Get("/market-intelligence", analyticsHandler.GetMarketIntelligenceSummary)
 	api.Get("/market-intelligence/summary", analyticsHandler.GetMarketIntelligenceSummary)
-	api.Get("/market-intelligence/export", analyticsHandler.ExportMarketIntelligenceData)
+	api.Get("/market-intelligence/export", middleware.ExportRateLimiter(), analyticsHandler.ExportMarketIntelligenceData)
 	api.Get("/market-intelligence/trending-keywords", analyticsHandler.GetTrendingKeywords)
 	api.Get("/market-intelligence/demand-gaps", analyticsHandler.GetDemandGaps)
 	api.Get("/market-intelligence/price-benchmarks", analyticsHandler.GetCategoryPriceBenchmarks)
@@ -600,10 +606,8 @@ func main() {
 		guardedMutations.Delete("/categories/:id", categoryHandler.Destroy)
 
 		// Catalog Data Portability & Export
-		// 1. Dedicated Catalog Items Export (Products only: CSV Excel & JSON Items)
-		guarded.Get("/products/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportProducts)
+		// Catatan: /api/products/export sudah didaftarkan di atas :id wildcard; di sini daftarkan alias /admin/* & /catalog/export.
 		guarded.Get("/admin/products/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportProducts)
-		// 2. Full Store Backup (Danger Zone & Store Profile Backup: CSV & JSON Store Dump)
 		guarded.Get("/catalog/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportCatalog)
 		guarded.Get("/admin/catalog/export", middleware.ExportRateLimiter(), catalogExportHandler.ExportCatalog)
 
@@ -641,8 +645,8 @@ func main() {
 		// Multi-Tier Subscription, Quota & Custom Domain Management
 		guarded.Get("/subscription/my-quota", subscriptionHandler.GetStoreQuota)
 		guardedMutations.Post("/subscription/upgrade", subscriptionHandler.UpgradePlan)
-		guardedMutations.Post("/subscription/schedule-downgrade", subscriptionHandler.ScheduleDowngrade)
-		guardedMutations.Post("/subscription/cancel-downgrade", subscriptionHandler.CancelDowngrade)
+		guardedMutations.Post("/subscription/schedule-downgrade", middleware.AuthRateLimiter(), subscriptionHandler.ScheduleDowngrade)
+		guardedMutations.Post("/subscription/cancel-downgrade", middleware.AuthRateLimiter(), subscriptionHandler.CancelDowngrade)
 		guardedMutations.Post("/subscription/custom-domain", subscriptionHandler.UpdateCustomDomain)
 		guardedMutations.Post("/subscription/order", subscriptionHandler.CreateOrder)
 		guardedMutations.Post("/subscription/verify-coupon", middleware.AuthRateLimiter(), subscriptionHandler.VerifyCoupon)
@@ -672,8 +676,6 @@ func main() {
 			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
 		guardedMutations.Post("/settings/policies",
 			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.UpdatePolicy)
-		guardedMutations.Post("/settings/policies/reset-defaults",
-			middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetDefaultPolicies)
 		// SECURITY (N-43): policy-audit-logs memuat AdminEmail dan AdminIP internal
 		// sehingga hanya boleh diakses oleh staf dengan izin system:settings:manage.
 		guarded.Get("/settings/policy-audit-logs",
@@ -766,8 +768,8 @@ func main() {
 		// Store Management / Directory Catalog Profiles (Server-Side Paginated & Filtered)
 		adminApi.Get("/stores", middleware.RequireAnyPermission(cfg, "compliance:reports:manage", "compliance:dormancy:manage", "support:tickets:read", "finance:orders:read", "system:settings:manage"), storeHandler.AdminListStores)
 		adminApi.Get("/stores/:id", middleware.RequireAnyPermission(cfg, "compliance:reports:manage", "compliance:dormancy:manage", "support:tickets:read", "finance:orders:read", "system:settings:manage"), storeHandler.AdminGetStoreDetail)
-		adminApi.Get("/products/export", middleware.RequireAnyPermission(cfg, "compliance:reports:manage", "audit:logs:read", "system:settings:manage"), catalogExportHandler.ExportProducts)
-		adminApi.Get("/catalog/export", middleware.RequireAnyPermission(cfg, "compliance:reports:manage", "audit:logs:read", "system:settings:manage"), catalogExportHandler.ExportCatalog)
+		adminApi.Get("/products/export", middleware.RequireAnyPermission(cfg, "compliance:reports:manage", "audit:logs:read", "system:settings:manage"), middleware.ExportRateLimiter(), catalogExportHandler.ExportProducts)
+		adminApi.Get("/catalog/export", middleware.RequireAnyPermission(cfg, "compliance:reports:manage", "audit:logs:read", "system:settings:manage"), middleware.ExportRateLimiter(), catalogExportHandler.ExportCatalog)
 
 		// Monetization, Rekber Syariah & Platform Settings
 		// SECURITY (N-12): settings mengubah konfigurasi platform (monetisasi, iklan,
@@ -815,7 +817,7 @@ func main() {
 		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)
 		adminApi.Get("/analytics/overview", middleware.RequireAnyPermission(cfg, "market_intel:manage", "audit:logs:read", "system:settings:manage"), analyticsHandler.GetGlobalAnalyticsOverview)
 		adminApi.Get("/market-intelligence", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetMarketIntelligenceSummary)
-		adminApi.Get("/market-intelligence/export", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.ExportMarketIntelligenceData)
+		adminApi.Get("/market-intelligence/export", middleware.RequirePermission(cfg, "market_intel:manage"), middleware.ExportRateLimiter(), analyticsHandler.ExportMarketIntelligenceData)
 		adminApi.Get("/market-intelligence/trending-keywords", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetTrendingKeywords)
 		adminApi.Get("/market-intelligence/demand-gaps", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetDemandGaps)
 		adminApi.Get("/market-intelligence/price-benchmarks", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetCategoryPriceBenchmarks)

@@ -108,6 +108,62 @@ func EnqueueEmail(recipientEmail, recipientName, fromName, subject, bodyHTML, ca
 	return &job, nil
 }
 
+// EnqueueLifecycleEmailOnce menyimpan job email siklus hidup (mis. H-3 renewal,
+// grace period, transisi paket) dengan deduplikasi PERMANEN terhadap pasangan
+// (recipient_email, category, reference_id) tanpa batas jendela 10 menit.
+// Mencegah pengiriman berulang oleh background worker periodik setiap jam.
+func EnqueueLifecycleEmailOnce(db *gorm.DB, recipientEmail, recipientName, fromName, subject, bodyHTML, category, referenceID string) (*models.EmailJob, error) {
+	targetDB := db
+	if targetDB == nil && globalEmailQueue != nil {
+		targetDB = globalEmailQueue.db
+	}
+	if targetDB == nil || !targetDB.Migrator().HasTable(&models.EmailJob{}) {
+		return EnqueueEmail(recipientEmail, recipientName, fromName, subject, bodyHTML, category, referenceID)
+	}
+	if recipientEmail == "" || category == "" || referenceID == "" {
+		return EnqueueEmail(recipientEmail, recipientName, fromName, subject, bodyHTML, category, referenceID)
+	}
+
+	now := time.Now().UTC()
+	var existingCount int64
+	if err := targetDB.Model(&models.EmailJob{}).
+		Where("recipient_email = ? AND category = ? AND reference_id = ?", recipientEmail, category, referenceID).
+		Count(&existingCount).Error; err == nil && existingCount > 0 {
+		return nil, nil
+	}
+
+	job := models.EmailJob{
+		ID:             fmt.Sprintf("job_mail_%d_%s", now.UnixNano(), uuid.New().String()[:8]),
+		RecipientEmail: recipientEmail,
+		RecipientName:  recipientName,
+		FromName:       fromName,
+		Subject:        subject,
+		BodyHTML:       bodyHTML,
+		Category:       category,
+		ReferenceID:    referenceID,
+		Status:         "pending",
+		Attempts:       0,
+		MaxAttempts:    5,
+		NextRetryAt:    &now,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	if err := targetDB.Create(&job).Error; err != nil {
+		log.Error().Err(err).Str("to", logutil.MaskEmail(recipientEmail)).Str("ref", referenceID).Msg("Failed to enqueue lifecycle email job")
+		return nil, err
+	}
+
+	if globalEmailQueue != nil && globalEmailQueue.db != nil {
+		select {
+		case queueTriggerChan <- struct{}{}:
+		default:
+		}
+	}
+
+	return &job, nil
+}
+
 // runWorker is the daemon goroutine that continuously monitors and processes email jobs with backoff retry.
 func (s *EmailQueueService) runWorker() {
 	ticker := time.NewTicker(5 * time.Second)

@@ -60,9 +60,25 @@ func GetRBACService() *RBACService {
 			db:        database.DB,
 			permCache: make(map[string]map[string]bool),
 		}
-		rbacServiceInstance.RefreshCache()
+		if database.DB != nil {
+			rbacServiceInstance.RefreshCache()
+		}
 	})
 	return rbacServiceInstance
+}
+
+// GetRBACServiceForDB returns the cached global singleton in production (db == database.DB)
+// and an isolated instance when a test-specific *gorm.DB is injected.
+func GetRBACServiceForDB(db *gorm.DB) *RBACService {
+	if db == nil || db == database.DB {
+		return GetRBACService()
+	}
+	svc := &RBACService{
+		db:        db,
+		permCache: make(map[string]map[string]bool),
+	}
+	svc.RefreshCache()
+	return svc
 }
 
 // RefreshCache rebuilds the in-memory role-permission matrix cache for instant lookups.

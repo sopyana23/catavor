@@ -513,7 +513,7 @@ func fetchAudienceDimensions(db *gorm.DB, storeID uint, startDate string) (
 		}
 		switch r.DimensionType {
 		case "device":
-			name := strings.Title(val)
+			name := titleizeWords(val)
 			devMap[val] = AudienceDimensionSummary{
 				DimensionValue: val,
 				Name:           name,
@@ -698,7 +698,14 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	}
 
 	user, _ := c.Locals("user").(*models.User)
-	isStaff := user.IsPlatformStaff()
+	isStaff := user != nil && user.IsPlatformStaff()
+	if isStaff && !canStaffInspectTenantStore(h.db, user, store) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "FORBIDDEN_PERMISSION",
+			"message": "Akses Ditolak: Anda tidak memiliki izin audit/kepatuhan untuk melihat analitik toko ini.",
+		})
+	}
 	if !isStaff && (store.DormancyStatus == "suspended" || store.IsSuspended || store.DormancyStatus == "banned" || store.IsBlacklisted) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -1076,7 +1083,7 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		}
 		lbl := sourceLabels[s]
 		if lbl == "" {
-			lbl = strings.Title(s)
+			lbl = titleizeWords(s)
 		}
 		if _, exists := sourceMap[s]; !exists {
 			sourceMap[s] = &TrafficSourceSummary{
@@ -1228,7 +1235,14 @@ func (h *AnalyticsHandler) GetStoreAnalyticsProducts(c *fiber.Ctx) error {
 	}
 
 	user, _ := c.Locals("user").(*models.User)
-	isStaff := user.IsPlatformStaff()
+	isStaff := user != nil && user.IsPlatformStaff()
+	if isStaff && !canStaffInspectTenantStore(h.db, user, store) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "FORBIDDEN_PERMISSION",
+			"message": "Akses Ditolak: Anda tidak memiliki izin audit/kepatuhan untuk melihat analitik toko ini.",
+		})
+	}
 	if !isStaff && (store.DormancyStatus == "suspended" || store.IsSuspended || store.DormancyStatus == "banned" || store.IsBlacklisted) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -1958,6 +1972,13 @@ func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 
 	user, _ := c.Locals("user").(*models.User)
 	isStaff := user != nil && user.IsPlatformStaff()
+	if isStaff && !canStaffInspectTenantStore(h.db, user, store) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "FORBIDDEN_PERMISSION",
+			"message": "Akses Ditolak: Anda tidak memiliki izin audit/kepatuhan untuk mengekspor analitik toko ini.",
+		})
+	}
 	if !isStaff && (store.DormancyStatus == "suspended" || store.IsSuspended || store.DormancyStatus == "banned" || store.IsBlacklisted) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -2019,9 +2040,9 @@ func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 		}()
 	}
 
-	// 3. Set streaming headers
+	// 3. Set streaming headers (quoted filename against Content-Disposition parameter injection)
 	c.Set("Content-Type", contentType)
-	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	c.Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	c.Set("Pragma", "no-cache")
 
@@ -2041,4 +2062,14 @@ func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 	})
 
 	return nil
+}
+
+func titleizeWords(raw string) string {
+	words := strings.Fields(raw)
+	for i, w := range words {
+		if len(w) > 0 {
+			words[i] = strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
+		}
+	}
+	return strings.Join(words, " ")
 }

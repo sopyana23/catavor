@@ -19,6 +19,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type StoreQuotaInfo struct {
@@ -431,6 +432,9 @@ func UpgradeStorePlan(db *gorm.DB, storeID uint, targetPlanCode string, duration
 }
 
 // ScheduleStoreDowngrade sets a scheduled downgrade for the end of the current billing cycle.
+// SECURITY (SEC-01): Penjadwalan perubahan paket HANYA diizinkan dari paket berbayar aktif
+// menuju paket dengan SortOrder lebih rendah (mis. pro_business -> pro_starter / free, atau
+// pro_starter -> free), atau pembatalan kembali ke paket aktif saat ini.
 func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*StoreQuotaInfo, error) {
 	targetPlanCode = strings.ToLower(strings.TrimSpace(targetPlanCode))
 	targetPlan, err := getPlanByCodeStrict(db, targetPlanCode)
@@ -439,47 +443,87 @@ func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*
 	}
 
 	var store models.Store
-	if err := db.First(&store, storeID).Error; err != nil {
-		return nil, err
-	}
+	var currentPlan *models.SubscriptionPlan
+	var shouldSendEmail bool
+	var isCancelling bool
 
-	isCancelling := (targetPlanCode == store.Plan)
-	if isCancelling {
-		// Cancel scheduled change
-		store.NextPlanCode = nil
-	} else {
-		store.NextPlanCode = &targetPlanCode
-	}
+	txErr := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&store, storeID).Error; err != nil {
+			return err
+		}
 
-	if err := db.Save(&store).Error; err != nil {
-		return nil, err
+		currentCode := strings.ToLower(strings.TrimSpace(store.Plan))
+		if currentCode == "" {
+			currentCode = "free"
+		}
+
+		if targetPlanCode == currentCode {
+			isCancelling = true
+			if store.NextPlanCode == nil || strings.TrimSpace(*store.NextPlanCode) == "" {
+				// Idempotent no-op: tidak ada jadwal downgrade aktif, jangan kirim spam email.
+				return nil
+			}
+			store.NextPlanCode = nil
+			shouldSendEmail = true
+			cp, _ := GetPlanByCode(tx, currentCode)
+			currentPlan = cp
+			return tx.Save(&store).Error
+		}
+
+		if currentCode == "free" {
+			return fmt.Errorf("toko pada paket Gratis Terbatas tidak dapat menjadwalkan penurunan paket; silakan lakukan upgrade berbayar")
+		}
+
+		cp, err := getPlanByCodeStrict(tx, currentCode)
+		if err != nil {
+			return fmt.Errorf("paket aktif toko '%s' tidak dikenali", currentCode)
+		}
+		currentPlan = cp
+
+		if targetPlan.SortOrder >= currentPlan.SortOrder {
+			return fmt.Errorf("penjadwalan akhir siklus hanya berlaku untuk penurunan paket (downgrade); untuk beralih ke '%s' silakan gunakan jalur upgrade berbayar", targetPlan.Name)
+		}
+
+		if store.NextPlanCode != nil && strings.EqualFold(strings.TrimSpace(*store.NextPlanCode), targetPlanCode) {
+			// Idempotent no-op: target yang sama sudah terjadwal.
+			return nil
+		}
+
+		codeCopy := targetPlanCode
+		store.NextPlanCode = &codeCopy
+		shouldSendEmail = true
+		return tx.Save(&store).Error
+	})
+	if txErr != nil {
+		return nil, txErr
 	}
 
 	database.InvalidateStoreQuotaCache(context.Background(), storeID)
 
-	// Send transactional email notification asynchronously
-	var user models.User
-	if err := db.First(&user, store.UserID).Error; err == nil && user.Email != "" {
-		effectiveDateStr := "akhir periode aktif saat ini"
-		if store.PlanExpiresAt != nil {
-			effectiveDateStr = store.PlanExpiresAt.Format("02 January 2006")
-		}
+	if shouldSendEmail {
+		var user models.User
+		if err := db.First(&user, store.UserID).Error; err == nil && user.Email != "" {
+			effectiveDateStr := "akhir periode aktif saat ini"
+			if store.PlanExpiresAt != nil {
+				effectiveDateStr = store.PlanExpiresAt.Format("02 January 2006")
+			}
 
-		if isCancelling {
-			currPlan, _ := GetPlanByCode(db, store.Plan)
-			currName := store.Plan
-			if currPlan != nil {
-				currName = currPlan.Name
+			nowKey := time.Now().UTC().Format("2006010215")
+			if isCancelling {
+				currName := store.Plan
+				if currentPlan != nil {
+					currName = currentPlan.Name
+				}
+				subj, body := BuildSubscriptionDowngradeCancelledEmail(store.StoreTitle, currName, effectiveDateStr, store.Slug)
+				_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_cancelled", fmt.Sprintf("store_%d_cancel_downgrade_%s", store.ID, nowKey))
+			} else {
+				targetPrice := "Gratis"
+				if targetPlan.PriceMonthly > 0 {
+					targetPrice = fmt.Sprintf("Rp %d / bulan", int64(targetPlan.PriceMonthly))
+				}
+				subj, body := BuildSubscriptionDowngradeScheduledEmail(store.StoreTitle, targetPlan.Name, targetPrice, effectiveDateStr, store.Slug)
+				_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_scheduled", fmt.Sprintf("store_%d_downgrade_%s_%s", store.ID, targetPlanCode, nowKey))
 			}
-			subj, body := BuildSubscriptionDowngradeCancelledEmail(store.StoreTitle, currName, effectiveDateStr, store.Slug)
-			_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_cancelled", fmt.Sprintf("store_%d_cancel_downgrade_%d", store.ID, time.Now().Unix()))
-		} else {
-			targetPrice := "Gratis"
-			if targetPlan.PriceMonthly > 0 {
-				targetPrice = fmt.Sprintf("Rp %d / bulan", int64(targetPlan.PriceMonthly))
-			}
-			subj, body := BuildSubscriptionDowngradeScheduledEmail(store.StoreTitle, targetPlan.Name, targetPrice, effectiveDateStr, store.Slug)
-			_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_scheduled", fmt.Sprintf("store_%d_downgrade_%s_%s", store.ID, targetPlanCode, time.Now().Format("2006010215")))
 		}
 	}
 
@@ -488,26 +532,60 @@ func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*
 
 // ProcessSubscriptionLifecycle handles background expiration, grace periods, auto-downgrades, overage archiving, and H-3 renewal notices.
 func ProcessSubscriptionLifecycle(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
 	_ = ProcessExpiredPendingOrders(db)
 	now := time.Now().UTC()
 
-	// 1. Advance H-3 Renewal Reminder Scan (3 days before expiration)
+	// Preload active subscription plans once to eliminate N+1 queries inside lifecycle loops.
+	planMap := make(map[string]models.SubscriptionPlan)
+	var allPlans []models.SubscriptionPlan
+	if err := db.Find(&allPlans).Error; err == nil {
+		for _, p := range allPlans {
+			planMap[strings.ToLower(strings.TrimSpace(p.Code))] = p
+		}
+	}
+	freePlan, hasFreePlan := planMap["free"]
+	if !hasFreePlan {
+		if fp, err := GetPlanByCode(db, "free"); err == nil && fp != nil {
+			freePlan = *fp
+			hasFreePlan = true
+		} else {
+			freePlan = models.SubscriptionPlan{
+				Code:            "free",
+				Name:            "Gratis Terbatas",
+				MaxItems:        15,
+				HasCustomDomain: false,
+			}
+		}
+	}
+
+	// 1. Advance H-3 Renewal Reminder Scan (3 days before expiration — deduplicated permanently per expiry cycle!)
 	h3Threshold := now.Add(72 * time.Hour)
 	var expiringStores []models.Store
 	if err := db.Where("plan != ? AND plan_status = ? AND plan_expires_at IS NOT NULL AND plan_expires_at > ? AND plan_expires_at <= ?", "free", "active", now, h3Threshold).Find(&expiringStores).Error; err == nil {
 		for _, store := range expiringStores {
-			targetPlanCode := store.Plan
-			if store.NextPlanCode != nil && *store.NextPlanCode != "" {
-				targetPlanCode = *store.NextPlanCode
+			if store.PlanExpiresAt == nil {
+				continue
+			}
+			targetPlanCode := strings.ToLower(strings.TrimSpace(store.Plan))
+			if store.NextPlanCode != nil && strings.TrimSpace(*store.NextPlanCode) != "" {
+				cand := strings.ToLower(strings.TrimSpace(*store.NextPlanCode))
+				// Hanya tampilkan NextPlanCode bila valid dan lebih rendah dari paket saat ini.
+				currP, okCurr := planMap[targetPlanCode]
+				candP, okCand := planMap[cand]
+				if okCurr && okCand && candP.SortOrder < currP.SortOrder {
+					targetPlanCode = cand
+				}
 			}
 
-			targetPlan, _ := GetPlanByCode(db, targetPlanCode)
 			targetName := targetPlanCode
 			targetPrice := "Gratis"
-			if targetPlan != nil {
-				targetName = targetPlan.Name
-				if targetPlan.PriceMonthly > 0 {
-					targetPrice = fmt.Sprintf("Rp %d / bulan", int64(targetPlan.PriceMonthly))
+			if tp, ok := planMap[targetPlanCode]; ok {
+				targetName = tp.Name
+				if tp.PriceMonthly > 0 {
+					targetPrice = fmt.Sprintf("Rp %d / bulan", int64(tp.PriceMonthly))
 				}
 			}
 
@@ -516,7 +594,7 @@ func ProcessSubscriptionLifecycle(db *gorm.DB) error {
 				expStr := store.PlanExpiresAt.Format("02 January 2006")
 				refID := fmt.Sprintf("store_%d_h3_%s", store.ID, store.PlanExpiresAt.Format("20060102"))
 				subj, body := BuildSubscriptionRenewalReminderH3Email(store.StoreTitle, targetName, targetPrice, expStr, store.Slug)
-				_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_renewal_reminder_h3", refID)
+				_, _ = EnqueueLifecycleEmailOnce(db, user.Email, user.Name, "Catavor Billing", subj, body, "subscription_renewal_reminder_h3", refID)
 			}
 		}
 	}
@@ -528,101 +606,125 @@ func ProcessSubscriptionLifecycle(db *gorm.DB) error {
 	}
 
 	for _, store := range stores {
-		// Step 1: Check if grace period is needed or active
-		graceDuration := 7 * 24 * time.Hour // 7 days grace period
+		if store.PlanExpiresAt == nil {
+			continue
+		}
+		graceDuration := 7 * 24 * time.Hour
 
 		if store.GracePeriodUntil == nil {
-			// Just expired: enter grace period
 			graceEnd := store.PlanExpiresAt.Add(graceDuration)
-			store.PlanStatus = "grace_period"
-			store.GracePeriodUntil = &graceEnd
-			db.Save(&store)
+			res := db.Model(&models.Store{}).
+				Where("id = ? AND plan != ? AND plan_expires_at IS NOT NULL AND plan_expires_at <= ? AND grace_period_until IS NULL",
+					store.ID, "free", now).
+				Updates(map[string]interface{}{
+					"plan_status":        "grace_period",
+					"grace_period_until": &graceEnd,
+					"updated_at":         now,
+				})
+			if res.Error != nil || res.RowsAffected == 0 {
+				continue
+			}
+			database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 			log.Info().Uint("store_id", store.ID).Time("grace_until", graceEnd).Msg("Store entered subscription grace period")
 
-			// Send Grace Period Notice Email
 			var user models.User
 			if err := db.First(&user, store.UserID).Error; err == nil && user.Email != "" {
-				currPlan, _ := GetPlanByCode(db, store.Plan)
 				pName := store.Plan
-				if currPlan != nil {
-					pName = currPlan.Name
+				if cp, ok := planMap[strings.ToLower(strings.TrimSpace(store.Plan))]; ok {
+					pName = cp.Name
 				}
 				graceStr := graceEnd.Format("02 January 2006")
 				subj, body := BuildSubscriptionGracePeriodEmail(store.StoreTitle, pName, graceStr, store.Slug)
 				refID := fmt.Sprintf("store_%d_grace_%s", store.ID, graceEnd.Format("20060102"))
-				_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_grace_period", refID)
+				_, _ = EnqueueLifecycleEmailOnce(db, user.Email, user.Name, "Catavor Billing", subj, body, "subscription_grace_period", refID)
 			}
 			continue
 		}
 
 		if store.GracePeriodUntil.After(now) {
-			// Still in grace period, maintain access
 			continue
 		}
 
-		// Step 2: Grace period exceeded without renewal -> Execute Downgrade
-		targetPlanCode := "free"
-		if store.NextPlanCode != nil && *store.NextPlanCode != "" {
-			targetPlanCode = *store.NextPlanCode
+		// SECURITY (SEC-01): Pada sistem prabayar, saat masa tenggang 7 hari habis TANPA
+		// pelunasan tagihan perpanjangan, toko WAJIB selalu turun ke paket "free".
+		// Dilarang keras mengaktifkan paket berbayar dari NextPlanCode tanpa pembayaran!
+		const targetPlanCode = "free"
+		targetPlan := freePlan
+
+		archivedCount := 0
+		transitionApplied := false
+		graceCycleKey := store.GracePeriodUntil.Format("20060102")
+
+		txErr := db.Transaction(func(tx *gorm.DB) error {
+			updates := map[string]interface{}{
+				"plan":               targetPlanCode,
+				"plan_status":        "active",
+				"plan_expires_at":    nil,
+				"grace_period_until": nil,
+				"next_plan_code":     nil,
+				"updated_at":         now,
+			}
+			if !targetPlan.HasCustomDomain && store.CustomDomainStatus == "active" {
+				updates["custom_domain_status"] = "inactive_expired"
+			}
+
+			res := tx.Model(&models.Store{}).
+				Where("id = ? AND plan != ? AND plan_expires_at IS NOT NULL AND plan_expires_at <= ? AND grace_period_until IS NOT NULL AND grace_period_until <= ?",
+					store.ID, "free", now, now).
+				Updates(updates)
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected == 0 {
+				return nil
+			}
+			transitionApplied = true
+
+			if targetPlan.MaxItems > 0 {
+				var activeProductIDs []uint
+				if err := tx.Model(&models.Product{}).
+					Where("store_id = ? AND is_active = ?", store.ID, true).
+					Order("created_at desc, id desc").
+					Pluck("id", &activeProductIDs).Error; err != nil {
+					return err
+				}
+
+				if len(activeProductIDs) > targetPlan.MaxItems {
+					archiveIDs := activeProductIDs[targetPlan.MaxItems:]
+					archivedCount = len(archiveIDs)
+					if err := tx.Model(&models.Product{}).
+						Where("store_id = ? AND id IN ?", store.ID, archiveIDs).
+						Updates(map[string]interface{}{
+							"is_active":   false,
+							"archived_at": now,
+						}).Error; err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		})
+		if txErr != nil {
+			log.Error().Err(txErr).Uint("store_id", store.ID).Msg("Failed to execute subscription grace-period downgrade transaction")
+			continue
+		}
+		if !transitionApplied {
+			continue
 		}
 
-		targetPlan, err := GetPlanByCode(db, targetPlanCode)
-		if err != nil {
-			targetPlan, _ = GetPlanByCode(db, "free")
-			targetPlanCode = "free"
-		}
-
+		database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 		log.Info().
 			Uint("store_id", store.ID).
 			Str("old_plan", store.Plan).
 			Str("new_plan", targetPlanCode).
-			Msg("Grace period expired: executing auto-downgrade")
+			Int("archived_count", archivedCount).
+			Msg("Grace period expired: executed auto-downgrade to free plan")
 
-		store.Plan = targetPlanCode
-		store.PlanStatus = "active"
-		store.PlanExpiresAt = nil
-		store.GracePeriodUntil = nil
-		store.NextPlanCode = nil
-
-		// Disable custom domain if target plan does not support it
-		if !targetPlan.HasCustomDomain && store.CustomDomainStatus == "active" {
-			store.CustomDomainStatus = "inactive_expired"
-		}
-
-		db.Save(&store)
-
-		// Step 3: Auto-Archive Products exceeding new plan quota
-		archivedCount := 0
-		if targetPlan.MaxItems > 0 {
-			var activeProducts []models.Product
-			db.Where("store_id = ? AND is_active = ?", store.ID, true).
-				Order("created_at desc").
-				Find(&activeProducts)
-
-			if len(activeProducts) > targetPlan.MaxItems {
-				// Keep newest targetPlan.MaxItems active, archive the rest
-				toArchive := activeProducts[targetPlan.MaxItems:]
-				archivedCount = len(toArchive)
-				archivedTime := now
-				for _, p := range toArchive {
-					db.Model(&models.Product{}).Where("id = ?", p.ID).Updates(map[string]interface{}{
-						"is_active":   false,
-						"archived_at": archivedTime,
-					})
-				}
-				log.Info().
-					Uint("store_id", store.ID).
-					Int("archived_count", len(toArchive)).
-					Msg("Auto-archived over-quota products after downgrade")
-			}
-		}
-
-		// Send Transition Executed Notice Email
 		var user models.User
 		if err := db.First(&user, store.UserID).Error; err == nil && user.Email != "" {
 			subj, body := BuildSubscriptionTransitionExecutedEmail(store.StoreTitle, targetPlan.Name, targetPlan.MaxItems, archivedCount, store.Slug)
-			refID := fmt.Sprintf("store_%d_transition_%s", store.ID, now.Format("20060102"))
-			_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_transition_executed", refID)
+			refID := fmt.Sprintf("store_%d_transition_%s", store.ID, graceCycleKey)
+			_, _ = EnqueueLifecycleEmailOnce(db, user.Email, user.Name, "Catavor Billing", subj, body, "subscription_transition_executed", refID)
 		}
 	}
 
@@ -705,6 +807,35 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 	plan, err := GetPlanByCode(db, planCode)
 	if err != nil {
 		return nil, nil, fmt.Errorf("paket langganan '%s' tidak valid", planCode)
+	}
+
+	// SECURITY (SEC-09): Validasi status toko & jendela perpanjangan H-3 WAJIB dijalankan
+	// SEBELUM memanggil AllocateUniqueNominal maupun API eksternal CreateAulaaPayment,
+	// agar percobaan di luar H-3 tidak membuat tagihan yatim atau menghabiskan kode unik.
+	orderType := strings.ToLower(strings.TrimSpace(req.Type))
+	if orderType == "" {
+		orderType = strings.ToLower(strings.TrimSpace(req.OrderType))
+	}
+	var currentStore models.Store
+	if err := db.First(&currentStore, storeID).Error; err == nil {
+		if strings.EqualFold(strings.TrimSpace(currentStore.Plan), planCode) && planCode != "free" {
+			orderType = "renewal"
+			now := time.Now().UTC()
+			if currentStore.PlanStatus == "active" && currentStore.PlanExpiresAt != nil {
+				renewalWindowStart := currentStore.PlanExpiresAt.Add(-3 * 24 * time.Hour)
+				if now.Before(renewalWindowStart) {
+					daysRemaining := int(currentStore.PlanExpiresAt.Sub(now).Hours() / 24)
+					if daysRemaining < 1 {
+						daysRemaining = 1
+					}
+					return nil, nil, fmt.Errorf("paket langganan Anda masih aktif (%d hari tersisa). Perpanjangan baru dapat dilakukan saat memasuki masa kedaluwarsa (H-3) atau masa tenggang", daysRemaining)
+				}
+			}
+		} else if orderType == "" {
+			orderType = "upgrade"
+		}
+	} else if orderType == "" {
+		orderType = "upgrade"
 	}
 
 	// Strict platform policy: Only monthly billing cycle (1 month) is supported (no annual)
@@ -848,32 +979,6 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		req.PaymentProofURL = ""
 	}
 
-	orderType := req.Type
-	if orderType == "" {
-		orderType = req.OrderType
-	}
-	var currentStore models.Store
-	if err := db.First(&currentStore, storeID).Error; err == nil {
-		if currentStore.Plan == planCode && planCode != "free" {
-			orderType = "renewal"
-			now := time.Now().UTC()
-			if currentStore.PlanStatus == "active" && currentStore.PlanExpiresAt != nil {
-				renewalWindowStart := currentStore.PlanExpiresAt.Add(-3 * 24 * time.Hour)
-				if now.Before(renewalWindowStart) {
-					daysRemaining := int(currentStore.PlanExpiresAt.Sub(now).Hours() / 24)
-					if daysRemaining < 1 {
-						daysRemaining = 1
-					}
-					return nil, nil, fmt.Errorf("paket langganan Anda masih aktif (%d hari tersisa). Perpanjangan baru dapat dilakukan saat memasuki masa kedaluwarsa (H-3) atau masa tenggang", daysRemaining)
-				}
-			}
-		} else if orderType == "" {
-			orderType = "upgrade"
-		}
-	} else if orderType == "" {
-		orderType = "upgrade"
-	}
-
 	notes := strings.TrimSpace(req.Notes)
 
 	order := models.SubscriptionOrder{
@@ -904,15 +1009,16 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		PaidAt:             paidAt,
 	}
 
-	if cleanCoupon != "" && discountAmount > 0 {
-		_ = IncrementCouponUsage(db, cleanCoupon)
-	}
-
 	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
 	var quota *StoreQuotaInfo
 	if finalAmount == 0 {
-		// Instant free activation: create order and upgrade store plan atomically
+		// Instant free activation: create order, increment coupon, and upgrade store plan atomically
 		txErr := db.Transaction(func(tx *gorm.DB) error {
+			if cleanCoupon != "" && discountAmount > 0 {
+				if err := IncrementCouponUsage(tx, cleanCoupon); err != nil {
+					return err
+				}
+			}
 			if err := tx.Create(&order).Error; err != nil {
 				return err
 			}
@@ -925,8 +1031,16 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		}
 	} else {
 		// Non-free orders require payment verification / admin approval before plan activation
-		if err := db.Create(&order).Error; err != nil {
-			return nil, nil, fmt.Errorf("gagal membuat invoice langganan: %w", err)
+		txErr := db.Transaction(func(tx *gorm.DB) error {
+			if cleanCoupon != "" && discountAmount > 0 {
+				if err := IncrementCouponUsage(tx, cleanCoupon); err != nil {
+					return err
+				}
+			}
+			return tx.Create(&order).Error
+		})
+		if txErr != nil {
+			return nil, nil, fmt.Errorf("gagal membuat invoice langganan: %w", txErr)
 		}
 		quota, _ = GetStoreQuotaInfo(db, storeID)
 	}
@@ -1071,13 +1185,24 @@ func GetStoreSubscriptionOrders(db *gorm.DB, storeID uint) ([]models.Subscriptio
 // CancelStoreDowngrade removes any scheduled plan downgrade.
 func CancelStoreDowngrade(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 	var store models.Store
-	if err := db.First(&store, storeID).Error; err != nil {
-		return nil, err
-	}
+	var hadScheduledDowngrade bool
 
-	store.NextPlanCode = nil
-	if err := db.Save(&store).Error; err != nil {
-		return nil, err
+	txErr := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&store, storeID).Error; err != nil {
+			return err
+		}
+		if store.NextPlanCode == nil || strings.TrimSpace(*store.NextPlanCode) == "" {
+			return nil
+		}
+		hadScheduledDowngrade = true
+		store.NextPlanCode = nil
+		return tx.Save(&store).Error
+	})
+	if txErr != nil {
+		return nil, txErr
+	}
+	if !hadScheduledDowngrade {
+		return GetStoreQuotaInfo(db, storeID)
 	}
 
 	database.InvalidateStoreQuotaCache(context.Background(), storeID)
@@ -1094,7 +1219,8 @@ func CancelStoreDowngrade(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 			effectiveDateStr = store.PlanExpiresAt.Format("02 January 2006")
 		}
 		subj, body := BuildSubscriptionDowngradeCancelledEmail(store.StoreTitle, currName, effectiveDateStr, store.Slug)
-		_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_cancelled", fmt.Sprintf("store_%d_cancel_downgrade_%d", store.ID, time.Now().Unix()))
+		refKey := fmt.Sprintf("store_%d_cancel_downgrade_%s", store.ID, time.Now().UTC().Format("2006010215"))
+		_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_cancelled", refKey)
 	}
 
 	return GetStoreQuotaInfo(db, storeID)

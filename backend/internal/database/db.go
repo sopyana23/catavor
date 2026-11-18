@@ -169,57 +169,68 @@ func BootstrapProductionSchema(db *gorm.DB) error {
 	// 1. Run Pre-Migration Checks (Safe table renaming faunas -> products)
 	runPreMigrationRenames(db)
 
-	// 2. Auto-Migrate Schemas to PostgreSQL
-	err := db.AutoMigrate(
-		&models.User{},
-		&models.UserSession{},
-		&models.MFAAuthCompletion{},
-		&models.MFAAccountLockout{},
-		&models.MFAChallengeFailure{},
-		&models.TwoFactorRecoveryTicket{},
-		&models.Store{},
-		&models.SubscriptionPlan{},
-		&models.SubscriptionOrder{},
-		&models.Category{},
-		&models.Product{},
-		&models.ProductImage{},
-		&models.ProductVariant{},
-		&models.Article{},
-		&models.Comment{},
-		&models.Setting{},
-		&models.PolicyVersion{},
-		&models.PolicyAuditLog{},
-		&models.UserPolicyAgreement{},
-		&models.Report{},
-		&models.SupportTicket{},
-		&models.SupportMessage{},
-		&models.SupportAttachment{},
-		&models.SupportCannedResponse{},
-		&models.HelpArticle{},
-		&models.StoreDailyAnalytics{},
-		&models.ProductDailyAnalytics{},
-		&models.StoreDailyTrafficSource{},
-		&models.StoreDailyAudienceMetric{},
-		&models.RecentVisitorEvent{},
-		&models.SearchAnalytics{},
-		&models.SearchDailyRollup{},
-		&models.MarketDailyRollup{},
-		&models.CategoryPriceBenchmark{},
-		&models.B2BAPIKey{},
-		&models.Notification{},
-		&models.NotificationRead{},
-		&models.MasterCategory{},
-		&models.MasterPreset{},
-		&models.ActivityLog{},
-		&models.SafeDomain{},
-		&models.BlacklistedSlug{},
-		&models.AdSlot{},
-		&models.AdCampaign{},
-		&models.AdOrder{},
-		&models.AdDailyMetric{},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to auto-migrate PostgreSQL tables: %w", err)
+	// 2. Auto-Migrate Schemas to PostgreSQL in deterministic topological waves
+	// (prevents GORM cyclic relation sort User <-> Store <-> Category <-> Product from referencing uncreated parent tables on fresh PostgreSQL 17)
+	migrationWaves := [][]interface{}{
+		{
+			&models.User{},
+			&models.SubscriptionPlan{},
+			&models.Setting{},
+		},
+		{
+			&models.Store{},
+		},
+		{
+			&models.Category{},
+		},
+		{
+			&models.UserSession{},
+			&models.MFAAuthCompletion{},
+			&models.MFAAccountLockout{},
+			&models.MFAChallengeFailure{},
+			&models.TwoFactorRecoveryTicket{},
+			&models.SubscriptionOrder{},
+			&models.Product{},
+			&models.ProductImage{},
+			&models.ProductVariant{},
+			&models.Article{},
+			&models.Comment{},
+			&models.PolicyVersion{},
+			&models.PolicyAuditLog{},
+			&models.UserPolicyAgreement{},
+			&models.Report{},
+			&models.SupportTicket{},
+			&models.SupportMessage{},
+			&models.SupportAttachment{},
+			&models.SupportCannedResponse{},
+			&models.HelpArticle{},
+			&models.StoreDailyAnalytics{},
+			&models.ProductDailyAnalytics{},
+			&models.StoreDailyTrafficSource{},
+			&models.StoreDailyAudienceMetric{},
+			&models.RecentVisitorEvent{},
+			&models.SearchAnalytics{},
+			&models.SearchDailyRollup{},
+			&models.MarketDailyRollup{},
+			&models.CategoryPriceBenchmark{},
+			&models.B2BAPIKey{},
+			&models.Notification{},
+			&models.NotificationRead{},
+			&models.MasterCategory{},
+			&models.MasterPreset{},
+			&models.ActivityLog{},
+			&models.SafeDomain{},
+			&models.BlacklistedSlug{},
+			&models.AdSlot{},
+			&models.AdCampaign{},
+			&models.AdOrder{},
+			&models.AdDailyMetric{},
+		},
+	}
+	for waveIdx, wave := range migrationWaves {
+		if err := db.AutoMigrate(wave...); err != nil {
+			return fmt.Errorf("failed to auto-migrate PostgreSQL tables (wave %d): %w", waveIdx+1, err)
+		}
 	}
 
 	// 3. Post-Migration Optimizations & Compatibility VIEWs

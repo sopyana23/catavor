@@ -1,9 +1,13 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +19,7 @@ import (
 	"catavor-backend/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog/log"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -581,6 +586,57 @@ func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
 	})
 }
 
+var (
+	allowedPolicyTypes = map[string]bool{
+		"terms":          true,
+		"prohibited":     true,
+		"privacy":        true,
+		"moderation":     true,
+		"transactions":   true,
+		"subscription":   true,
+		"acceptable_use": true,
+	}
+	policyMarkdownLinkRe = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+)
+
+func sanitizePolicyMarkdownLinks(input string) string {
+	if !strings.Contains(input, "](") {
+		return input
+	}
+	return policyMarkdownLinkRe.ReplaceAllStringFunc(input, func(match string) string {
+		sub := policyMarkdownLinkRe.FindStringSubmatch(match)
+		if len(sub) != 3 {
+			return match
+		}
+		label := sub[1]
+		rawTarget := strings.TrimSpace(sub[2])
+		// Strip ASCII control characters & whitespace obfuscation (e.g. "java\tscript:")
+		var cleaned strings.Builder
+		for _, r := range rawTarget {
+			if r > 0x20 && r != 0x7f {
+				cleaned.WriteRune(r)
+			}
+		}
+		target := cleaned.String()
+		if target == "" {
+			return label
+		}
+		if (strings.HasPrefix(target, "/") && !strings.HasPrefix(target, "//")) || strings.HasPrefix(target, "#") {
+			return fmt.Sprintf("[%s](%s)", label, target)
+		}
+		parsed, err := url.Parse(target)
+		if err != nil {
+			return label
+		}
+		switch strings.ToLower(parsed.Scheme) {
+		case "https", "http", "mailto", "tel":
+			return fmt.Sprintf("[%s](%s)", label, target)
+		default:
+			return label
+		}
+	})
+}
+
 func (h *SettingHandler) GetPolicies(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -589,23 +645,13 @@ func (h *SettingHandler) GetPolicies(c *fiber.Ctx) error {
 		})
 	}
 
+	// SECURITY (SEC-06): Endpoint GET publik bersifat murni READ-ONLY (nol operasi tulis DB).
+	// Baris aktif di database selalu diprioritaskan agar kebijakan kustom admin (termasuk mode
+	// teks/markdown murni) tidak pernah ditimpa ulang; pilar yang belum ada di DB dihidrasi
+	// secara in-memory dari definisi resmi.
 	var policies []models.PolicyVersion
-	h.db.Where("is_active = true").Find(&policies)
-
-	// Lazy-hydration check: if missing any of the 6 pillars or sections empty, hydrate/upgrade safely
-	needsHydration := len(policies) < 6
-	if !needsHydration {
-		for _, p := range policies {
-			if len(p.Sections) < 10 {
-				needsHydration = true
-				break
-			}
-		}
-	}
-	if needsHydration {
-		_ = database.SeedPlatformPolicies(h.db, false)
-		policies = nil
-		h.db.Where("is_active = true").Find(&policies)
+	if err := h.db.Where("is_active = ?", true).Find(&policies).Error; err != nil {
+		log.Error().Err(err).Msg("settings: gagal mengambil kebijakan aktif")
 	}
 
 	res := make(map[string]models.PolicyVersion)
@@ -613,9 +659,28 @@ func (h *SettingHandler) GetPolicies(c *fiber.Ctx) error {
 		res[p.Type] = p
 	}
 
+	now := time.Now().UTC()
+	for _, def := range database.GetDefaultPlatformPolicies() {
+		if _, exists := res[def.Type]; !exists {
+			sectionsJSON, _ := json.Marshal(def.Sections)
+			res[def.Type] = models.PolicyVersion{
+				Type:               def.Type,
+				Title:              def.Title,
+				Version:            def.Version,
+				Content:            database.BuildMarkdownContent(def.Title, def.Sections.Summary, def.Sections.Articles),
+				Sections:           datatypes.JSON(sectionsJSON),
+				SummaryOfChanges:   def.SummaryOfChanges,
+				ChangeType:         def.ChangeType,
+				EffectiveDate:      now,
+				IsActive:           true,
+				RequiresAcceptance: def.RequiresAcceptance,
+			}
+		}
+	}
+
 	// Backwards compatibility alias: acceptable_use <-> prohibited
 	if prohibitedDoc, ok := res["prohibited"]; ok {
-		if acc, hasAcceptable := res["acceptable_use"]; !hasAcceptable || len(acc.Sections) < 10 {
+		if _, hasAcceptable := res["acceptable_use"]; !hasAcceptable {
 			acceptableCopy := prohibitedDoc
 			acceptableCopy.Type = "acceptable_use"
 			res["acceptable_use"] = acceptableCopy
@@ -668,66 +733,108 @@ func (h *SettingHandler) UpdatePolicy(c *fiber.Ctx) error {
 		RequiresAcceptance bool            `json:"requires_acceptance"`
 	}
 
-	if err := c.BodyParser(&req); err != nil || req.Type == "" {
+	if err := c.BodyParser(&req); err != nil || strings.TrimSpace(req.Type) == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"message": "Tipe kebijakan wajib diisi.",
+			"message": "Tipe kebijakan wajib diisi dengan format JSON yang valid.",
 		})
 	}
 
-	policyType := security.SanitizePlainText(req.Type, 50)
+	policyType := strings.ToLower(strings.TrimSpace(security.SanitizePlainText(req.Type, 50)))
+	if !allowedPolicyTypes[policyType] {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Tipe pilar kebijakan tidak dikenali.",
+		})
+	}
+
 	title := security.SanitizePlainText(req.Title, 255)
+	if title == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Judul dokumen kebijakan wajib diisi.",
+		})
+	}
 	version := security.SanitizePlainText(req.Version, 50)
-	summary := security.SanitizeRichText(req.SummaryOfChanges, 2000)
-	changeType := security.SanitizePlainText(req.ChangeType, 50)
-	if changeType == "" {
+	if version == "" {
+		version = "v2.0"
+	}
+	summary := sanitizePolicyMarkdownLinks(security.SanitizeRichText(req.SummaryOfChanges, 2000))
+	changeType := strings.ToLower(strings.TrimSpace(security.SanitizePlainText(req.ChangeType, 50)))
+	if changeType != "major" && changeType != "minor" && changeType != "patch" {
 		changeType = "minor"
 	}
 
 	var sectionsJSON datatypes.JSON
 	content := req.Content
 
-	if len(req.Sections) > 0 && string(req.Sections) != "null" && string(req.Sections) != "{}" {
+	trimmedSections := bytes.TrimSpace(req.Sections)
+	if len(trimmedSections) > 0 && string(trimmedSections) != "null" && string(trimmedSections) != "{}" {
+		if len(trimmedSections) > 512*1024 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Ukuran struktur pasal kebijakan melebihi batas maksimum (512 KB).",
+			})
+		}
 		var secData database.PolicySectionData
-		if err := json.Unmarshal(req.Sections, &secData); err == nil {
-			secData.Category = security.SanitizePlainText(secData.Category, 150)
-			secData.Badge = security.SanitizePlainText(secData.Badge, 100)
-			secData.IconKey = security.SanitizePlainText(secData.IconKey, 50)
-			secData.Summary = security.SanitizeRichText(secData.Summary, 2000)
-			for i := range secData.Articles {
-				secData.Articles[i].Number = security.SanitizePlainText(secData.Articles[i].Number, 50)
-				secData.Articles[i].Heading = security.SanitizePlainText(secData.Articles[i].Heading, 255)
-				secData.Articles[i].Content = security.SanitizeRichText(secData.Articles[i].Content, 20000)
-				for j := range secData.Articles[i].Highlights {
-					secData.Articles[i].Highlights[j] = security.SanitizePlainText(secData.Articles[i].Highlights[j], 1000)
-				}
+		dec := json.NewDecoder(bytes.NewReader(trimmedSections))
+		if err := dec.Decode(&secData); err != nil {
+			// SECURITY (SEC-03): Dilarang menyimpan JSON mentah saat gagal decode!
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Struktur JSON pasal kebijakan tidak valid.",
+			})
+		}
+		if len(secData.Articles) > 50 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Jumlah pasal melampaui batas maksimum (50 pasal per dokumen).",
+			})
+		}
+		secData.Category = security.SanitizePlainText(secData.Category, 150)
+		secData.Badge = security.SanitizePlainText(secData.Badge, 100)
+		secData.IconKey = security.SanitizePlainText(secData.IconKey, 50)
+		secData.Summary = sanitizePolicyMarkdownLinks(security.SanitizeRichText(secData.Summary, 2000))
+		for i := range secData.Articles {
+			if len(secData.Articles[i].Highlights) > 30 {
+				secData.Articles[i].Highlights = secData.Articles[i].Highlights[:30]
 			}
-			sanitizedBytes, _ := json.Marshal(secData)
-			sectionsJSON = datatypes.JSON(sanitizedBytes)
+			secData.Articles[i].Number = security.SanitizePlainText(secData.Articles[i].Number, 50)
+			secData.Articles[i].Heading = security.SanitizePlainText(secData.Articles[i].Heading, 255)
+			secData.Articles[i].Content = sanitizePolicyMarkdownLinks(security.SanitizeRichText(secData.Articles[i].Content, 20000))
+			for j := range secData.Articles[i].Highlights {
+				secData.Articles[i].Highlights[j] = sanitizePolicyMarkdownLinks(security.SanitizePlainText(secData.Articles[i].Highlights[j], 1000))
+			}
+		}
+		sanitizedBytes, err := json.Marshal(secData)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal memproses struktur pasal kebijakan.",
+			})
+		}
+		sectionsJSON = datatypes.JSON(sanitizedBytes)
 
-			if strings.TrimSpace(content) == "" {
-				content = database.BuildMarkdownContent(title, secData.Summary, secData.Articles)
-			}
-		} else {
-			sectionsJSON = datatypes.JSON(req.Sections)
+		if strings.TrimSpace(content) == "" {
+			content = database.BuildMarkdownContent(title, secData.Summary, secData.Articles)
 		}
 	}
 
-	content = security.SanitizeRichText(content, 100000)
+	content = sanitizePolicyMarkdownLinks(security.SanitizeRichText(content, 100000))
 
 	var oldVersion string
 	var currentActive models.PolicyVersion
-	if err := h.db.Where("type = ? AND is_active = true", policyType).First(&currentActive).Error; err == nil {
+	if err := h.db.Where("type = ? AND is_active = ?", policyType, true).First(&currentActive).Error; err == nil {
 		oldVersion = currentActive.Version
 	}
 
 	var newPolicy models.PolicyVersion
 	err := h.db.Transaction(func(tx *gorm.DB) error {
-		// Deactivate previous active version
 		if err := tx.Model(&models.PolicyVersion{}).Where("type = ?", policyType).Update("is_active", false).Error; err != nil {
 			return err
 		}
 
+		now := time.Now().UTC()
 		newPolicy = models.PolicyVersion{
 			Type:               policyType,
 			Title:              title,
@@ -736,18 +843,17 @@ func (h *SettingHandler) UpdatePolicy(c *fiber.Ctx) error {
 			Sections:           sectionsJSON,
 			SummaryOfChanges:   summary,
 			ChangeType:         changeType,
-			EffectiveDate:      time.Now().UTC(),
+			EffectiveDate:      now,
 			IsActive:           true,
 			RequiresAcceptance: req.RequiresAcceptance,
 			CreatedBy:          user.ID,
-			CreatedAt:          time.Now().UTC(),
-			UpdatedAt:          time.Now().UTC(),
+			CreatedAt:          now,
+			UpdatedAt:          now,
 		}
 		if err := tx.Create(&newPolicy).Error; err != nil {
 			return err
 		}
 
-		// SOC 2 Audit Trail
 		auditLog := models.PolicyAuditLog{
 			PolicyType:    policyType,
 			Action:        "update",
@@ -756,15 +862,16 @@ func (h *SettingHandler) UpdatePolicy(c *fiber.Ctx) error {
 			ChangeSummary: summary,
 			AdminEmail:    user.Email,
 			AdminIP:       c.IP(),
-			CreatedAt:     time.Now().UTC(),
+			CreatedAt:     now,
 		}
 		return tx.Create(&auditLog).Error
 	})
 
 	if err != nil {
+		log.Error().Err(err).Str("policy_type", policyType).Msg("settings: gagal memperbarui kebijakan")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
-			"message": "Gagal memperbarui kebijakan: " + err.Error(),
+			"message": safeErrMsg(err, "Gagal memperbarui kebijakan platform."),
 		})
 	}
 
@@ -791,39 +898,87 @@ func (h *SettingHandler) ResetDefaultPolicies(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		Type string `json:"type"` // "" or "all" or specific e.g. "terms"
+		Type       string `json:"type"`
+		PolicyType string `json:"policy_type"` // Alias kompatibilitas mundur agar tidak jatuh ke "" (reset masal)
 	}
-	_ = c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil && len(c.Body()) > 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Payload permintaan reset tidak valid.",
+		})
+	}
 
-	targetType := strings.TrimSpace(req.Type)
+	targetType := strings.ToLower(strings.TrimSpace(req.Type))
+	if targetType == "" {
+		targetType = strings.ToLower(strings.TrimSpace(req.PolicyType))
+	}
+	if targetType == "acceptable_use" {
+		targetType = "prohibited"
+	}
+
+	// SECURITY (SEC-05): Tolak permintaan reset tanpa target eksplisit ("all" atau nama pilar sah)
+	// agar ketidaksesuaian nama field tidak pernah memicu reset masal 6 pilar secara diam-diam!
+	if targetType == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Target reset kebijakan wajib disebutkan secara eksplisit ('all' atau kode dokumen spesifik).",
+		})
+	}
 
 	err := h.db.Transaction(func(tx *gorm.DB) error {
-		if targetType == "" || targetType == "all" {
-			if err := database.SeedPlatformPolicies(tx, true); err != nil {
-				return err
+		now := time.Now().UTC()
+		defs := database.GetDefaultPlatformPolicies()
+
+		if targetType == "all" {
+			for _, found := range defs {
+				sectionsJSON, err := json.Marshal(found.Sections)
+				if err != nil {
+					return err
+				}
+				content := database.BuildMarkdownContent(found.Title, found.Sections.Summary, found.Sections.Articles)
+				if err := tx.Model(&models.PolicyVersion{}).Where("type = ? AND is_active = ?", found.Type, true).Update("is_active", false).Error; err != nil {
+					return err
+				}
+				newPolicy := models.PolicyVersion{
+					Type:               found.Type,
+					Title:              found.Title,
+					Version:            found.Version,
+					Content:            content,
+					Sections:           datatypes.JSON(sectionsJSON),
+					SummaryOfChanges:   "Reset ke standar resmi platform Catavor " + found.Version,
+					ChangeType:         "major",
+					EffectiveDate:      now,
+					IsActive:           true,
+					RequiresAcceptance: found.RequiresAcceptance,
+					CreatedBy:          user.ID,
+					CreatedAt:          now,
+					UpdatedAt:          now,
+				}
+				if err := tx.Create(&newPolicy).Error; err != nil {
+					return err
+				}
 			}
 			auditLog := models.PolicyAuditLog{
 				PolicyType:    "all",
 				Action:        "reset_defaults",
+				NewVersion:    "v2.0",
 				ChangeSummary: "Seluruh 6 pilar kebijakan platform direset ke standar resmi Catavor v2.0.",
 				AdminEmail:    user.Email,
 				AdminIP:       c.IP(),
-				CreatedAt:     time.Now().UTC(),
+				CreatedAt:     now,
 			}
 			return tx.Create(&auditLog).Error
 		}
 
-		// Reset specific policy type
-		defs := database.GetDefaultPlatformPolicies()
 		var found *database.PolicyDefinition
-		for _, d := range defs {
-			if d.Type == targetType {
-				found = &d
+		for i := range defs {
+			if defs[i].Type == targetType {
+				found = &defs[i]
 				break
 			}
 		}
 		if found == nil {
-			return fmt.Errorf("tipe kebijakan %s tidak valid", targetType)
+			return fmt.Errorf("tipe kebijakan '%s' tidak valid", targetType)
 		}
 
 		sectionsJSON, err := json.Marshal(found.Sections)
@@ -832,9 +987,10 @@ func (h *SettingHandler) ResetDefaultPolicies(c *fiber.Ctx) error {
 		}
 		content := database.BuildMarkdownContent(found.Title, found.Sections.Summary, found.Sections.Articles)
 
-		_ = tx.Model(&models.PolicyVersion{}).Where("type = ?", targetType).Update("is_active", false)
+		if err := tx.Model(&models.PolicyVersion{}).Where("type = ? AND is_active = ?", targetType, true).Update("is_active", false).Error; err != nil {
+			return err
+		}
 
-		now := time.Now().UTC()
 		newPolicy := models.PolicyVersion{
 			Type:               found.Type,
 			Title:              found.Title,
@@ -867,9 +1023,16 @@ func (h *SettingHandler) ResetDefaultPolicies(c *fiber.Ctx) error {
 	})
 
 	if err != nil {
+		if strings.Contains(err.Error(), "tidak valid") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": safeErrMsg(err, "Tipe kebijakan tidak valid."),
+			})
+		}
+		log.Error().Err(err).Str("target_type", targetType).Msg("settings: gagal mereset kebijakan")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
-			"message": "Gagal mereset kebijakan: " + err.Error(),
+			"message": safeErrMsg(err, "Gagal mereset kebijakan ke standar resmi."),
 		})
 	}
 
@@ -894,12 +1057,51 @@ func (h *SettingHandler) GetPolicyAuditLogs(c *fiber.Ctx) error {
 			"message": "Akses Ditolak: Hanya Pengelola Platform yang berwenang melihat log audit kebijakan.",
 		})
 	}
+
+	page := 1
+	if p, err := strconv.Atoi(strings.TrimSpace(c.Query("page", "1"))); err == nil && p > 0 {
+		page = p
+	}
+	perPage := 20
+	if lp, err := strconv.Atoi(strings.TrimSpace(c.Query("per_page", c.Query("limit", "20")))); err == nil && lp > 0 {
+		if lp > 100 {
+			lp = 100
+		}
+		perPage = lp
+	}
+
+	var total int64
+	if err := h.db.Model(&models.PolicyAuditLog{}).Count(&total).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menghitung total log audit kebijakan.",
+		})
+	}
+
+	totalPages := int((total + int64(perPage) - 1) / int64(perPage))
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	offset := (page - 1) * perPage
+
 	var logs []models.PolicyAuditLog
-	h.db.Order("created_at desc").Limit(100).Find(&logs)
+	if err := h.db.Order("created_at desc, id desc").Offset(offset).Limit(perPage).Find(&logs).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memuat log audit kebijakan.",
+		})
+	}
 
 	return c.JSON(fiber.Map{
-		"success": true,
-		"data":    logs,
+		"success":     true,
+		"data":        logs,
+		"total":       total,
+		"page":        page,
+		"per_page":    perPage,
+		"total_pages": totalPages,
 	})
 }
 
@@ -918,7 +1120,12 @@ func (h *SettingHandler) RecordAgreement(c *fiber.Ctx) error {
 		AgreedContext   string `json:"agreed_context"`
 		CustomerContact string `json:"customer_contact"`
 	}
-	_ = c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format persetujuan kebijakan tidak valid.",
+		})
+	}
 
 	agreement := models.UserPolicyAgreement{
 		StoreID:         req.StoreID,
@@ -928,9 +1135,15 @@ func (h *SettingHandler) RecordAgreement(c *fiber.Ctx) error {
 		UserAgent:       security.SanitizePlainText(c.Get("User-Agent"), 500),
 		AgreedContext:   security.SanitizePlainText(req.AgreedContext, 50),
 		CustomerContact: security.SanitizePlainText(req.CustomerContact, 255),
-		AgreedAt:        time.Now(),
+		AgreedAt:        time.Now().UTC(),
 	}
-	h.db.Create(&agreement)
+	if err := h.db.Create(&agreement).Error; err != nil {
+		log.Error().Err(err).Msg("settings: gagal menyimpan persetujuan kebijakan")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal mencatat persetujuan kebijakan.",
+		})
+	}
 
 	return c.JSON(fiber.Map{"success": true})
 }

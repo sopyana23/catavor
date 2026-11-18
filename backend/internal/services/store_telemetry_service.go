@@ -2,12 +2,14 @@ package services
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"catavor-backend/internal/models"
@@ -146,10 +148,14 @@ type StoreTelemetryService struct {
 	storeRings  map[uint][]RecentVisitorDTO // last 50 per store
 	globalRing  []RecentVisitorDTO          // last 100 global
 
-	// Daily Visitor Deduplication & Bounce Engagement Tracking (HMAC-SHA256 with rotating salt)
-	dedupMu    sync.RWMutex
-	visitorSet map[string]int64 // hash -> timestamp unix seconds
-	engagedSet map[string]int64 // hash -> timestamp unix seconds (visitors who viewed product or took action)
+	// Daily Visitor Deduplication & Bounce Engagement Tracking (HMAC-SHA256 with CSPRNG daily rotating salt — SEC-10)
+	dedupMu       sync.RWMutex
+	visitorSet    map[string]int64 // hash -> timestamp unix seconds
+	engagedSet    map[string]int64 // hash -> timestamp unix seconds (visitors who viewed product or took action)
+	saltMu        sync.Mutex
+	saltDate      string
+	dailySaltKey  []byte
+	lastFlushUnix atomic.Int64
 
 	// Product & Store Metadata Cache for Live Visitor Feed & Price-Bracket Elasticity enrichment
 	prodMetaMu     sync.RWMutex
@@ -252,10 +258,27 @@ func (s *StoreTelemetryService) startWorker() {
 	}
 }
 
-// computeVisitorHash produces an anonymous, un-reversible daily fingerprint.
+// resolveDailySaltKey returns a 32-byte CSPRNG secret rotated automatically each UTC day (UU PDP Pasal 3 — SEC-10).
+func (s *StoreTelemetryService) resolveDailySaltKey(date string) []byte {
+	s.saltMu.Lock()
+	defer s.saltMu.Unlock()
+	if s.saltDate == date && len(s.dailySaltKey) == 32 {
+		return s.dailySaltKey
+	}
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		sum := sha256.Sum256([]byte(fmt.Sprintf("ctv_fallback_%s_%d", date, time.Now().UnixNano())))
+		key = sum[:]
+	}
+	s.saltDate = date
+	s.dailySaltKey = key
+	return s.dailySaltKey
+}
+
+// computeVisitorHash produces an anonymous, un-reversible daily fingerprint using a CSPRNG daily rotating HMAC key.
 func (s *StoreTelemetryService) computeVisitorHash(clientIP, sessionID, ua string, storeID uint, date string) string {
 	raw := fmt.Sprintf("%s|%s|%s|%d|%s", clientIP, sessionID, ua, storeID, date)
-	h := hmac.New(sha256.New, []byte("ctv_analytics_salt_"+date))
+	h := hmac.New(sha256.New, s.resolveDailySaltKey(date))
 	h.Write([]byte(raw))
 	return hex.EncodeToString(h.Sum(nil))
 }
@@ -410,15 +433,9 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 		browserName = "Browser Web"
 	}
 
-	// 3. Resolve City & Country
-	city := strings.TrimSpace(ev.City)
-	if city == "" {
-		city = "Indonesia"
-	}
-	country := strings.TrimSpace(ev.Country)
-	if country == "" {
-		country = "Indonesia"
-	}
+	// 3. Resolve & Sanitize City & Country (SEC-08: bounded cardinality & length)
+	city := sanitizeGeoLabel(ev.City, "Indonesia")
+	country := sanitizeGeoLabel(ev.Country, "Indonesia")
 
 	// 4. Resolve Source
 	normSource := "direct"
@@ -760,10 +777,33 @@ func (s *StoreTelemetryService) startFlusher() {
 	}
 }
 
-// FlushNow drains any pending events in the channel and flushes the in-memory buffers to DB immediately.
-// Used when the merchant or admin opens the analytics dashboard to guarantee 100% read-after-write consistency.
+func sanitizeGeoLabel(raw string, fallback string) string {
+	cleaned := safeIdentifierRegex.ReplaceAllString(strings.TrimSpace(raw), " ")
+	cleaned = strings.TrimSpace(cleanSpaceRegex.ReplaceAllString(cleaned, " "))
+	if cleaned == "" {
+		return fallback
+	}
+	if len(cleaned) > 60 {
+		cleaned = strings.TrimSpace(cleaned[:60])
+	}
+	if cleaned == "" {
+		return fallback
+	}
+	return cleaned
+}
+
+// FlushNow drains pending events and flushes buffers to DB with a 3-second cooldown
+// to prevent synchronous DoS amplification and global Market Intelligence cache thrashing (SEC-08).
 func (s *StoreTelemetryService) FlushNow() {
 	if s == nil {
+		return
+	}
+	nowUnix := time.Now().Unix()
+	last := s.lastFlushUnix.Load()
+	if nowUnix-last < 3 {
+		return
+	}
+	if !s.lastFlushUnix.CompareAndSwap(last, nowUnix) {
 		return
 	}
 	for {
@@ -772,7 +812,6 @@ func (s *StoreTelemetryService) FlushNow() {
 			s.processEvent(ev)
 		default:
 			s.flushBatch()
-			InvalidateMarketIntelCache()
 			return
 		}
 	}

@@ -9,6 +9,7 @@ import (
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
+	"catavor-backend/internal/models"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -374,18 +375,27 @@ func TelemetryRateLimiter() fiber.Handler {
 	})
 }
 
-// ExportRateLimiter limits heavy data export operations (CSV/JSON/ZIP)
-// Allows up to 10 exports per minute per IP to prevent CPU/IO saturation
+// ExportRateLimiter limits heavy data export operations (CSV/JSON/ZIP).
+// SECURITY (SEC-06): Uses persistent Redis storage, IPv6 /64 canonicalization,
+// composite user+IP keying, and enforces limits strictly in production/staging.
 func ExportRateLimiter() fiber.Handler {
 	return limiter.New(limiter.Config{
+		Storage:    database.GetRateLimiterStorage(),
 		Max:        10,
 		Expiration: 1 * time.Minute,
 		KeyGenerator: func(c *fiber.Ctx) string {
-			return c.IP() + "_export"
+			ipKey := canonicalRateLimitIP(c.IP())
+			if u, ok := c.Locals("user").(*models.User); ok && u != nil && u.ID > 0 {
+				return fmt.Sprintf("export:u:%d:%s", u.ID, ipKey)
+			}
+			if uid, ok := c.Locals("user_id").(uint); ok && uid > 0 {
+				return fmt.Sprintf("export:u:%d:%s", uid, ipKey)
+			}
+			return "export:ip:" + ipKey
 		},
 		Next: func(c *fiber.Ctx) bool {
 			ip := c.IP()
-			return ip == "127.0.0.1" || ip == "::1" || ip == "" || ip == "localhost"
+			return !isProductionRateLimitEnv() && (ip == "127.0.0.1" || ip == "::1" || ip == "" || ip == "localhost")
 		},
 		LimitReached: func(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{

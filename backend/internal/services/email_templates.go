@@ -992,12 +992,20 @@ func BuildNewDeviceLoginSecurityEmail(userName, userEmail, deviceName, ipAddress
 	return
 }
 
+func subscriptionStoreAdminURL(storeSlug string) string {
+	cleaned := strings.Trim(strings.TrimSpace(storeSlug), "/")
+	if cleaned == "" {
+		return "/admin?tab=subscription"
+	}
+	return fmt.Sprintf("/%s/admin?tab=subscription", url.PathEscape(cleaned))
+}
+
 // BuildSubscriptionDowngradeScheduledEmail creates an official email notification when a merchant schedules a plan transition.
 func BuildSubscriptionDowngradeScheduledEmail(storeTitle, targetPlanName, targetPlanPrice, effectiveDateStr, storeSlug string) (subject string, bodyHTML string) {
 	subject = fmt.Sprintf("[Catavor Langganan] Jadwal Perubahan Paket ke %s untuk Toko '%s'", targetPlanName, storeTitle)
 	title := "Jadwal Perubahan Paket Disimpan"
 	subtitle := fmt.Sprintf("Penyesuaian paket langganan untuk profil katalog '%s'", storeTitle)
-	adminSubURL := "/admin?tab=subscription"
+	adminSubURL := subscriptionStoreAdminURL(storeSlug)
 
 	mainContent := fmt.Sprintf(`
 	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
@@ -1036,7 +1044,7 @@ func BuildSubscriptionDowngradeCancelledEmail(storeTitle, currentPlanName, effec
 	subject = fmt.Sprintf("[Catavor Langganan] Jadwal Perubahan Paket Dibatalkan untuk Toko '%s'", storeTitle)
 	title := "Jadwal Perubahan Paket Telah Dibatalkan"
 	subtitle := fmt.Sprintf("Langganan '%s' tetap dilanjutkan untuk '%s'", currentPlanName, storeTitle)
-	adminSubURL := "/admin?tab=subscription"
+	adminSubURL := subscriptionStoreAdminURL(storeSlug)
 
 	mainContent := fmt.Sprintf(`
 	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
@@ -1061,7 +1069,7 @@ func BuildSubscriptionRenewalReminderH3Email(storeTitle, targetPlanName, targetP
 	subject = fmt.Sprintf("[Catavor Pengingat] Masa Aktif Langganan Toko '%s' Berakhir dalam 3 Hari", storeTitle)
 	title := "Masa Aktif Paket Berakhir dalam 3 Hari"
 	subtitle := fmt.Sprintf("Persiapan siklus langganan berikutnya untuk '%s'", storeTitle)
-	adminSubURL := "/admin?tab=subscription"
+	adminSubURL := subscriptionStoreAdminURL(storeSlug)
 
 	mainContent := fmt.Sprintf(`
 	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
@@ -1099,7 +1107,7 @@ func BuildSubscriptionTransitionExecutedEmail(storeTitle, newPlanName string, ma
 	subject = fmt.Sprintf("[Catavor Langganan] Status Paket Toko '%s' Kini Berada di %s", storeTitle, newPlanName)
 	title := fmt.Sprintf("Toko Kini Aktif di Paket %s", newPlanName)
 	subtitle := fmt.Sprintf("Pembaruan siklus langganan untuk profil katalog '%s'", storeTitle)
-	adminSubURL := "/admin?tab=subscription"
+	adminSubURL := subscriptionStoreAdminURL(storeSlug)
 
 	maxItemsLabel := fmt.Sprintf("%d item", maxItems)
 	if maxItems < 0 {
@@ -1143,7 +1151,7 @@ func BuildSubscriptionGracePeriodEmail(storeTitle, currentPlanName, graceUntilDa
 	subject = fmt.Sprintf("[Catavor Peringatan] Toko '%s' Memasuki Masa Tenggang (Grace Period 7 Hari)", storeTitle)
 	title := "Masa Langganan Berakhir: Masa Tenggang 7 Hari"
 	subtitle := fmt.Sprintf("Fitur toko tetap aktif sampai %s", graceUntilDateStr)
-	adminSubURL := "/admin?tab=subscription"
+	adminSubURL := subscriptionStoreAdminURL(storeSlug)
 
 	mainContent := fmt.Sprintf(`
 	<p style="margin: 0 0 14px 0;">Halo Pengelola <strong>%s</strong>,</p>
