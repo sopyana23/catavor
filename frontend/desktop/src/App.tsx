@@ -15312,6 +15312,29 @@ Terima kasih atas perhatian dan kerja samanya.`;
             </span>
           </div>
         </div>
+
+        {mfaChallenge && (
+          <MFAChallengeView
+            challenge={mfaChallenge.challenge}
+            email={mfaChallenge.email}
+            apiBase={API_BASE}
+            onCancel={() => { setMfaChallenge(null); setLoginError(null); }}
+            onVerified={handleMFAVerified}
+          />
+        )}
+        {mfaSetupPending && (
+          <MFAOnboardingModal
+            setupToken={mfaSetupPending.setupToken}
+            email={mfaSetupPending.email}
+            apiBase={API_BASE}
+            onCancel={() => { setMfaSetupPending(null); setLoginError(null); }}
+            onCompleted={(verifiedData) => {
+              const pending = mfaSetupPending;
+              setMfaSetupPending(null);
+              finalizeLogin(verifiedData, pending?.slug || null);
+            }}
+          />
+        )}
       </div>
     );
   }
