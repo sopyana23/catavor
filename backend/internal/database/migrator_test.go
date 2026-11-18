@@ -21,9 +21,16 @@ func migTestDB(t *testing.T) *gorm.DB {
 	if dsn == "" {
 		t.Skip("CATAVOR_MIGTEST_DSN tidak diset; uji migrasi dilewati")
 	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err != nil {
 		t.Fatalf("koneksi DB uji: %v", err)
+	}
+	if sqlDB, err := db.DB(); err == nil {
+		sqlDB.SetMaxOpenConns(1)
+		t.Cleanup(func() { _ = sqlDB.Close() })
 	}
 	return db
 }
@@ -48,18 +55,16 @@ func prepareEmptySchema(t *testing.T, db *gorm.DB) {
 		// nyata: pada instalasi baru tabel itu tidak pernah ada, sehingga
 		// migrasi N-45 gagal dan server tidak bisa boot sama sekali. Uji ini
 		// harus mencerminkan apa yang benar-benar dibuat AutoMigrate.
-		if err := db.AutoMigrate(
-			&models.User{},
-			&models.UserSession{},
-			&models.Store{},
-			&models.SubscriptionPlan{},
-			&models.SubscriptionOrder{},
-			&models.Category{},
-			&models.Product{},
-			&models.Setting{},
-			&models.SupportTicket{},
-		); err != nil {
-			t.Fatalf("AutoMigrate tabel inti uji: %v", err)
+		waves := [][]interface{}{
+			{&models.User{}, &models.SubscriptionPlan{}, &models.Setting{}},
+			{&models.Store{}},
+			{&models.Category{}},
+			{&models.UserSession{}, &models.SubscriptionOrder{}, &models.Product{}, &models.SupportTicket{}},
+		}
+		for _, w := range waves {
+			if err := db.AutoMigrate(w...); err != nil {
+				t.Fatalf("AutoMigrate tabel inti uji: %v", err)
+			}
 		}
 	})
 }
@@ -174,5 +179,19 @@ func TestRunMigrationsBaselinesExistingSchema(t *testing.T) {
 	db.Model(&schemaMigration{}).Count(&recorded)
 	if int(recorded) != len(files) {
 		t.Errorf("baseline mencatat %d migrasi, harus %d", recorded, len(files))
+	}
+}
+
+func TestBootstrapProductionSchemaOnFreshPostgres(t *testing.T) {
+	db := migTestDB(t)
+	if err := db.Exec("DROP SCHEMA public CASCADE; CREATE SCHEMA public;").Error; err != nil {
+		t.Fatalf("reset schema untuk BootstrapProductionSchema: %v", err)
+	}
+	if err := BootstrapProductionSchema(db); err != nil {
+		t.Fatalf("BootstrapProductionSchema pada PostgreSQL 17 kosong gagal: %v", err)
+	}
+	var policyCount int64
+	if err := db.Model(&models.PolicyVersion{}).Where("is_active = ?", true).Count(&policyCount).Error; err != nil || policyCount < 6 {
+		t.Fatalf("BootstrapProductionSchema tidak menyemai 6 pilar kebijakan aktif: count=%d err=%v", policyCount, err)
 	}
 }
