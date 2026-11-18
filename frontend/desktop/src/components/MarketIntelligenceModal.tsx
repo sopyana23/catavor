@@ -106,7 +106,7 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token') || sessionStorage.getItem('catavor_token') || sessionStorage.getItem('token');
       const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       const fetchOpts: RequestInit = { headers: authHeaders, credentials: 'include' };
 
@@ -149,7 +149,7 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
   const handleDownloadCsv = async () => {
     setDownloadingCsv(true);
     try {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token') || sessionStorage.getItem('catavor_token') || sessionStorage.getItem('token');
       const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       const downloadUrl = `${apiBase}/api/market-intelligence/export?format=csv`;
       const res = await fetch(downloadUrl, { headers: authHeaders, credentials: 'include' });

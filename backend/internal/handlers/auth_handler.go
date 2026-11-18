@@ -631,8 +631,14 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		return gateErr
 	}
 
+	isLocalStaffBypass := h.cfg != nil &&
+		(h.cfg.AppEnv == "local" || h.cfg.AppEnv == "development") &&
+		user.IsPlatformStaff() &&
+		!user.TwoFactorEnforced &&
+		!user.TwoFactorEnabled
+
 	token, _, _, err := h.mintDurableSession(c, &user, primaryStore, middleware.TokenOptions{
-		MFAVerified: false,
+		MFAVerified: isLocalStaffBypass,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{

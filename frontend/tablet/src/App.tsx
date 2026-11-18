@@ -997,13 +997,33 @@ export const App: React.FC = () => {
 
   // Google OAuth Cross-Window Listener
   useEffect(() => {
+    const validateOAuthState = (returnedState: string | null): boolean => {
+      let expectedState = '';
+      try {
+        expectedState = sessionStorage.getItem('catavor_oauth_state') || '';
+      } catch (_) {}
+      if (expectedState) {
+        if (!returnedState || returnedState !== expectedState) {
+          console.error('OAuth state CSRF validation failed');
+          return false;
+        }
+        try { sessionStorage.removeItem('catavor_oauth_state'); } catch (_) {}
+      }
+      return true;
+    };
+
     const handleAuthMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'CATAVOR_GOOGLE_AUTH_CALLBACK') {
         const hash = event.data.hash ? event.data.hash.replace(/^#/, '') : '';
-        const params = new URLSearchParams(hash);
+        const search = event.data.search ? event.data.search.replace(/^\?/, '') : '';
+        const params = new URLSearchParams(hash || search);
         const accessToken = params.get('access_token');
-        if (accessToken) handleOAuthToken(accessToken);
+        const state = params.get('state') || event.data.state || null;
+        if (accessToken) {
+          if (!validateOAuthState(state)) return;
+          handleOAuthToken(accessToken);
+        }
       }
     };
     window.addEventListener('message', handleAuthMessage);
@@ -1015,9 +1035,14 @@ export const App: React.FC = () => {
         bc.onmessage = (event) => {
           if (event.data?.type === 'CATAVOR_GOOGLE_AUTH_CALLBACK') {
             const hash = event.data.hash ? event.data.hash.replace(/^#/, '') : '';
-            const params = new URLSearchParams(hash);
+            const search = event.data.search ? event.data.search.replace(/^\?/, '') : '';
+            const params = new URLSearchParams(hash || search);
             const accessToken = params.get('access_token');
-            if (accessToken) handleOAuthToken(accessToken);
+            const state = params.get('state') || event.data.state || null;
+            if (accessToken) {
+              if (!validateOAuthState(state)) return;
+              handleOAuthToken(accessToken);
+            }
           }
         };
       } catch (_) { }
@@ -1027,11 +1052,16 @@ export const App: React.FC = () => {
       if (e.key === 'catavor_oauth_broadcast' && e.newValue) {
         try {
           const payload = JSON.parse(e.newValue);
-          if (payload?.hash) {
-            const hash = payload.hash.replace(/^#/, '');
-            const params = new URLSearchParams(hash);
+          if (payload && (payload.hash || payload.search)) {
+            const hash = payload.hash ? payload.hash.replace(/^#/, '') : '';
+            const search = payload.search ? payload.search.replace(/^\?/, '') : '';
+            const params = new URLSearchParams(hash || search);
             const accessToken = params.get('access_token');
-            if (accessToken) handleOAuthToken(accessToken);
+            const state = params.get('state') || payload.state || null;
+            if (accessToken) {
+              if (!validateOAuthState(state)) return;
+              handleOAuthToken(accessToken);
+            }
           }
         } catch (_) { }
       }

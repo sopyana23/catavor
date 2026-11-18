@@ -127,10 +127,13 @@
           var isOAuthCallback = (hash.indexOf('access_token=') !== -1 || hash.indexOf('id_token=') !== -1 || search.indexOf('code=') !== -1);
           
           if (isOAuthCallback) {
+            var searchParams = new URLSearchParams(hash ? hash.replace(/^#/, '') : (search ? search.replace(/^\?/, '') : ''));
+            var state = searchParams.get('state') || '';
             var payload = {
               type: 'CATAVOR_GOOGLE_AUTH_CALLBACK',
               hash: hash,
               search: search,
+              state: state,
               timestamp: Date.now()
             };
 
@@ -181,7 +184,7 @@
         }
       })();
     </script>
-    <script type="module" crossorigin src="/tablet/assets/index-B-8Qq3z--t.js"></script>
+    <script type="module" crossorigin src="/tablet/assets/index-BPQwRfxD-t.js"></script>
     <link rel="stylesheet" crossorigin href="/tablet/assets/index-CTHIYdcs.css">
   </head>
   <body>

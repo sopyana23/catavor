@@ -12448,14 +12448,32 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
     };
 
+    const validateOAuthState = (returnedState: string | null): boolean => {
+      let expectedState = '';
+      try {
+        expectedState = sessionStorage.getItem('catavor_oauth_state') || '';
+      } catch (_) {}
+      if (expectedState) {
+        if (!returnedState || returnedState !== expectedState) {
+          console.error('OAuth state CSRF validation failed');
+          return false;
+        }
+        try { sessionStorage.removeItem('catavor_oauth_state'); } catch (_) {}
+      }
+      return true;
+    };
+
     // 1. window message listener (from popup opener.postMessage)
     const handleAuthMessage = async (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'CATAVOR_GOOGLE_AUTH_CALLBACK') {
         const hash = event.data.hash ? event.data.hash.replace(/^#/, '') : '';
-        const params = new URLSearchParams(hash);
+        const search = event.data.search ? event.data.search.replace(/^\?/, '') : '';
+        const params = new URLSearchParams(hash || search);
         const accessToken = params.get('access_token');
+        const state = params.get('state') || event.data.state || null;
         if (accessToken) {
+          if (!validateOAuthState(state)) return;
           handleOAuthToken(accessToken);
         }
       }
@@ -12470,9 +12488,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
         bc.onmessage = (event) => {
           if (event.data?.type === 'CATAVOR_GOOGLE_AUTH_CALLBACK') {
             const hash = event.data.hash ? event.data.hash.replace(/^#/, '') : '';
-            const params = new URLSearchParams(hash);
+            const search = event.data.search ? event.data.search.replace(/^\?/, '') : '';
+            const params = new URLSearchParams(hash || search);
             const accessToken = params.get('access_token');
+            const state = params.get('state') || event.data.state || null;
             if (accessToken) {
+              if (!validateOAuthState(state)) return;
               handleOAuthToken(accessToken);
             }
           }
@@ -12485,11 +12506,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
       if (e.key === 'catavor_oauth_broadcast' && e.newValue) {
         try {
           const payload = JSON.parse(e.newValue);
-          if (payload && payload.hash) {
-            const hash = payload.hash.replace(/^#/, '');
-            const params = new URLSearchParams(hash);
+          if (payload && (payload.hash || payload.search)) {
+            const hash = payload.hash ? payload.hash.replace(/^#/, '') : '';
+            const search = payload.search ? payload.search.replace(/^\?/, '') : '';
+            const params = new URLSearchParams(hash || search);
             const accessToken = params.get('access_token');
+            const state = params.get('state') || payload.state || null;
             if (accessToken) {
+              if (!validateOAuthState(state)) return;
               handleOAuthToken(accessToken);
             }
           }
@@ -12503,8 +12527,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const hash = window.location.hash.replace(/^#/, '');
       const params = new URLSearchParams(hash);
       const accessToken = params.get('access_token');
+      const state = params.get('state');
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
       if (accessToken) {
+        if (!validateOAuthState(state)) return;
         handleOAuthToken(accessToken);
       }
     }
