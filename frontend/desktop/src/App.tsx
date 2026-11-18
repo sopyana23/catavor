@@ -12237,12 +12237,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
           const userName = data.google_data?.name || data.user?.name || googleUser.name;
           const userGoogleId = data.google_data?.google_id || data.user?.google_id || googleUser.google_id;
           const userAvatar = data.google_data?.avatar || data.user?.avatar || googleUser.avatar;
+          const googleRegToken = data.google_registration_token || data.google_data?.google_registration_token || '';
 
           const updatedForm = {
             name: userName,
             email: userEmail,
             password: '',
             google_id: userGoogleId,
+            google_registration_token: googleRegToken,
             avatar: userAvatar,
             store_name: '',
             store_slug: ''
@@ -13260,14 +13262,35 @@ Terima kasih atas perhatian dan kerja samanya.`;
     e.preventDefault()
     setFirstPasswordError(null)
 
-    if (firstPasswordForm.password.length < 6) {
-      setFirstPasswordError('Password baru minimal harus 6 karakter.')
+    if (firstPasswordForm.password.length < 10) {
+      setFirstPasswordError('Password baru minimal harus 10 karakter.')
+      return
+    }
+    if (new TextEncoder().encode(firstPasswordForm.password).length > 72) {
+      setFirstPasswordError('Password maksimal 72 byte.')
       return
     }
 
     if (firstPasswordForm.password !== firstPasswordForm.confirm_password) {
       setFirstPasswordError('Konfirmasi password tidak cocok.')
       return
+    }
+
+    const firstPayload = {
+      name: firstPasswordForm.name,
+      email: firstPasswordForm.email,
+      password: firstPasswordForm.password
+    }
+
+    const applyFirstPwdSuccess = (resData: any) => {
+      if (resData.token) {
+        localStorage.setItem('catavor_token', resData.token)
+        setToken(resData.token)
+      }
+      localStorage.setItem('catavor_user', JSON.stringify(resData.user))
+      localStorage.setItem('catavor_password_changed', 'true')
+      setAdminUser(resData.user)
+      setIsPasswordChanged(true)
     }
 
     setFirstPasswordLoading(true)
@@ -13279,19 +13302,33 @@ Terima kasih atas perhatian dan kerja samanya.`;
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          name: firstPasswordForm.name,
-          email: firstPasswordForm.email,
-          password: firstPasswordForm.password
-        })
+        body: JSON.stringify(firstPayload)
       })
 
       const data = await res.json()
       if (res.ok && data.success) {
-        localStorage.setItem('catavor_user', JSON.stringify(data.user))
-        localStorage.setItem('catavor_password_changed', 'true')
-        setAdminUser(data.user)
-        setIsPasswordChanged(true)
+        applyFirstPwdSuccess(data)
+      } else if (res.status === 428 && data.code === 'MFA_STEP_UP_REQUIRED') {
+        setMfaStepUpAction({
+          email: firstPasswordForm.email || (adminUser as any)?.email || 'akun Anda',
+          execute: async (mfaCode, factorType) => {
+            const stepRes = await fetch(`${API_BASE}/profile`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ ...firstPayload, mfa_code: mfaCode, factor_type: factorType })
+            })
+            const stepData = await stepRes.json()
+            if (!stepRes.ok || !stepData.success) {
+              throw new Error(stepData.message || 'Verifikasi faktor kedua gagal.')
+            }
+            setMfaStepUpAction(null)
+            applyFirstPwdSuccess(stepData)
+          }
+        })
       } else {
         setFirstPasswordError(data.message || 'Gagal mengubah password.')
       }
@@ -13375,6 +13412,21 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setProfileSuccess(null)
     setProfileError(null)
 
+    const applyProfileSuccess = (resData: any) => {
+      if (resData.token) {
+        localStorage.setItem('catavor_token', resData.token)
+        setToken(resData.token)
+      }
+      localStorage.setItem('catavor_user', JSON.stringify(resData.user))
+      localStorage.setItem('catavor_password_changed', 'true')
+      setAdminUser(resData.user)
+      setIsPasswordChanged(true)
+      setProfileForm(prev => ({ ...prev, password: '' }))
+      setProfileSuccess('Profil admin berhasil diperbarui!')
+      showToast('Profil admin berhasil diperbarui!')
+      setTimeout(() => setProfileSuccess(null), 2000)
+    }
+
     try {
       const res = await fetch(`${API_BASE}/profile`, {
         method: 'POST',
@@ -13384,16 +13436,26 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
       const data = await res.json()
       if (res.ok && data.success) {
-        localStorage.setItem('catavor_user', JSON.stringify(data.user))
-        localStorage.setItem('catavor_password_changed', 'true')
-        setAdminUser(data.user)
-        setIsPasswordChanged(true)
-        setProfileForm(prev => ({ ...prev, password: '' }))
-        setProfileSuccess('Profil admin berhasil diperbarui!')
-        showToast('Profil admin berhasil diperbarui!')
-        setTimeout(() => setProfileSuccess(null), 2000)
+        applyProfileSuccess(data)
+      } else if (res.status === 428 && data.code === 'MFA_STEP_UP_REQUIRED') {
+        setMfaStepUpAction({
+          email: (adminUser as any)?.email || profileForm.email || 'akun Anda',
+          execute: async (mfaCode, factorType) => {
+            const stepRes = await fetch(`${API_BASE}/profile`, {
+              method: 'POST',
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ ...profileForm, mfa_code: mfaCode, factor_type: factorType })
+            })
+            const stepData = await stepRes.json()
+            if (!stepRes.ok || !stepData.success) {
+              throw new Error(stepData.message || 'Verifikasi faktor kedua gagal.')
+            }
+            setMfaStepUpAction(null)
+            applyProfileSuccess(stepData)
+          }
+        })
       } else {
-        if (res.status === 401) {
+        if (res.status === 401 && data.code !== 'REAUTH_REQUIRED' && data.code !== 'MFA_CODE_INVALID' && data.code !== 'MFA_CODE_REUSED') {
           handleUnauthorized()
         } else if (data.errors) {
           const firstErr = Object.values(data.errors)[0] as string[]

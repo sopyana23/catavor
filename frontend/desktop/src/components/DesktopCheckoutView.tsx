@@ -91,6 +91,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
     store_name: string;
     store_slug: string;
     google_id?: string;
+    google_registration_token?: string;
     avatar?: string;
   }>(() => {
     if (typeof window !== 'undefined') {
@@ -113,11 +114,12 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
           store_name: parsed.store_name || localUser?.store_title || '',
           store_slug: parsed.store_slug || localUser?.store_slug || '',
           google_id: parsed.google_id || localUser?.google_id || '',
+          google_registration_token: parsed.google_registration_token || '',
           avatar: parsed.avatar || localUser?.avatar || ''
         };
       } catch {}
     }
-    return { name: '', email: '', password: '', store_name: '', store_slug: '', google_id: '', avatar: '' };
+    return { name: '', email: '', password: '', store_name: '', store_slug: '', google_id: '', google_registration_token: '', avatar: '' };
   });
 
   const isGoogleAuth = Boolean(
@@ -401,8 +403,13 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
       setShowAccountFormEdit(true);
       return;
     }
-    if (!isGoogleAuth && (!registerForm.password || registerForm.password.length < 6)) {
-      setRegisterError('Kata sandi minimal 6 karakter.');
+    if (!isGoogleAuth && (!registerForm.password || registerForm.password.length < 10)) {
+      setRegisterError('Kata sandi minimal 10 karakter.');
+      setShowAccountFormEdit(true);
+      return;
+    }
+    if (!isGoogleAuth && new TextEncoder().encode(registerForm.password).length > 72) {
+      setRegisterError('Kata sandi maksimal 72 byte.');
       setShowAccountFormEdit(true);
       return;
     }
@@ -453,6 +460,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
         email: registerForm.email.trim().toLowerCase(),
         password: isGoogleAuth ? undefined : registerForm.password,
         google_id: effectiveGoogleId || undefined,
+        google_registration_token: registerForm.google_registration_token || undefined,
         store_name: registerForm.store_name.trim(),
         store_slug: registerForm.store_slug.trim().toLowerCase(),
         plan: effectivePlan,

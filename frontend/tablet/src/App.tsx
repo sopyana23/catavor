@@ -805,12 +805,14 @@ export const App: React.FC = () => {
         const userEmail = candidateEmail;
         const userGoogleId = data.google_data?.google_id || data.user?.google_id || googleUser.google_id || '';
         const userAvatar = data.google_data?.avatar || data.user?.avatar || googleUser.avatar || '';
+        const googleRegToken = data.google_registration_token || data.google_data?.google_registration_token || '';
 
         const updatedForm = {
           name: userName,
           email: userEmail,
           password: '',
           google_id: userGoogleId,
+          google_registration_token: googleRegToken,
           avatar: userAvatar,
           store_name: '',
           store_slug: ''
@@ -1857,6 +1859,10 @@ export const App: React.FC = () => {
         initialOpenStoreChooser={isCatalogChooser}
         onLogout={() => handleLogout('/login')}
         onUnauthorized={(msg) => handleUnauthorized(msg, '/login')}
+        onTokenUpdate={(newTok) => {
+          localStorage.setItem('catavor_token', newTok);
+          setToken(newTok);
+        }}
         onViewPublicCatalog={() => navigateTo(activeSlug ? `/${activeSlug}` : '/')}
         onThemeChange={handleThemeChange}
         initialProofUrl={initialProofUrl}

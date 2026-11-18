@@ -213,7 +213,9 @@ export async function request<T = any>(
       }
       let data: any = {};
       try { data = await res.json(); } catch {}
-      notifyUnauthorized(data?.message);
+      if (!isAuthOrStepUpEndpoint(url) && !NON_SESSION_EVICTING_401_CODES.has(String(data?.code || ''))) {
+        notifyUnauthorized(data?.message);
+      }
       throw new ApiError(data?.message || 'Sesi login tidak valid.', 401, data?.code || 'UNAUTHORIZED', data);
     }
 
@@ -529,6 +531,38 @@ export const apiClient = {
  * Ensures all raw fetch calls across Desktop that receive 401 Unauthorized
  * automatically trigger session eviction to the login screen.
  */
+const NON_SESSION_EVICTING_401_CODES = new Set([
+  'REAUTH_REQUIRED',
+  'MFA_CODE_INVALID',
+  'MFA_CODE_REUSED',
+  'MFA_SETUP_EXPIRED',
+  'MFA_SETUP_TOKEN_INVALID',
+  'MFA_SETUP_TOKEN_USED',
+  'MFA_CHALLENGE_EXPIRED',
+  'MFA_CHALLENGE_INVALID',
+  'MFA_CHALLENGE_REDEEMED',
+  'GOOGLE_VERIFICATION_REQUIRED',
+  'GOOGLE_IDENTITY_MISMATCH',
+]);
+
+function isAuthOrStepUpEndpoint(urlStr: string): boolean {
+  return (
+    urlStr.includes('/api/login') ||
+    urlStr.includes('/api/auth/login') ||
+    urlStr.includes('/api/register') ||
+    urlStr.includes('/api/auth/register') ||
+    urlStr.includes('/api/auth/google') ||
+    urlStr.includes('/api/auth/mfa/') ||
+    urlStr.includes('/api/auth/verify-registration-otp') ||
+    urlStr.includes('/api/verify-register-otp') ||
+    urlStr.includes('/api/auth/forgot-password') ||
+    urlStr.includes('/api/forgot-password') ||
+    urlStr.includes('/api/reset-password') ||
+    urlStr.includes('/api/logout') ||
+    urlStr.includes('/api/auth/logout')
+  );
+}
+
 let isFetchInterceptorInstalled = false;
 export function setupGlobalAuthInterceptor() {
   if (isFetchInterceptorInstalled || typeof window === 'undefined') return;
@@ -545,11 +579,7 @@ export function setupGlobalAuthInterceptor() {
         ? input.toString()
         : (input as Request)?.url || '';
 
-      const isAuthAttempt = urlStr.includes('/api/login') ||
-                            urlStr.includes('/api/register') ||
-                            urlStr.includes('/api/auth/google') ||
-                            urlStr.includes('/api/auth/verify-registration-otp') ||
-                            urlStr.includes('/api/auth/forgot-password');
+      const isAuthAttempt = isAuthOrStepUpEndpoint(urlStr);
       const hasToken = typeof localStorage !== 'undefined' && Boolean(localStorage.getItem('catavor_token'));
 
       if (!isAuthAttempt && hasToken) {
@@ -560,6 +590,9 @@ export function setupGlobalAuthInterceptor() {
             const currentToken = localStorage.getItem('catavor_token');
             if (tokenAtRequest && currentToken && tokenAtRequest !== currentToken) {
               return; // Token rotated/renewed, ignore stale 401
+            }
+            if (NON_SESSION_EVICTING_401_CODES.has(String(data?.code || ''))) {
+              return; // Inline re-auth or wrong MFA step-up code must NOT destroy active session
             }
             const msg = data?.code === 'TOKEN_EXPIRED'
               ? 'Sesi Anda telah berakhir demi keamanan. Silakan login kembali.'

@@ -64,7 +64,7 @@ ufw enable
 ## 4. Rekomendasi Custom WAF Rules (Kompatibel sejak Paket Free — 5 Slot)
 
 1. **Rule 1 — Proteksi Endpoint Autentikasi, OTP & MFA dari Otomasi Mencurigakan**
-   - Ekspresi: `(http.request.uri.path eq "/api/login" or starts_with(http.request.uri.path, "/api/auth/")) and (cf.threat_score gt 14)`
+   - Ekspresi: `(lower(http.request.uri.path) in {"/api/login" "/api/register" "/api/forgot-password" "/api/reset-password" "/api/send-register-otp" "/api/verify-register-otp" "/api/check-email"} or starts_with(lower(http.request.uri.path), "/api/auth/")) and (cf.threat_score gt 14)`
    - Aksi: `Managed Challenge`
 2. **Rule 2 — Proteksi Konsol Admin Platform (`/admin` & `/api/admin/*`)**
    - Ekspresi: `(http.request.uri.path eq "/admin" or starts_with(http.request.uri.path, "/api/admin/")) and not ip.geoip.country in {"ID"}` *(sesuaikan dengan negara domisili tim operasional)*
@@ -75,8 +75,8 @@ ufw enable
 4. **Rule 4 — Pembatasan Metode HTTP Non-Standar**
    - Ekspresi: `not http.request.method in {"GET" "POST" "PUT" "PATCH" "DELETE" "HEAD" "OPTIONS"}`
    - Aksi: `Block`
-5. **Rule 5 — Proteksi Penyalahgunaan Payload Besar di Luar Rute Upload**
-   - Ekspresi: `(http.request.body.size gt 2097152) and not (starts_with(http.request.uri.path, "/api/products") or starts_with(http.request.uri.path, "/api/stores") or starts_with(http.request.uri.path, "/api/support") or starts_with(http.request.uri.path, "/api/subscription"))`
+5. **Rule 5 — Proteksi Penyalahgunaan Payload Besar di Luar Rute Upload Sah**
+   - Ekspresi: `(http.request.body.size gt 2097152) and not (starts_with(lower(http.request.uri.path), "/api/storage/upload") or starts_with(lower(http.request.uri.path), "/api/ads/orders/") or lower(http.request.uri.path) in {"/api/register" "/api/auth/register"} or starts_with(lower(http.request.uri.path), "/api/products") or starts_with(lower(http.request.uri.path), "/api/stores") or starts_with(lower(http.request.uri.path), "/api/support") or starts_with(lower(http.request.uri.path), "/api/subscription"))`
    - Aksi: `Block`
 
 ---

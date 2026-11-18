@@ -17,7 +17,7 @@ catavor.com, www.catavor.com {
 	# }
 
 	request_body {
-		max_size 15MB
+		max_size 12MB
 	}
 
 	encode zstd gzip
@@ -30,13 +30,14 @@ catavor.com, www.catavor.com {
 		-Server
 	}
 
-	# Sanitasi header IP palsu bila koneksi tidak datang dari trusted_proxies Cloudflare
-	@stream path /api/notifications/stream*
+	# Timpa X-Forwarded-For dengan {client_ip} yang telah diverifikasi terhadap trusted_proxies Cloudflare
+	@stream path /api/notifications/stream* /api/v1/notifications/stream*
 	handle @stream {
 		reverse_proxy 127.0.0.1:8000 {
 			flush_interval -1
 			header_up Host {host}
 			header_up X-Real-IP {client_ip}
+			header_up X-Forwarded-For {client_ip}
 			header_up X-Forwarded-Proto {scheme}
 		}
 	}
@@ -45,6 +46,7 @@ catavor.com, www.catavor.com {
 		reverse_proxy 127.0.0.1:8000 {
 			header_up Host {host}
 			header_up X-Real-IP {client_ip}
+			header_up X-Forwarded-For {client_ip}
 			header_up X-Forwarded-Proto {scheme}
 			transport http {
 				keepalive 60s

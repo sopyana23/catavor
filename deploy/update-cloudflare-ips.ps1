@@ -142,7 +142,7 @@ try {
     $nginxContent = ($nginxLines -join "`n") + "`n"
 
     $allCidrs = ($v4List + $v6List) -join " "
-    $caddyContent = "(cloudflare_trusted_proxies) {`n`ttrusted_proxies static $allCidrs`n`tclient_ip_headers CF-Connecting-IP X-Forwarded-For`n}`n"
+    $caddyContent = "# Auto-generated Cloudflare Trusted Subnets (Caddy Servers Directives)`ntrusted_proxies static $allCidrs`nclient_ip_headers CF-Connecting-IP`n"
 
     # Mode isolasi penuh untuk CI / unit-test tanpa menyentuh berkas konfigurasi aktif
     if ($ProxyType -eq "none") {

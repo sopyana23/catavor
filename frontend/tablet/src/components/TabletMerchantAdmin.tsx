@@ -301,6 +301,7 @@ export interface TabletMerchantAdminProps {
   initialOpenStoreChooser?: boolean;
   onLogout: () => void;
   onUnauthorized?: (msg?: string) => void;
+  onTokenUpdate?: (newToken: string) => void;
   onViewPublicCatalog: () => void;
   onThemeChange?: (newTheme: string) => void;
   initialProofUrl?: string | null;
@@ -314,6 +315,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   initialOpenStoreChooser = false,
   onLogout,
   onUnauthorized,
+  onTokenUpdate,
   onViewPublicCatalog,
   onThemeChange,
   initialProofUrl = null,
@@ -3438,6 +3440,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       const applyTabletPasswordSuccess = (data: any) => {
         if (data.token) {
           localStorage.setItem('catavor_token', data.token);
+          onTokenUpdate?.(data.token);
         }
         try {
           const saved = localStorage.getItem('catavor_user');
@@ -11605,7 +11608,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             {/* SUB-TAB 2: SESI & PERANGKAT TERHUBUNG */}
             {profileSubTab === 'devices' && (
               <div className="animate-fade-in">
-                <MFASettingsView token={token} apiBase="/api" showToast={(type, message) => showToast(message, type as 'success' | 'error')} />
+                <MFASettingsView
+                  token={token}
+                  apiBase="/api"
+                  showToast={(type, message) => showToast(message, type as 'success' | 'error')}
+                  onTokenUpdate={(newTok) => {
+                    localStorage.setItem('catavor_token', newTok);
+                    onTokenUpdate?.(newTok);
+                  }}
+                />
                 <TabletConnectedDevicesView
                   token={token}
                   showToast={showToast}

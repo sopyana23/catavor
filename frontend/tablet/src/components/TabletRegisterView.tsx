@@ -64,6 +64,7 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
     store_name: string;
     store_slug: string;
     google_id?: string;
+    google_registration_token?: string;
   }>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -76,12 +77,13 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
             password: parsed.password || '',
             store_name: parsed.store_name || '',
             store_slug: parsed.store_slug || '',
-            google_id: parsed.google_id || ''
+            google_id: parsed.google_id || '',
+            google_registration_token: parsed.google_registration_token || ''
           };
         }
       } catch {}
     }
-    return { name: '', email: '', password: '', store_name: '', store_slug: '', google_id: '' };
+    return { name: '', email: '', password: '', store_name: '', store_slug: '', google_id: '', google_registration_token: '' };
   });
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -107,7 +109,8 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
             password: parsed.password !== undefined ? parsed.password : prev.password,
             store_name: parsed.store_name !== undefined ? parsed.store_name : prev.store_name,
             store_slug: parsed.store_slug !== undefined ? parsed.store_slug : prev.store_slug,
-            google_id: parsed.google_id !== undefined ? parsed.google_id : prev.google_id
+            google_id: parsed.google_id !== undefined ? parsed.google_id : prev.google_id,
+            google_registration_token: parsed.google_registration_token !== undefined ? parsed.google_registration_token : prev.google_registration_token
           }));
         }
       } catch {}
@@ -185,8 +188,12 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
     const errors: Record<string, string> = {};
     if (!registerForm.name.trim()) errors.name = 'Nama lengkap wajib diisi.';
     if (!registerForm.email.trim() || !registerForm.email.includes('@')) errors.email = 'Alamat email valid wajib diisi.';
-    if (!registerForm.google_id && (!registerForm.password || registerForm.password.length < 6)) {
-      errors.password = 'Kata sandi minimal 6 karakter.';
+    if (!registerForm.google_id) {
+      if (!registerForm.password || registerForm.password.length < 10) {
+        errors.password = 'Kata sandi minimal 10 karakter.';
+      } else if (new TextEncoder().encode(registerForm.password).length > 72) {
+        errors.password = 'Kata sandi maksimal 72 byte.';
+      }
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -261,6 +268,7 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
           email: registerForm.email.trim().toLowerCase(),
           password: registerForm.password,
           google_id: registerForm.google_id || undefined,
+          google_registration_token: registerForm.google_registration_token || undefined,
           store_name: registerForm.store_name.trim(),
           store_title: registerForm.store_name.trim(),
           store_slug: registerForm.store_slug.trim().toLowerCase(),

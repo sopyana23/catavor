@@ -99,10 +99,9 @@ if sys.argv[2]:
 if sys.argv[3]:
     joined = " ".join(v4 + v6)
     caddy_txt = (
-        "(cloudflare_trusted_proxies) {\n"
-        f"\ttrusted_proxies static {joined}\n"
-        "\tclient_ip_headers CF-Connecting-IP X-Forwarded-For\n"
-        "}\n"
+        "# Auto-generated Cloudflare Trusted Subnets (Caddy Servers Directives)\n"
+        f"trusted_proxies static {joined}\n"
+        "client_ip_headers CF-Connecting-IP\n"
     )
     pathlib.Path(sys.argv[3]).write_text(caddy_txt, encoding="utf-8")
 PY
