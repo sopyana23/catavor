@@ -21,7 +21,6 @@ import {
   renderPolicyInlineMarkdown,
   renderPolicyArticleContent
 } from '../utils/policyShared';
-import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
 import { ExternalLinkWarningModal } from './ExternalLinkWarningModal';
 
 export type { PolicyKey, PolicyArticle, PolicyDoc, DraftPolicyOverride };
@@ -111,24 +110,85 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
     }
   }, [availableDocs, activeKey]);
 
-  const selectOptions: TabletSelectOption[] = useMemo(
-    () =>
-      availableDocs.map((doc, idx) => {
-        const DocIcon = doc.icon;
-        return {
-          value: doc.key,
-          label: `${idx + 1}. ${doc.navLabel}`,
-          description: doc.category,
-          count: doc.articles.length,
-          badge: doc.version || 'v2.0',
-          icon: <DocIcon size={16} strokeWidth={1.75} />
-        };
-      }),
-    [availableDocs]
-  );
-
   const currentDoc = availableDocs.find(doc => doc.key === activeKey) || policyDocs[0];
   const ActiveIcon = currentDoc.icon;
+
+  // Tablet-mini (<880px) used to open TabletCustomSelect — a floating dropdown
+  // card. Every other device shows the policies as a page, so tablet now does
+  // too: the pillar list is laid out inline (scrollable chips) and the reader
+  // sits underneath. No modal anywhere in this view.
+  const docChipRow = (
+    <div
+      style={{
+        borderRadius: '1rem',
+        backgroundColor: 'var(--bg-card)',
+        border: '1px solid var(--border-light)',
+        padding: '0.75rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.45rem'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0 0.2rem 0.35rem' }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
+          {availableDocs.length} Pilar Kebijakan Platform
+        </span>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          Pilih untuk membaca
+        </span>
+      </div>
+
+      <div
+        role="tablist"
+        aria-label="Dokumen kebijakan platform"
+        style={{
+          display: 'flex',
+          gap: '0.45rem',
+          overflowX: 'auto',
+          paddingBottom: '0.2rem',
+          scrollbarWidth: 'thin'
+        }}
+      >
+        {availableDocs.map((doc, idx) => {
+          const isSelected = doc.key === activeKey;
+          const DocIcon = doc.icon;
+          return (
+            <button
+              key={doc.key}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              onClick={() => {
+                setActiveKey(doc.key);
+                setSearchQuery('');
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                minHeight: '48px',
+                padding: '0.55rem 0.85rem',
+                borderRadius: '0.7rem',
+                border: '1px solid transparent',
+                backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-inset)',
+                color: isSelected ? 'var(--primary-strong)' : 'var(--text-secondary)',
+                fontWeight: isSelected ? 800 : 600,
+                fontSize: '0.8125rem',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                transition: 'background-color 0.15s ease'
+              }}
+            >
+              <DocIcon size={15} strokeWidth={1.9} style={{ flexShrink: 0 }} />
+              {idx + 1}. {doc.navLabel}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
 
   const legalEntity = legalSettings.legal_entity_name || 'PT Catavor Media Digital';
   const legalJurisdiction = legalSettings.legal_jurisdiction || 'Hukum Republik Indonesia';
@@ -517,7 +577,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
 
       {/* Dual-Form-Factor Tablet Adaptation (AGENTS.md Rule 7.A.2 & Rule 11):
           - Tablet Lebar (>= 880px): Master-Detail Split View (Left 30% Pillar Rail, Right 70% Reader)
-          - Tablet Mini (< 880px): Native TabletCustomSelect Dropdown (Count > 0, Zero Overflowing Pill Row) */}
+          - Tablet Mini (< 880px): inline chip tablist + reader (page, no modal) */}
       {isTabletWide ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(272px, 30%) minmax(0, 1fr)', gap: '1.5rem', alignItems: 'flex-start' }}>
           <div
@@ -626,16 +686,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <TabletCustomSelect
-            value={activeKey}
-            onChange={(val) => {
-              setActiveKey(val as PolicyKey);
-              setSearchQuery('');
-            }}
-            options={selectOptions}
-            label="Pilih Dokumen Kebijakan Platform"
-            icon={<ActiveIcon size={16} strokeWidth={1.75} />}
-          />
+          {docChipRow}
           {readingPanel}
         </div>
       )}
