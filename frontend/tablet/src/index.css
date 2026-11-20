@@ -193,7 +193,9 @@
    one hand-written block per theme. Kept in one place on purpose. */
 :root,
 [data-theme] {
-  --bg-inset: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  /* 4% was invisible against --bg-card; article cards and highlight blocks
+     had no perceivable edge. 7% reads as a real layer without becoming heavy. */
+  --bg-inset: color-mix(in srgb, var(--text-primary) 7%, transparent);
   --primary-soft: color-mix(in srgb, var(--primary) 10%, transparent);
   --primary-strong: color-mix(in srgb, var(--primary) 82%, var(--text-primary));
   --on-primary: #ffffff;

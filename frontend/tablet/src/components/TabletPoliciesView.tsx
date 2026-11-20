@@ -168,19 +168,18 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
           <span
             style={{
-              fontSize: '0.7rem',
+              fontSize: '0.75rem',
               fontWeight: 800,
               textTransform: 'uppercase',
+              letterSpacing: '0.07em',
               color: 'var(--primary)',
-              backgroundColor: 'var(--primary-glow)',
-              padding: '0.2rem 0.6rem',
-              borderRadius: '0.45rem',
-              border: '1px solid var(--primary)'
+              padding: '0',
+              border: 'none'
             }}
           >
             {currentDoc.badge}
           </span>
-          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
             <Calendar size={13} strokeWidth={1.75} />
             Versi: <strong>{currentDoc.version || 'v2.0'}</strong> • Berlaku: <strong>{currentDoc.effectiveDate || '1 Januari 2025'}</strong>
           </span>
@@ -189,11 +188,10 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div
             style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '0.65rem',
+              width: '42px',
+              height: '42px',
+              borderRadius: '0.7rem',
               backgroundColor: 'var(--primary-glow)',
-              border: '1px solid var(--border-light)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -204,10 +202,10 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
             <ActiveIcon size={20} strokeWidth={1.75} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+            <h2 style={{ margin: 0, fontSize: '1.4375rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.28, letterSpacing: '-0.01em' }}>
               {currentDoc.title}
             </h2>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
               Kategori Regulasi: <strong>{currentDoc.category}</strong>
             </span>
           </div>
@@ -217,13 +215,14 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
         <div
           style={{
             marginTop: '1rem',
-            padding: '0.85rem 1rem',
-            borderRadius: '0.65rem',
+            padding: '0.9rem 1.05rem',
+            borderRadius: '0.7rem',
             backgroundColor: 'var(--bg-inset)',
-            border: '1px solid var(--border-light)',
-            fontSize: '0.82rem',
+            border: 'none',
+            fontSize: '0.875rem',
             color: 'var(--text-secondary)',
-            lineHeight: 1.6
+            lineHeight: 1.65,
+            maxWidth: '72ch'
           }}
         >
           <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.2rem' }}>
@@ -255,7 +254,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
               backgroundColor: 'var(--bg-inset)',
               border: '1px solid var(--border-light)',
               color: 'var(--text-primary)',
-              fontSize: '0.8rem',
+              fontSize: '0.875rem',
               outline: 'none',
               boxSizing: 'border-box'
             }}
@@ -275,7 +274,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
                 border: 'none',
                 color: 'var(--text-muted)',
                 cursor: 'pointer',
-                fontSize: '0.74rem',
+                fontSize: '0.8125rem',
                 fontWeight: 700
               }}
             >
@@ -288,7 +287,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
       {/* Articles List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
         {filteredArticles.length === 0 ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
             Tidak ada pasal yang sesuai kata kunci &quot;{searchQuery}&quot;.
           </div>
         ) : (
@@ -296,30 +295,33 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
             <div
               key={aIdx}
               style={{
-                padding: '1.15rem',
-                borderRadius: '0.75rem',
+                padding: '1.25rem 1.35rem',
+                borderRadius: '0.85rem',
                 backgroundColor: 'var(--bg-inset)',
-                border: '1px solid var(--border-light)',
+                border: '1px solid transparent',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.65rem'
+                gap: '0.7rem'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <span
                   style={{
-                    fontSize: '0.72rem',
+                    fontSize: '0.75rem',
                     fontWeight: 800,
                     color: 'var(--primary)',
                     backgroundColor: 'var(--primary-glow)',
-                    padding: '0.15rem 0.5rem',
-                    borderRadius: '0.35rem',
-                    border: '1px solid var(--primary)'
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '0.4rem',
+                    // Tinted fill plus a full-strength primary border repeated
+                    // 5-8 times down the page read as loud chips. Fill only.
+                    border: 'none',
+                    letterSpacing: '0.01em'
                   }}
                 >
                   {art.number || `Pasal ${aIdx + 1}`}
                 </span>
-                <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                   {renderPolicyInlineMarkdown((art.heading || '').replace(/^#+\s*/, ''), setPendingExternalUrl)}
                 </h3>
               </div>
@@ -329,20 +331,24 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
               {art.highlights && art.highlights.length > 0 && (
                 <div
                   style={{
-                    marginTop: '0.2rem',
-                    padding: '0.75rem 0.85rem',
-                    borderRadius: '0.55rem',
-                    backgroundColor: 'var(--bg-inset)',
-                    border: '1px solid var(--border-light)',
+                    marginTop: '0.15rem',
+                    padding: '0.85rem 0.95rem 0.85rem 1rem',
+                    borderTopRightRadius: '0.55rem',
+                    borderBottomRightRadius: '0.55rem',
+                    // Same fill as the article card above it meant the highlight
+                    // block had no edge at all. Sit it on --bg-card and mark the
+                    // grouping with a left rule instead of another grey box.
+                    backgroundColor: 'var(--bg-card)',
+                    borderLeft: '3px solid var(--primary)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '0.4rem'
+                    gap: '0.5rem'
                   }}
                 >
                   {art.highlights.map((h, hIdx) => (
                     <div key={hIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
                       <Check size={13} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} strokeWidth={1.75} />
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                         {renderPolicyInlineMarkdown(h, setPendingExternalUrl)}
                       </span>
                     </div>
@@ -372,10 +378,10 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <ShieldCheck size={20} strokeWidth={1.75} style={{ color: 'var(--primary)', flexShrink: 0 }} />
           <div>
-            <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>
               Dokumen Resmi Kepatuhan Platform Catavor
             </span>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
               Dikelola oleh Divisi Kepatuhan {legalEntity} • Yurisdiksi: {legalJurisdiction} • Kontak: {officialEmail} / +{officialWa}
             </span>
           </div>
@@ -387,7 +393,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
             onClick={onOpenHelpdesk}
             style={{
               minHeight: '44px',
-              fontSize: '0.75rem',
+              fontSize: '0.8125rem',
               fontWeight: 700,
               color: 'var(--primary)',
               background: 'none',
@@ -430,7 +436,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
-                  fontSize: '0.7rem',
+                  fontSize: '0.8125rem',
                   fontWeight: 800,
                   textTransform: 'uppercase',
                   color: 'var(--primary)',
@@ -443,24 +449,24 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
                 <ShieldCheck size={13} strokeWidth={1.75} />
                 Dokumen Resmi Pengelola Platform
               </span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
                 <Building2 size={12} strokeWidth={1.75} />
                 {legalEntity}
               </span>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: 'var(--bg-inset)', padding: '0.15rem 0.5rem', borderRadius: '0.35rem', border: '1px solid var(--border-light)' }}>
+              <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: 'var(--bg-inset)', padding: '0.15rem 0.5rem', borderRadius: '0.35rem', border: '1px solid var(--border-light)' }}>
                 <Scale size={11} strokeWidth={1.75} style={{ color: 'var(--primary)' }} />
                 Yurisdiksi: {legalJurisdiction}
               </span>
               {isLoading && (
-                <span style={{ fontSize: '0.7rem', color: 'var(--primary)' }}>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--primary)' }}>
                   Memuat data...
                 </span>
               )}
             </div>
-            <h1 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+            <h1 style={{ margin: 0, fontSize: '1.625rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3 }}>
               Pedoman Legal, Ketentuan &amp; Kepatuhan Platform
             </h1>
-            <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.83rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+            <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
               Pedoman resmi pengelola Platform Catavor untuk seluruh pengelola profil katalog guna memastikan setiap item yang diunggah mematuhi hukum dan standar komunitas.
             </p>
           </div>
@@ -475,7 +481,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
                 gap: '0.45rem',
                 padding: '0.55rem 1rem',
                 borderRadius: '0.65rem',
-                fontSize: '0.8rem',
+                fontSize: '0.875rem',
                 fontWeight: 700,
                 backgroundColor: 'var(--bg-inset)',
                 color: 'var(--text-primary)',
@@ -503,17 +509,17 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
           }}
         >
           <AlertTriangle size={18} style={{ color: 'var(--warning)', flexShrink: 0, marginTop: '2px' }} strokeWidth={1.75} />
-          <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: '72ch' }}>
             <strong>Peringatan Pengunggahan Item:</strong> {renderPolicyInlineMarkdown(legalWarning, setPendingExternalUrl)}
           </p>
         </div>
       </div>
 
       {/* Dual-Form-Factor Tablet Adaptation (AGENTS.md Rule 7.A.2 & Rule 11):
-          - Tablet Lebar (>= 880px): Master-Detail Split View (Left 36% Pillar Rail, Right 64% Reader)
+          - Tablet Lebar (>= 880px): Master-Detail Split View (Left 30% Pillar Rail, Right 70% Reader)
           - Tablet Mini (< 880px): Native TabletCustomSelect Dropdown (Count > 0, Zero Overflowing Pill Row) */}
       {isTabletWide ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 35%) minmax(0, 65%)', gap: '1.15rem', alignItems: 'flex-start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(272px, 30%) minmax(0, 1fr)', gap: '1.5rem', alignItems: 'flex-start' }}>
           <div
             style={{
               borderRadius: '1.15rem',
@@ -528,7 +534,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
             }}
           >
             <div style={{ padding: '0.4rem 0.65rem', borderBottom: '1px solid var(--border-light)', marginBottom: '0.15rem' }}>
-              <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
                 Pilar Kebijakan ({availableDocs.length})
               </span>
             </div>
@@ -550,20 +556,23 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
                     alignItems: 'center',
                     gap: '0.65rem',
                     minHeight: '48px',
-                    padding: '0.6rem 0.75rem',
+                    padding: '0.7rem 0.8rem',
                     borderRadius: '0.7rem',
-                    border: isSelected ? '1px solid var(--primary)' : '1px solid transparent',
+                    // Selected rail item: soft fill only. A full-strength border
+                    // plus the fill plus the filled icon tile was three signals
+                    // for one state; the icon tile alone carries it now.
+                    border: '1px solid transparent',
                     backgroundColor: isSelected ? 'var(--primary-glow)' : 'transparent',
                     cursor: 'pointer',
                     textAlign: 'left',
-                    transition: 'all 0.15s ease'
+                    transition: 'background-color 0.15s ease'
                   }}
                 >
                   <div
                     style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '0.5rem',
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '0.55rem',
                       backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-inset)',
                       color: isSelected ? 'var(--on-primary)' : 'var(--text-muted)',
                       display: 'flex',
@@ -577,7 +586,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span
                       style={{
-                        fontSize: '0.8rem',
+                        fontSize: '0.875rem',
                         fontWeight: isSelected ? 800 : 600,
                         color: isSelected ? 'var(--primary-strong)' : 'var(--text-secondary)',
                         display: 'block',
@@ -586,7 +595,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
                     >
                       {idx + 1}. {doc.navLabel}
                     </span>
-                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                    <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
                       {doc.articles.length} pasal • {doc.version || 'v2.0'}
                     </span>
                   </div>
@@ -607,7 +616,7 @@ export const TabletPoliciesView: React.FC<TabletPoliciesViewProps> = ({
               }}
             >
               <Info size={13} strokeWidth={1.75} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+              <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
                 Berlaku mengikat seluruh profil katalog sejak tanggal efektif.
               </span>
             </div>

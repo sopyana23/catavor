@@ -161,9 +161,13 @@ export const TabletCustomSelect: React.FC<TabletCustomSelectProps> = ({
     calculatedLeft = Math.max(12, Math.min(calculatedLeft, windowWidth - calculatedWidth - 12));
 
     // Vertical direction calculation
+    // Rows are now 56px min-height (tablet-sized targets), so the old 48px
+    // estimate under-predicted the menu height and the flip-up decision fired
+    // too late — the card could open downward and get clipped.
+    const rowHeight = 56;
     const estimatedMenuHeight = Math.min(
       typeof maxHeight === 'number' ? maxHeight + 80 : 360,
-      options.length * 48 + (isSearchEnabled ? 52 : 0) + 20
+      options.length * rowHeight + (isSearchEnabled ? 52 : 0) + 20
     );
     const spaceBelow = windowHeight - rect.bottom;
     const spaceAbove = rect.top;
@@ -626,10 +630,10 @@ export const TabletCustomSelect: React.FC<TabletCustomSelectProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          minHeight: '44px',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.6rem',
-                          fontSize: '0.85rem',
+                          minHeight: '56px',
+                          padding: '0.8rem 1rem',
+                          borderRadius: '0.7rem',
+                          fontSize: '0.95rem',
                           cursor: isDisabled ? 'not-allowed' : 'pointer',
                           backgroundColor: isSelected
                             ? 'var(--primary-glow, rgba(30, 58, 138, 0.12))'
@@ -665,10 +669,8 @@ export const TabletCustomSelect: React.FC<TabletCustomSelectProps> = ({
                           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
                             <span
                               style={{
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                lineHeight: 1.3
+                                lineHeight: 1.35,
+                                overflowWrap: 'anywhere'
                               }}
                             >
                               {opt.label}
@@ -677,11 +679,11 @@ export const TabletCustomSelect: React.FC<TabletCustomSelectProps> = ({
                             {opt.description && (
                               <span
                                 style={{
-                                  fontSize: '0.72rem',
+                                  fontSize: '0.8125rem',
                                   color: 'var(--text-muted)',
                                   fontWeight: 500,
-                                  lineHeight: 1.25,
-                                  marginTop: '2px'
+                                  lineHeight: 1.4,
+                                  marginTop: '3px'
                                 }}
                               >
                                 {opt.description}

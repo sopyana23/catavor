@@ -773,14 +773,14 @@ export function renderPolicyArticleContent(
       elements.push(
         <div key={`li-${idx}`} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', paddingLeft: '0.5rem', margin: '0.15rem 0' }}>
           <span style={{ color: 'var(--primary)', fontSize: '0.85rem', lineHeight: '1.4', flexShrink: 0 }}>•</span>
-          <span style={{ fontSize: 'inherit', color: 'inherit', lineHeight: 1.6 }}>{renderPolicyInlineMarkdown(itemText, onPromptExternalUrl)}</span>
+          <span style={{ fontSize: '0.95rem', color: 'inherit', lineHeight: 1.7, maxWidth: '68ch' }}>{renderPolicyInlineMarkdown(itemText, onPromptExternalUrl)}</span>
         </div>
       );
       return;
     }
 
     elements.push(
-      <p key={`p-${idx}`} style={{ margin: '0 0 0.35rem 0', fontSize: 'inherit', color: 'inherit', lineHeight: 1.7 }}>
+      <p key={`p-${idx}`} style={{ margin: '0 0 0.35rem 0', fontSize: '0.95rem', color: 'inherit', lineHeight: 1.75, maxWidth: '68ch' }}>
         {renderPolicyInlineMarkdown(trimmed, onPromptExternalUrl)}
       </p>
     );
