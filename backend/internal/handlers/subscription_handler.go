@@ -973,7 +973,7 @@ func catatAktivitasReject(db *gorm.DB, c *fiber.Ctx, action, deskripsi string,
 	})
 }
 
-// AdminListOrders allows platform admin to view all subscription orders
+// AdminListOrders returns one filtered page or a summary for the platform dashboard.
 func (h *SubscriptionHandler) AdminListOrders(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -981,21 +981,7 @@ func (h *SubscriptionHandler) AdminListOrders(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	var orders []models.SubscriptionOrder
-	query := h.db.Preload("Store").Preload("User").Preload("ApprovedByUser").Order("created_at desc")
-	if status := c.Query("status"); status != "" {
-		query = query.Where("payment_status = ?", status)
-	}
-	if err := query.Find(&orders).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal memuat daftar transaksi langganan.",
-		})
-	}
-	return c.JSON(fiber.Map{
-		"success": true,
-		"data":    orders,
-	})
+	return h.financeOrdersPage(c)
 }
 
 // VerifyCouponRequest represents payload to validate a coupon code
@@ -1075,7 +1061,7 @@ func (h *SubscriptionHandler) VerifyCoupon(c *fiber.Ctx) error {
 	})
 }
 
-// AdminListCoupons returns all platform coupons for platform administrators
+// AdminListCoupons returns a filtered page of platform coupons and filter counts.
 func (h *SubscriptionHandler) AdminListCoupons(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -1084,18 +1070,7 @@ func (h *SubscriptionHandler) AdminListCoupons(c *fiber.Ctx) error {
 		})
 	}
 
-	coupons, err := services.GetMasterCoupons(h.db)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal mengambil daftar kupon platform.",
-		})
-	}
-
-	return c.JSON(fiber.Map{
-		"success": true,
-		"data":    coupons,
-	})
+	return h.financeCouponsPage(c)
 }
 
 // AdminCreateCoupon handles creation of a new coupon by platform admin

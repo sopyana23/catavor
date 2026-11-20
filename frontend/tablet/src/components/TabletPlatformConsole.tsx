@@ -1,3 +1,6 @@
+import { FinancePager, useFinancePage } from '../../../shared/finance/FinancePaging';
+import { paymentChannel, formatGatewayResponse } from '../../../shared/finance/paymentChannel';
+import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColors, useFinanceSection } from '../../../shared/finance/FinanceControls';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   LayoutDashboard,
@@ -271,7 +274,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     textPrimary: isDark ? '#f8fafc' : '#0f172a',
     textSecondary: isDark ? '#94a3b8' : '#475569',
     textMuted: isDark ? '#64748b' : '#94a3b8',
-    primary: 'var(--primary, #0284c7)'
+    primary: 'var(--primary, #0284c7)',
+    chipActiveBg: isDark ? '#6ee7b7' : '#047857'
   }), [isDark]);
 
   // Responsive Tablet Form-Factor Tracking (Tablet Mini < 880px vs Tablet Lebar >= 880px)
@@ -452,6 +456,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [urgentTicketsCount, setUrgentTicketsCount] = useState(0);
   const [actionRequiredTicketsCount, setActionRequiredTicketsCount] = useState(0);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+  const orderPageProvidesTotals = useRef(false);
 
   // Load metrics from backend (guarded by user permissions)
   const loadPlatformStats = useCallback(async () => {
@@ -514,28 +519,19 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       }
 
       // 4. Pending billing orders (only if user has finance permission)
-      if (canAccessFinance) {
+      if (canAccessFinance && !orderPageProvidesTotals.current) {
         try {
-          const ordRes = await fetch('/api/admin/subscription/orders', {
+          const ordRes = await fetch('/api/admin/subscription/orders?summary=1', {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (ordRes.ok) {
             const oj = await ordRes.json();
-            const olist = oj.data || [];
-            const pending = olist.filter((o: any) => {
-              const st = (o.payment_status || o.status || 'pending').toLowerCase();
-              return st === 'pending' || st === 'pending_payment' || st === 'pending_verification';
-            }).length;
-            const paidOrders = olist.filter((o: any) => {
-              const st = (o.payment_status || o.status || '').toLowerCase();
-              return st === 'paid' || st === 'active';
-            });
-            const rev = paidOrders.reduce((sum: number, o: any) => sum + Number(o.final_amount ?? o.amount ?? o.price ?? 0), 0);
+            const {pending = 0, paid = 0, revenue = 0} = oj.summary || {};
             setPendingOrdersCount(pending);
             setMetrics(prev => ({
               ...prev,
-              total_revenue: rev,
-              pro_stores: paidOrders.length
+              total_revenue: revenue,
+              pro_stores: paid
             }));
           }
         } catch {
@@ -1484,14 +1480,24 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: FINANCE (Keuangan & Billing)
   // =========================================================================
-  const [orders, setOrders] = useState<any[]>([]);
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
-  const [financeFilter, setFinanceFilter] = useState<'all' | 'pending' | 'pending_verification' | 'pending_payment' | 'paid' | 'rejected'>('all');
-  const [ordersConfigFilter, setOrdersConfigFilter] = useState<'all' | 'gateway_aulaa' | 'manual_qris' | 'manual_bank' | 'coupon_free'>('all');
-  const [ordersSearchQuery, setOrdersSearchQuery] = useState<string>('');
+  const [inspectedOrder, setInspectedOrder] = useState<any>(null);
+  const selectedOrderId = inspectedOrder?.id ?? null;
+  const setSelectedOrderId = (id: number | null) => setInspectedOrder(orders.find(o => o.id === id) || null);
   const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
   const [actionLoadingOrder, setActionLoadingOrder] = useState<boolean>(false);
-  const [financeSubTab, setFinanceSubTab] = useState<'orders' | 'settings' | 'coupons'>('orders');
+  const [financeSubTab, setFinanceSubTab] = useFinanceSection(activeView === 'finance', canManagePaymentSettings, canManageCoupons);
+  const orderPage = useFinancePage('orders', activeView === 'finance' && financeSubTab === 'orders' && canAccessFinance, token);
+  orderPageProvidesTotals.current = activeView === 'finance' && financeSubTab === 'orders' && !orderPage.keyword;
+  useEffect(() => {
+    if (orderPageProvidesTotals.current && orderPage.ready) {
+      const { pending = 0, paid = 0, revenue = 0 } = orderPage.summary;
+      setPendingOrdersCount(pending);
+      setMetrics(prev => ({ ...prev, total_revenue: revenue, pro_stores: paid }));
+    }
+  }, [orderPage.ready, orderPage.summary]);
+  const couponPage = useFinancePage('coupons', activeView === 'finance' && financeSubTab === 'coupons' && canManageCoupons, token);
+  const { data: orders, input: ordersSearchQuery, setKeyword: setOrdersSearchQuery } = orderPage;
+  const { data: coupons, loading: loadingCoupons, input: couponSearchFilter, setKeyword: setCouponSearchFilter, refresh: fetchCoupons } = couponPage;
   const [showAulaaSecrets, setShowAulaaSecrets] = useState(false);
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
   const [isUploadingQRISImage, setIsUploadingQRISImage] = useState(false);
@@ -1535,24 +1541,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     const gatewayProvider = (o?.gateway_provider || '').toLowerCase().trim();
     const gatewayRef = (o?.gateway_reference || '').trim();
     const gatewayLink = (o?.gateway_payment_link || '').trim();
-    const gatewayRawResponse = (o?.gateway_raw_response || '').trim();
-
-    let configType: 'gateway_aulaa' | 'manual_qris' | 'manual_bank' | 'coupon_free' = 'manual_bank';
-    if (finalAmount === 0 && (couponCode || methodRaw === 'coupon_free' || discountAmount >= originalAmount)) {
-      configType = 'coupon_free';
-    } else if (
-      gatewayProvider === 'aulaa' ||
-      Boolean(gatewayRef) ||
-      Boolean(gatewayLink) ||
-      methodRaw.startsWith('aulaa') ||
-      ['va', 'ewallet', 'card'].includes(methodRaw)
-    ) {
-      configType = 'gateway_aulaa';
-    } else if (methodRaw.includes('qris')) {
-      configType = 'manual_qris';
-    } else {
-      configType = 'manual_bank';
-    }
+    const gatewayRawResponse = formatGatewayResponse(o?.gateway_raw_response);
+    const configType = paymentChannel(o);
 
     const subChannelLabel =
       configType === 'coupon_free'
@@ -1562,7 +1552,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             ? 'Virtual Account (Aulaa Gateway)'
             : methodRaw.includes('ewallet')
               ? 'E-Wallet / Dompet Digital (Aulaa Gateway)'
-              : methodRaw.includes('card')
+              : methodRaw === 'cc' || methodRaw.includes('card')
                 ? 'Kartu Kredit / Debit (Aulaa Gateway)'
                 : 'QRIS Dinamis Instan (Aulaa Gateway)'
           : configType === 'manual_qris'
@@ -1719,11 +1709,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   }, [googleSettings.payment_qris_manual_merchant, googleSettings.payment_bank_name, googleSettings.payment_bank_account]);
 
   // Tablet Platform Coupons State
-  const [coupons, setCoupons] = useState<any[]>([]);
-  const [loadingCoupons, setLoadingCoupons] = useState(false);
   const [showCouponModal, setShowCouponModal] = useState(false);
+  useModalBackHandler({ isOpen: showCouponModal, onClose: () => setShowCouponModal(false), modalId: 'tablet-finance-coupon' });
   const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
-  const [couponSearchFilter, setCouponSearchFilter] = useState('');
   const [savingCoupon, setSavingCoupon] = useState(false);
   const [deletingCouponCode, setDeletingCouponCode] = useState<string | null>(null);
   const [togglingCouponCode, setTogglingCouponCode] = useState<string | null>(null);
@@ -1745,63 +1733,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     is_active: true
   });
 
-  const fetchOrders = useCallback(async () => {
-    if (!token) return;
-    try {
-      const res = await authFetch('/api/admin/subscription/orders', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const j = await res.json();
-        const list = Array.isArray(j) ? j : (j.data || j.orders || []);
-        setOrders(list);
-      }
-    } catch {
-      // Fail silently
-    }
-  }, [token, authFetch]);
-
+  const fetchOrders = orderPage.refresh;
   useEffect(() => {
-    if (activeView === 'finance') {
-      fetchOrders();
-      fetchSettings();
-    }
-  }, [activeView, fetchOrders, fetchSettings]);
-
-  const filteredOrders = useMemo(() => {
-    const q = ordersSearchQuery.trim().toLowerCase();
-    return orders.filter(o => {
-      const desc = describeSubscriptionOrder(o);
-      if (financeFilter === 'pending' && !desc.isPending) return false;
-      if (financeFilter === 'pending_verification' && desc.rawStatus !== 'pending_verification') return false;
-      if (financeFilter === 'pending_payment' && desc.rawStatus !== 'pending' && desc.rawStatus !== 'pending_payment') return false;
-      if (financeFilter === 'paid' && !desc.isActive) return false;
-      if (financeFilter === 'rejected' && !desc.isRejected) return false;
-      if (ordersConfigFilter !== 'all' && desc.configType !== ordersConfigFilter) return false;
-      if (q) {
-        const hay = [
-          desc.orderNumber,
-          desc.storeName,
-          desc.storeSlug,
-          desc.customerName,
-          desc.customerEmail,
-          desc.customerPhone,
-          desc.senderAccountName,
-          desc.senderPhone,
-          desc.gatewayRef,
-          desc.couponCode,
-          desc.subChannelLabel,
-          String(o.id || '')
-        ].join(' ').toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [orders, financeFilter, ordersConfigFilter, ordersSearchQuery, describeSubscriptionOrder]);
-
-  const selectedOrder = useMemo(() => {
-    return orders.find(o => o.id === selectedOrderId) || null;
-  }, [orders, selectedOrderId]);
+    if (activeView === 'finance') fetchSettings();
+  }, [activeView, fetchSettings]);
+  const filteredOrders = orders;
+  const selectedOrder = orders.find(o => o.id === selectedOrderId) || inspectedOrder;
 
   const handleSyncOrderWithAulaa = async (orderId: number) => {
     if (!orderId) return;
@@ -1817,6 +1754,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         showToast(data.message || 'Status pembayaran berhasil disinkronkan dengan Aulaa', 'success');
+        setInspectedOrder((current: { id: number } | null) => current?.id === orderId ? null : current);
         await fetchOrders();
         loadPlatformStats();
       } else {
@@ -1853,6 +1791,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               ? 'Pesanan ditolak & status langganan disesuaikan'
               : 'Pesanan dikembalikan ke antrean verifikasi pending';
         showToast(data.message || msg, 'success');
+        setInspectedOrder((current: { id: number } | null) => current?.id === orderId ? null : current);
         await fetchOrders();
         loadPlatformStats();
         setShowRejectModal(false);
@@ -1982,32 +1921,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   };
 
-  const fetchCoupons = useCallback(async () => {
-    if (!token) return;
-    setLoadingCoupons(true);
-    try {
-      const res = await authFetch('/api/admin/coupons', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data)) {
-          setCoupons(data.data);
-        }
-      }
-    } catch (err) {
-      console.warn('Gagal memuat kupon platform:', err);
-    } finally {
-      setLoadingCoupons(false);
-    }
-  }, [token, authFetch]);
-
-  useEffect(() => {
-    if (activeView === 'finance' && financeSubTab === 'coupons') {
-      fetchCoupons();
-    }
-  }, [activeView, financeSubTab, fetchCoupons]);
-
   const handleOpenCreateCouponModal = () => {
     setEditingCoupon(null);
     setCouponForm({
@@ -2107,7 +2020,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(data.message || `Kupon "${code}" berhasil dihapus.`, 'success');
-        setCoupons(prev => prev.filter(cItem => cItem.code !== code));
+        fetchCoupons();
       } else {
         showToast(data.message || 'Gagal menghapus kupon.', 'error');
       }
@@ -2129,7 +2042,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(data.message || `Status kupon "${code}" berhasil diubah.`, 'success');
-        setCoupons(prev => prev.map(cItem => cItem.code === code ? { ...cItem, is_active: data.is_active } : cItem));
+        fetchCoupons();
       } else {
         showToast(data.message || 'Gagal mengubah status kupon.', 'error');
       }
@@ -3613,7 +3526,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       } else if (activeView === 'support') {
         await fetchTickets();
       } else if (activeView === 'finance') {
-        await fetchOrders();
+        if (financeSubTab === 'orders') fetchOrders();
+        if (financeSubTab === 'coupons') fetchCoupons();
+        if (financeSubTab === 'settings') await fetchSettings();
       } else if (activeView === 'broadcast') {
         broadcastCacheRef.current.clear();
         await fetchBroadcasts(broadcastPage, true);
@@ -3634,14 +3549,22 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const roleInfo = getRoleBadge(currentUser?.platform_role || (currentUser?.is_superadmin ? 'superadmin' : 'admin'));
 
   return (
-    <div style={{
+    <div data-platform-theme={themeMode} style={{
+      '--bg-deep': isDark ? '#090d16' : '#f8fafc',
+      '--bg-card': theme.surface,
+      '--bg-surface': theme.surface,
+      '--bg-card-hover': theme.cardAlt,
+      '--border-light': theme.border,
+      '--text-primary': theme.textPrimary,
+      '--text-secondary': theme.textSecondary,
+      '--text-muted': isDark ? '#94a3b8' : '#64748b',
       display: 'flex',
       width: '100vw',
       height: '100vh',
       overflow: 'hidden',
       backgroundColor: 'var(--bg-deep)',
       color: 'var(--text-primary)'
-    }}>
+    } as React.CSSProperties}>
       {/* Toast Notification */}
       {toast && (
         <div style={{
@@ -7331,95 +7254,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
           {/* TAB 5: FINANCE (KEUANGAN & BILLING) */}
           {activeView === 'finance' && canAccessFinance && (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-              {/* Finance Sub-Tabs Navigation */}
-              <div style={{
-                padding: '0.75rem 1.25rem',
-                borderBottom: '1px solid var(--border-light)',
-                backgroundColor: 'var(--bg-deep)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexShrink: 0
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setFinanceSubTab('orders')}
-                    style={{
-                      minHeight: '44px',
-                      padding: '0 1rem',
-                      borderRadius: '0.65rem',
-                      border: `1px solid ${financeSubTab === 'orders' ? '#10b981' : 'var(--border-light)'}`,
-                      backgroundColor: financeSubTab === 'orders' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
-                      color: financeSubTab === 'orders' ? '#10b981' : 'var(--text-muted)',
-                      fontSize: '0.84rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <CreditCard size={16} />
-                    <span>Daftar Transaksi Billing ({filteredOrders.length})</span>
-                  </button>
-
-                  {canManagePaymentSettings && (
-                    <button
-                      type="button"
-                      onClick={() => setFinanceSubTab('settings')}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0 1rem',
-                        borderRadius: '0.65rem',
-                        border: `1px solid ${financeSubTab === 'settings' ? '#10b981' : 'var(--border-light)'}`,
-                        backgroundColor: financeSubTab === 'settings' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
-                        color: financeSubTab === 'settings' ? '#10b981' : 'var(--text-muted)',
-                        fontSize: '0.84rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.45rem',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <SlidersHorizontal size={16} />
-                      <span>Konfigurasi Sistem Pembayaran</span>
-                    </button>
-                  )}
-
-                  {canManageCoupons && (
-                    <button
-                      type="button"
-                      onClick={() => setFinanceSubTab('coupons')}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0 1rem',
-                        borderRadius: '0.65rem',
-                        border: `1px solid ${financeSubTab === 'coupons' ? '#10b981' : 'var(--border-light)'}`,
-                        backgroundColor: financeSubTab === 'coupons' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
-                        color: financeSubTab === 'coupons' ? '#10b981' : 'var(--text-muted)',
-                        fontSize: '0.84rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.45rem',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <Tag size={16} />
-                      <span>Kupon Diskon ({coupons.length})</span>
-                    </button>
-                  )}
-                </div>
+            <div className="finance-workspace" style={{ ...financeColors(isDark, theme), display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+              <div className="finance-toolbar">
+                <FinanceNav section={financeSubTab} select={setFinanceSubTab} settings={canManagePaymentSettings}
+                  coupons={canManageCoupons} pending={pendingOrdersCount}/>
 
                 {financeSubTab === 'settings' && canManagePaymentSettings && (
                   <button
                     type="button"
+                    className="finance-action"
                     onClick={handleSavePaymentSettings}
                     disabled={isSavingSettings}
                     style={{
@@ -7447,6 +7290,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 {financeSubTab === 'coupons' && canManageCoupons && (
                   <button
                     type="button"
+                    className="finance-action"
                     onClick={handleOpenCreateCouponModal}
                     style={{
                       minHeight: '44px',
@@ -7474,12 +7318,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 <div style={{ flex: 1, overflow: 'hidden' }}>
                   <TabletMasterDetailView
                     title="Billing Langganan Pro"
-                    subtitle={`${filteredOrders.length} order transaksi`}
+                    subtitle={`${orderPage.total} transaksi`}
                     hideHeaderTitle={true}
                     selectedId={selectedOrderId}
                     onClearSelection={() => setSelectedOrderId(null)}
                     masterPane={
-                      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                      <div className="finance-scroll-pane" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                         {/* Search Input + Status & Payment System Configuration Filters */}
                         <div style={{
                           padding: '0.75rem',
@@ -7550,91 +7394,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             </button>
                           </div>
 
-                          {/* Status Filter Pills */}
-                          <div style={{
-                            display: 'flex',
-                            gap: '0.35rem',
-                            overflowX: 'auto',
-                            scrollbarWidth: 'thin',
-                            WebkitOverflowScrolling: 'touch'
-                          }}>
-                            {([
-                              { id: 'all', label: 'Semua Status' },
-                              { id: 'pending', label: 'Pending / Verifikasi' },
-                              { id: 'paid', label: 'Aktif / Lunas' },
-                              { id: 'rejected', label: 'Ditolak / Batal' }
-                            ] as const).map(tab => (
-                              <button
-                                key={tab.id}
-                                type="button"
-                                onClick={() => setFinanceFilter(tab.id)}
-                                style={{
-                                  minHeight: '38px',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '999px',
-                                  border: `1px solid ${financeFilter === tab.id ? '#10b981' : 'var(--border-light)'}`,
-                                  backgroundColor: financeFilter === tab.id ? 'rgba(16, 185, 129, 0.14)' : 'transparent',
-                                  color: financeFilter === tab.id ? '#10b981' : 'var(--text-muted)',
-                                  fontSize: '0.7rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  whiteSpace: 'nowrap',
-                                  flexShrink: 0,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}
-                              >
-                                {tab.label}
-                              </button>
-                            ))}
-                          </div>
-
-                          {/* Payment System Configuration Filter Pills */}
-                          <div style={{
-                            display: 'flex',
-                            gap: '0.35rem',
-                            overflowX: 'auto',
-                            scrollbarWidth: 'thin',
-                            WebkitOverflowScrolling: 'touch'
-                          }}>
-                            {([
-                              { id: 'all', label: 'Semua Sistem' },
-                              { id: 'gateway_aulaa', label: 'Aulaa Gateway' },
-                              { id: 'manual_qris', label: 'QRIS Manual' },
-                              { id: 'manual_bank', label: 'Transfer Bank' },
-                              { id: 'coupon_free', label: 'Kupon Gratis' }
-                            ] as const).map(cf => (
-                              <button
-                                key={cf.id}
-                                type="button"
-                                onClick={() => setOrdersConfigFilter(cf.id)}
-                                style={{
-                                  minHeight: '36px',
-                                  padding: '0.28rem 0.6rem',
-                                  borderRadius: '0.5rem',
-                                  border: `1px solid ${ordersConfigFilter === cf.id ? '#38bdf8' : 'var(--border-light)'}`,
-                                  backgroundColor: ordersConfigFilter === cf.id ? 'rgba(56, 189, 248, 0.14)' : 'var(--bg-deep)',
-                                  color: ordersConfigFilter === cf.id ? '#38bdf8' : 'var(--text-secondary)',
-                                  fontSize: '0.68rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  whiteSpace: 'nowrap',
-                                  flexShrink: 0,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}
-                              >
-                                {cf.label}
-                              </button>
-                            ))}
-                          </div>
+                          <OrderFilters Picker={TabletCustomSelect} status={orderPage.status} channel={orderPage.kind}
+                    facets={orderPage.facets} ready={orderPage.ready} onStatus={orderPage.setStatus} onChannel={orderPage.setKind}/>
                         </div>
 
                         {/* Master List Cards */}
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                          {filteredOrders.length === 0 ? (
+                        <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                          {!orderPage.ready ? null : filteredOrders.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
                               <CreditCard size={36} color="#10b981" style={{ marginBottom: '0.5rem' }} />
                               <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>Tidak ada transaksi yang sesuai filter</div>
@@ -7818,6 +7584,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             })
                           )}
                         </div>
+                        <FinancePager list={orderPage} device="tablet"/>
                       </div>
                     }
                     detailPane={
@@ -8329,72 +8096,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 </div>
               ) : financeSubTab === 'settings' ? (
                 /* VIEW 2: KONFIGURASI SISTEM PEMBAYARAN PLATFORM */
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  {/* Mode Switcher Tabs (3 Interactive Cards for Tablet) */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      Pilih Mode Sistem Pembayaran Platform:
-                    </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
-                      {[
-                        { key: 'gateway_aulaa', label: 'Aulaa Gateway', desc: 'Otomatis via API Aulaa.co (QRIS Instan, VA, E-Wallet, CC)', icon: Zap, color: '#10b981' },
-                        { key: 'manual_qris', label: 'QRIS & Transfer Manual', desc: 'Scan QRIS Shopee/BCA mandiri dengan kode unik 3-digit', icon: QrCode, color: '#0284c7' },
-                        { key: 'maintenance', label: 'Pemeliharaan', desc: 'Menutup sementara seluruh checkout paket di platform', icon: ShieldAlert, color: '#ef4444' }
-                      ].map(mode => {
-                        const isSelected = (googleSettings.payment_system_mode || 'gateway_aulaa') === mode.key;
-                        const ModeIcon = mode.icon;
-                        const activeBg = mode.key === 'gateway_aulaa' ? 'rgba(16, 185, 129, 0.08)' : mode.key === 'manual_qris' ? 'rgba(2, 132, 199, 0.08)' : 'rgba(239, 68, 68, 0.08)';
-                        const activeBadgeBg = mode.key === 'gateway_aulaa' ? 'rgba(16, 185, 129, 0.15)' : mode.key === 'manual_qris' ? 'rgba(2, 132, 199, 0.15)' : 'rgba(239, 68, 68, 0.15)';
-
-                        return (
-                          <div
-                            key={mode.key}
-                            onClick={() => setGoogleSettings(prev => ({ ...prev, payment_system_mode: mode.key }))}
-                            style={{
-                              minHeight: '44px',
-                              padding: '1rem',
-                              borderRadius: '0.75rem',
-                              backgroundColor: isSelected ? activeBg : 'var(--bg-card)',
-                              border: `2px solid ${isSelected ? mode.color : 'var(--border-light)'}`,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.45rem',
-                              boxShadow: isSelected ? `0 0 0 1px ${mode.color}` : undefined,
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div style={{
-                                width: '34px',
-                                height: '34px',
-                                borderRadius: '0.5rem',
-                                backgroundColor: isSelected ? mode.color : 'var(--bg-main)',
-                                color: isSelected ? '#ffffff' : 'var(--text-primary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}>
-                                <ModeIcon size={18} />
-                              </div>
-                              {isSelected ? (
-                                <span style={{ fontSize: '0.66rem', fontWeight: 800, color: mode.color, backgroundColor: activeBadgeBg, padding: '0.2rem 0.5rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                  <CheckCircle2 size={11} /> MODE AKTIF
-                                </span>
-                              ) : (
-                                <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-                                  Klik untuk aktifkan
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)' }}>{mode.label}</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{mode.desc}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
+                <div className="finance-scroll-pane" style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <PaymentModePicker value={googleSettings.payment_system_mode || 'gateway_aulaa'}
+                    select={payment_system_mode => setGoogleSettings(prev => ({ ...prev, payment_system_mode }))}/>
                   {/* Focused Configuration Panel for Selected Mode */}
                   {(() => {
                     const activeMode = googleSettings.payment_system_mode || 'gateway_aulaa';
@@ -8426,7 +8130,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               <Zap size={20} color="#10b981" />
                               <div>
                                 <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)', display: 'block' }}>
-                                  Konfigurasi Gateway Aulaa.co (Mode Aktif)
+                                  Konfigurasi Gateway Aulaa.co
                                 </strong>
                                 <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
                                   Transaksi pendaftaran dan upgrade merchant diproses otomatis via gateway Aulaa.
@@ -8458,7 +8162,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           </div>
 
                           {/* 2-Column Grid */}
-                          <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.2fr', gap: '1.25rem' }}>
+                          <div className="finance-gateway-fields" style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.2fr', gap: '1.25rem' }}>
                             {/* Left: Sub-channel Toggles */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                               <div>
@@ -8521,7 +8225,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                     Aulaa API Key:
                                   </label>
-                                  <button
+                                  <button className="finance-utility"
                                     type="button"
                                     onClick={() => setShowAulaaSecrets(!showAulaaSecrets)}
                                     style={{ minHeight: '44px', background: 'none', border: 'none', color: '#10b981', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
@@ -8694,7 +8398,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   }}>
                                     {typeof window !== 'undefined' ? `${window.location.origin}/api/payments/webhook/aulaa` : '/api/payments/webhook/aulaa'}
                                   </code>
-                                  <button
+                                  <button className="finance-utility"
                                     type="button"
                                     onClick={() => {
                                       if (typeof window !== 'undefined') {
@@ -8755,7 +8459,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <QrCode size={20} color="#0284c7" />
                             <div>
                               <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)', display: 'block' }}>
-                                Konfigurasi QRIS &amp; Rekening Manual (Mode Aktif)
+                                Konfigurasi QRIS &amp; Rekening Manual
                               </strong>
                               <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
                                 Pengguna membayar via scan QRIS merchant (nominal pas) atau transfer bank langsung dengan alokasi otomatis kode unik nominal 3-digit.
@@ -9065,10 +8769,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <ShieldAlert size={20} color="#ef4444" />
                             <div>
                               <strong style={{ fontSize: '0.88rem', color: '#ef4444', display: 'block' }}>
-                                PERINGATAN: Mode Pemeliharaan Sedang Dipilih Sebagai Mode Aktif
+                                Pemeliharaan checkout
                               </strong>
                               <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                                Seluruh formulir pembayaran dan pendaftaran berbayar saat ini ditutup sementara. Pengunjung akan melihat pengumuman di bawah ini.
+                                Jika mode ini disimpan, checkout paket berbayar ditutup dan pengunjung melihat pengumuman berikut.
                               </span>
                             </div>
                           </div>
@@ -9180,7 +8884,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 </div>
               ) : (
                 /* VIEW 3: MANAJEMEN KUPON PLATFORM (TABLET) */
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div className="finance-scroll-pane" style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {/* Top Bar: Search & Stats */}
                   <div style={{
                     display: 'flex',
@@ -9197,6 +8901,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                       <input
                         type="text"
+                        aria-label="Cari kupon"
                         placeholder="Cari kode atau label kupon..."
                         value={couponSearchFilter}
                         onChange={(e) => setCouponSearchFilter(e.target.value)}
@@ -9219,35 +8924,32 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                       <div style={{ padding: '0.45rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', fontSize: '0.75rem' }}>
                         <span style={{ color: 'var(--text-muted)' }}>Total: </span>
-                        <strong style={{ color: 'var(--text-primary)' }}>{coupons.length}</strong>
+                        <strong style={{ color: 'var(--text-primary)' }}>{couponPage.summary.total ?? 0}</strong>
                       </div>
                       <div style={{ padding: '0.45rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', fontSize: '0.75rem' }}>
                         <span style={{ color: '#10b981' }}>Aktif: </span>
-                        <strong style={{ color: '#10b981' }}>{coupons.filter(c => c.is_active).length}</strong>
+                        <strong style={{ color: '#10b981' }}>{couponPage.summary.active ?? 0}</strong>
                       </div>
                       <div style={{ padding: '0.45rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'rgba(2, 132, 199, 0.1)', border: '1px solid rgba(2, 132, 199, 0.25)', fontSize: '0.75rem' }}>
                         <span style={{ color: '#0284c7' }}>Diskon: </span>
-                        <strong style={{ color: '#0284c7' }}>{coupons.filter(c => c.type === 'discount').length}</strong>
+                        <strong style={{ color: '#0284c7' }}>{couponPage.summary.discount ?? 0}</strong>
                       </div>
                       <div style={{ padding: '0.45rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', fontSize: '0.75rem' }}>
                         <span style={{ color: '#f59e0b' }}>Gratis: </span>
-                        <strong style={{ color: '#f59e0b' }}>{coupons.filter(c => c.type === 'free').length}</strong>
+                        <strong style={{ color: '#f59e0b' }}>{couponPage.summary.free ?? 0}</strong>
                       </div>
                     </div>
                   </div>
 
+                  <CouponFilters Picker={TabletCustomSelect} facets={couponPage.facets} ready={couponPage.ready} status={couponPage.status} kind={couponPage.kind}
+                    onStatus={couponPage.setStatus} onKind={couponPage.setKind}/>
                   {/* Coupons Table */}
-                  {loadingCoupons ? (
+                  {couponPage.error ? null : loadingCoupons ? (
                     <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                       Memuat data kupon...
                     </div>
                   ) : (() => {
-                    const filtered = coupons.filter(c => {
-                      const q = couponSearchFilter.trim().toLowerCase();
-                      if (!q) return true;
-                      return (c.code || '').toLowerCase().includes(q) || (c.label || '').toLowerCase().includes(q);
-                    });
-
+                    const filtered = coupons;
                     if (filtered.length === 0) {
                       return (
                         <div style={{
@@ -9275,6 +8977,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           {!couponSearchFilter && (
                             <button
                               type="button"
+                              className="finance-action"
                               onClick={handleOpenCreateCouponModal}
                               style={{
                                 minHeight: '44px',
@@ -9308,7 +9011,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         overflow: 'hidden'
                       }}>
                         <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
+                          <table className="finance-coupons" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
                             <thead>
                               <tr style={{ backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)' }}>
                                 <th style={{ padding: '0.85rem 1rem', fontWeight: 800, color: 'var(--text-muted)' }}>Kode Kupon</th>
@@ -9329,14 +9032,17 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 return (
                                   <tr key={item.id || item.code} style={{ borderBottom: '1px solid var(--border-light)' }}>
                                     <td style={{ padding: '0.85rem 1rem' }}>
+                                      <span className="finance-field-label" aria-hidden="true">Kode kupon</span>
                                       <span style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '0.88rem', color: 'var(--text-primary)', letterSpacing: '0.04em' }}>
                                         {item.code}
                                       </span>
                                     </td>
                                     <td style={{ padding: '0.85rem 1rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                      <span className="finance-field-label" aria-hidden="true">Deskripsi</span>
                                       {item.label}
                                     </td>
                                     <td style={{ padding: '0.85rem 1rem' }}>
+                                      <span className="finance-field-label" aria-hidden="true">Jenis dan diskon</span>
                                       <span style={{
                                         fontSize: '0.72rem',
                                         fontWeight: 800,
@@ -9350,12 +9056,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                       </span>
                                     </td>
                                     <td style={{ padding: '0.85rem 1rem', color: 'var(--text-primary)' }}>
+                                      <span className="finance-field-label" aria-hidden="true">Pemakaian</span>
                                       <strong>{item.used_count || 0}</strong> {item.usage_limit > 0 ? `/ ${item.usage_limit}` : <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>(Bebas)</span>}
                                     </td>
                                     <td style={{ padding: '0.85rem 1rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                                      <span className="finance-field-label" aria-hidden="true">Berlaku hingga</span>
                                       {item.expires_at ? new Date(item.expires_at).toLocaleDateString('id-ID') : 'Permanen'}
                                     </td>
                                     <td style={{ padding: '0.85rem 1rem' }}>
+                                      <span className="finance-field-label" aria-hidden="true">Status</span>
                                       <span style={{
                                         fontSize: '0.7rem',
                                         fontWeight: 800,
@@ -9376,8 +9085,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           disabled={togglingCouponCode === item.code}
                                           title={item.is_active ? 'Nonaktifkan kupon' : 'Aktifkan kupon'}
                                           style={{
-                                            minHeight: '36px',
-                                            minWidth: '36px',
+                                            minHeight: '44px',
+                                            minWidth: '44px',
                                             borderRadius: '0.45rem',
                                             border: '1px solid var(--border-light)',
                                             backgroundColor: item.is_active ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
@@ -9395,8 +9104,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           onClick={() => handleOpenEditCouponModal(item)}
                                           title="Edit kupon"
                                           style={{
-                                            minHeight: '36px',
-                                            minWidth: '36px',
+                                            minHeight: '44px',
+                                            minWidth: '44px',
                                             borderRadius: '0.45rem',
                                             border: '1px solid var(--border-light)',
                                             backgroundColor: 'var(--bg-deep)',
@@ -9419,8 +9128,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           disabled={deletingCouponCode === item.code}
                                           title="Hapus kupon"
                                           style={{
-                                            minHeight: '36px',
-                                            minWidth: '36px',
+                                            minHeight: '44px',
+                                            minWidth: '44px',
                                             borderRadius: '0.45rem',
                                             border: '1px solid var(--border-light)',
                                             backgroundColor: 'transparent',
@@ -9444,6 +9153,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       </div>
                     );
                   })()}
+                  <FinancePager list={couponPage} device="tablet"/>
                 </div>
               )}
             </div>

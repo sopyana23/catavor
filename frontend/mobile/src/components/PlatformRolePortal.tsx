@@ -1,3 +1,6 @@
+import { FinancePager, useFinancePage } from '../../../shared/finance/FinancePaging';
+import { paymentChannel } from '../../../shared/finance/paymentChannel';
+import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColors, useFinanceSection } from '../../../shared/finance/FinanceControls';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { compactToastMessage } from './SwipeableToast';
 import {
@@ -1493,19 +1496,26 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     return () => clearTimeout(timer);
   }, [reportsFilter, reportsTargetFilter, reportsSearchQuery, token, canAccessCompliance]);
 
-  const [orders, setOrders] = useState<any[]>([]);
-  const [ordersFilter, setOrdersFilter] = useState<'all' | 'pending' | 'active' | 'rejected'>('all');
-  const [financeSubTab, setFinanceSubTab] = useState<'orders' | 'settings' | 'coupons'>('orders');
+  const [financeSubTab, setFinanceSubTab] = useFinanceSection(activeView === 'finance', canManagePaymentSettings, canManageCoupons);
+  const orderPage = useFinancePage('orders', activeView === 'finance' && financeSubTab === 'orders' && canAccessFinance, token);
+  const couponPage = useFinancePage('coupons', activeView === 'finance' && financeSubTab === 'coupons' && canManageCoupons, token);
+  const { data: orders, status: ordersFilter, setStatus: setOrdersFilter, input: ordersSearchQuery, setKeyword: setOrdersSearchQuery } = orderPage;
+  const { data: coupons, loading: loadingCoupons, input: couponSearchFilter, setKeyword: setCouponSearchFilter, refresh: fetchCoupons } = couponPage;
+  const [financeSummary, setFinanceSummary] = useState({ total: 0, pending: 0 });
+  const orderPageProvidesTotals = activeView === 'finance' && financeSubTab === 'orders' && !orderPage.keyword;
+  useEffect(() => {
+    if (orderPageProvidesTotals && orderPage.ready) {
+      const { total = 0, pending = 0 } = orderPage.summary;
+      setFinanceSummary({ total, pending });
+    }
+  }, [orderPageProvidesTotals, orderPage.ready, orderPage.summary]);
   const [showAulaaSecrets, setShowAulaaSecrets] = useState(false);
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
   const [isUploadingQRISImage, setIsUploadingQRISImage] = useState(false);
 
   // Coupons State (Mobile Platform Admin)
-  const [coupons, setCoupons] = useState<any[]>([]);
-  const [loadingCoupons, setLoadingCoupons] = useState(false);
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
-  const [couponSearchFilter, setCouponSearchFilter] = useState('');
   const [savingCoupon, setSavingCoupon] = useState(false);
   const [deletingCouponCode, setDeletingCouponCode] = useState<string | null>(null);
   const [togglingCouponCode, setTogglingCouponCode] = useState<string | null>(null);
@@ -1679,8 +1689,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   const [selectedProofOrder, setSelectedProofOrder] = useState<any | null>(null);
-  const [ordersConfigFilter, setOrdersConfigFilter] = useState<'all' | 'gateway_aulaa' | 'manual_qris' | 'manual_bank' | 'coupon_free'>('all');
-  const [ordersSearchQuery, setOrdersSearchQuery] = useState('');
   const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
   const [rejectingOrder, setRejectingOrder] = useState<any | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState('Dana belum masuk ke mutasi rekening / QRIS platform');
@@ -2525,7 +2533,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     };
   }, [token, isSuperAdmin, canAccessSupport, activeView, selectedTicket?.id]);
 
-  const loadData = async () => {
+  const loadData = async (refreshLists = true) => {
     if (!token) return;
     setLoading(true);
     try {
@@ -2541,10 +2549,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         fetchTickets(1, false);
       }
       if (canAccessFinance) {
-        const res = await fetch('/api/admin/subscription/orders', { headers: { Authorization: `Bearer ${token}` } });
-        if (res.ok) {
-          const d = await res.json();
-          setOrders(Array.isArray(d) ? d : d.data || d.orders || []);
+        if (refreshLists && activeView === 'finance') {
+          if (financeSubTab === 'orders') orderPage.refresh();
+          if (financeSubTab === 'coupons') couponPage.refresh();
+        }
+        if (!orderPageProvidesTotals) {
+          const res = await fetch('/api/admin/subscription/orders?summary=1', { headers: { Authorization: `Bearer ${token}` } });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.summary) setFinanceSummary(data.summary);
+          }
         }
       }
       if (canAccessBroadcast) {
@@ -2558,7 +2572,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         fetchAutomationData();
       }
       if (canAccessMonetization || canAccessMasterData || canAccessFinance) {
-        const setRes = await fetch('/api/admin/settings', {
+        const setRes = await fetch('/api/admin/settings?exclude=master_coupons', {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         }).catch(() => fetch('/api/settings'));
         if (setRes.ok) {
@@ -2744,7 +2758,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   };
 
   useEffect(() => {
-    loadData();
+    loadData(false);
   }, [token, activeView]);
 
   // Synchronize URL on popstate (browser back/forward)
@@ -3277,18 +3291,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const uniqueCode = Number(o?.unique_code ?? 0);
     const finalAmount = Number(o?.final_amount ?? o?.amount ?? o?.price ?? 0);
 
-    const isFreeCoupon = payMode === 'coupon_free' || payMethod === 'coupon_free' || payMethod === 'free' || (finalAmount === 0 && Boolean(o?.coupon_code));
-    const isAulaaGateway = !isFreeCoupon && (payMode === 'gateway_aulaa' || o?.gateway_provider === 'aulaa' || ['va', 'ewallet', 'cc'].includes(payMethod));
-    const isManualQRIS = !isFreeCoupon && !isAulaaGateway && payMethod === 'qris';
-    const isManualBank = !isFreeCoupon && !isAulaaGateway && !isManualQRIS;
-
-    const configType: 'gateway_aulaa' | 'manual_qris' | 'manual_bank' | 'coupon_free' = isFreeCoupon
-      ? 'coupon_free'
-      : isAulaaGateway
-        ? 'gateway_aulaa'
-        : isManualQRIS
-          ? 'manual_qris'
-          : 'manual_bank';
+    const configType = paymentChannel(o);
+    const isFreeCoupon = configType === 'coupon_free';
+    const isAulaaGateway = configType === 'gateway_aulaa';
+    const isManualQRIS = configType === 'manual_qris';
+    const isManualBank = configType === 'manual_bank';
 
     const configBadgeLabel = isFreeCoupon
       ? 'Kupon Gratis 100%'
@@ -3304,7 +3311,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         ? 'Virtual Account Bank (Aulaa)'
         : payMethod === 'ewallet'
           ? 'Dompet Digital / E-Wallet (Aulaa)'
-          : payMethod === 'cc'
+          : payMethod === 'cc' || payMethod === 'card'
             ? 'Kartu Kredit / Debit (Aulaa)'
             : `Kanal Gateway (${payMethod.toUpperCase()})`;
 
@@ -3882,32 +3889,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
-  const fetchCoupons = useCallback(async () => {
-    if (!token) return;
-    setLoadingCoupons(true);
-    try {
-      const res = await fetch('/api/admin/coupons', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data)) {
-          setCoupons(data.data);
-        }
-      }
-    } catch (err) {
-      console.warn('Gagal memuat kupon platform:', err);
-    } finally {
-      setLoadingCoupons(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    if (activeView === 'finance' && financeSubTab === 'coupons') {
-      fetchCoupons();
-    }
-  }, [activeView, financeSubTab, fetchCoupons]);
-
   const handleOpenCreateCouponModal = () => {
     setEditingCoupon(null);
     setCouponForm({
@@ -4007,7 +3988,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(data.message || `Kupon "${code}" berhasil dihapus.`, 'success');
-        setCoupons(prev => prev.filter(cItem => cItem.code !== code));
+        fetchCoupons();
       } else {
         showToast(data.message || 'Gagal menghapus kupon.', 'error');
       }
@@ -4029,7 +4010,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(data.message || `Status kupon "${code}" berhasil diubah.`, 'success');
-        setCoupons(prev => prev.map(cItem => cItem.code === code ? { ...cItem, is_active: data.is_active } : cItem));
+        fetchCoupons();
       } else {
         showToast(data.message || 'Gagal mengubah status kupon.', 'error');
       }
@@ -4084,10 +4065,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const urgentTicketsCount = ticketsMetrics.urgent ?? tickets.filter(t => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'resolved' && t.status !== 'closed').length;
   const resolvedTicketsCount = ticketsMetrics.resolved ?? tickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
   const totalTicketsCount = ticketsMetrics.total ?? tickets.length;
-  const pendingOrdersCount = orders.filter(o => {
-    const st = o.payment_status || o.status;
-    return st === 'pending' || st === 'pending_verification';
-  }).length;
+  const pendingOrdersCount = financeSummary.pending;
   const totalAlertsCount = pendingReportsCount + actionRequiredTicketsCount + pendingOrdersCount + (dormancyMetrics?.dormant_stores || 0);
 
   // Dynamic Mobile Triage Status Options: strictly count > 0
@@ -5714,7 +5692,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
             <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
               <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Order</span>
-              <strong style={{ fontSize: '1.1rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900, display: 'block' }}>{orders.length}</strong>
+              <strong style={{ fontSize: '1.1rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900, display: 'block' }}>{financeSummary.total}</strong>
             </div>
             <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
               <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Laporan</span>
@@ -8887,134 +8865,28 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* 4. MODULE 5: KEUANGAN & ORDER LANGGANAN                                   */}
       {/* ========================================================================= */}
       {activeView === 'finance' && canAccessFinance && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-          {/* Mobile Sub-tab Switcher */}
-          <div style={{ display: 'flex', gap: '0.4rem', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.65rem' }}>
-            <button
-              type="button"
-              onClick={() => setFinanceSubTab('orders')}
-              style={{
-                flex: 1,
-                minHeight: '44px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-                padding: '0.45rem 0.75rem',
-                borderRadius: '0.55rem',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                backgroundColor: financeSubTab === 'orders' ? '#10b981' : theme.surface,
-                color: financeSubTab === 'orders' ? '#ffffff' : theme.textSecondary,
-                border: `1px solid ${financeSubTab === 'orders' ? '#10b981' : theme.border}`,
-                cursor: 'pointer'
-              }}
-            >
-              <CreditCard size={15} />
-              <span>Daftar Pesanan</span>
-              {pendingOrdersCount > 0 && (
-                <span style={{
-                  backgroundColor: financeSubTab === 'orders' ? '#ffffff' : '#f59e0b',
-                  color: financeSubTab === 'orders' ? '#10b981' : '#ffffff',
-                  fontSize: '0.65rem',
-                  fontWeight: 800,
-                  padding: '0.1rem 0.4rem',
-                  borderRadius: '999px'
-                }}>
-                  {pendingOrdersCount}
-                </span>
-              )}
-            </button>
-
-            {canManagePaymentSettings && (
-              <button
-                type="button"
-                onClick={() => setFinanceSubTab('settings')}
-                style={{
-                  flex: 1,
-                  minHeight: '44px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  padding: '0.45rem 0.75rem',
-                  borderRadius: '0.55rem',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  backgroundColor: financeSubTab === 'settings' ? '#10b981' : theme.surface,
-                  color: financeSubTab === 'settings' ? '#ffffff' : theme.textSecondary,
-                  border: `1px solid ${financeSubTab === 'settings' ? '#10b981' : theme.border}`,
-                  cursor: 'pointer'
-                }}
-              >
-                <SlidersHorizontal size={15} />
-                <span>Pengaturan</span>
-              </button>
-            )}
-
-            {canManageCoupons && (
-              <button
-                type="button"
-                onClick={() => setFinanceSubTab('coupons')}
-                style={{
-                  flex: 1,
-                  minHeight: '44px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.4rem',
-                  padding: '0.45rem 0.75rem',
-                  borderRadius: '0.55rem',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  backgroundColor: financeSubTab === 'coupons' ? '#10b981' : theme.surface,
-                  color: financeSubTab === 'coupons' ? '#ffffff' : theme.textSecondary,
-                  border: `1px solid ${financeSubTab === 'coupons' ? '#10b981' : theme.border}`,
-                  cursor: 'pointer'
-                }}
-              >
-                <Tag size={15} />
-                <span>Kupon</span>
-                {coupons.filter(c => c.is_active).length > 0 && (
-                  <span style={{
-                    backgroundColor: financeSubTab === 'coupons' ? '#ffffff' : '#10b981',
-                    color: financeSubTab === 'coupons' ? '#10b981' : '#ffffff',
-                    fontSize: '0.65rem',
-                    fontWeight: 800,
-                    padding: '0.1rem 0.4rem',
-                    borderRadius: '999px'
-                  }}>
-                    {coupons.filter(c => c.is_active).length}
-                  </span>
-                )}
-              </button>
-            )}
-          </div>
+        <div className="finance-workspace" style={{ ...financeColors(isDark, theme), display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+          <FinanceNav section={financeSubTab} select={setFinanceSubTab} settings={canManagePaymentSettings}
+            coupons={canManageCoupons} pending={pendingOrdersCount}/>
 
           {financeSubTab === 'orders' && (
             <>
               {/* Summary Metrics Bar */}
               {(() => {
-                const totalCnt = orders.length;
-                const pendingCnt = orders.filter(o => describeSubscriptionOrder(o).isPending).length;
-                const paidCnt = orders.filter(o => describeSubscriptionOrder(o).isPaid).length;
-                const rejectedCnt = orders.filter(o => {
-                  const d = describeSubscriptionOrder(o);
-                  return d.isRejected || d.isExpired;
-                }).length;
+                const { total: totalCnt = 0, pending: pendingCnt = 0, paid: paidCnt = 0, rejected: rejectedCnt = 0 } = orderPage.summary;
                 return (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                  <div className="finance-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
                     {[
                       { key: 'all', label: 'Total Transaksi', count: totalCnt, color: '#10b981' },
                       { key: 'pending', label: 'Perlu Verifikasi', count: pendingCnt, color: '#f59e0b' },
-                      { key: 'active', label: 'Lunas & Aktif', count: paidCnt, color: '#0284c7' },
+                      { key: 'paid', label: 'Lunas & Aktif', count: paidCnt, color: '#0284c7' },
                       { key: 'rejected', label: 'Ditolak / Batal', count: rejectedCnt, color: '#ef4444' }
                     ].map(stat => (
-                      <div
+                      <button type="button" aria-pressed={ordersFilter === stat.key}
                         key={stat.key}
                         onClick={() => setOrdersFilter(stat.key as any)}
                         style={{
-                          padding: '0.7rem 0.85rem',
+                          minHeight: '44px', textAlign: 'left', font: 'inherit', padding: '0.7rem 0.85rem',
                           borderRadius: '0.85rem',
                           backgroundColor: ordersFilter === stat.key ? `${stat.color}14` : theme.surface,
                           border: `1px solid ${ordersFilter === stat.key ? stat.color : theme.border}`,
@@ -9029,7 +8901,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           <div style={{ fontSize: '1.15rem', fontWeight: 900, color: stat.color, marginTop: '0.1rem' }}>{stat.count}</div>
                         </div>
                         <CreditCard size={18} color={stat.color} style={{ opacity: 0.8 }} />
-                      </div>
+                      </button>
                     ))}
                   </div>
                 );
@@ -9066,83 +8938,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 )}
               </div>
 
-              {/* Status Filter Chips */}
-              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
-                {([
-                  { id: 'all', label: 'Semua Status' },
-                  { id: 'pending', label: 'Perlu Verifikasi' },
-                  { id: 'active', label: 'Lunas & Aktif' },
-                  { id: 'rejected', label: 'Ditolak / Expired' }
-                ] as const).map(f => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => setOrdersFilter(f.id)}
-                    style={{
-                      minHeight: '38px',
-                      padding: '0.35rem 0.8rem',
-                      borderRadius: '999px',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      backgroundColor: ordersFilter === f.id ? '#10b981' : theme.chipInactiveBg,
-                      color: ordersFilter === f.id ? '#ffffff' : theme.chipInactiveText,
-                      border: `1px solid ${ordersFilter === f.id ? '#10b981' : theme.border}`,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Payment Configuration Filter Chips */}
-              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
-                {([
-                  { id: 'all', label: 'Semua Sistem Pembayaran' },
-                  { id: 'gateway_aulaa', label: 'Gateway Aulaa.co' },
-                  { id: 'manual_qris', label: 'QRIS Merchant Manual' },
-                  { id: 'manual_bank', label: 'Transfer Bank Manual' },
-                  { id: 'coupon_free', label: 'Kupon Gratis 100%' }
-                ] as const).map(cf => (
-                  <button
-                    key={cf.id}
-                    type="button"
-                    onClick={() => setOrdersConfigFilter(cf.id)}
-                    style={{
-                      minHeight: '36px',
-                      padding: '0.3rem 0.75rem',
-                      borderRadius: '999px',
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      backgroundColor: ordersConfigFilter === cf.id ? 'rgba(2, 132, 199, 0.15)' : theme.surface,
-                      color: ordersConfigFilter === cf.id ? (isDark ? '#38bdf8' : '#0284c7') : theme.textSecondary,
-                      border: `1px solid ${ordersConfigFilter === cf.id ? '#0284c7' : theme.border}`,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {cf.label}
-                  </button>
-                ))}
-              </div>
+              <OrderFilters Picker={MobileCustomSelect} status={orderPage.status} channel={orderPage.kind}
+                    facets={orderPage.facets} ready={orderPage.ready} onStatus={orderPage.setStatus} onChannel={orderPage.setKind}/>
 
               {/* Orders Feed */}
               {(() => {
-                const filteredList = orders.filter(o => {
-                  const d = describeSubscriptionOrder(o);
-                  if (ordersFilter === 'pending' && !d.isPending) return false;
-                  if (ordersFilter === 'active' && !d.isPaid) return false;
-                  if (ordersFilter === 'rejected' && !(d.isRejected || d.isExpired)) return false;
-                  if (ordersConfigFilter !== 'all' && d.configType !== ordersConfigFilter) return false;
-                  if (ordersSearchQuery.trim()) {
-                    const q = ordersSearchQuery.trim().toLowerCase();
-                    const hay = `${d.orderNumber} ${d.storeTitle} ${d.storeSlug} ${d.customerName} ${d.customerEmail} ${d.senderAccountName} ${d.senderPhone} ${d.gatewayReference} ${d.configBadgeLabel} ${d.planLabel}`.toLowerCase();
-                    if (!hay.includes(q)) return false;
-                  }
-                  return true;
-                });
-
+                const filteredList = orders;
+                if (!orderPage.ready) return null;
                 if (filteredList.length === 0) {
                   return (
                     <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
@@ -9532,123 +9334,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   );
                 });
               })()}
+              <FinancePager list={orderPage} device="mobile"/>
             </>
           )}
 
           {/* Mobile Payment System Configuration */}
           {financeSubTab === 'settings' && canManagePaymentSettings && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {/* Header Info & Save Button */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '0.85rem 1rem',
-                borderRadius: '0.85rem',
-                backgroundColor: theme.surface,
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow
-              }}>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
-                    Konfigurasi Pembayaran
-                  </h4>
-                  <p style={{ margin: '0.15rem 0 0', fontSize: '0.7rem', color: theme.textSecondary }}>
-                    Atur mode checkout &amp; integrasi gateway
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSavePaymentSettings}
-                  disabled={savingSettings}
-                  style={{
-                    minHeight: '44px',
-                    padding: '0 1rem',
-                    borderRadius: '0.55rem',
-                    backgroundColor: '#10b981',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 800,
-                    fontSize: '0.78rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    cursor: savingSettings ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {savingSettings ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
-                  <span>{savingSettings ? 'Menyimpan...' : 'Simpan'}</span>
-                </button>
-              </div>
-
-              {/* 1. Mode Switcher Tabs (3 Interactive Vertical Cards) */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
-                  Pilih Mode Sistem Pembayaran Platform:
-                </label>
-                {[
-                  { key: 'gateway_aulaa', label: 'Aulaa Payment Gateway', desc: 'Otomatis via API Aulaa.co (QRIS Instan, VA, E-Wallet, CC)', icon: Zap, color: '#10b981' },
-                  { key: 'manual_qris', label: 'QRIS & Rekening Manual', desc: 'Scan QRIS ShopeePay/BCA mandiri + kode unik nominal 3-digit', icon: QrCode, color: '#0284c7' },
-                  { key: 'maintenance', label: 'Mode Pemeliharaan (Tutup)', desc: 'Tutup sementara transaksi paket langganan berbayar', icon: ShieldAlert, color: '#ef4444' }
-                ].map(mode => {
-                  const isSelected = (googleSettings.payment_system_mode || 'gateway_aulaa') === mode.key;
-                  const ModeIcon = mode.icon;
-                  const activeBg = mode.key === 'gateway_aulaa' ? 'rgba(16, 185, 129, 0.08)' : mode.key === 'manual_qris' ? 'rgba(2, 132, 199, 0.08)' : 'rgba(239, 68, 68, 0.08)';
-                  const activeBadgeBg = mode.key === 'gateway_aulaa' ? 'rgba(16, 185, 129, 0.15)' : mode.key === 'manual_qris' ? 'rgba(2, 132, 199, 0.15)' : 'rgba(239, 68, 68, 0.15)';
-
-                  return (
-                    <div
-                      key={mode.key}
-                      onClick={() => setGoogleSettings(prev => ({ ...prev, payment_system_mode: mode.key }))}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0.85rem 1rem',
-                        borderRadius: '0.75rem',
-                        backgroundColor: isSelected ? activeBg : theme.surface,
-                        border: `2px solid ${isSelected ? mode.color : theme.border}`,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        boxShadow: isSelected ? `0 0 0 1px ${mode.color}` : undefined,
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <div style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '0.5rem',
-                        backgroundColor: isSelected ? mode.color : theme.cardAlt,
-                        color: isSelected ? '#ffffff' : theme.textPrimary,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        <ModeIcon size={18} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: theme.textPrimary }}>{mode.label}</span>
-                          {isSelected ? (
-                            <span style={{ fontSize: '0.62rem', fontWeight: 800, color: mode.color, backgroundColor: activeBadgeBg, padding: '0.15rem 0.5rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                              <CheckCircle2 size={10} /> MODE AKTIF
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '0.64rem', color: theme.textSecondary }}>
-                              Klik untuk aktifkan
-                            </span>
-                          )}
-                        </div>
-                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.7rem', color: theme.textSecondary, lineHeight: 1.35 }}>
-                          {mode.desc}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
+              <PaymentModePicker value={googleSettings.payment_system_mode || 'gateway_aulaa'}
+                select={payment_system_mode => setGoogleSettings(prev => ({ ...prev, payment_system_mode }))}/>
               {/* 2. Focused Configuration Panel (Only Shows Settings for Selected Tab) */}
               {(() => {
                 const activeMode = googleSettings.payment_system_mode || 'gateway_aulaa';
@@ -9680,7 +9374,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           <Zap size={18} color="#10b981" />
                           <div>
                             <strong style={{ fontSize: '0.8rem', color: theme.textPrimary, display: 'block' }}>
-                              Gateway Aulaa.co (Mode Aktif)
+                              Gateway Aulaa.co
                             </strong>
                             <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
                               Pembayaran instan otomatis via API Aulaa.co
@@ -9766,7 +9460,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           <label style={{ fontSize: '0.75rem', fontWeight: 700, color: theme.textPrimary }}>
                             Aulaa API Key:
                           </label>
-                          <button
+                          <button className="finance-utility"
                             type="button"
                             onClick={() => setShowAulaaSecrets(!showAulaaSecrets)}
                             style={{ minHeight: '44px', background: 'none', border: 'none', color: '#10b981', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
@@ -9869,7 +9563,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           }}>
                             {typeof window !== 'undefined' ? `${window.location.origin}/api/payments/webhook/aulaa` : '/api/payments/webhook/aulaa'}
                           </code>
-                          <button
+                          <button className="finance-utility"
                             type="button"
                             onClick={() => {
                               if (typeof window !== 'undefined') {
@@ -9928,7 +9622,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         <QrCode size={18} color="#0284c7" />
                         <div>
                           <strong style={{ fontSize: '0.8rem', color: theme.textPrimary, display: 'block' }}>
-                            QRIS &amp; Transfer Manual (Mode Aktif)
+                            QRIS &amp; Transfer Manual
                           </strong>
                           <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
                             Pembayaran manual diverifikasi staf admin (kode unik untuk transfer bank, nominal pas untuk QRIS).
@@ -10108,7 +9802,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                 </div>
                                 {isQrisStaged && (
                                   <div style={{ fontSize: '0.71rem', color: '#d97706', lineHeight: 1.35, marginTop: '0.15rem' }}>
-                                    Gambar QRIS berada dalam status pratinjau draf. Klik tombol <strong>"Simpan Pengaturan Pembayaran"</strong> di bawah untuk menerapkan perubahan secara permanen ke sistem.
+                                    Gambar QRIS masih berupa draf. Pilih <strong>Simpan pengaturan</strong> untuk menerapkannya di checkout.
                                   </div>
                                 )}
                               </div>
@@ -10229,10 +9923,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         <ShieldAlert size={18} color="#ef4444" />
                         <div>
                           <strong style={{ fontSize: '0.8rem', color: '#ef4444', display: 'block' }}>
-                            PERINGATAN: Mode Pemeliharaan Aktif
+                            Pemeliharaan checkout
                           </strong>
                           <span style={{ fontSize: '0.68rem', color: theme.textSecondary }}>
-                            Seluruh formulir transaksi pembayaran paket saat ini ditutup.
+                            Jika mode ini disimpan, checkout paket berbayar akan ditutup.
                           </span>
                         </div>
                       </div>
@@ -10320,6 +10014,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                 return null;
               })()}
+              <div className="finance-save-bar">
+                <button type="button" className="finance-action" onClick={handleSavePaymentSettings} disabled={savingSettings}>
+                  {savingSettings ? <Loader2 size={16} className="animate-spin"/> : <CheckCircle2 size={16}/>}
+                  {savingSettings ? 'Menyimpan…' : 'Simpan pengaturan'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -10339,14 +10039,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
-                    Kupon Platform
+                    Kupon langganan
                   </h4>
                   <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.72rem', color: theme.textSecondary }}>
-                    Kelola voucher diskon &amp; kupon gratis pendaftaran paket.
+                    Kelola diskon, kuota, dan masa berlaku kupon.
                   </p>
                 </div>
                 <button
                   type="button"
+                  className="finance-action"
                   onClick={handleOpenCreateCouponModal}
                   style={{
                     minHeight: '44px',
@@ -10374,6 +10075,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textSecondary }} />
                 <input
                   type="text"
+                  aria-label="Cari kupon"
                   placeholder="Cari kode atau nama kupon..."
                   value={couponSearchFilter}
                   onChange={(e) => setCouponSearchFilter(e.target.value)}
@@ -10392,18 +10094,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 />
               </div>
 
+              <CouponFilters Picker={MobileCustomSelect} facets={couponPage.facets} ready={couponPage.ready} status={couponPage.status} kind={couponPage.kind}
+                onStatus={couponPage.setStatus} onKind={couponPage.setKind}/>
               {/* Coupons Card List */}
-              {loadingCoupons ? (
+              {couponPage.error ? null : loadingCoupons ? (
                 <div style={{ textAlign: 'center', padding: '2rem 1rem', color: theme.textSecondary, fontSize: '0.8rem' }}>
                   Memuat daftar kupon...
                 </div>
               ) : (() => {
-                const filtered = coupons.filter(c => {
-                  const q = couponSearchFilter.trim().toLowerCase();
-                  if (!q) return true;
-                  return (c.code || '').toLowerCase().includes(q) || (c.label || '').toLowerCase().includes(q);
-                });
-
+                const filtered = coupons;
                 if (filtered.length === 0) {
                   return (
                     <div style={{
@@ -10431,6 +10130,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       {!couponSearchFilter && (
                         <button
                           type="button"
+                          className="finance-action"
                           onClick={handleOpenCreateCouponModal}
                           style={{
                             minHeight: '44px',
@@ -10616,6 +10316,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   </div>
                 );
               })()}
+              <FinancePager list={couponPage} device="mobile"/>
             </div>
           )}
 
