@@ -16062,11 +16062,15 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
           {/* Mobile Header (Shown on Home and Policy Pages) */}
           {(portalTab === 'home' || ['terms', 'privacy', 'acceptable_use', 'prohibited', 'subscription', 'transactions', 'moderation'].includes(portalTab)) && (
-            <header className="portal-mobile-header">
+            <header className={`portal-mobile-header${
+              ['terms', 'privacy', 'acceptable_use', 'prohibited', 'subscription', 'transactions', 'moderation'].includes(portalTab)
+                ? ' portal-mobile-header--policy'
+                : ''
+            }`}>
               <div className="container">
                 {['terms', 'privacy', 'acceptable_use', 'prohibited', 'subscription', 'transactions', 'moderation'].includes(portalTab) ? (
                   <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                    <button type="button" onClick={handlePolicyBack} className="btn-back-circle" title="Kembali" style={{ border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a' }}>
+                    <button type="button" onClick={handlePolicyBack} className="btn-back-circle btn-back-circle--policy" title="Kembali" style={{ border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a' }}>
                       <ChevronLeft size={20} />
                     </button>
                     <span style={{ color: '#cbd5e1' }}>|</span>

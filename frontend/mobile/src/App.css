@@ -2148,6 +2148,52 @@ select option {
   transform: translateX(-2px) !important;
 }
 
+/* ── Policy pages only: compact header ────────────────────────────────────────
+   The policy reader is a long document; every pixel the chrome steals is a
+   line of text the reader loses. Mobile also stacks footer + menu footer on
+   some pages, so the header must not grow.
+
+   WCAG 2.5.5/2.5.8 ask for a 44x44 TOUCH TARGET, not a 44x44 visual glyph.
+   `.btn-back-circle--policy` keeps the 44x44 hit area via a transparent
+   ::before overlay while the visible circle drops to 36px — verified by DOM
+   probe (hit-area and visual size measured separately), not assumed.
+
+   Scoped with `.btn-back-circle--policy` so the store, admin and about headers
+   keep their own sizing untouched. */
+.portal-mobile-header--policy {
+  padding: 0.5rem 1.25rem !important;
+}
+
+.btn-back-circle--policy {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  max-width: 36px !important;
+  max-height: 36px !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1) !important;
+  position: relative !important;
+}
+
+/* Restore the 44x44 touch target without growing the visible circle.
+   The overlay is centred and clipped by the page box, so it never affects
+   layout or the header height. */
+.btn-back-circle--policy::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  width: 44px !important;
+  height: 44px !important;
+  transform: translate(-50%, -50%) !important;
+  border-radius: 50% !important;
+}
+
+.btn-back-circle--policy svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
 /* Catavor Rich Social Video Showcase Card */
 .catavor-video-card {
   position: relative;
