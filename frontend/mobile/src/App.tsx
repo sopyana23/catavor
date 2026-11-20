@@ -4185,7 +4185,7 @@ function App() {
       const urlPlan = urlParams.get('plan');
       const urlBilling = urlParams.get('billing');
 
-      let pathTab: 'home' | 'login' | 'register' | 'checkout' | 'terms' | 'privacy' | 'acceptable_use' = 'home';
+      let pathTab: 'home' | 'login' | 'register' | 'checkout' | 'terms' | 'privacy' | 'acceptable_use' | 'prohibited' | 'subscription' | 'transactions' | 'moderation' = 'home';
       let pathStep: 1 | 2 | 3 = 1;
 
       const curToken = typeof localStorage !== 'undefined' ? (localStorage.getItem('catavor_token') || localStorage.getItem('token')) : null;
@@ -4248,12 +4248,17 @@ function App() {
         pathTab = isAuthenticated ? 'home' : 'register';
         pathStep = 3;
       } else if (
-        path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal' ||
-        path === '/subscription' || path === '/ketentuan-langganan' ||
-        path === '/transactions' || path === '/pedoman-transaksi' ||
-        path === '/moderation' || path === '/standar-moderasi'
+        path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal'
       ) {
         pathTab = 'terms';
+      } else if (path === '/subscription' || path === '/ketentuan-langganan') {
+        pathTab = 'subscription';
+      } else if (path === '/transactions' || path === '/pedoman-transaksi') {
+        pathTab = 'transactions';
+      } else if (path === '/moderation' || path === '/standar-moderasi') {
+        pathTab = 'moderation';
+      } else if (path === '/prohibited' || path === '/barang-terlarang') {
+        pathTab = 'prohibited';
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         pathTab = 'privacy';
       } else if (path === '/acceptable-use' || path === '/acceptable_use' || path === '/ketentuan-penggunaan' || path === '/prohibited' || path === '/barang-terlarang') {
@@ -4314,7 +4319,7 @@ function App() {
 
   const initialRegState = loadSavedRegistrationState();
 
-  const [portalTab, setPortalTab] = useState<'home' | 'login' | 'register' | 'checkout' | 'terms' | 'privacy' | 'acceptable_use'>(initialRegState.tab as any);
+  const [portalTab, setPortalTab] = useState<'home' | 'login' | 'register' | 'checkout' | 'terms' | 'privacy' | 'acceptable_use' | 'prohibited' | 'subscription' | 'transactions' | 'moderation'>(initialRegState.tab as any);
   const [registerPlan, setRegisterPlan] = useState<'free' | 'pro_starter' | 'pro_business'>(
     (initialRegState.plan as any) === 'pro' ? 'pro_starter' : (initialRegState.plan as any) || 'free'
   );
@@ -5442,11 +5447,30 @@ Terima kasih.`;
   );
 
   // Dedicated Full-Page Legal & Policy Renderer for Mobile
-  const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
+  // Single source of truth for the policy header title. The old inline ternary only
+// knew 'terms' and 'privacy', so every other document was mislabelled
+// "Ketentuan Penggunaan" in the header.
+const POLICY_TAB_LABELS: Partial<Record<PolicyKey, string>> = {
+  terms: 'Syarat & Ketentuan',
+  privacy: 'Kebijakan Privasi',
+  acceptable_use: 'Ketentuan Penggunaan',
+  prohibited: 'Barang Terlarang',
+  moderation: 'Standar Moderasi',
+  transactions: 'Pedoman Transaksi',
+  subscription: 'Langganan & Kuota'
+};
+
+const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
+    // Each portal tab maps to ITS OWN document. 'acceptable_use' used to map to
+    // 'prohibited', so /ketentuan-penggunaan rendered Barang Terlarang instead.
     const keyMap: Record<string, PolicyKey> = {
       terms: 'terms',
       privacy: 'privacy',
-      acceptable_use: 'prohibited'
+      acceptable_use: 'acceptable_use',
+      prohibited: 'prohibited',
+      subscription: 'subscription',
+      transactions: 'transactions',
+      moderation: 'moderation'
     };
     const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase().replace(/\/+$/, '') : '';
     const targetKey: PolicyKey =
@@ -11106,12 +11130,17 @@ Terima kasih atas perhatian dan kerja samanya.`;
           return;
         }
       } else if (
-        path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal' ||
-        path === '/subscription' || path === '/ketentuan-langganan' ||
-        path === '/transactions' || path === '/pedoman-transaksi' ||
-        path === '/moderation' || path === '/standar-moderasi'
+        path === '/terms' || path === '/syarat-ketentuan' || path === '/policies' || path === '/kebijakan' || path === '/legal'
       ) {
         setPortalTab('terms');
+      } else if (path === '/subscription' || path === '/ketentuan-langganan') {
+        setPortalTab('subscription');
+      } else if (path === '/transactions' || path === '/pedoman-transaksi') {
+        setPortalTab('transactions');
+      } else if (path === '/moderation' || path === '/standar-moderasi') {
+        setPortalTab('moderation');
+      } else if (path === '/prohibited' || path === '/barang-terlarang') {
+        setPortalTab('prohibited');
       } else if (path === '/privacy' || path === '/kebijakan-privasi') {
         setPortalTab('privacy');
       } else if (path === '/acceptable-use' || path === '/acceptable_use' || path === '/ketentuan-penggunaan' || path === '/prohibited' || path === '/barang-terlarang') {
@@ -16032,17 +16061,17 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
           )}
 
           {/* Mobile Header (Shown on Home and Policy Pages) */}
-          {(portalTab === 'home' || ['terms', 'privacy', 'acceptable_use'].includes(portalTab)) && (
+          {(portalTab === 'home' || ['terms', 'privacy', 'acceptable_use', 'prohibited', 'subscription', 'transactions', 'moderation'].includes(portalTab)) && (
             <header className="portal-mobile-header">
               <div className="container">
-                {['terms', 'privacy', 'acceptable_use'].includes(portalTab) ? (
+                {['terms', 'privacy', 'acceptable_use', 'prohibited', 'subscription', 'transactions', 'moderation'].includes(portalTab) ? (
                   <div className="mobile-header-bar" style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                     <button type="button" onClick={handlePolicyBack} className="btn-back-circle" title="Kembali" style={{ border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a' }}>
                       <ChevronLeft size={20} />
                     </button>
                     <span style={{ color: '#cbd5e1' }}>|</span>
                     <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                      {portalTab === 'terms' ? 'Syarat & Ketentuan' : portalTab === 'privacy' ? 'Kebijakan Privasi' : 'Ketentuan Penggunaan'}
+                      {POLICY_TAB_LABELS[portalTab as PolicyKey] || 'Kebijakan Platform'}
                     </span>
                   </div>
                 ) : (
@@ -18706,7 +18735,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
             </div>
           )}
 
-          {['terms', 'privacy', 'acceptable_use'].includes(portalTab) && renderPolicyPage(portalTab as any)}
+          {['terms', 'privacy', 'acceptable_use', 'prohibited', 'subscription', 'transactions', 'moderation'].includes(portalTab) && renderPolicyPage(portalTab as any)}
         </div>
 
         {/* ==========================================================

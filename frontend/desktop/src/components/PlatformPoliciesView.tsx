@@ -8,7 +8,6 @@ import {
   ExternalLink,
   Info,
   Building2,
-  ArrowLeft,
   Search,
   Calendar
 } from 'lucide-react';
@@ -23,12 +22,15 @@ import {
   renderPolicyArticleContent
 } from '../utils/policyShared';
 import { ExternalLinkWarningModal } from './ExternalLinkWarningModal';
+import './PolicyReader.css';
 
 export type { PolicyKey, PolicyArticle, PolicyDoc, DraftPolicyOverride };
 
 export interface PlatformPoliciesViewProps {
   onOpenHelpdesk?: () => void;
   initialKey?: PolicyKey;
+  /** Accepted for call-site compatibility; the back affordance lives in the
+      portal header (App.tsx) so this view no longer renders its own. */
   onBack?: () => void;
   draftOverride?: DraftPolicyOverride | null;
 }
@@ -36,7 +38,6 @@ export interface PlatformPoliciesViewProps {
 export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
   onOpenHelpdesk,
   initialKey,
-  onBack,
   draftOverride
 }) => {
   const [activeKey, setActiveKey] = useState<PolicyKey>(initialKey || 'terms');
@@ -129,9 +130,9 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
         style={{
           padding: '1.75rem 2rem',
           borderRadius: '1.25rem',
-          border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
-          backgroundColor: 'var(--bg-card, #0f172a)',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
+          border: '1px solid var(--border-light)',
+          backgroundColor: 'var(--bg-card)',
+          boxShadow: 'var(--shadow-lg)',
           marginBottom: '1.5rem',
           display: 'flex',
           flexDirection: 'column',
@@ -140,31 +141,10 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '300px' }}>
-            {onBack && (
-              <div style={{ marginBottom: '1rem' }}>
-                <button
-                  type="button"
-                  onClick={onBack}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    padding: '0.45rem 0.9rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                    border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
-                    color: 'var(--text-secondary, #cbd5e1)',
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <ArrowLeft size={15} strokeWidth={1.75} />
-                  <span>Kembali</span>
-                </button>
-              </div>
-            )}
+            {/* No back button here on purpose. App.tsx renders the portal header for
+                policy tabs with "Kembali ke Beranda", which is the full affordance.
+                Rendering a second one here gave two back controls ~113px apart on the
+                same page — measured by tools/qa_policy_dupes.cjs before removal. */}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.65rem', flexWrap: 'wrap' }}>
               <span
@@ -176,9 +156,9 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                   fontWeight: 800,
                   textTransform: 'uppercase',
                   letterSpacing: '0.06em',
-                  color: 'var(--primary, #10b981)',
-                  backgroundColor: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
-                  border: '1px solid var(--primary, #10b981)',
+                  color: 'var(--primary)',
+                  backgroundColor: 'var(--primary-glow)',
+                  border: '1px solid var(--primary)',
                   padding: '0.25rem 0.75rem',
                   borderRadius: '9999px'
                 }}
@@ -189,7 +169,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
               <span
                 style={{
                   fontSize: '0.74rem',
-                  color: 'var(--text-muted, #94a3b8)',
+                  color: 'var(--text-muted)',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem'
@@ -201,21 +181,21 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
               <span
                 style={{
                   fontSize: '0.72rem',
-                  color: 'var(--text-muted, #94a3b8)',
+                  color: 'var(--text-muted)',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
-                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                  backgroundColor: 'var(--bg-inset)',
                   padding: '0.2rem 0.55rem',
                   borderRadius: '0.35rem',
-                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                  border: '1px solid var(--border-light)'
                 }}
               >
-                <Scale size={12} strokeWidth={1.75} style={{ color: 'var(--primary, #10b981)' }} />
+                <Scale size={12} strokeWidth={1.75} style={{ color: 'var(--primary)' }} />
                 Yurisdiksi: {legalJurisdiction}
               </span>
               {isLoading && (
-                <span style={{ fontSize: '0.72rem', color: 'var(--primary, #10b981)' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--primary)' }}>
                   Memuat data resmi...
                 </span>
               )}
@@ -225,7 +205,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                 margin: 0,
                 fontSize: '1.65rem',
                 fontWeight: 800,
-                color: 'var(--text-primary, #ffffff)',
+                color: 'var(--text-primary)',
                 letterSpacing: '-0.02em',
                 lineHeight: 1.25
               }}
@@ -236,7 +216,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
               style={{
                 margin: '0.65rem 0 0 0',
                 fontSize: '0.88rem',
-                color: 'var(--text-secondary, #cbd5e1)',
+                color: 'var(--text-secondary)',
                 lineHeight: 1.6,
                 maxWidth: '900px'
               }}
@@ -257,6 +237,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                   gap: '0.5rem',
                   width: 'auto',
                   padding: '0.65rem 1.15rem',
+                  minHeight: '44px',
                   borderRadius: '0.75rem',
                   fontSize: '0.82rem',
                   fontWeight: 700,
@@ -275,7 +256,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
           style={{
             padding: '1rem 1.25rem',
             borderRadius: '0.85rem',
-            backgroundColor: 'rgba(245, 158, 11, 0.08)',
+            backgroundColor: 'var(--warning-glow)',
             border: '1px solid rgba(245, 158, 11, 0.28)',
             display: 'flex',
             alignItems: 'flex-start',
@@ -287,12 +268,12 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
               width: '34px',
               height: '34px',
               borderRadius: '0.55rem',
-              backgroundColor: 'rgba(245, 158, 11, 0.18)',
+              backgroundColor: 'var(--warning-glow)',
               border: '1px solid rgba(245, 158, 11, 0.4)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#f59e0b',
+              color: 'var(--warning)',
               flexShrink: 0,
               marginTop: '2px'
             }}
@@ -300,25 +281,29 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
             <AlertTriangle size={18} strokeWidth={1.75} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ fontSize: '0.78rem', fontWeight: 800, textTransform: 'uppercase', color: '#f59e0b', letterSpacing: '0.04em', display: 'block' }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--warning)', letterSpacing: '0.04em', display: 'block' }}>
               Peringatan Kehati-hatian Pengunggahan Item
             </span>
-            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.55 }}>
+            {/* legal_warning_banner is admin-editable (/api/settings) so its length is
+                unbounded. Measured 1220px / ~170 chars per line at 1440px before the
+                cap. The cap goes on the paragraph, not the flex parent, because the
+                parent is flex:1 and would ignore a max-width. */}
+            <p className="policy-prose" style={{ margin: '0.25rem 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
               {renderPolicyInlineMarkdown(legalWarning, setPendingExternalUrl)}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Main Two-Column Reader Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '290px minmax(0, 1fr)', gap: '1.5rem', alignItems: 'flex-start' }}>
+      {/* Main Two-Column Reader Layout — breakpoints live in PolicyReader.css (A5) */}
+      <div className="policy-layout">
         {/* Left Column: Navigation Sidebar */}
         <div
-          className="glass-panel"
+          className="policy-nav glass-panel"
           style={{
             borderRadius: '1.25rem',
-            border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
-            backgroundColor: 'var(--bg-card, #0f172a)',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)',
             padding: '0.85rem',
             display: 'flex',
             flexDirection: 'column',
@@ -327,8 +312,8 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
             top: '1rem'
           }}
         >
-          <div style={{ padding: '0.5rem 0.75rem 0.35rem 0.75rem', borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))', marginBottom: '0.25rem' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted, #94a3b8)' }}>
+          <div style={{ padding: '0.5rem 0.75rem 0.35rem 0.75rem', borderBottom: '1px solid var(--border-light)', marginBottom: '0.25rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
               6 Pilar Kebijakan Platform
             </span>
           </div>
@@ -341,6 +326,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
               <button
                 key={doc.key}
                 type="button"
+                className="policy-nav-item"
                 onClick={() => {
                   setActiveKey(doc.key);
                   setSearchQuery('');
@@ -351,8 +337,8 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                   gap: '0.75rem',
                   padding: '0.8rem 0.9rem',
                   borderRadius: '0.75rem',
-                  border: isSelected ? '1px solid var(--primary, #10b981)' : '1px solid transparent',
-                  backgroundColor: isSelected ? 'var(--primary-glow, rgba(16, 185, 129, 0.15))' : 'transparent',
+                  border: isSelected ? '1px solid var(--primary)' : '1px solid transparent',
+                  backgroundColor: isSelected ? 'var(--primary-glow)' : 'transparent',
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'all 0.18s ease',
@@ -364,8 +350,8 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                     width: '32px',
                     height: '32px',
                     borderRadius: '0.5rem',
-                    backgroundColor: isSelected ? 'var(--primary, #10b981)' : 'rgba(255, 255, 255, 0.06)',
-                    color: isSelected ? '#ffffff' : 'var(--text-muted, #94a3b8)',
+                    backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-inset)',
+                    color: isSelected ? 'var(--on-primary)' : 'var(--text-muted)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -381,7 +367,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                       style={{
                         fontSize: '0.82rem',
                         fontWeight: isSelected ? 800 : 600,
-                        color: isSelected ? '#ffffff' : 'var(--text-secondary, #cbd5e1)',
+                        color: isSelected ? 'var(--primary-strong)' : 'var(--text-secondary)',
                         display: 'block',
                         lineHeight: 1.35
                       }}
@@ -395,8 +381,8 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                           fontWeight: 700,
                           padding: '0.1rem 0.4rem',
                           borderRadius: '0.35rem',
-                          backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.08)',
-                          color: isSelected ? '#ffffff' : 'var(--text-muted, #94a3b8)',
+                          backgroundColor: isSelected ? 'var(--primary-glow)' : 'var(--bg-inset)',
+                          color: isSelected ? 'var(--primary-strong)' : 'var(--text-muted)',
                           flexShrink: 0
                         }}
                       >
@@ -407,7 +393,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                   <span
                     style={{
                       fontSize: '0.7rem',
-                      color: isSelected ? 'var(--primary, #10b981)' : 'var(--text-muted, #94a3b8)',
+                      color: isSelected ? 'var(--primary)' : 'var(--text-muted)',
                       marginTop: '0.2rem',
                       display: 'block',
                       overflow: 'hidden',
@@ -427,15 +413,15 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
               marginTop: '0.75rem',
               padding: '0.75rem 0.85rem',
               borderRadius: '0.65rem',
-              backgroundColor: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid var(--border-light, rgba(255, 255, 255, 0.06))',
+              backgroundColor: 'var(--bg-inset)',
+              border: '1px solid var(--border-light)',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem'
             }}
           >
-            <Info size={14} strokeWidth={1.75} style={{ color: 'var(--text-muted, #94a3b8)', flexShrink: 0 }} />
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #94a3b8)', lineHeight: 1.4 }}>
+            <Info size={14} strokeWidth={1.75} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
               Ketentuan ini berlaku mengikat seluruh profil katalog secara otomatis sejak tanggal efektif.
             </span>
           </div>
@@ -443,11 +429,11 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
 
         {/* Right Column: Active Document Content Reader */}
         <div
-          className="glass-panel"
+          className="policy-reader glass-panel"
           style={{
             borderRadius: '1.25rem',
-            border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
-            backgroundColor: 'var(--bg-card, #0f172a)',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)',
             padding: '2rem 2.25rem',
             display: 'flex',
             flexDirection: 'column',
@@ -455,23 +441,23 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
           }}
         >
           {/* Document Header */}
-          <div style={{ borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))', paddingBottom: '1.25rem' }}>
+          <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.65rem' }}>
               <span
                 style={{
                   fontSize: '0.72rem',
                   fontWeight: 800,
                   textTransform: 'uppercase',
-                  color: 'var(--primary, #10b981)',
-                  backgroundColor: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
+                  color: 'var(--primary)',
+                  backgroundColor: 'var(--primary-glow)',
                   padding: '0.2rem 0.65rem',
                   borderRadius: '0.5rem',
-                  border: '1px solid var(--primary, #10b981)'
+                  border: '1px solid var(--primary)'
                 }}
               >
                 {currentDoc.badge}
               </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #94a3b8)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                 <Calendar size={13} strokeWidth={1.75} />
                 Versi: <strong>{currentDoc.version || 'v2.0'}</strong> • Berlaku: <strong>{currentDoc.effectiveDate || '1 Januari 2025'}</strong>
               </span>
@@ -483,22 +469,22 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                   width: '42px',
                   height: '42px',
                   borderRadius: '0.75rem',
-                  backgroundColor: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
-                  border: '1px solid var(--border-light, rgba(16, 185, 129, 0.35))',
+                  backgroundColor: 'var(--primary-glow)',
+                  border: '1px solid var(--border-light)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: 'var(--primary, #10b981)',
+                  color: 'var(--primary)',
                   flexShrink: 0
                 }}
               >
                 <ActiveIcon size={22} strokeWidth={1.75} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)', lineHeight: 1.3 }}>
+                <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3 }}>
                   {currentDoc.title}
                 </h2>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted, #94a3b8)' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                   Kategori Regulasi: <strong>{currentDoc.category}</strong>
                 </span>
               </div>
@@ -510,14 +496,14 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                 marginTop: '1.25rem',
                 padding: '1rem 1.25rem',
                 borderRadius: '0.75rem',
-                backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
+                backgroundColor: 'var(--bg-inset)',
+                border: '1px solid var(--border-light)',
                 fontSize: '0.86rem',
-                color: 'var(--text-secondary, #cbd5e1)',
+                color: 'var(--text-secondary)',
                 lineHeight: 1.65
               }}
             >
-              <strong style={{ color: 'var(--text-primary, #ffffff)', display: 'block', marginBottom: '0.25rem' }}>
+              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>
                 Ringkasan Eksekutif:
               </strong>
               {renderPolicyInlineMarkdown(
@@ -532,7 +518,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
 
             {/* Article Filter / Search Bar */}
             <div style={{ marginTop: '1rem', position: 'relative' }}>
-              <Search size={15} strokeWidth={1.75} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #94a3b8)' }} />
+              <Search size={15} strokeWidth={1.75} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
               <input
                 type="text"
                 placeholder={`Cari pasal atau topik dalam ${currentDoc.navLabel}...`}
@@ -542,9 +528,9 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                   width: '100%',
                   padding: '0.65rem 4.75rem 0.65rem 2.4rem',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
-                  color: '#ffffff',
+                  backgroundColor: 'var(--bg-inset)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-primary)',
                   fontSize: '0.82rem',
                   outline: 'none',
                   boxSizing: 'border-box'
@@ -561,7 +547,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                     transform: 'translateY(-50%)',
                     background: 'none',
                     border: 'none',
-                    color: 'var(--text-muted, #94a3b8)',
+                    color: 'var(--text-muted)',
                     cursor: 'pointer',
                     fontSize: '0.75rem'
                   }}
@@ -579,13 +565,13 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                 style={{
                   padding: '2.5rem 1.5rem',
                   textAlign: 'center',
-                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  backgroundColor: 'var(--bg-inset)',
                   borderRadius: '0.85rem',
-                  border: '1px dashed var(--border-light, rgba(255, 255, 255, 0.1))'
+                  border: '1px dashed var(--border-light)'
                 }}
               >
-                <Search size={28} strokeWidth={1.75} style={{ color: 'var(--text-muted, #94a3b8)', margin: '0 auto 0.5rem auto' }} />
-                <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--text-secondary, #cbd5e1)' }}>
+                <Search size={28} strokeWidth={1.75} style={{ color: 'var(--text-muted)', margin: '0 auto 0.5rem auto' }} />
+                <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
                   Tidak ada pasal yang cocok dengan kata kunci &quot;{searchQuery}&quot;.
                 </p>
                 <button
@@ -594,9 +580,10 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                   style={{
                     marginTop: '0.75rem',
                     padding: '0.45rem 0.9rem',
+                    minHeight: '44px',
                     borderRadius: '0.5rem',
-                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                    color: '#ffffff',
+                    backgroundColor: 'var(--bg-inset)',
+                    color: 'var(--text-primary)',
                     border: 'none',
                     fontSize: '0.78rem',
                     cursor: 'pointer'
@@ -609,11 +596,12 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
               filteredArticles.map((art, aIdx) => (
                 <div
                   key={aIdx}
+                  className="policy-article"
                   style={{
                     padding: '1.35rem 1.5rem',
                     borderRadius: '0.85rem',
-                    backgroundColor: 'rgba(255, 255, 255, 0.025)',
-                    border: '1px solid var(--border-light, rgba(255, 255, 255, 0.07))',
+                    backgroundColor: 'var(--bg-inset)',
+                    border: '1px solid var(--border-light)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.75rem'
@@ -624,21 +612,24 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                       style={{
                         fontSize: '0.75rem',
                         fontWeight: 800,
-                        color: 'var(--primary, #10b981)',
-                        backgroundColor: 'var(--primary-glow, rgba(16, 185, 129, 0.12))',
+                        color: 'var(--primary)',
+                        backgroundColor: 'var(--primary-glow)',
                         padding: '0.2rem 0.55rem',
                         borderRadius: '0.4rem',
-                        border: '1px solid var(--primary, #10b981)'
+                        border: '1px solid var(--primary)'
                       }}
                     >
                       {art.number || `Pasal ${aIdx + 1}`}
                     </span>
-                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                       {renderPolicyInlineMarkdown((art.heading || '').replace(/^#+\s*/, ''), setPendingExternalUrl)}
                     </h3>
                   </div>
 
-                  {renderPolicyArticleContent(art.content, setPendingExternalUrl)}
+                  {/* Measured 162 chars/line at 1440px before .policy-prose existed. */}
+                  <div className="policy-prose">
+                    {renderPolicyArticleContent(art.content, setPendingExternalUrl)}
+                  </div>
 
                   {art.highlights && art.highlights.length > 0 && (
                     <div
@@ -646,8 +637,8 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                         marginTop: '0.25rem',
                         padding: '0.85rem 1rem',
                         borderRadius: '0.65rem',
-                        backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                        border: '1px solid var(--border-light, rgba(255, 255, 255, 0.06))',
+                        backgroundColor: 'var(--bg-inset)',
+                        border: '1px solid var(--border-light)',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '0.45rem'
@@ -655,8 +646,8 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                     >
                       {art.highlights.map((h, hIdx) => (
                         <div key={hIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem' }}>
-                          <Check size={13} style={{ color: 'var(--primary, #10b981)', flexShrink: 0, marginTop: '2px' }} strokeWidth={1.75} />
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.55 }}>
+                          <Check size={13} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} strokeWidth={1.75} />
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
                             {renderPolicyInlineMarkdown(h, setPendingExternalUrl)}
                           </span>
                         </div>
@@ -674,8 +665,8 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
               marginTop: '0.5rem',
               padding: '1.15rem 1.35rem',
               borderRadius: '0.85rem',
-              backgroundColor: 'rgba(16, 185, 129, 0.05)',
-              border: '1px solid rgba(16, 185, 129, 0.2)',
+              backgroundColor: 'var(--primary-glow)',
+              border: '1px solid var(--primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -684,12 +675,12 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <ShieldCheck size={22} strokeWidth={1.75} style={{ color: 'var(--primary, #10b981)', flexShrink: 0 }} />
+              <ShieldCheck size={22} strokeWidth={1.75} style={{ color: 'var(--primary)', flexShrink: 0 }} />
               <div>
-                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#ffffff', display: 'block' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', display: 'block' }}>
                   Dokumen Resmi Kepatuhan Platform Catavor
                 </span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                   Dikelola dan diawasi oleh Divisi Hukum &amp; Kepatuhan {legalEntity} • Yurisdiksi: {legalJurisdiction} • Kontak: {officialEmail} / +{officialWa}
                 </span>
               </div>
@@ -702,7 +693,7 @@ export const PlatformPoliciesView: React.FC<PlatformPoliciesViewProps> = ({
                 style={{
                   fontSize: '0.78rem',
                   fontWeight: 700,
-                  color: 'var(--primary, #10b981)',
+                  color: 'var(--primary)',
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',

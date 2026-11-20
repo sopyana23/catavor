@@ -2013,9 +2013,12 @@ export const App: React.FC = () => {
 
   // 3D. DEDICATED LEGAL & POLICY ROUTE (/terms, /privacy, /syarat-ketentuan, /kebijakan-privasi, /acceptable-use)
   if (isPolicyRoute) {
-    const policyKey: 'terms' | 'prohibited' | 'privacy' | 'moderation' | 'transactions' | 'subscription' =
+    const policyKey: 'terms' | 'prohibited' | 'privacy' | 'moderation' | 'transactions' | 'subscription' | 'acceptable_use' =
       (currentPath === '/privacy' || currentPath === '/kebijakan-privasi') ? 'privacy' :
-      (currentPath === '/acceptable-use' || currentPath === '/acceptable_use' || currentPath === '/ketentuan-penggunaan' || currentPath === '/prohibited' || currentPath === '/barang-terlarang') ? 'prohibited' :
+      // /acceptable-use and /barang-terlarang are DIFFERENT documents. They used to
+      // share one branch, so clicking Ketentuan Penggunaan rendered Barang Terlarang.
+      (currentPath === '/acceptable-use' || currentPath === '/acceptable_use' || currentPath === '/ketentuan-penggunaan') ? 'acceptable_use' :
+      (currentPath === '/prohibited' || currentPath === '/barang-terlarang') ? 'prohibited' :
       (currentPath === '/subscription' || currentPath === '/ketentuan-langganan') ? 'subscription' :
       (currentPath === '/transactions' || currentPath === '/pedoman-transaksi') ? 'transactions' :
       (currentPath === '/moderation' || currentPath === '/standar-moderasi') ? 'moderation' : 'terms';
@@ -2066,6 +2069,7 @@ export const App: React.FC = () => {
                 alignItems: 'center',
                 gap: '0.45rem',
                 padding: '0.5rem 0.85rem',
+                minHeight: '44px',
                 borderRadius: '0.65rem',
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                 border: '1px solid var(--border-light, rgba(255, 255, 255, 0.15))',

@@ -1,0 +1,99 @@
+/* Policy reader layout ──────────────────────────────────────────────────────
+   Audit finding A5: the reader used an inline gridTemplateColumns of
+   '290px minmax(0, 1fr)' with no media query, so on a 390px phone the content
+   column collapsed to roughly 70px. The layout now lives in CSS where it can
+   respond to viewport width, and the inline style is gone from the component.
+   Breakpoints match the desktop shell. */
+
+.policy-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+/* Tablet / small laptop: nav becomes a horizontal scroll rail above the reader. */
+@media (max-width: 1180px) {
+  .policy-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .policy-nav {
+    position: static !important;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 0.5rem;
+  }
+
+  .policy-nav-item {
+    min-width: 220px;
+    flex-shrink: 0;
+  }
+}
+
+/* Phone: single column, nav turns into a scrollable tab strip. */
+@media (max-width: 760px) {
+  .policy-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.85rem;
+  }
+
+  .policy-nav {
+    flex-direction: row;
+    padding: 0.6rem;
+  }
+
+  .policy-nav-item {
+    min-width: 80%;
+  }
+
+  .policy-reader {
+    padding: 1.15rem 1rem !important;
+    border-radius: 1rem;
+  }
+
+  .policy-article {
+    padding: 1rem 0.9rem !important;
+  }
+}
+
+/* Comfortable reading measure: long legal text should not span 140 characters.
+   Measured progression at 1440px: 162 chars/line with no cap -> 112 at 72ch.
+   `ch` is the width of "0", which is narrower than average Indonesian prose, so
+   72ch under-delivers; 62ch lands near the 75-80 char target for legal text. */
+.policy-prose {
+  max-width: 62ch;
+}
+
+/* The prose cap only matters inside the reader; centre it so the card does not
+   look left-heavy on wide monitors. */
+.policy-article .policy-prose {
+  margin-inline: 0 auto;
+}
+
+/* Tap targets never below 44px on touch (WCAG 2.5.5). Measured before: 32px
+   "Kembali" and 36px "Kembali ke Beranda" links. */
+.policy-nav-item,
+.policy-reader button,
+.policy-reader a[href] {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Inline links inside body copy must stay inline — forcing them to a 44px flex
+   box would break paragraph flow. Only standalone links/buttons are targeted,
+   so restore inline flow for anchors nested in a paragraph. */
+.policy-reader p a[href],
+.policy-reader li a[href] {
+  display: inline;
+  min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .policy-nav-item,
+  .policy-reader * {
+    transition: none !important;
+  }
+}

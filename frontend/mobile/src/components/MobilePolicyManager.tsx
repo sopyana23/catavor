@@ -21,7 +21,8 @@ import {
   Check,
   AlertTriangle,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  FileText
 } from 'lucide-react';
 import {
   MobilePoliciesView,
@@ -67,6 +68,9 @@ interface PolicyMetadataEntry {
 
 const POLICY_METADATA: Record<PolicyKey, PolicyMetadataEntry> = {
   terms: { label: 'Syarat & Ketentuan', icon: Scale, defaultCategory: 'Ketentuan Umum & Kedudukan Hukum', defaultBadge: 'Dokumen Perjanjian Pengelola' },
+  // Admin could not create or edit this document at all: it was absent from the
+  // PolicyKey union, so the manager UI had no entry for it.
+  acceptable_use: { label: 'Ketentuan Penggunaan', icon: FileText, defaultCategory: 'Aturan Penggunaan Layanan', defaultBadge: 'Wajib Dipatuhi Pengguna' },
   prohibited: { label: 'Komoditas Terlarang', icon: ShieldAlert, defaultCategory: 'Kepatuhan Mutlak (Zero Tolerance)', defaultBadge: 'Wajib Dipatuhi Pengelola' },
   privacy: { label: 'Privasi & Data B2B', icon: Lock, defaultCategory: 'Kepatuhan UU No. 27 Tahun 2022 (PDP)', defaultBadge: 'Standar Perlindungan Privasi' },
   moderation: { label: 'Moderasi & Sanksi', icon: CheckCircle2, defaultCategory: 'Prosedur Disiplin Ekosistem', defaultBadge: 'Transparansi & Akuntabilitas' },

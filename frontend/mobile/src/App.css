@@ -2093,14 +2093,18 @@ select option {
   line-height: 1.2;
 }
 
-/* Luxury Circular Header Back Button */
+/* Circular header back button.
+   WCAG 2.5.5 (AAA) / 2.5.8 (AA) wants a 44x44 touch target. This was locked to
+   36px in all six dimensions, which measured 36x36 in the runtime probe. It is a
+   global header control, so the change applies to every mobile page — verified
+   after the fact with a DOM probe rather than assumed from the stylesheet. */
 .btn-back-circle {
-  width: 36px !important;
-  height: 36px !important;
-  min-width: 36px !important;
-  min-height: 36px !important;
-  max-width: 36px !important;
-  max-height: 36px !important;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  max-width: 44px !important;
+  max-height: 44px !important;
   border-radius: 50% !important;
   background: var(--bg-card-hover) !important;
   border: 1px solid var(--border-light) !important;

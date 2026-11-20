@@ -4,11 +4,16 @@ import {
   ShieldAlert,
   Lock,
   CheckCircle2,
-  CreditCard
+  CreditCard,
+  FileText
 } from 'lucide-react';
 import { checkUrlSecurity } from './urlSecurity';
 
-export type PolicyKey = 'terms' | 'prohibited' | 'privacy' | 'moderation' | 'transactions' | 'subscription';
+// The API serves SEVEN policy documents. 'acceptable_use' was missing from this
+// union, which forced every consumer to fold it into 'prohibited' — so clicking
+// Ketentuan Penggunaan rendered Barang Terlarang. Keep this in sync with
+// GET /api/policies.
+export type PolicyKey = 'terms' | 'privacy' | 'acceptable_use' | 'prohibited' | 'subscription' | 'transactions' | 'moderation';
 
 export interface PolicyArticle {
   number: string;
@@ -124,6 +129,30 @@ export const FALLBACK_POLICY_SECTIONS: PolicyDoc[] = [
           'Catavor senantiasa mengupayakan ketersediaan infrastruktur layanan dengan target uptime 99.5% di luar pemeliharaan berkala terjadwal.',
           'Ganti rugi maksimal yang dapat dituntut oleh pengelola dibatasi sebesar biaya langganan paket aktif yang telah dibayarkan untuk bulan berjalan.'
         ]
+      }
+    ]
+  },
+  {
+    key: 'acceptable_use',
+    navLabel: 'Ketentuan Penggunaan',
+    title: 'Ketentuan Penggunaan Layanan Platform Catavor',
+    category: 'Aturan Penggunaan Layanan',
+    badge: 'Wajib Dipatuhi Pengguna',
+    version: 'v1.0',
+    icon: FileText,
+    summary: 'Aturan penggunaan layanan: larangan produk, standar konten, dan sanksi pelanggaran yang berlaku bagi seluruh pengguna Platform Catavor.',
+    articles: [
+      {
+        number: 'Pasal 1',
+        heading: 'Larangan Produk',
+        content: 'Dilarang mengunggah satwa liar dilindungi tanpa izin BKSDA resmi, barang bajakan/ilegal, senjata, atau materi yang melanggar norma hukum.',
+        highlights: []
+      },
+      {
+        number: 'Pasal 2',
+        heading: 'Sanksi Pelanggaran',
+        content: 'Pelanggaran akan dikenakan sanksi mulai dari penutupan katalog, pemblokiran akun, hingga pelaporan ke pihak berwajib.',
+        highlights: []
       }
     ]
   },
@@ -425,6 +454,129 @@ export function normalizePolicyArticle(raw: unknown): PolicyArticle {
   };
 }
 
+// Audit finding A2: `policies.sections` is frequently NULL in the DB, which used to
+// make admin edits to `content` (markdown) invisible on the public page. This parser
+// turns the admin-authored markdown into structured articles so the published content
+// is what actually renders. Pure string work only — renderers still sanitize links
+// via checkUrlSecurity (SEC-FE-01), no HTML is produced here.
+const POLICY_MD_HEADING_PATTERNS: RegExp[] = [
+  /^#{2,4}\s+(.+)$/,
+  /^\*\*(.+?)\*\*:?\s*$/,
+  /^__(.+?)__:?\s*$/
+];
+
+const POLICY_MD_NUMBER_RE = /^(?:pasal|bab|bagian|artikel)\s+([0-9]+[a-z]?|[ivxlcdm]+)\b[\s.:-]*(.*)$/i;
+// Admin editors commonly write "### 1. Judul" / "### 2) Judul" without the word "Pasal".
+const POLICY_MD_LEADING_NUM_RE = /^([0-9]+[a-z]?|[ivxlcdm]+)[.)\]:-]\s*(.+)$/i;
+
+export function parsePolicyMarkdownToArticles(markdown?: string | null): PolicyArticle[] {
+  if (!markdown || typeof markdown !== 'string') return [];
+
+  const lines = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const articles: PolicyArticle[] = [];
+  let current: PolicyArticle | null = null;
+  let pendingParagraph: string[] = [];
+  let pendingHighlights: string[] = [];
+
+  const flushPending = () => {
+    if (!current) {
+      pendingParagraph = [];
+      pendingHighlights = [];
+      return;
+    }
+    const body = pendingParagraph.join('\n').trim();
+    if (body) current.content = current.content ? `${current.content}\n\n${body}` : body;
+    if (pendingHighlights.length > 0) {
+      current.highlights = [...(current.highlights || []), ...pendingHighlights];
+    }
+    pendingParagraph = [];
+    pendingHighlights = [];
+  };
+
+  const openArticle = (rawHeading: string) => {
+    flushPending();
+    let heading = rawHeading
+      .replace(/^#{2,4}\s+/, '')
+      .replace(/^\*\*(.+?)\*\*:?$/, '$1')
+      .replace(/^__(.+?)__:?$/, '$1')
+      .replace(/\*\*|__/g, '')
+      .trim();
+    if (!heading) return;
+
+    let number = '';
+    const numMatch = heading.match(POLICY_MD_NUMBER_RE);
+    if (numMatch) {
+      const label = numMatch[1].toLowerCase();
+      const rest = (numMatch[2] || '').trim();
+      number = /^[ivxlcdm]+$/.test(label) && !/^[0-9]/.test(label)
+        ? `Pasal ${label.toUpperCase()}`
+        : `Pasal ${label}`;
+      heading = rest || heading;
+    } else {
+      const leadMatch = heading.match(POLICY_MD_LEADING_NUM_RE);
+      if (leadMatch) {
+        const label = leadMatch[1].toLowerCase();
+        const rest = (leadMatch[2] || '').trim();
+        if (rest) {
+          number = /^[ivxlcdm]+$/.test(label) && !/^[0-9]/.test(label)
+            ? `Pasal ${label.toUpperCase()}`
+            : `Pasal ${label}`;
+          heading = rest;
+        }
+      }
+    }
+    if (!heading) return;
+    current = { number, heading, content: '', highlights: [] };
+    articles.push(current);
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      flushPending();
+      continue;
+    }
+
+    // Horizontal rules / separators never start an article.
+    if (/^[-*_]{3,}$/.test(line)) {
+      flushPending();
+      continue;
+    }
+
+    // Document title (#) is already rendered from the API `title` field — ignore it
+    // so the page does not show a duplicated heading.
+    if (/^#\s+/.test(line)) continue;
+
+    const isHeading = POLICY_MD_HEADING_PATTERNS.some((re) => re.test(line));
+    if (isHeading) {
+      openArticle(line);
+      continue;
+    }
+
+    const bulletMatch = line.match(/^(?:[-*•]|\d+\.)\s+(.+)$/);
+    if (bulletMatch) {
+      const item = bulletMatch[1].trim();
+      if (!item) continue;
+      if (current) pendingHighlights.push(item);
+      else pendingParagraph.push(item);
+      continue;
+    }
+
+    pendingParagraph.push(line.startsWith('>') ? line.replace(/^>+\s*/, '') : line);
+  }
+
+  flushPending();
+
+  const cleaned = articles.filter((a) => a.heading.trim().length > 0);
+  if (cleaned.length === 0) return [];
+  return cleaned.map((a) => ({
+    ...a,
+    content: a.content.trim(),
+    highlights: (a.highlights || []).filter((h) => h.trim().length > 0)
+  }));
+}
+
 export function hydratePolicyDocs(
   dynamicPolicies: Record<string, ApiPolicyRecord | undefined>,
   draftOverride?: DraftPolicyOverride | null
@@ -469,6 +621,14 @@ export function hydratePolicyDocs(
         if (typeof rec.badge === 'string' && rec.badge.trim()) badge = rec.badge;
         if (typeof rec.category === 'string' && rec.category.trim()) category = rec.category;
       }
+    }
+
+    // Priority 3 (audit finding A2): when the admin has no structured `sections`,
+    // publish the markdown they actually saved in `content`. Falls back to the
+    // static articles when the markdown yields nothing parseable.
+    if (parsedArticles === fallback.articles && dbPolicy.content) {
+      const fromMarkdown = parsePolicyMarkdownToArticles(dbPolicy.content);
+      if (fromMarkdown.length > 0) parsedArticles = fromMarkdown;
     }
 
     let formattedDate = '1 Januari 2025';
@@ -535,7 +695,7 @@ export function renderPolicyInlineMarkdown(
       parts.push(<em key={`i2-${idx++}`} style={{ fontStyle: 'italic', color: 'inherit' }}>{sanitizePlain(match[5])}</em>);
     } else if (match[6] !== undefined) {
       parts.push(
-        <code key={`c-${idx++}`} style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.9em' }}>
+        <code key={`c-${idx++}`} style={{ backgroundColor: 'var(--bg-inset)', padding: '0.1rem 0.35rem', borderRadius: '4px', fontSize: '0.9em' }}>
           {match[6]}
         </code>
       );
@@ -561,7 +721,7 @@ export function renderPolicyInlineMarkdown(
                 }
               }
             }}
-            style={{ color: 'var(--primary, #10b981)', textDecoration: 'underline' }}
+            style={{ color: 'var(--primary-strong)', textDecoration: 'underline' }}
           >
             {linkLabel}
           </a>
@@ -595,7 +755,7 @@ export function renderPolicyArticleContent(
 
     if (/^[-*_]{2,}$/.test(trimmed)) {
       elements.push(
-        <hr key={`hr-${idx}`} style={{ border: 'none', borderTop: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))', margin: '0.65rem 0' }} />
+        <hr key={`hr-${idx}`} style={{ border: 'none', borderTop: '1px solid var(--border-light)', margin: '0.65rem 0' }} />
       );
       return;
     }
@@ -603,7 +763,7 @@ export function renderPolicyArticleContent(
     if (trimmed.startsWith('>')) {
       const qText = trimmed.replace(/^>+\s*/, '');
       elements.push(
-        <blockquote key={`bq-${idx}`} style={{ margin: '0.35rem 0', padding: '0.45rem 0.75rem', borderRadius: '0.45rem', backgroundColor: 'rgba(255, 255, 255, 0.03)', borderLeft: '3px solid var(--primary, #10b981)', color: 'var(--text-secondary, #cbd5e1)', fontStyle: 'italic', fontSize: '0.84rem' }}>
+        <blockquote key={`bq-${idx}`} style={{ margin: '0.35rem 0', padding: '0.45rem 0.75rem', borderRadius: '0.45rem', backgroundColor: 'var(--bg-inset)', borderLeft: '3px solid var(--primary)', color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: '0.84rem' }}>
           {renderPolicyInlineMarkdown(qText, onPromptExternalUrl)}
         </blockquote>
       );
@@ -614,7 +774,7 @@ export function renderPolicyArticleContent(
       const itemText = trimmed.replace(/^(--|-|•)\s+/, '');
       elements.push(
         <div key={`li-${idx}`} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', paddingLeft: '0.5rem', margin: '0.15rem 0' }}>
-          <span style={{ color: 'var(--primary, #10b981)', fontSize: '0.85rem', lineHeight: '1.4', flexShrink: 0 }}>•</span>
+          <span style={{ color: 'var(--primary)', fontSize: '0.85rem', lineHeight: '1.4', flexShrink: 0 }}>•</span>
           <span style={{ fontSize: 'inherit', color: 'inherit', lineHeight: 1.6 }}>{renderPolicyInlineMarkdown(itemText, onPromptExternalUrl)}</span>
         </div>
       );
@@ -622,7 +782,7 @@ export function renderPolicyArticleContent(
     }
 
     elements.push(
-      <p key={`p-${idx}`} style={{ margin: '0 0 0.35rem 0', fontSize: 'inherit', color: 'inherit', lineHeight: 1.65 }}>
+      <p key={`p-${idx}`} style={{ margin: '0 0 0.35rem 0', fontSize: 'inherit', color: 'inherit', lineHeight: 1.7 }}>
         {renderPolicyInlineMarkdown(trimmed, onPromptExternalUrl)}
       </p>
     );

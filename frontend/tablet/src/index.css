@@ -187,6 +187,41 @@
   --shadow-premium: 0 10px 25px rgba(0, 0, 0, 0.05);
 }
 
+/* ── Derived design tokens (policy reader) ────────────────────────────────────
+   These are theme-relative: they resolve against whatever --primary / --bg-card /
+   --text-* the active theme defines, so light and dark themes both work without
+   one hand-written block per theme. Kept in one place on purpose. */
+:root,
+[data-theme] {
+  --bg-inset: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  --primary-soft: color-mix(in srgb, var(--primary) 10%, transparent);
+  --primary-strong: color-mix(in srgb, var(--primary) 82%, var(--text-primary));
+  --on-primary: #ffffff;
+  --warning: #b45309;
+  --warning-glow: color-mix(in srgb, var(--warning) 10%, transparent);
+  --warning-border: color-mix(in srgb, var(--warning) 38%, transparent);
+  --shadow-lg: 0 10px 30px -8px rgba(15, 23, 42, 0.18);
+  --shadow-md: 0 4px 14px -6px rgba(15, 23, 42, 0.14);
+}
+
+/* Dark-surfaced themes keep the lighter warning hue for legibility. */
+:root,
+[data-theme="dark"],
+[data-theme="emerald"],
+[data-theme="cyberpunk"],
+[data-theme="ocean"],
+[data-theme="nordic"] {
+  --warning: #f59e0b;
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+/* "navy" is the light blue/white platform theme: primary is a deep blue, so text
+   legibility on white is already fine; keep --on-primary white for the solid fill. */
+[data-theme="navy"] {
+  --primary-strong: #172554;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
