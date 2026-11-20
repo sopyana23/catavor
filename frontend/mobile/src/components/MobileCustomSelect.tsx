@@ -85,7 +85,9 @@ export const MobileCustomSelect: React.FC<MobileCustomSelectProps> = ({
     modalId: `mobile_select_${selectId}`
   });
 
-  // Drag physics tracking
+  // Drag physics. `dragY` may be negative (upward) but the surface only ever
+  // translates downward from its resting place, so the bottom edge can never lift
+  // away from the viewport and leave an empty band behind the sheet.
   const handleDragStart = (clientY: number) => {
     touchStartY.current = clientY;
     setIsDragging(true);
@@ -95,9 +97,12 @@ export const MobileCustomSelect: React.FC<MobileCustomSelectProps> = ({
     if (!isDragging) return;
     const delta = clientY - touchStartY.current;
     if (delta > 0) {
+      // Downward: follow the finger, but leave the last stretch damped so the
+      // surface does not fly off screen before the user decides to release.
       setDragY(delta);
     } else {
-      // Rubber-banding damping for dragging upwards
+      // Upward: the sheet is already at its natural height. Damp heavily so the
+      // header resists instead of tearing away from the top of the modal.
       setDragY(delta * 0.18);
     }
   };
@@ -105,7 +110,9 @@ export const MobileCustomSelect: React.FC<MobileCustomSelectProps> = ({
   const handleDragEnd = () => {
     if (!isDragging) return;
     setIsDragging(false);
-    if (dragY > 70) {
+    // 130px is roughly a deliberate thumb swipe on a 505px-tall sheet; the previous
+    // 70px made an accidental nudge dismiss the picker.
+    if (dragY > 130) {
       setIsOpen(false);
     }
     setDragY(0);
@@ -234,16 +241,21 @@ export const MobileCustomSelect: React.FC<MobileCustomSelectProps> = ({
               boxSizing: 'border-box'
             }}
           >
-            {/* Apple-style Smooth Drag Handle Bar (Touch Action Isolation) */}
+            {/* Apple-style Smooth Drag Handle Bar (Touch Action Isolation).
+                The bar itself is a small visual affordance; the drag surface is a
+                44px-tall strip so the gesture is a legal touch target (WCAG 2.5.5)
+                and can actually be grabbed with a thumb. */}
             <div
               style={{
                 width: '100%',
-                padding: '0.75rem 0 0.35rem 0',
+                minHeight: '44px',
+                height: '44px',
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
                 cursor: 'grab',
-                touchAction: 'none'
+                touchAction: 'none',
+                userSelect: 'none'
               }}
               onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
               onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
@@ -254,58 +266,85 @@ export const MobileCustomSelect: React.FC<MobileCustomSelectProps> = ({
             >
               <div
                 style={{
-                  width: '38px',
-                  height: '4px',
+                  width: '44px',
+                  height: '5px',
                   borderRadius: '999px',
-                  backgroundColor: 'var(--border-strong, rgba(255, 255, 255, 0.25))'
+                  /* The modal surface is white (measured rgb(255,255,255)), so a
+                     translucent-white bar sat at 1.00:1 contrast — literally
+                     invisible. Use a slate tone that clears 3:1 against white and
+                     darkens while the finger is down to signal the grab. */
+                  backgroundColor: isDragging ? 'rgba(51, 65, 85, 0.92)' : 'rgba(71, 85, 105, 0.78)',
+                  transition: 'background-color 0.15s ease, transform 0.15s ease',
+                  transform: isDragging ? 'scaleX(1.12)' : 'scaleX(1)'
                 }}
               />
             </div>
 
-            {/* Header: Clean, Professional Vector Icon (No 'X' button as per Rule 06) */}
+            {/* Header. Per the mobile UI spec the modal header is centred: the
+                grabber sits mid-header and the titles centre under it. The old
+                layout put a 32px icon first in a flex row, which pushed the title
+                to x=216 on a 390px viewport (measured) — visibly off-centre. */}
             <div
               style={{
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                gap: '0.65rem',
-                padding: '0.5rem 1.25rem 0.75rem 1.25rem',
+                gap: '0.3rem',
+                padding: '0 1.25rem 0.75rem 1.25rem',
                 borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
                 touchAction: 'none'
               }}
               onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
               onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
               onTouchEnd={handleDragEnd}
+              onMouseDown={(e) => handleDragStart(e.clientY)}
+              onMouseMove={(e) => handleDragMove(e.clientY)}
+              onMouseUp={handleDragEnd}
             >
+              {/* Icon: 40px tile with a 20px glyph is the common mobile modal
+                  ratio (2:1 surface-to-glyph). The previous 32/16 read as a tiny
+                  chip floating above the title rather than a header mark. */}
               <div
                 style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(56, 189, 248, 0.14)',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '0.75rem',
+                  backgroundColor: 'rgba(37, 99, 235, 0.10)',
+                  border: '1px solid rgba(37, 99, 235, 0.16)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#38bdf8',
+                  color: 'var(--primary, #1d4ed8)',
                   flexShrink: 0
                 }}
               >
-                {icon ? icon : <Filter size={16} />}
+                {icon ? icon : <Filter size={20} strokeWidth={1.9} />}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.15rem', minWidth: 0, width: '100%' }}>
                 <h3
                   id={`${selectId}-title`}
                   style={{
                     margin: 0,
-                    fontSize: '0.95rem',
-                    fontWeight: 800,
-                    color: 'var(--text-primary, #ffffff)',
-                    letterSpacing: '-0.01em'
+                    fontSize: '1.02rem',
+                    fontWeight: 750,
+                    lineHeight: 1.25,
+                    textAlign: 'center',
+                    color: 'var(--text-primary, #0f172a)',
+                    letterSpacing: '-0.011em'
                   }}
                 >
                   {title}
                 </h3>
                 {subtitle && (
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)', marginTop: '0.1rem' }}>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      lineHeight: 1.35,
+                      textAlign: 'center',
+                      color: 'var(--text-muted, #64748b)',
+                      maxWidth: '30ch'
+                    }}
+                  >
                     {subtitle}
                   </span>
                 )}

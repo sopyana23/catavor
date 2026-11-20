@@ -7,7 +7,6 @@ import {
   Check,
   ExternalLink,
   Building2,
-  ArrowLeft,
   Search,
   X
 } from 'lucide-react';
@@ -29,6 +28,9 @@ export type { PolicyKey, PolicyArticle, PolicyDoc, DraftPolicyOverride };
 export interface MobilePoliciesViewProps {
   onOpenHelpdesk?: () => void;
   initialKey?: PolicyKey;
+  /** Accepted for call-site compatibility; the back affordance lives in the
+      portal mobile header (App.tsx, `.btn-back-circle`) so this view no longer
+      renders its own duplicate. */
   onBack?: () => void;
   draftOverride?: DraftPolicyOverride | null;
 }
@@ -36,7 +38,6 @@ export interface MobilePoliciesViewProps {
 export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
   onOpenHelpdesk,
   initialKey,
-  onBack,
   draftOverride
 }) => {
   const [activeKey, setActiveKey] = useState<PolicyKey>(initialKey || 'terms');
@@ -162,38 +163,18 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
         style={{
           padding: `0.95rem ${cardHorizontalPad}`,
           borderRadius: '0.9rem',
-          backgroundColor: 'var(--bg-card, #0f172a)',
-          border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+          backgroundColor: 'var(--bg-card)',
+          border: '1px solid var(--border-light)',
           display: 'flex',
           flexDirection: 'column',
           gap: '0.75rem'
         }}
       >
-        {onBack && (
-          <div>
-            <button
-              type="button"
-              onClick={onBack}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                minHeight: '44px',
-                padding: '0.45rem 0.85rem',
-                borderRadius: '0.55rem',
-                backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
-                color: 'var(--text-secondary, #cbd5e1)',
-                fontSize: '0.76rem',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              <ArrowLeft size={14} strokeWidth={1.75} />
-              <span>Kembali</span>
-            </button>
-          </div>
-        )}
+        {/* No back button here on purpose: App.tsx already renders the portal
+            header for policy tabs (`.btn-back-circle` + page title). Having both
+            produced two identical "Kembali" controls 45px apart — measured by
+            tools/qa_policy_dupes.cjs. The header one wins because it sits with
+            the page title. */}
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.45rem', flexWrap: 'wrap' }}>
           <span
@@ -204,9 +185,9 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
               fontSize: '0.66rem',
               fontWeight: 800,
               textTransform: 'uppercase',
-              color: 'var(--primary, #10b981)',
-              backgroundColor: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
-              border: '1px solid var(--primary, #10b981)',
+              color: 'var(--primary)',
+              backgroundColor: 'var(--primary-glow)',
+              border: '1px solid var(--primary)',
               padding: '0.2rem 0.55rem',
               borderRadius: '9999px'
             }}
@@ -215,7 +196,7 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
             Dokumen Resmi Platform
           </span>
 
-          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
             <Building2 size={11} strokeWidth={1.75} />
             {legalEntity}
           </span>
@@ -225,32 +206,32 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
           <span
             style={{
               fontSize: '0.66rem',
-              color: 'var(--text-muted, #94a3b8)',
+              color: 'var(--text-muted)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.3rem',
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
+              backgroundColor: 'var(--bg-inset)',
               padding: '0.15rem 0.5rem',
               borderRadius: '0.35rem',
-              border: '1px solid rgba(255, 255, 255, 0.08)'
+              border: '1px solid var(--border-light)'
             }}
           >
-            <Scale size={11} strokeWidth={1.75} style={{ color: 'var(--primary, #10b981)' }} />
+            <Scale size={11} strokeWidth={1.75} style={{ color: 'var(--primary)' }} />
             Yurisdiksi: {legalJurisdiction}
           </span>
 
           {isLoading && (
-            <span style={{ fontSize: '0.68rem', color: 'var(--primary, #10b981)' }}>
+            <span style={{ fontSize: '0.68rem', color: 'var(--primary)' }}>
               Memuat data...
             </span>
           )}
         </div>
 
         <div>
-          <h2 style={{ margin: 0, fontSize: isCompactMobile ? '1.05rem' : '1.15rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)', lineHeight: 1.3 }}>
+          <h1 style={{ margin: 0, fontSize: isCompactMobile ? '1.05rem' : '1.15rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3 }}>
             Pedoman Legal, Ketentuan &amp; Kepatuhan
-          </h2>
-          <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.5 }}>
+          </h1>
+          <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
             Standar kepatuhan resmi untuk seluruh pengelola katalog guna memastikan item yang diunggah mematuhi {legalJurisdiction} dan pedoman komunitas.
           </p>
         </div>
@@ -260,22 +241,22 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
           style={{
             padding: '0.75rem 0.85rem',
             borderRadius: '0.65rem',
-            backgroundColor: 'rgba(245, 158, 11, 0.08)',
-            border: '1px solid rgba(245, 158, 11, 0.3)',
+            backgroundColor: 'var(--warning-glow)',
+            border: '1px solid var(--warning-border)',
             display: 'flex',
             alignItems: 'flex-start',
             gap: '0.6rem'
           }}
         >
-          <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '2px' }} strokeWidth={1.75} />
-          <p style={{ margin: 0, fontSize: '0.74rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+          <AlertTriangle size={16} style={{ color: 'var(--warning)', flexShrink: 0, marginTop: '2px' }} strokeWidth={1.75} />
+          <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
             <strong>Peringatan Pengunggahan:</strong> {renderPolicyInlineMarkdown(legalWarning, setPendingExternalUrl)}
           </p>
         </div>
 
         {/* Search Bar for Articles */}
         <div style={{ position: 'relative', marginTop: '0.15rem' }}>
-          <Search size={15} strokeWidth={1.75} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #94a3b8)', pointerEvents: 'none' }} />
+          <Search size={15} strokeWidth={1.75} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
           <input
             type="text"
             placeholder={`Cari pasal / klausul di ${currentDoc.navLabel}...`}
@@ -286,9 +267,9 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
               minHeight: '44px',
               padding: '0.55rem 2.75rem 0.55rem 2.2rem',
               borderRadius: '0.55rem',
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
-              color: '#ffffff',
+              backgroundColor: 'var(--bg-inset)',
+              border: '1px solid var(--border-light)',
+              color: 'var(--text-primary)',
               fontSize: '0.78rem',
               outline: 'none',
               boxSizing: 'border-box'
@@ -308,7 +289,7 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
                 minHeight: '44px',
                 background: 'none',
                 border: 'none',
-                color: 'var(--text-muted, #94a3b8)',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -333,9 +314,9 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
               borderRadius: '0.6rem',
               fontSize: '0.78rem',
               fontWeight: 700,
-              backgroundColor: 'rgba(255, 255, 255, 0.06)',
-              color: 'var(--text-primary, #ffffff)',
-              border: '1px solid var(--border-light, rgba(255, 255, 255, 0.12))',
+              backgroundColor: 'var(--bg-inset)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-light)',
               cursor: 'pointer',
               minHeight: '44px',
               width: '100%'
@@ -357,7 +338,7 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
         options={selectOptions}
         title="Pilih Pilar Kebijakan Platform"
         subtitle="Seluruh dokumen berlaku mengikat sejak tanggal efektif"
-        icon={<ActiveIcon size={16} strokeWidth={1.75} />}
+        icon={<ActiveIcon size={20} strokeWidth={1.9} />}
       />
 
       {/* Document Content Card */}
@@ -366,31 +347,31 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
         style={{
           padding: `1.1rem ${cardHorizontalPad}`,
           borderRadius: '0.9rem',
-          backgroundColor: 'var(--bg-card, #0f172a)',
-          border: '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+          backgroundColor: 'var(--bg-card)',
+          border: '1px solid var(--border-light)',
           display: 'flex',
           flexDirection: 'column',
           gap: '1.1rem'
         }}
       >
         {/* Document Header */}
-        <div style={{ borderBottom: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))', paddingBottom: '0.85rem' }}>
+        <div style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.85rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.45rem' }}>
             <span
               style={{
                 fontSize: '0.65rem',
                 fontWeight: 800,
                 textTransform: 'uppercase',
-                color: 'var(--primary, #10b981)',
-                backgroundColor: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
+                color: 'var(--primary)',
+                backgroundColor: 'var(--primary-glow)',
                 padding: '0.18rem 0.5rem',
                 borderRadius: '0.35rem',
-                border: '1px solid var(--primary, #10b981)'
+                border: '1px solid var(--primary)'
               }}
             >
               {currentDoc.badge}
             </span>
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)' }}>
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
               Versi: <strong>{currentDoc.version || 'v2.0'}</strong> • Berlaku: <strong>{currentDoc.effectiveDate || '1 Januari 2025'}</strong>
             </span>
           </div>
@@ -401,28 +382,28 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
                 width: '34px',
                 height: '34px',
                 borderRadius: '0.55rem',
-                backgroundColor: 'var(--primary-glow, rgba(16, 185, 129, 0.15))',
-                border: '1px solid var(--border-light, rgba(16, 185, 129, 0.35))',
+                backgroundColor: 'var(--primary-glow)',
+                border: '1px solid var(--border-light)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'var(--primary, #10b981)',
+                color: 'var(--primary)',
                 flexShrink: 0
               }}
             >
               <ActiveIcon size={18} strokeWidth={1.75} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h3 style={{ margin: 0, fontSize: isCompactMobile ? '0.98rem' : '1.05rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)', lineHeight: 1.3 }}>
+              <h3 style={{ margin: 0, fontSize: isCompactMobile ? '0.98rem' : '1.05rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.3 }}>
                 {currentDoc.title}
               </h3>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted, #94a3b8)', marginTop: '0.1rem', display: 'block' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.1rem', display: 'block' }}>
                 Klasifikasi: {currentDoc.category}
               </span>
             </div>
           </div>
 
-          <p style={{ margin: '0.65rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.5, fontStyle: 'italic' }}>
+          <p style={{ margin: '0.65rem 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5, fontStyle: 'italic' }}>
             &ldquo;{renderPolicyInlineMarkdown(
               (currentDoc.summary || '')
                 .replace(/^>+\s*/gm, '')
@@ -436,12 +417,12 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
 
         {/* Search match stats */}
         {searchQuery && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.35rem 0.65rem', borderRadius: '0.45rem', backgroundColor: 'rgba(255, 255, 255, 0.03)', fontSize: '0.72rem', color: 'var(--text-muted, #94a3b8)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.35rem 0.65rem', borderRadius: '0.45rem', backgroundColor: 'var(--bg-inset)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
             <span>Menemukan <strong>{filteredArticles.length}</strong> pasal cocok</span>
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              style={{ minHeight: '44px', background: 'none', border: 'none', color: 'var(--primary, #10b981)', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, padding: '0 0.35rem' }}
+              style={{ minHeight: '44px', background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, padding: '0 0.35rem' }}
             >
               Reset Pencarian
             </button>
@@ -451,7 +432,7 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
         {/* Articles List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
           {filteredArticles.length === 0 ? (
-            <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted, #94a3b8)', fontSize: '0.8rem' }}>
+            <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
               Tidak ada pasal yang cocok dengan kata kunci &ldquo;{searchQuery}&rdquo;.
             </div>
           ) : (
@@ -461,8 +442,8 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
                 style={{
                   padding: isCompactMobile ? '0.85rem' : '1rem',
                   borderRadius: '0.75rem',
-                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                  border: '1px solid var(--border-light, rgba(255, 255, 255, 0.08))',
+                  backgroundColor: 'var(--bg-inset)',
+                  border: '1px solid var(--border-light)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.65rem'
@@ -474,17 +455,17 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
                       fontSize: '0.65rem',
                       fontWeight: 800,
                       textTransform: 'uppercase',
-                      color: '#ffffff',
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      color: 'var(--primary-strong)',
+                      backgroundColor: 'var(--primary-glow)',
                       padding: '0.12rem 0.45rem',
                       borderRadius: '0.3rem'
                     }}
                   >
                     {art.number || `Pasal ${aIdx + 1}`}
                   </span>
-                  <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary, #ffffff)' }}>
+                  <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.4 }}>
                     {renderPolicyInlineMarkdown((art.heading || '').replace(/^#+\s*/, ''), setPendingExternalUrl)}
-                  </h4>
+                  </h3>
                 </div>
 
                 {renderPolicyArticleContent(art.content, setPendingExternalUrl)}
@@ -495,8 +476,8 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
                       marginTop: '0.15rem',
                       padding: '0.65rem 0.75rem',
                       borderRadius: '0.5rem',
-                      backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                      border: '1px solid var(--border-light, rgba(255, 255, 255, 0.06))',
+                      backgroundColor: 'var(--bg-inset)',
+                      border: '1px solid var(--border-light)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '0.35rem'
@@ -504,8 +485,8 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
                   >
                     {art.highlights.map((h, hIdx) => (
                       <div key={hIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
-                        <Check size={13} style={{ color: 'var(--primary, #10b981)', flexShrink: 0, marginTop: '2px' }} strokeWidth={1.75} />
-                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.45 }}>
+                        <Check size={13} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: '2px' }} strokeWidth={1.75} />
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                           {renderPolicyInlineMarkdown(h, setPendingExternalUrl)}
                         </span>
                       </div>
@@ -523,20 +504,20 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
             marginTop: '0.25rem',
             padding: '0.85rem',
             borderRadius: '0.65rem',
-            backgroundColor: 'rgba(16, 185, 129, 0.05)',
-            border: '1px solid rgba(16, 185, 129, 0.2)',
+            backgroundColor: 'var(--primary-glow)',
+            border: '1px solid var(--primary)',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.6rem'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ShieldCheck size={18} strokeWidth={1.75} style={{ color: 'var(--primary, #10b981)', flexShrink: 0 }} />
+            <ShieldCheck size={18} strokeWidth={1.75} style={{ color: 'var(--primary)', flexShrink: 0 }} />
             <div>
-              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#ffffff', display: 'block' }}>
+              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>
                 Diterbitkan secara sah oleh Divisi Hukum &amp; Kepatuhan {legalEntity}
               </span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)' }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
                 Yurisdiksi: {legalJurisdiction} • Kontak: {officialEmail} / +{officialWa}
               </span>
             </div>
@@ -550,7 +531,7 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
                 minHeight: '44px',
                 fontSize: '0.74rem',
                 fontWeight: 700,
-                color: 'var(--primary, #10b981)',
+                color: 'var(--primary)',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
