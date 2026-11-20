@@ -32,9 +32,7 @@ import {
   Calendar
 } from 'lucide-react';
 
-import { TabletPoliciesView, type PolicyKey } from './TabletPoliciesView';
 import { ErrorBoundary } from './ErrorBoundary';
-import { useModalBackHandler } from '../utils/navigation';
 
 export const CATALOG_TYPES_INFO = [
   {
@@ -158,14 +156,6 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
   currentUser
 }) => {
   const [selectedCatalogFormat, setSelectedCatalogFormat] = useState<string>('physical');
-  const [showPolicyModal, setShowPolicyModal] = useState<boolean>(false);
-  const [policyModalInitialKey, setPolicyModalInitialKey] = useState<PolicyKey>('terms');
-
-  useModalBackHandler({
-    isOpen: showPolicyModal,
-    onClose: () => setShowPolicyModal(false),
-    modalId: 'tablet-public-landing-policy-modal'
-  });
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [selectedPlanTab, setSelectedPlanTab] = useState<'free' | 'pro_starter' | 'pro_business'>('pro_starter');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
@@ -2345,8 +2335,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             <button
               type="button"
               onClick={() => {
-                setPolicyModalInitialKey('terms');
-                setShowPolicyModal(true);
+                window.history.pushState({}, '', '/terms');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+                window.scrollTo({ top: 0, behavior: 'auto' });
               }}
               style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
             >
@@ -2356,8 +2347,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             <button
               type="button"
               onClick={() => {
-                setPolicyModalInitialKey('privacy');
-                setShowPolicyModal(true);
+                window.history.pushState({}, '', '/privacy');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+                window.scrollTo({ top: 0, behavior: 'auto' });
               }}
               style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
             >
@@ -2367,8 +2359,9 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
             <button
               type="button"
               onClick={() => {
-                setPolicyModalInitialKey('prohibited');
-                setShowPolicyModal(true);
+                window.history.pushState({}, '', '/prohibited');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+                window.scrollTo({ top: 0, behavior: 'auto' });
               }}
               style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
             >
@@ -2377,80 +2370,6 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
           </div>
         </div>
       </footer>
-
-      {/* Tablet Public Landing Policy Modal */}
-      {showPolicyModal && (
-        <div
-          onClick={() => setShowPolicyModal(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(6px)',
-            zIndex: 99999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1.5rem'
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: '#0f172a',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '1.25rem',
-              width: '100%',
-              maxWidth: '960px',
-              maxHeight: '90vh',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-            }}
-          >
-            <div
-              style={{
-                padding: '1rem 1.5rem',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                backgroundColor: '#1e293b'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Scale size={18} style={{ color: '#2563eb' }} />
-                <span style={{ fontSize: '1rem', fontWeight: 800, color: '#ffffff' }}>
-                  Pedoman Legal &amp; Kebijakan Platform
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPolicyModal(false)}
-                style={{
-                  minHeight: '44px',
-                  padding: '0.45rem 1rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                  color: '#ffffff',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                Tutup
-              </button>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-              <ErrorBoundary sectionName="Kebijakan Platform">
-                <TabletPoliciesView initialKey={policyModalInitialKey} />
-              </ErrorBoundary>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
