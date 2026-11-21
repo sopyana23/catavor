@@ -242,6 +242,17 @@ func TestCloudflareAudit_GoogleSSOIdentityMismatch(t *testing.T) {
 	}
 	authHandler := NewAuthHandler(cfg, db)
 
+	// Verifier Google dipalsukan: test ini membuktikan aturan IDENTITY MISMATCH,
+	// bukan kemampuan menjangkau oauth2.googleapis.com. Verifier asli memakai
+	// http.Client 8 detik sedangkan app.Test() default memutus koneksi pada 1
+	// detik, sehingga test yang menembak jaringan sungguhan gagal secara acak
+	// (flaky) — bukan karena ada regresi.
+	authHandler.googleVerifier = func(credentialStr, expectedClientID string) (string, string, string, string, error) {
+		// Menirukan token Google sah untuk orang lain: email sama dengan akun
+		// yang tersimpan, tetapi google_id berbeda.
+		return "user@catavor.test", "User Sah", "google-uid-ATTACKER", "", nil
+	}
+
 	existingGoogleID := "google-uid-111111"
 	user := models.User{
 		Name:         "User Sah",
