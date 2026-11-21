@@ -149,13 +149,20 @@ export interface TabletPublicLandingProps {
   onRegister?: () => void;
   onSelectPlan?: (plan: 'free' | 'pro_starter' | 'pro_business', billing: 'monthly' | 'annual') => void;
   currentUser: any;
+  // Identitas mitra escrow dari setelan platform. Desktop dan mobile merender
+  // logo mitra yang diunggah admin; tablet sebelumnya memakai ikon generik,
+  // sehingga landing tablet tidak menampilkan mitra resmi yang sama.
+  rekberLogoUrl?: string;
+  rekberPartnerName?: string;
 }
 
 export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
   onOpenLogin,
   onRegister,
   onSelectPlan,
-  currentUser
+  currentUser,
+  rekberLogoUrl,
+  rekberPartnerName
 }) => {
   const [selectedCatalogFormat, setSelectedCatalogFormat] = useState<string>('physical');
   const [showPolicyModal, setShowPolicyModal] = useState<boolean>(false);
@@ -1614,15 +1621,25 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 width: '40px',
                 height: '40px',
                 borderRadius: '0.75rem',
-                backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                backgroundColor: rekberLogoUrl ? '#ffffff' : 'rgba(22, 163, 74, 0.1)',
                 color: '#16a34a',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                border: '1px solid rgba(22, 163, 74, 0.25)'
+                border: rekberLogoUrl ? '1.5px solid #bfdbfe' : '1px solid rgba(22, 163, 74, 0.25)',
+                padding: rekberLogoUrl ? '4px' : 0,
+                overflow: 'hidden'
               }}>
-                <BadgeCheck size={22} />
+                {rekberLogoUrl ? (
+                  <img
+                    src={rekberLogoUrl}
+                    alt={rekberPartnerName || 'Rekber Syariah'}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                ) : (
+                  <BadgeCheck size={22} />
+                )}
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>

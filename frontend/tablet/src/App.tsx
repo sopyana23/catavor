@@ -249,6 +249,12 @@ export const App: React.FC = () => {
     return null;
   });
 
+  // Identitas mitra escrow dari /api/settings, untuk kartu Rekber di landing.
+  const [rekberSettings, setRekberSettings] = useState<{ logoUrl: string; partnerName: string }>({
+    logoUrl: '',
+    partnerName: 'Rekber Syariah'
+  });
+
   // Login Form State
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -355,6 +361,13 @@ export const App: React.FC = () => {
           const data = await res.json();
           const s = data.data || data;
           if (s) {
+            // Identitas mitra escrow dipakai landing publik (kartu Rekber).
+            // Desktop & mobile sudah memakainya; tablet belum, sehingga
+            // landing tablet menampilkan ikon generik alih-alih logo mitra.
+            setRekberSettings({
+              logoUrl: (s.rekber_logo_url || '').trim(),
+              partnerName: (s.rekber_partner_name || 'Rekber Syariah').trim()
+            });
             if (s.ga_measurement_id) {
               const isGaEnabled = s.ga_enabled === '1' || s.ga_enabled === 'true';
               initGoogleAnalytics(s.ga_measurement_id, isGaEnabled);
@@ -2413,6 +2426,8 @@ export const App: React.FC = () => {
   // 5. PUBLIC LANDING PAGE ROUTE FOR TABLET (Default)
   return (
     <TabletPublicLanding
+      rekberLogoUrl={rekberSettings.logoUrl}
+      rekberPartnerName={rekberSettings.partnerName}
       onSelectStore={(slug) => navigateTo(`/${slug}`)}
       onOpenLogin={() => navigateTo('/login')}
       onRegister={() => {
