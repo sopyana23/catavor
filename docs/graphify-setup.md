@@ -8,11 +8,97 @@ Terakhir diukur: commit `ad25a7b`, 21 Nov 2026, mesin dev lokal (Windows, git-ba
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
-cd backend && graphify update .        # inkremental, 2.5s
+
+# Sekali saja (butuh extra [postgres] + [sql]): pasang dependensi opsional
+python -m uv tool install "graphifyy[postgres,sql]"
+
+# Build/refresh penuh — sertakan schema Postgres live
+cd backend
+PW=$(grep '^DB_PASSWORD=' .env | cut -d= -f2- | tr -d '\r')
+graphify extract . --code-only --force \
+  --postgres "postgres://postgres:${PW}@127.0.0.1:5432/catavor?sslmode=disable"
+
+# Update inkremental setelah ubah kode Go
+graphify update .
+
+# Regenerasi GRAPH_REPORT.md
+graphify cluster-only .
 ```
 
-Hasil backend: **2.017 node · 12.486 edge · 78 komunitas**,
+Hasil backend: **2.151 node · 12.706 edge · 75 komunitas**,
 92% EXTRACTED / 8% INFERRED (avg confidence 0.84), biaya token build **0**.
+
+Rincian sumber node: 2.012 AST (Go) · 83 concept · **56 PostgreSQL** · 139 Go package stub.
+
+## Schema Postgres ikut ter-graph
+
+`--postgres` membaca schema **live** (bukan file migrasi) dan menghasilkan
+56 node tabel/view + 123 edge, termasuk foreign key.
+
+**Diverifikasi silang** — pertanyaan "tabel mana yang FK ke `users`":
+
+| Sumber | Hasil |
+|:---|:---|
+| `psql` langsung ke Postgres | 13 tabel |
+| graphify | 13 tabel |
+| Cocok persis | **ya, nol selisih dua arah** |
+
+Contoh jawaban graph (semua `EXTRACTED`, bukan tebakan):
+
+```
+"public"."two_factor_recovery_tickets" --references--> "public"."users"
+"public"."user_sessions"               --references--> "public"."users"
+"public"."mfa_account_lockouts"        --references--> "public"."users"
+```
+
+### Batasan `--postgres`
+
+1. **Hanya tabel + FK + view + routine.** Kolom sengaja dibuang —
+   `pg_introspect.py` membuat stub `CREATE TABLE x (id INT)` lalu
+   menambahkan constraint lewat `ALTER TABLE`. Jadi jangan harap graph bisa
+   menjawab "tipe kolom apa" atau "kolom mana yang nullable".
+2. **Node dicari lewat id, bukan label.** Label-nya ber-quote
+   (`"public"."user_two_factor_auth"`), dan `graphify explain` butuh id:
+
+   ```bash
+   # SALAH — "No node matching"
+   graphify explain '"public"."two_factor_recovery_tickets"'
+
+   # BENAR
+   graphify explain "postgresql_127_0_0_1_catavor_public_two_factor_recovery_tickets"
+   ```
+3. **DSN terlihat di proses list.** `--postgres` menerima URL lengkap dengan
+   password. Jangan jalankan di mesin bersama; baca password dari `.env`,
+   jangan hardcode.
+
+## File migrasi `.sql`: hanya file DDL murni yang ter-parse
+
+Dari 11 file migrasi, **8 menghasilkan node** (69 total) dan **3 hanya
+menghasilkan node file** tanpa isi:
+
+| File | Node |
+|:---|---:|
+| `n58_create_advertising_and_trending_tables` | 20 |
+| `n60_user_two_factor_auth` | 16 |
+| `n56_catalog_popularity_and_store_metrics` | 11 |
+| `n59_enterprise_store_analytics_dimensions` | 7 |
+| `n57_payment_system_enhancements` | 5 |
+| `n26_store_daily_traffic_sources` | 3 |
+| `n53_master_categories` | 2 |
+| `n55_master_presets` | 2 |
+| `n45b_dedupe_foreign_keys_guarded` | **1** |
+| `n51_add_missing_foreign_keys` | **1** |
+| `n52b_drop_faunas_table_guarded` | **1** |
+
+Penyebab 3 file terakhir: semuanya memakai **`DO $$ ... DECLARE ... END $$`**
+(PL/pgSQL prosedural). `tree-sitter-sql` hanya memahami SQL deklaratif, jadi
+seluruh blok `DO` dilewati. Ini **tidak bisa ditambal** dengan dependensi
+tambahan — tetapi juga **tidak masalah**: `--postgres` membaca schema live
+yang sudah mencakup semua perubahan dari file-file itu.
+
+Catatan: `20261018_n51_add_missing_foreign_keys.sql` memakai `DO $$`, jadi
+`grep "DO \$\$"` di awal sempat memberi 0 karena escaping shell — pakai
+`grep -l 'DO \$\$' *.sql` dengan tanda kutip tunggal.
 
 ## Kenapa frontend tidak di-graph
 
@@ -77,8 +163,8 @@ memang di-gate MFA. **Grep hanya menemukan 5 baris; graphify 12 pemanggil.**
    Surprising Connections, Import Cycles.
 4. **Simbol bernama sama ambigu.** `App()` ada 3 (mobile/desktop/tablet).
    Harus pakai `path::symbol` → `graphify explain "mobile/src/App.tsx::App()"`.
-5. **11 file migrasi `.sql` tidak ter-extract** — butuh
-   `pip install "graphifyy[sql]"`.
+5. Node tabel Postgres hanya dicari lewat id `postgresql_*`, bukan label
+   ber-quote (lihat bagian "Schema Postgres ikut ter-graph").
 
 ## Kapan pakai apa
 
