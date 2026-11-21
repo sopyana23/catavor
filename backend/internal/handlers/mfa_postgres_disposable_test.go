@@ -61,18 +61,14 @@ func openDisposablePostgres(t *testing.T) *gorm.DB {
 		t.Fatalf("reset schema PostgreSQL disposable: %v", err)
 	}
 
-	if err := pgDB.AutoMigrate(
-		&models.User{},
-		&models.UserSession{},
-		&models.Store{},
-		&models.ActivityLog{},
-		&models.EmailVerificationOTP{},
-		&models.PlatformRole{},
-		&models.PlatformPermission{},
-		&models.PlatformRolePermission{},
-		&models.Setting{},
-	); err != nil {
-		t.Fatalf("AutoMigrate tabel inti di PostgreSQL disposable: %v", err)
+	// Seluruh skema wajib berasal dari jalur produksi: BootstrapProductionSchema
+	// menjalankan AutoMigrate gelombang demi gelombang, lalu RunMigrations dan
+	// verifikasi N-60 di dalamnya. Sebelumnya test menyusun AutoMigrate sebagian
+	// model sendiri, sehingga tabel dari migrasi terbaru (mis. n62
+	// pending_owner_media_deletions) tidak ada dan DeleteAccount gagal dengan
+	// SQLSTATE 42P01 — kegagalan murni artefak test, bukan regresi kode.
+	if err := database.BootstrapProductionSchema(pgDB); err != nil {
+		t.Fatalf("BootstrapProductionSchema di PostgreSQL disposable: %v", err)
 	}
 
 	// Terapkan berkas migrasi N-60 asli agar seluruh CHECK constraint, UNIQUE index,
