@@ -1,0 +1,56 @@
+# .graphifyignore — apa yang tidak perlu masuk knowledge graph
+#
+# CATATAN JUJUR soal performa: file ini TIDAK membuat build frontend lebih
+# cepat. Diukur 6m33s (tanpa) vs 6m22s (dengan) — selisih itu noise. Dengan
+# `--code-only`, graphify memang sudah melewati aset non-kode.
+#
+# Penyebab lambat yang sebenarnya: tiga renderer monolitik.
+#   mobile/src/App.tsx   = 2.0 MB
+#   desktop/src/App.tsx  = 1.8 MB
+#   tablet/src/App.tsx   = 0.1 MB
+# tree-sitter harus mengurai ~3.8 MB TSX di dalam dua file saja. Pilihannya:
+#   (a) pecah App.tsx jadi modul-modul  — perbaikan struktural sebenarnya
+#   (b) biarkan, build sekali lalu pakai `graphify update .` (inkremental, gratis)
+#
+# Jadi file ini fungsinya BUKAN kecepatan, melainkan kebenaran graph: memastikan
+# hanya kode sumber asli yang menjadi node, dan bundel build tidak pernah
+# dianggap arsitektur.
+
+# ── Dependensi & build output ────────────────────────────────────────────────
+# Paling penting. dist/ adalah bundel hasil `vite build` — node di dalamnya
+# duplikat dari src/ dan menciptakan edge palsu seolah bundel = kode asli.
+node_modules/
+dist/
+build/
+*.min.js
+*.min.css
+
+# ── Artefak graphify itu sendiri ─────────────────────────────────────────────
+# Mencegah build berikutnya membaca graph lama sebagai input (rekursi).
+graphify-out/
+
+# ── Font & aset biner ────────────────────────────────────────────────────────
+# 375 dari 586 file di frontend adalah .bcmap/.pfb/.ttf (font CMap & Type1
+# untuk PDF.js) plus gambar. `--code-only` sudah melewatinya; entri ini
+# mengunci itu kalau suatu saat ekstraksi dijalankan tanpa --code-only.
+*.bcmap
+*.pfb
+*.ttf
+*.woff
+*.woff2
+*.otf
+*.eot
+*.wasm
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.ico
+*.svg
+
+# ── Cache & coverage ─────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+.vite/
+*.log
