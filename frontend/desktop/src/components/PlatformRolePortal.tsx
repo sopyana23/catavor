@@ -2495,13 +2495,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           }
         }
       }
-      if (canAccessBroadcast) {
-        const broadRes = await fetch('/api/admin/notifications', { headers: { Authorization: `Bearer ${token}` } });
-        if (broadRes.ok) {
-          const d = await broadRes.json();
-          setBroadcasts(Array.isArray(d) ? d : d.data || []);
-        }
-      }
+      // Daftar siaran TIDAK diambil di sini. Sebelumnya blok ini memanggil
+      // /api/admin/notifications tanpa parameter (server memberi default 15
+      // baris) lalu menimpanya ke `broadcasts` — state yang juga diisi halaman
+      // siaran dengan parameter page/limit/status/q. Dua penulis pada satu
+      // state membuat siaran yang sedang difilter bisa tertimpa daftar tanpa
+      // filter, dan server menerima dua request ke endpoint yang sama.
+      //
+      // Preload itu tidak menyuapi satu pun label yang tampil: satu-satunya
+      // pemakai `${broadcasts.length}` adalah `allModules`, yang hanya dirujuk
+      // di blok header ber-`&& false` (dead code), sedangkan kartu dashboard
+      // siaran memakai subtitle statis 'Notifikasi Massal Pengguna'. Halaman
+      // siaran sudah mengambil daftarnya sendiri saat activeView === 'broadcast'.
       if (canAccessMonetization || canAccessMasterData || canAccessFinance) {
         const setRes = await fetch('/api/admin/settings?exclude=master_coupons', {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
