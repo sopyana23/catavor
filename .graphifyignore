@@ -1,0 +1,45 @@
+# .graphifyignore — apa yang tidak perlu masuk knowledge graph DFauna
+#
+# ALASAN FILE INI ADA (terukur, bukan teori):
+# graph pertama DFauna (21 Nov 11:21) mencapai 19.888 node, tapi 14.548 di
+# antaranya (73%) berasal dari `public/` — bundel hasil build, termasuk
+# `pdf.worker.min-*.mjs` yang terhitung sebagai "node arsitektur". Kode asli
+# hanya 1.912 (backend) + 1.561 (frontend). Graph yang 73% isinya sampah akan
+# menyesatkan jawaban: "fungsi ini dipakai di mana" bisa nyangkut ke bundel
+# minified, bukan ke kode sumber.
+#
+# Jadi file ini fungsinya BUKAN kecepatan build, melainkan KEBENARAN graph:
+# memastikan hanya kode sumber asli yang jadi node, dan bundel build tidak
+# pernah dianggap arsitektur.
+
+# -- Output build: bundel vite, duplikat dari src/, menciptakan edge palsu -----
+public/
+dist/
+build/
+node_modules/
+*.min.js
+*.min.css
+*.min.mjs
+
+# -- Artefak graphify itu sendiri (cegah rekursi: graph lama jadi input) ------
+graphify-out/
+
+# -- Kode warisan/ancestor: bukan kode yang dijalankan sekarang ----------------
+legacy/
+laravel/
+
+# -- Aset statis & media: bukan kode ------------------------------------------
+*.png
+*.jpg
+*.jpeg
+*.ico
+*.svg
+*.woff
+*.woff2
+*.ttf
+*.mp4
+*.pdf
+
+# -- Runtime & cache ----------------------------------------------------------
+*.log
+vendor/
