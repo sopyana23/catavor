@@ -95,3 +95,7 @@ machineid
 
 # Coverage dari go test
 backend/coverage.out
+
+# Graphify knowledge graph artifacts
+graphify-out/
+
