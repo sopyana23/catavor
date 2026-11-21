@@ -42,6 +42,43 @@ func testCfg() *config.Config {
 	}
 }
 
+// seedMasterCoupon menulis satu kupon aktif ke settings.master_coupons.
+//
+// Kupon tidak disimpan di tabel tersendiri: ValidateCoupon membaca setting
+// berupa JSON array. Karena GetDefaultCoupons() sengaja mengembalikan daftar
+// kosong (tidak ada backdoor gratis), setiap test yang memakai kode kupon wajib
+// menanamnya sendiri. Tanpa ini ValidateCoupon selalu "tidak ditemukan".
+//
+// discountPercent 100 dipetakan ke type "free"; selain itu type "discount"
+// dengan nominal rupiah sebesar discountPercent.
+func seedMasterCoupon(t *testing.T, db *gorm.DB, code string, discountPercent float64) {
+	t.Helper()
+
+	coupon := services.MasterCoupon{
+		ID:        "test-" + strings.ToLower(code),
+		Code:      strings.ToUpper(code),
+		Label:     "Kupon uji " + strings.ToUpper(code),
+		IsActive:  true,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if discountPercent >= 100 {
+		coupon.Type = "free"
+	} else {
+		coupon.Type = "discount"
+		coupon.Discount = discountPercent
+	}
+
+	payload, err := json.Marshal([]services.MasterCoupon{coupon})
+	if err != nil {
+		t.Fatalf("marshal kupon: %v", err)
+	}
+	setting := models.Setting{Key: "master_coupons", Value: string(payload)}
+	if err := db.Where("key = ?", setting.Key).Assign(setting).FirstOrCreate(&setting).Error; err != nil {
+		t.Fatalf("seed kupon %s: %v", code, err)
+	}
+}
+
 func newTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	name := strings.NewReplacer("/", "_", " ", "_", "-", "_").Replace(t.Name())
@@ -392,6 +429,10 @@ func TestRegister_SQLite(t *testing.T) {
 		mustCreate(t, db, &models.SubscriptionPlan{
 			Code: "pro_starter", Name: "Pro Starter", PriceMonthly: 49000, PriceAnnual: 490000,
 		})
+		// Kupon dibaca dari settings.master_coupons (JSON), bukan tabel tersendiri.
+		// Tanpa baris ini ValidateCoupon selalu mengembalikan "tidak ditemukan",
+		// sehingga registrasi jatuh ke jalur transfer bank dan test gagal.
+		seedMasterCoupon(t, db, "catavor100", 100)
 		app := newTestApp(db)
 		b := validBody()
 		b["plan"] = "pro"

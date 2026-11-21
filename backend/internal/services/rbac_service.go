@@ -64,6 +64,20 @@ func GetRBACService() *RBACService {
 			rbacServiceInstance.RefreshCache()
 		}
 	})
+
+	// Singleton menangkap database.DB sekali saat rbacOnce. Bila koneksi global
+	// kemudian berganti (reconnect pool, failover, restart driver, atau database.DB
+	// diganti test), cache lama tetap menunjuk handle yang sudah mati sehingga
+	// HasPermission() menjawab false untuk seluruh staf — dan bila handle lama
+	// masih hidup, ia membaca permission dari database yang salah.
+	// Samakan db lalu muat ulang cache setiap kali berbeda.
+	if current := database.DB; current != nil && rbacServiceInstance.db != current {
+		rbacServiceInstance.cacheLock.Lock()
+		rbacServiceInstance.db = current
+		rbacServiceInstance.cacheLock.Unlock()
+		rbacServiceInstance.RefreshCache()
+	}
+
 	return rbacServiceInstance
 }
 
