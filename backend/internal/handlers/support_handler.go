@@ -1651,121 +1651,13 @@ func (h *SupportHandler) StartAutoCloseTicketsWorker() {
 }
 
 func (h *SupportHandler) runLifecycleTasks() {
-	now := time.Now().UTC()
-
-	// 1. Stale Ticket Auto-Reminder (72 jam / 3 hari di waiting_user)
-	threeDaysAgo := now.Add(-72 * time.Hour)
-	var staleWaitingTickets []models.SupportTicket
-	if err := h.db.Where("status = ? AND reminder_count = 0 AND last_message_at <= ?", "waiting_user", threeDaysAgo).Find(&staleWaitingTickets).Error; err == nil {
-		for _, t := range staleWaitingTickets {
-			var merchant models.User
-			h.db.First(&merchant, t.UserID)
-			merchantName := merchant.Name
-			if merchantName == "" {
-				merchantName = "Bapak/Ibu Merchant"
-			}
-
-			reminderMsg := models.SupportMessage{
-				TicketID:       t.ID,
-				SenderID:       t.UserID,
-				SenderType:     "system",
-				Message:        fmt.Sprintf("Halo %s, kami mencatat bahwa belum ada tanggapan lanjutan pada tiket kendala #%s. Apakah kendala ini masih Anda alami atau sudah terselesaikan? Jika sudah tidak ada kendala, tiket ini akan ditandai selesai secara otomatis oleh sistem dalam 48 jam ke depan. Terima kasih!", merchantName, t.TicketNumber),
-				IsInternalNote: false,
-				CreatedAt:      now,
-			}
-			h.db.Create(&reminderMsg)
-
-			t.ReminderCount = 1
-			t.ReminderSentAt = &now
-			t.UpdatedAt = now
-			h.db.Save(&t)
-		}
+	tracker := services.GetAutomationTracker()
+	if !tracker.TryLockBot("support_lifecycle") {
+		return
 	}
-
-	// 2. Stale Ticket Auto-Resolve (48 jam setelah Reminder)
-	twoDaysAgo := now.Add(-48 * time.Hour)
-	var ticketsToResolve []models.SupportTicket
-	if err := h.db.Where("status = ? AND reminder_count >= 1 AND reminder_sent_at <= ?", "waiting_user", twoDaysAgo).Find(&ticketsToResolve).Error; err == nil {
-		for _, t := range ticketsToResolve {
-			var merchant models.User
-			h.db.First(&merchant, t.UserID)
-			merchantName := merchant.Name
-			if merchantName == "" {
-				merchantName = "Bapak/Ibu Merchant"
-			}
-
-			autoResolveMsg := models.SupportMessage{
-				TicketID:       t.ID,
-				SenderID:       t.UserID,
-				SenderType:     "system",
-				Message:        fmt.Sprintf("Halo %s, karena tidak ada tanggapan lanjutan setelah pemberitahuan pengingat, tiket #%s telah kami tandai Selesai secara otomatis. Tiket kini memasuki Masa Sanggah 7 Hari. Anda dapat membalas pesan ini kapan saja jika kendala masih berlanjut untuk membukanya kembali.", merchantName, t.TicketNumber),
-				IsInternalNote: false,
-				CreatedAt:      now,
-			}
-			h.db.Create(&autoResolveMsg)
-
-			t.Status = "resolved"
-			t.ResolvedAt = &now
-			t.UpdatedAt = now
-			h.db.Save(&t)
-		}
-	}
-
-	// 3. Stale Resolved Ticket Auto-Close (7 hari setelah Resolved)
-	sevenDaysAgo := now.AddDate(0, 0, -7)
-	var staleResolvedTickets []models.SupportTicket
-	if err := h.db.Where("status = ? AND resolved_at <= ?", "resolved", sevenDaysAgo).Find(&staleResolvedTickets).Error; err == nil {
-		for _, t := range staleResolvedTickets {
-			t.Status = "closed"
-			t.ClosedAt = &now
-			t.UpdatedAt = now
-			h.db.Save(&t)
-		}
-	}
-
-	// 4. Multi-Tier SLA Breach Detection
-	var breachCount int64
-	h.db.Model(&models.SupportTicket{}).
-		Where("status = ? AND first_response_at IS NULL AND sla_breached = false AND sla_due_at IS NOT NULL AND sla_due_at <= ?", "open", now).
-		Count(&breachCount)
-	if breachCount > 0 {
-		h.db.Model(&models.SupportTicket{}).
-			Where("status = ? AND first_response_at IS NULL AND sla_breached = false AND sla_due_at IS NOT NULL AND sla_due_at <= ?", "open", now).
-			Update("sla_breached", true)
-	}
-
-	// 5. Automated PDP Ticket Retention & Physical File Hard Purge (UU PDP No. 27/2022)
-	pdpStats, err := services.PurgeExpiredClosedTickets(h.db, h.storage)
-	if err != nil {
-		log.Warn().Err(err).Msg("PDP Ticket Retention Sweeper error during routine lifecycle")
-	}
-
-	// 6. Report Heartbeat to Automation Tracker
-	totalProcessed := int64(len(staleWaitingTickets) + len(ticketsToResolve) + len(staleResolvedTickets) + int(pdpStats.PurgedTickets))
-	summary := fmt.Sprintf("Siklus Helpdesk SLA & PDP: %d pengingat, %d auto-resolved, %d auto-closed, %d tiket PDP dimusnahkan (%d berkas fisik dihapus).",
-		len(staleWaitingTickets), len(ticketsToResolve), len(staleResolvedTickets), pdpStats.PurgedTickets, pdpStats.PurgedFiles)
-	services.GetAutomationTracker().RecordWorkerHeartbeat(
-		"support_lifecycle",
-		"running",
-		summary,
-		"",
-		totalProcessed,
-		now.Add(15*time.Minute),
-	)
-
-	if totalProcessed > 0 || breachCount > 0 {
-		services.GetAutomationTracker().RecordLog(services.AutomationLogEntry{
-			BotName:       "support_lifecycle",
-			BotTitle:      "Bot Helpdesk SLA Escalation & Pemusnahan PDP",
-			Target:        "Antrean Tiket Bantuan & Storage",
-			Action:        "executed_cycle",
-			TriggerType:   "cron",
-			TriggeredBy:   "Support Daemon",
-			Status:        "success",
-			AffectedCount: totalProcessed,
-			Details:       fmt.Sprintf("Siklus otomatis: %d pengingat, %d auto-resolved, %d auto-closed, %d SLA breach, %d tiket PDP dimusnahkan (%d berkas fisik).", len(staleWaitingTickets), len(ticketsToResolve), len(staleResolvedTickets), breachCount, pdpStats.PurgedTickets, pdpStats.PurgedFiles),
-			Timestamp:     now,
-		})
+	defer tracker.UnlockBot("support_lifecycle")
+	if _, err := services.RunSupportLifecycle(h.db, h.storage, "cron", "Support Daemon"); err != nil {
+		log.Error().Err(err).Msg("Support lifecycle failed")
 	}
 }
 

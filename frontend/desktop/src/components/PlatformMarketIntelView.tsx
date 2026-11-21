@@ -305,7 +305,7 @@ export const PlatformMarketIntelView: React.FC<PlatformMarketIntelViewProps> = (
   const handleTriggerAggregation = async () => {
     setIsTriggeringBot(true);
     try {
-      const res = await fetch('/api/notifications/automation/trigger', {
+      const res = await fetch('/api/admin/automation/trigger', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

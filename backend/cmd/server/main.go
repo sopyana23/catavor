@@ -190,30 +190,12 @@ func main() {
 			}
 		}()
 		time.Sleep(45 * time.Second) // Stagger startup
-		runMarketRollup := func() {
-			yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
-			_ = services.RollupDailySearchTrends(database.DB, yesterday)
-			_ = services.RollupDailyMarketTrends(database.DB, yesterday)
-			_ = services.CalculatePriceBenchmarks(database.DB, yesterday)
-			purged, _ := services.PurgeOldSearchAnalytics90D(database.DB)
-			tracker := services.GetAutomationTracker()
-			if tracker != nil {
-				tracker.RecordWorkerHeartbeat(
-					"market_intel_worker",
-					"running",
-					fmt.Sprintf("Siklus agregasi harian selesai (%s). Data mentah kedaluwarsa dibersihkan: %d baris.", yesterday, purged),
-					"",
-					purged,
-					time.Now().UTC().Add(24*time.Hour),
-				)
-			}
-		}
 
-		runMarketRollup()
+		services.GetAutomationTracker().ScheduledMarketRollup(database.DB)
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 		for range ticker.C {
-			runMarketRollup()
+			services.GetAutomationTracker().ScheduledMarketRollup(database.DB)
 		}
 	}()
 
@@ -720,9 +702,7 @@ func main() {
 	adminApi := api.Group("/admin", middleware.AuthRequired(cfg), middleware.RequireAdmin(cfg), middleware.RequireMFACompleted(cfg))
 	{
 		// System Bot & Automation Engine Monitoring & Sandbox
-		adminApi.Get("/automation/status", middleware.RequirePermission(cfg, "system:settings:manage"), notificationHandler.GetAutomationStatus)
-		adminApi.Get("/automation/logs", middleware.RequirePermission(cfg, "system:settings:manage"), notificationHandler.GetAutomationLogs)
-		adminApi.Post("/automation/trigger", middleware.RequirePermission(cfg, "system:settings:manage"), notificationHandler.TriggerAutomationBot)
+		notificationHandler.RegisterAutomationRoutes(adminApi, cfg)
 
 		// Dynamic RBAC Matrix & Staff Management (Superadmin / Staff Governance)
 		adminApi.Get("/rbac/me", rbacHandler.GetMyPermissions)

@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -143,7 +144,8 @@ func (s *AdTelemetryService) RecordClick(campaignID, adSlotID uint64, storeID ui
 
 // FlushToDatabase memindahkan data akumulasi dari memori ke PostgreSQL menggunakan BATCH UPSERT.
 // Dipanggil secara otomatis oleh background worker setiap 60 detik.
-func (s *AdTelemetryService) FlushToDatabase(db *gorm.DB) error {
+func (s *AdTelemetryService) FlushToDatabase(db *gorm.DB) (cycleErr error) {
+	defer func() { observeCycle("ad_flush", time.Minute, 0, cycleErr) }()
 	if db == nil {
 		return fmt.Errorf("database handle nil")
 	}
@@ -159,6 +161,7 @@ func (s *AdTelemetryService) FlushToDatabase(db *gorm.DB) error {
 	s.mu.Unlock()
 
 	// Eksekusi Batch Upsert ke ad_daily_metrics
+	var flushErr error
 	for k, c := range snapshot {
 		if c.Impressions == 0 && c.Clicks == 0 && c.WaClicks == 0 {
 			continue
@@ -181,6 +184,16 @@ func (s *AdTelemetryService) FlushToDatabase(db *gorm.DB) error {
 				updated_at = CURRENT_TIMESTAMP;
 		`
 		if err := db.Exec(query, k.CampaignID, k.AdSlotID, k.StoreID, k.Date, c.Impressions, c.Clicks, c.WaClicks).Error; err != nil {
+			s.mu.Lock()
+			if pending := s.buffer[k]; pending != nil {
+				pending.Impressions += c.Impressions
+				pending.Clicks += c.Clicks
+				pending.WaClicks += c.WaClicks
+			} else {
+				s.buffer[k] = c
+			}
+			s.mu.Unlock()
+			flushErr = errors.Join(flushErr, err)
 			log.Warn().Err(err).
 				Uint64("campaign_id", k.CampaignID).
 				Str("date", k.Date).
@@ -188,7 +201,7 @@ func (s *AdTelemetryService) FlushToDatabase(db *gorm.DB) error {
 		}
 	}
 
-	return nil
+	return flushErr
 }
 
 // GenerateSignedClickURL membuat URL redirect iklan terenkripsi HMAC-SHA256 dengan masa kedaluwarsa 60 detik.
@@ -223,4 +236,3 @@ func VerifyClickSignature(campaignCode, targetURL, tsStr, signature, secret stri
 
 	return hmac.Equal([]byte(signature), []byte(expectedSignature))
 }
-

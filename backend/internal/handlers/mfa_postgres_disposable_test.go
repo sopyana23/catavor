@@ -538,22 +538,12 @@ func TestMFAPostgresConcurrencyRollbackAndSingleUse(t *testing.T) {
 
 	// --- Subtes 6: DeleteAccount & CleanupExpiredUserSessions di PostgreSQL riil dengan FK RESTRICT mfa_auth_completions ---
 	t.Run("delete_account_and_cleanup_sessions_with_pg_fk_restrict", func(t *testing.T) {
-		if err := pgDB.AutoMigrate(
-			&models.Category{},
-			&models.Product{},
-			&models.ProductVariant{},
-			&models.ProductImage{},
-			&models.Article{},
-			&models.StoreDailyAnalytics{},
-			&models.ProductDailyAnalytics{},
-			&models.StoreDailyTrafficSource{},
-			&models.NotificationRead{},
-			&models.UserPolicyAgreement{},
-			&models.SupportTicket{},
-			&models.SupportMessage{},
-			&models.SupportAttachment{},
-		); err != nil {
-			t.Fatalf("AutoMigrate tabel toko di PostgreSQL disposable gagal: %v", err)
+		cfg.StorageDriver = "local"
+		cfg.StorageLocalRoot = t.TempDir()
+		cfg.StoragePrivateRoot = t.TempDir()
+		cfg.StorageDir = cfg.StorageLocalRoot
+		if err := database.BootstrapProductionSchema(pgDB); err != nil {
+			t.Fatalf("bootstrap skema penghapusan akun PostgreSQL: %v", err)
 		}
 		authH := NewAuthHandler(cfg, pgDB)
 		app.Post("/api/user/account/delete", middleware.AuthRequired(cfg), authH.DeleteAccount)

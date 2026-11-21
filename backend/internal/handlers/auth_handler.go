@@ -12,8 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
+
 	"regexp"
 	"strconv"
 	"strings"
@@ -34,6 +33,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var validate = validator.New()
@@ -166,6 +166,18 @@ func preloadUserStores(q *gorm.DB) *gorm.DB {
 	return q.Preload("Stores", func(db *gorm.DB) *gorm.DB {
 		return db.Order("is_blacklisted ASC, is_suspended ASC, id ASC")
 	})
+}
+
+func sessionStore(user *models.User, selectedID uint) *models.Store {
+	for i := range user.Stores {
+		if user.Stores[i].ID == selectedID {
+			return &user.Stores[i]
+		}
+	}
+	if user.Store != nil && user.Store.ID == selectedID {
+		return user.Store
+	}
+	return nil
 }
 
 // buildStoreSummaries menyusun ringkasan toko untuk respons autentikasi.
@@ -606,25 +618,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	var primaryStore *models.Store
-	if targetSlug != "" {
-		for i := range user.Stores {
-			if strings.EqualFold(user.Stores[i].Slug, targetSlug) {
-				primaryStore = &user.Stores[i]
-				break
-			}
-		}
-		if primaryStore == nil && user.Store != nil && strings.EqualFold(user.Store.Slug, targetSlug) {
-			primaryStore = user.Store
-		}
-	}
-	if primaryStore == nil {
-		if len(user.Stores) > 0 {
-			primaryStore = &user.Stores[0]
-		} else {
-			primaryStore = user.Store
-		}
-	}
+	primaryStore := sessionStore(&user, activeStore.ID)
 
 	allowSession, gateErr := h.evaluateMFASessionGate(c, &user, "password", targetSlug, storeList, activeStore)
 	if !allowSession {
@@ -649,12 +643,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	// Touch store activity upon admin login
-	for _, st := range user.Stores {
-		services.TouchStoreActivity(h.db, st.ID)
-	}
-	if user.Store != nil {
-		services.TouchStoreActivity(h.db, user.Store.ID)
-	}
+	services.TouchStoreActivity(h.db, activeStore.ID)
 
 	actorRole := user.PlatformStaffRoleLabel()
 	var activeStoreID *uint
@@ -1549,25 +1538,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			})
 		}
 
-		var primaryStore *models.Store
-		if targetSlug != "" {
-			for i := range user.Stores {
-				if strings.EqualFold(user.Stores[i].Slug, targetSlug) {
-					primaryStore = &user.Stores[i]
-					break
-				}
-			}
-			if primaryStore == nil && user.Store != nil && strings.EqualFold(user.Store.Slug, targetSlug) {
-				primaryStore = user.Store
-			}
-		}
-		if primaryStore == nil {
-			if len(user.Stores) > 0 {
-				primaryStore = &user.Stores[0]
-			} else {
-				primaryStore = user.Store
-			}
-		}
+		primaryStore := sessionStore(&user, activeStore.ID)
 
 		allowSession, gateErr := h.evaluateMFASessionGate(c, &user, "google_sso", targetSlug, storeList, activeStore)
 		if !allowSession {
@@ -1586,12 +1557,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		}
 
 		// Touch store activity upon Google login
-		for _, st := range user.Stores {
-			services.TouchStoreActivity(h.db, st.ID)
-		}
-		if user.Store != nil {
-			services.TouchStoreActivity(h.db, user.Store.ID)
-		}
+		services.TouchStoreActivity(h.db, activeStore.ID)
 
 		// Industry Standard Security: Detect logins from new or unrecognized devices / browsers
 		var previousLoginCount int64
@@ -3302,43 +3268,42 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 		}
 	}
 
-	// 3. Clean up user's support tickets and physical media attachments under UU PDP / GDPR Right to Erasure
-	_, _, _ = services.PurgeUserTicketsAndAttachments(h.db, h.storage, user.ID)
-
-	// 4. Find all stores owned by user & collect active session IDs to blacklist post-commit
 	var stores []models.Store
-	h.db.Where("user_id = ?", user.ID).Find(&stores)
 	var activeSess []models.UserSession
-	h.db.Select("token_id").Where("user_id = ?", user.ID).Find(&activeSess)
-
 	if txErr := h.db.Transaction(func(tx *gorm.DB) error {
-		for _, s := range stores {
-			productIDs := tx.Unscoped().Model(&models.Product{}).Select("id").Where("store_id = ?", s.ID)
-			if err := tx.Unscoped().Where("product_id IN (?)", productIDs).Delete(&models.ProductVariant{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Unscoped().Where("product_id IN (?)", productIDs).Delete(&models.ProductImage{}).Error; err != nil {
-				return err
-			}
-			for _, storeModel := range []interface{}{
-				&models.Product{},
-				&models.Category{},
-				&models.Article{},
-				&models.StoreDailyAnalytics{},
-				&models.ProductDailyAnalytics{},
-				&models.StoreDailyTrafficSource{},
-				&models.NotificationRead{},
-				&models.ActivityLog{},
-			} {
-				if err := tx.Unscoped().Where("store_id = ?", s.ID).Delete(storeModel).Error; err != nil {
-					return err
-				}
-			}
-			if err := tx.Unscoped().Delete(&s).Error; err != nil {
-				return err
-			}
+		var owner models.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&owner, user.ID).Error; err != nil {
+			return err
 		}
-
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", owner.ID).Order("id").Find(&stores).Error; err != nil {
+			return err
+		}
+		if err := tx.Select("token_id").Where("user_id = ?", owner.ID).Find(&activeSess).Error; err != nil {
+			return err
+		}
+		_, keys, err := services.DeleteOwnerTicketRecords(tx, owner.ID)
+		if err != nil {
+			return err
+		}
+		if err := services.QueueClosedAccountMedia(tx, owner.ID, keys); err != nil {
+			return err
+		}
+		storeIDs := make([]uint, 0, len(stores))
+		for _, store := range stores {
+			storeIDs = append(storeIDs, store.ID)
+		}
+		if err := services.DeleteStoreRecords(tx, storeIDs...); err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM email_jobs WHERE LOWER(recipient_email)=LOWER(?)", user.Email).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM email_verification_otps WHERE LOWER(email)=LOWER(?)", user.Email).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("target_type = 'single_user' AND target_id = ?", owner.ID).Delete(&models.Notification{}).Error; err != nil {
+			return err
+		}
 		// Delete MFA records BEFORE UserSession & User to satisfy PostgreSQL FK RESTRICT on mfa_auth_completions.session_id
 		if tx.Migrator().HasTable(&models.MFAAuthCompletion{}) {
 			sessIDs := tx.Unscoped().Model(&models.UserSession{}).Select("id").Where("user_id = ?", user.ID)
@@ -3360,7 +3325,7 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.UserSession{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.UserPolicyAgreement{}).Error; err != nil {
+		if err := tx.Model(&models.UserPolicyAgreement{}).Where("user_id = ?", user.ID).UpdateColumn("user_id", nil).Error; err != nil {
 			return err
 		}
 		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.NotificationRead{}).Error; err != nil {
@@ -3385,26 +3350,18 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 	}
 
 	// 5. Post-commit physical storage cleanup (Multi-Layer Rollback per AGENTS.md Rule 10)
-	for _, s := range stores {
-		if h.storage != nil {
-			_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("stores/%d/", s.ID))
-			_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/stores/%d/", s.ID))
-		}
-		if cfg != nil && cfg.StorageLocalRoot != "" {
-			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", s.ID)))
-			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", s.ID)))
-		}
-		if cfg != nil && cfg.StoragePrivateRoot != "" {
-			_ = os.RemoveAll(filepath.Join(cfg.StoragePrivateRoot, "stores", fmt.Sprintf("%d", s.ID)))
+	driver := h.storage
+	if driver == nil && cfg != nil {
+		driver, _ = storage.NewStorageService(cfg)
+	}
+	if err := services.RemoveClosedAccountMedia(c.Context(), h.db, driver, cfg, user.ID); err != nil {
+		log.Error().Err(err).Uint("user_id", user.ID).Msg("Account media cleanup pending")
+	}
+	for _, store := range stores {
+		if err := services.RemoveStoreMedia(c.Context(), h.db, driver, cfg, store.ID); err != nil {
+			log.Error().Err(err).Uint("store_id", store.ID).Msg("Account catalog media cleanup incomplete")
 		}
 	}
-	if h.storage != nil {
-		_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/billing/users/%d/", user.ID))
-	}
-	if cfg != nil && cfg.StoragePrivateRoot != "" {
-		_ = os.RemoveAll(filepath.Join(cfg.StoragePrivateRoot, "billing", "users", fmt.Sprintf("%d", user.ID)))
-	}
-
 	// Blacklist all user session JTIs + clear browser cookies
 	for _, s := range activeSess {
 		if s.TokenID != "" {

@@ -121,6 +121,7 @@ func (h *NotificationHub) Broadcast(notif *models.Notification) {
 		}
 	}
 
+	observeCycle("sse_hub", 0, int64(sentCount), nil)
 	log.Info().
 		Str("notif_id", notif.ID).
 		Str("target_type", notif.TargetType).

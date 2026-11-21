@@ -532,11 +532,14 @@ func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*
 }
 
 // ProcessSubscriptionLifecycle handles background expiration, grace periods, auto-downgrades, overage archiving, and H-3 renewal notices.
-func ProcessSubscriptionLifecycle(db *gorm.DB) error {
+func ProcessSubscriptionLifecycle(db *gorm.DB) (cycleErr error) {
+	defer func() { observeCycle("subscription_lifecycle", time.Hour, 0, cycleErr) }()
 	if db == nil {
 		return nil
 	}
-	_ = ProcessExpiredPendingOrders(db)
+	if err := ProcessExpiredPendingOrders(db); err != nil {
+		return err
+	}
 	now := time.Now().UTC()
 
 	// Preload active subscription plans once to eliminate N+1 queries inside lifecycle loops.
@@ -1366,7 +1369,7 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	storageRoot := GetStorageRoot()
 
 	normPath := func(p string) string {
-		return strings.ToLower(filepath.Clean(filepath.ToSlash(p)))
+		return strings.ToLower(filepath.ToSlash(filepath.Clean(p)))
 	}
 
 	// 1. Gather all active referenced file paths for this store
@@ -1381,14 +1384,19 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 	}
 
 	var products []models.Product
-	db.Select("id, image_url, detailed_info").
+	if err := db.Select("id, image_url, video_url, detailed_info").
 		Where("store_id = ? AND deleted_at IS NULL AND (moderation_status IS NULL OR moderation_status NOT IN ('locked', 'hidden', 'banned', 'needs_fix', 'suspended'))", storeID).
-		Find(&products)
+		Find(&products).Error; err != nil {
+		return cachedStorageUsageAfterScanError(db, storeID, err)
+	}
 	for _, p := range products {
 		registerURL(p.ImageURL)
+		registerURL(p.VideoURL)
 
 		var prodImages []models.ProductImage
-		db.Select("image_url").Where("product_id = ?", p.ID).Find(&prodImages)
+		if err := db.Select("image_url").Where("product_id = ?", p.ID).Find(&prodImages).Error; err != nil {
+			return cachedStorageUsageAfterScanError(db, storeID, err)
+		}
 		for _, pi := range prodImages {
 			registerURL(pi.ImageURL)
 		}
@@ -1409,9 +1417,12 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 
 	var store models.Store
 	if err := db.Select("id, store_logo_url, promo_banner, dormancy_status").First(&store, storeID).Error; err == nil {
-		if store.StoreLogoURL != "" && store.DormancyStatus != "banned" {
+		if store.DormancyStatus != "banned" {
 			registerURL(store.StoreLogoURL)
+			registerURL(store.PromoBanner)
 		}
+	} else {
+		return cachedStorageUsageAfterScanError(db, storeID, err)
 	}
 
 	// 1b. Gather files belonging to recently soft-deleted products (72h retention) & moderated violation products (90d retention)
@@ -1436,14 +1447,19 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 
 	// Protected category A: Regular products soft-deleted within 72-hour cooling-off retention
 	var softDeletedProducts []models.Product
-	db.Unscoped().Select("id, image_url, detailed_info").
+	if err := db.Unscoped().Select("id, image_url, video_url, detailed_info").
 		Where("store_id = ? AND deleted_at IS NOT NULL AND deleted_at > ?", storeID, time.Now().UTC().Add(-72*time.Hour)).
-		Find(&softDeletedProducts)
+		Find(&softDeletedProducts).Error; err != nil {
+		return cachedStorageUsageAfterScanError(db, storeID, err)
+	}
 	for _, p := range softDeletedProducts {
 		registerRetainedURL(p.ImageURL)
+		registerRetainedURL(p.VideoURL)
 
 		var prodImages []models.ProductImage
-		db.Unscoped().Select("image_url").Where("product_id = ?", p.ID).Find(&prodImages)
+		if err := db.Unscoped().Select("image_url").Where("product_id = ?", p.ID).Find(&prodImages).Error; err != nil {
+			return cachedStorageUsageAfterScanError(db, storeID, err)
+		}
 		for _, pi := range prodImages {
 			registerRetainedURL(pi.ImageURL)
 		}
@@ -1464,14 +1480,19 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 
 	// Protected category B: Moderated violation products (locked / hidden / banned / needs_fix / suspended) within 90-day legal evidence retention
 	var moderatedProducts []models.Product
-	db.Unscoped().Select("id, image_url, detailed_info").
+	if err := db.Unscoped().Select("id, image_url, video_url, detailed_info").
 		Where("store_id = ? AND moderation_status IN ('locked', 'hidden', 'banned', 'needs_fix', 'suspended') AND (moderated_at IS NULL OR moderated_at > ?)", storeID, time.Now().UTC().AddDate(0, 0, -90)).
-		Find(&moderatedProducts)
+		Find(&moderatedProducts).Error; err != nil {
+		return cachedStorageUsageAfterScanError(db, storeID, err)
+	}
 	for _, p := range moderatedProducts {
 		registerRetainedURL(p.ImageURL)
+		registerRetainedURL(p.VideoURL)
 
 		var prodImages []models.ProductImage
-		db.Unscoped().Select("image_url").Where("product_id = ?", p.ID).Find(&prodImages)
+		if err := db.Unscoped().Select("image_url").Where("product_id = ?", p.ID).Find(&prodImages).Error; err != nil {
+			return cachedStorageUsageAfterScanError(db, storeID, err)
+		}
 		for _, pi := range prodImages {
 			registerRetainedURL(pi.ImageURL)
 		}
@@ -1556,6 +1577,15 @@ func SyncStoreStorageUsed(db *gorm.DB, storeID uint) int64 {
 		return currentStored.StorageUsedBytes
 	}
 	return 0
+}
+
+func cachedStorageUsageAfterScanError(db *gorm.DB, storeID uint, err error) int64 {
+	log.Warn().Err(err).Uint("store_id", storeID).Msg("Storage scan skipped: media references unavailable")
+	var store models.Store
+	if db.Select("storage_used_bytes").First(&store, storeID).Error != nil {
+		return 0
+	}
+	return store.StorageUsedBytes
 }
 
 // BroadcastStoreQuotaSync calculates fresh StoreQuotaInfo and broadcasts it to connected clients in real-time.

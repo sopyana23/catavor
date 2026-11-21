@@ -41,6 +41,7 @@ ARG VITE_GOOGLE_CLIENT_ID=""
 ENV VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
+COPY frontend/shared/  ./frontend/shared/
 COPY frontend/desktop/ ./frontend/desktop/
 COPY frontend/tablet/  ./frontend/tablet/
 COPY frontend/mobile/  ./frontend/mobile/

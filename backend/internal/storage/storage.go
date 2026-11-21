@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -458,26 +459,34 @@ func (s *S3StorageService) DeletePrefix(ctx context.Context, prefix string) erro
 		Recursive: true,
 	}
 
+	listCtx, stopList := context.WithCancel(ctx)
+	defer stopList()
+	listDone := make(chan error, 1)
 	objectsCh := make(chan minio.ObjectInfo)
 	go func() {
 		defer close(objectsCh)
-		for obj := range s.client.ListObjects(ctx, s.bucket, opts) {
+		for obj := range s.client.ListObjects(listCtx, s.bucket, opts) {
 			if obj.Err != nil {
-				log.Warn().Err(obj.Err).Str("prefix", cleanPrefix).Msg("Error listing objects for prefix deletion")
-				continue
+				listDone <- obj.Err
+				return
 			}
-			objectsCh <- obj
+			select {
+			case objectsCh <- obj:
+			case <-listCtx.Done():
+				listDone <- listCtx.Err()
+				return
+			}
 		}
+		listDone <- nil
 	}()
-
-	errorCh := s.client.RemoveObjects(ctx, s.bucket, objectsCh, minio.RemoveObjectsOptions{})
-	for err := range errorCh {
-		if err.Err != nil {
-			log.Warn().Err(err.Err).Str("object", err.ObjectName).Msg("Failed to delete S3 object in prefix batch")
+	var deleteErr error
+	for failure := range s.client.RemoveObjects(ctx, s.bucket, objectsCh, minio.RemoveObjectsOptions{}) {
+		if failure.Err != nil {
+			deleteErr = errors.Join(deleteErr, failure.Err)
 		}
 	}
-
-	return nil
+	stopList()
+	return errors.Join(deleteErr, <-listDone, ctx.Err())
 }
 
 func (s *S3StorageService) GetURL(key string) string {

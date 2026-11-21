@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bufio"
+	"catavor-backend/internal/config"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -1311,14 +1312,15 @@ func (h *NotificationHandler) ensureStoreInitialNotifications(storeID, userID ui
 
 	// Record to automation tracker
 	services.GetAutomationTracker().RecordLog(services.AutomationLogEntry{
-		BotName:   "onboarding",
-		BotTitle:  "Bot Panduan Onboarding Toko Baru",
-		Target:    fmt.Sprintf("Toko #%d", storeID),
-		TargetID:  storeID,
-		Action:    "sent_in_app",
-		Status:    "success",
-		Details:   fmt.Sprintf("3 artikel panduan onboarding otomatis disematkan ke katalog toko #%d.", storeID),
-		Timestamp: time.Now().UTC(),
+		BotName:     "onboarding_engine",
+		TriggerType: "event_hook",
+		BotTitle:    "Bot Panduan Onboarding Toko Baru",
+		Target:      fmt.Sprintf("Toko #%d", storeID),
+		TargetID:    storeID,
+		Action:      "sent_in_app",
+		Status:      "success",
+		Details:     fmt.Sprintf("3 artikel panduan onboarding otomatis disematkan ke katalog toko #%d.", storeID),
+		Timestamp:   time.Now().UTC(),
 	})
 
 	services.GetAutomationTracker().RecordWorkerHeartbeat(
@@ -1329,6 +1331,13 @@ func (h *NotificationHandler) ensureStoreInitialNotifications(storeID, userID ui
 		3,
 		time.Now().UTC().Add(1*time.Hour),
 	)
+}
+
+func (h *NotificationHandler) RegisterAutomationRoutes(router fiber.Router, cfg *config.Config) {
+	router.Get("/automation/preview", middleware.RequireAnyPermission(cfg, "system:automation:view", "system:automation:manage"), h.PreviewAutomation)
+	router.Get("/automation/status", middleware.RequireAnyPermission(cfg, "system:automation:view", "system:automation:manage"), h.GetAutomationStatus)
+	router.Get("/automation/logs", middleware.RequireAnyPermission(cfg, "system:automation:view", "system:automation:manage"), h.GetAutomationLogs)
+	router.Post("/automation/trigger", middleware.RequirePermission(cfg, "system:automation:manage"), h.TriggerAutomationBot)
 }
 
 // GetAutomationStatus returns runtime health status of background workers and bot engines.
@@ -1364,8 +1373,11 @@ func (h *NotificationHandler) GetAutomationLogs(c *fiber.Ctx) error {
 	}
 
 	tracker := services.GetAutomationTracker()
-	logs, total := tracker.GetLogs(botFilter, statusFilter, searchQuery, limit, page)
+	logs, total, err := tracker.GetLogs(botFilter, statusFilter, searchQuery, limit, page)
 
+	if err != nil {
+		return c.Status(503).JSON(fiber.Map{"error": "Riwayat otomasi tidak tersedia."})
+	}
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
 	if totalPages < 1 {
 		totalPages = 1
@@ -1382,6 +1394,19 @@ func (h *NotificationHandler) GetAutomationLogs(c *fiber.Ctx) error {
 			"total_pages": totalPages,
 		},
 	})
+}
+
+// PreviewAutomation evaluates two synthetic tickets without reading or changing tenant data.
+func (h *NotificationHandler) PreviewAutomation(c *fiber.Ctx) error {
+	age, err := strconv.Atoi(c.Query("age_days", "31"))
+	if err != nil || age < 0 || age > 3650 {
+		return c.Status(400).JSON(fiber.Map{"error": "Umur tiket harus antara 0 dan 3650 hari."})
+	}
+	count, err := services.PreviewTicketRetention(h.DB.WithContext(c.Context()), age)
+	if err != nil {
+		return c.Status(503).JSON(fiber.Map{"error": "Simulasi retensi tidak tersedia."})
+	}
+	return c.JSON(fiber.Map{"eligible": count, "sample_count": 2, "message": fmt.Sprintf("%d dari 2 tiket contoh memenuhi retensi pada hari ke-%d. Tidak ada data yang dihapus.", count, age)})
 }
 
 // TriggerAutomationBot handles manual force-execution and sandbox test message dispatch.
@@ -1403,49 +1428,45 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 	tracker := services.GetAutomationTracker()
 	user, _ := c.Locals("user").(*models.User)
 
+	actor := "Admin Portal"
+	if user != nil {
+		actor = fmt.Sprintf("user:%d", user.ID)
+	}
+
+	db := h.DB.Set("automation_actor", actor).Session(&gorm.Session{})
 	switch action {
 	case "store_expiry", "dormancy_cycle", "store_expiration", "dormancy_worker":
-		if err := tracker.TriggerStoreExpiryManual(h.DB, nil); err != nil {
+		if err := tracker.TriggerStoreExpiryManual(db, nil); err != nil {
 			log.Error().Err(err).Msg("admin: TriggerStoreExpiryManual gagal")
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot kedaluwarsa toko."})
 		}
 		return c.JSON(fiber.Map{
 			"success": true,
-			"message": "Bot Kedaluwarsa Toko & siklus pemindaian inaktivitas akun berhasil dipicu di latar belakang.",
+			"message": "Pemeriksaan dormansi setiap toko telah dijadwalkan.",
 		})
 
-	case "promo_expiry", "promo_expiration", "promo_worker":
-		if err := tracker.TriggerPromoExpiryManual(h.DB); err != nil {
-			log.Error().Err(err).Msg("admin: TriggerPromoExpiryManual gagal")
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot kedaluwarsa promo."})
+	case "promo_expiry", "promo_expiration", "promo_worker", "flash_sale", "flashsale", "flash_sale_worker", "weekly_summary", "summary", "weekly_summary_worker":
+		name := "weekly_summary"
+		switch action {
+		case "promo_expiry", "promo_expiration", "promo_worker":
+			name = "promo_expiry"
+		case "flash_sale", "flashsale", "flash_sale_worker":
+			name = "flash_sale"
 		}
-		return c.JSON(fiber.Map{
-			"success": true,
-			"message": "Bot Kedaluwarsa Promo berhasil memindai katalog merchant dan memperbarui promo aktif.",
-		})
 
-	case "flash_sale", "flashsale", "flash_sale_worker":
-		if err := tracker.TriggerFlashSaleManual(h.DB); err != nil {
-			log.Error().Err(err).Msg("admin: TriggerFlashSaleManual gagal")
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot flash sale."})
+		summary, err := tracker.RunDiagnostic(h.DB.WithContext(c.Context()), name, actor)
+		if err != nil {
+			return c.Status(503).JSON(fiber.Map{"error": "Hasil diagnostik tidak tersedia."})
 		}
-		return c.JSON(fiber.Map{
-			"success": true,
-			"message": "Bot Sinkronisasi Flash Sale berhasil menyinkronkan sesi diskon dan label promo produk realtime.",
-		})
-
+		return c.JSON(fiber.Map{"success": true, "message": summary})
 	case "support_lifecycle", "support", "sla_escalation", "ticket_lifecycle":
-		if err := tracker.TriggerSupportLifecycleManual(h.DB); err != nil {
-			log.Error().Err(err).Msg("admin: TriggerSupportLifecycleManual gagal")
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot helpdesk SLA."})
+		summary, err := tracker.TriggerSupportLifecycleManual(db, actor)
+		if err != nil {
+			return c.Status(503).JSON(fiber.Map{"error": "Siklus helpdesk gagal atau sedang berjalan."})
 		}
-		return c.JSON(fiber.Map{
-			"success": true,
-			"message": "Bot Helpdesk SLA Escalation & Retensi berhasil memproses pengingat tiket dan pemusnahan PDP.",
-		})
-
+		return c.JSON(fiber.Map{"success": true, "message": summary})
 	case "ticket_retention", "ticket_retention_worker", "ticket_purge", "pdp_purge":
-		stats, err := tracker.TriggerTicketRetentionManual(h.DB)
+		stats, err := tracker.TriggerTicketRetentionManual(db)
 		if err != nil {
 			log.Error().Err(err).Msg("admin: TriggerTicketRetentionManual gagal")
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot retensi tiket."})
@@ -1457,7 +1478,7 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 		})
 
 	case "market_intel_worker", "market_intel", "market_intelligence", "market_rollup":
-		if err := tracker.TriggerMarketIntelManual(h.DB); err != nil {
+		if err := tracker.TriggerMarketIntelManual(db); err != nil {
 			log.Error().Err(err).Msg("admin: TriggerMarketIntelManual gagal")
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot riset pasar & intelijen."})
 		}
@@ -1466,28 +1487,18 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 			"message": "Bot Agregasi Riset Pasar & Demand Gap (B2B) berhasil dipicu di latar belakang.",
 		})
 
-	case "weekly_summary", "summary", "weekly_summary_worker":
-		if err := tracker.TriggerWeeklySummaryManual(h.DB, user); err != nil {
-			log.Error().Err(err).Msg("admin: TriggerWeeklySummaryManual gagal")
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot ringkasan mingguan."})
-		}
-		return c.JSON(fiber.Map{
-			"success": true,
-			"message": "Bot Ringkasan Mingguan Platform berhasil mengompilasi statistik transaksi dan performa platform.",
-		})
-
 	case "notification_cleaner", "cleaner_worker", "cleaner":
-		if err := tracker.TriggerCleanerManual(h.DB); err != nil {
+		if err := tracker.TriggerCleanerManual(db); err != nil {
 			log.Error().Err(err).Msg("admin: TriggerCleanerManual gagal")
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal menjalankan pembersihan notifikasi."})
 		}
 		return c.JSON(fiber.Map{
 			"success": true,
-			"message": "Pembersihan notifikasi kedaluwarsa & retensi 30 hari berhasil dijalankan.",
+			"message": "Permintaan pembersihan notifikasi dan sesi diterima.",
 		})
 
 	case "item_retention_worker", "item_retention", "moderation_cleanup", "item_cleanup":
-		stats, err := tracker.TriggerItemRetentionManual(h.DB, nil)
+		stats, err := tracker.TriggerItemRetentionManual(db, nil)
 		if err != nil {
 			log.Error().Err(err).Msg("admin: TriggerItemRetentionManual gagal")
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot retensi item moderasi."})
@@ -1499,7 +1510,7 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 		})
 
 	case "storage_sweeper", "storage_sweep", "sweeper", "orphan_cleanup":
-		total, err := tracker.TriggerStorageSweeperManual(h.DB)
+		total, err := tracker.TriggerStorageSweeperManual(db)
 		if err != nil {
 			log.Error().Err(err).Msg("admin: TriggerStorageSweeperManual gagal")
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Gagal memicu bot audit penyimpanan."})
@@ -1517,7 +1528,7 @@ func (h *NotificationHandler) TriggerAutomationBot(c *fiber.Ctx) error {
 		}
 		return c.JSON(fiber.Map{
 			"success":      true,
-			"message":      "Notifikasi simulasi panduan berhasil dikirim ke akun Anda.",
+			"message":      "Notifikasi panduan tersimpan untuk akun Anda.",
 			"notification": notif,
 		})
 
