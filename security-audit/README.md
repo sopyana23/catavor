@@ -7,8 +7,13 @@
 > N-25 (penanda staf platform: 34 hardcode email → satu sumber kebenaran),
 > N-26 (`DeleteStore` selalu 500 karena transaksi ter-abort) dan N-27
 > (landing page crash total saat `/stores/featured` mengembalikan `null`).
-> Satu temuan masih terbuka: **N-21** (fungsional) yang menunggu keputusan
-> produk, bukan perbaikan kode.
+> Seri BC-1…BC-7 (temuan perilaku lintas-form-factor) juga tercatat tertutup,
+> termasuk BC-5 (paginasi siaran tablet) dan BC-6 (request daftar notifikasi
+> ganda di portal induk).
+>
+> **Per 2026-11-21: `findings.json` memuat 73 temuan, 0 berstatus `open`.**
+> Baca status dari `findings.json`, bukan dari ringkasan ini — ringkasan di
+> atas hanya merekam putaran audit yang sudah selesai dan cepat basi.
 >
 > Seluruh 195 rute pada `routes.json` sudah diprobe dengan verifikasi runtime:
 > PUBLIC 38, AUTH-ONLY 26, MERCHANT 27, ADMIN 45, sisa pengujian lintas-peran.
