@@ -45,6 +45,19 @@ ext/
 /storage/*
 !/storage/.gitkeep
 !/storage/private/.gitkeep
+
+# Seluruh dist SPA adalah keluaran build Vite (build.emptyOutDir = true):
+# tiap `npm run build` mengosongkan folder ini lalu menyalin ulang isi
+# frontend/<app>/public/. Aset "statis" di dalamnya (pdfjs, logo, favicon,
+# icons) adalah salinan — sumber aslinya frontend/<app>/public/ dan tetap
+# ter-commit. Dockerfile membangun ketiga SPA sendiri, jadi dist tidak pernah
+# dipakai saat deploy. Membiarkannya di-commit membuat public/<app>/index.html
+# merujuk hash aset yang tidak ada di checkout lain (halaman blank).
+/public/desktop/
+/public/tablet/
+/public/mobile/
+# public/assets, public/img, public/logo.png, public/favicon.ico, dan
+# public/storage/ BUKAN keluaran vite (di luar outDir) — tetap di-commit.
 /legacy/laravel/storage/app/public/fauna/*
 !/legacy/laravel/storage/app/public/fauna/.gitkeep
 *.fiber.gz
