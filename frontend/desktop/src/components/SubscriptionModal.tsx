@@ -338,7 +338,10 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     }
   }, [plans]);
 
-  if (!isOpen && !isPage) return null;
+  // Hook rules-of-hooks compliance:
+  // useModalBackHandler dan useEffect di bawah ini wajib dieksekusi tanpa syarat
+  // di setiap render cycle, sehingga early return (!isOpen && !isPage) dipindahkan
+  // ke render gate di bagian akhir sebelum innerModalContent dikembalikan.
 
   const currentPlanCode = effectiveQuota?.plan?.code || 'free';
   const canRenewCurrentPlan = Boolean(
@@ -3280,6 +3283,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         )}
     </div>
   );
+
+  if (!isOpen && !isPage) return null;
 
   if (isPage) {
     return (
