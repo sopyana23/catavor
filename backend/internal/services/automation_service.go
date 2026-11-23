@@ -763,15 +763,18 @@ func (t *AutomationTracker) ScheduledMarketRollup(db *gorm.DB) {
 func (t *AutomationTracker) runMarketRollup(db *gorm.DB, origin, actor string) {
 	start := time.Now().UTC()
 	day := start.AddDate(0, 0, -1).Format("2006-01-02")
+	today := start.Format("2006-01-02")
 	var purged int64
 	err := db.Transaction(func(tx *gorm.DB) error {
-		if err := RollupDailySearchTrends(tx, day); err != nil {
-			return err
+		for _, targetDay := range []string{day, today} {
+			if err := RollupDailySearchTrends(tx, targetDay); err != nil {
+				return err
+			}
+			if err := RollupDailyMarketTrends(tx, targetDay); err != nil {
+				return err
+			}
 		}
-		if err := RollupDailyMarketTrends(tx, day); err != nil {
-			return err
-		}
-		if err := CalculatePriceBenchmarks(tx, day); err != nil {
+		if err := CalculatePriceBenchmarks(tx, today); err != nil {
 			return err
 		}
 		var err error

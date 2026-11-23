@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,23 +13,74 @@ import (
 
 	"catavor-backend/internal/models"
 
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
 
+const KAnonymityMinStores = 3
+
 type marketIntelCacheHolder struct {
-	mu       sync.RWMutex
-	cachedAt int64
-	summary  *MacroMarketSummary
+	mu           sync.RWMutex
+	cachedAt     int64
+	summary      *MacroMarketSummary
+	invalidators []func()
 }
 
 var globalMarketIntelCache = &marketIntelCacheHolder{}
 
-// InvalidateMarketIntelCache purges cached macro intelligence so next request computes freshly.
-func InvalidateMarketIntelCache() {
+// RegisterMarketCacheInvalidator registers a callback invoked whenever InvalidateMarketIntelCache runs.
+func RegisterMarketCacheInvalidator(fn func()) {
+	if fn == nil {
+		return
+	}
 	globalMarketIntelCache.mu.Lock()
 	defer globalMarketIntelCache.mu.Unlock()
+	globalMarketIntelCache.invalidators = append(globalMarketIntelCache.invalidators, fn)
+}
+
+// InvalidateMarketIntelCache purges cached macro intelligence and sibling caches so next request computes freshly.
+func InvalidateMarketIntelCache() {
+	globalMarketIntelCache.mu.Lock()
 	globalMarketIntelCache.cachedAt = 0
 	globalMarketIntelCache.summary = nil
+	fns := make([]func(), len(globalMarketIntelCache.invalidators))
+	copy(fns, globalMarketIntelCache.invalidators)
+	globalMarketIntelCache.mu.Unlock()
+
+	for _, fn := range fns {
+		if fn != nil {
+			fn()
+		}
+	}
+}
+
+func clampRate(actions, views int64) float64 {
+	if views <= 0 || actions <= 0 {
+		return 0
+	}
+	rate := math.Round((float64(actions)/float64(views))*10000) / 100
+	if rate > 100.0 {
+		return 100.0
+	}
+	return rate
+}
+
+func computeLinearPercentile(sorted []float64, p float64) float64 {
+	n := len(sorted)
+	if n == 0 {
+		return 0
+	}
+	if n == 1 {
+		return sorted[0]
+	}
+	idx := p * float64(n-1)
+	lo := int(math.Floor(idx))
+	hi := int(math.Ceil(idx))
+	if lo == hi || hi >= n {
+		return sorted[lo]
+	}
+	frac := idx - float64(lo)
+	return sorted[lo] + frac*(sorted[hi]-sorted[lo])
 }
 
 // MacroMarketSummary represents aggregated high-level market intelligence across Catavor ecosystem.
@@ -38,16 +90,17 @@ type MacroMarketSummary struct {
 	TotalViews30D            int64                    `json:"total_views_30d"`
 	TotalActions30D          int64                    `json:"total_actions_30d"`
 	OverallConversionRate    float64                  `json:"overall_conversion_rate"` // (actions / views) * 100
+	KAnonymityMinStores      int                      `json:"k_anonymity_min_stores"`
 	ChannelBreakdown         ChannelBreakdownStats    `json:"channel_breakdown"`
 	TopCategories            []CategoryTrendSummary   `json:"top_categories"`
 	PriceBenchmarks          []CategoryPriceBenchmark `json:"price_benchmarks"`
 	TrendTimeline            []DailyMarketTrendPoint  `json:"trend_timeline"`
-	PriceBracketElasticity   []PriceBracketMetric     `json:"price_bracket_elasticity,omitempty"`
-	GeoIndustryMatrix        []GeoIndustryMetric      `json:"geo_industry_matrix,omitempty"`
-	DeviceIndustryMatrix     []DeviceIndustryMetric   `json:"device_industry_matrix,omitempty"`
+	PriceBracketElasticity   []PriceBracketMetric     `json:"price_bracket_elasticity"`
+	GeoIndustryMatrix        []GeoIndustryMetric      `json:"geo_industry_matrix"`
+	DeviceIndustryMatrix     []DeviceIndustryMetric   `json:"device_industry_matrix"`
 	CatalogQualityBenchmarks CatalogQualityMetrics    `json:"catalog_quality_benchmarks"`
 	SupplySideDynamics       SupplyDynamicsMetrics    `json:"supply_side_dynamics"`
-	TopSearchDemandGaps      []SearchDemandGapItem    `json:"top_search_demand_gaps,omitempty"`
+	TopSearchDemandGaps      []SearchDemandGapItem    `json:"top_search_demand_gaps"`
 	GeneratedAt              string                   `json:"generated_at"`
 	DataPrivacyNotice        string                   `json:"data_privacy_notice"`
 }
@@ -65,13 +118,14 @@ type ChannelBreakdownStats struct {
 }
 
 type CategoryTrendSummary struct {
-	CategoryID     uint    `json:"category_id"`
-	CategoryName   string  `json:"category_name"`
-	ProductCount   int64   `json:"product_count"`
-	TotalViews     int64   `json:"total_views"`
-	TotalActions   int64   `json:"total_actions"`
-	ConversionRate float64 `json:"conversion_rate"`
-	AveragePrice   float64 `json:"average_price"`
+	CategoryID       uint    `json:"category_id"`
+	CategoryName     string  `json:"category_name"`
+	ProductCount     int64   `json:"product_count"`
+	UniqueStoreCount int64   `json:"unique_store_count"`
+	TotalViews       int64   `json:"total_views"`
+	TotalActions     int64   `json:"total_actions"`
+	ConversionRate   float64 `json:"conversion_rate"`
+	AveragePrice     float64 `json:"average_price"`
 }
 
 type CategoryPriceBenchmark struct {
@@ -153,20 +207,32 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 	globalMarketIntelCache.mu.RUnlock()
 
 	if globalStoreTelemetry != nil {
-		globalStoreTelemetry.flushBatch()
+		globalStoreTelemetry.FlushNow()
 	}
 
 	summary := &MacroMarketSummary{
-		GeneratedAt:       time.Now().UTC().Format(time.RFC3339),
-		DataPrivacyNotice: "Seluruh data pasar disajikan dalam bentuk agregat statistik anonim sesuai UU No. 27 Tahun 2022 (UU PDP) & standar GDPR. Tanpa memuat data identitas pribadi atau toko individual.",
+		KAnonymityMinStores:    KAnonymityMinStores,
+		TopCategories:          make([]CategoryTrendSummary, 0),
+		PriceBenchmarks:        make([]CategoryPriceBenchmark, 0),
+		TrendTimeline:          make([]DailyMarketTrendPoint, 0),
+		PriceBracketElasticity: make([]PriceBracketMetric, 0),
+		GeoIndustryMatrix:      make([]GeoIndustryMetric, 0),
+		DeviceIndustryMatrix:   make([]DeviceIndustryMetric, 0),
+		TopSearchDemandGaps:    make([]SearchDemandGapItem, 0),
+		GeneratedAt:            time.Now().UTC().Format(time.RFC3339),
+		DataPrivacyNotice:      "Seluruh data pasar disajikan dalam bentuk agregat statistik anonim tanpa memuat identitas pribadi (Zero-PII) sesuai UU No. 27 Tahun 2022 (UU PDP), dengan ambang privasi K-Anonymity minimal 3 toko unik per kategori.",
 	}
 
 	// 1. Total Active Stores & Products
-	db.Model(&models.Store{}).Where("(dormancy_status IS NULL OR dormancy_status = 'active') AND is_blacklisted = false").Count(&summary.TotalActiveStores)
-	db.Model(&models.Product{}).Where("is_active = true").Count(&summary.TotalActiveProducts)
+	if err := db.Model(&models.Store{}).Where("(dormancy_status IS NULL OR dormancy_status = 'active') AND is_blacklisted = false").Count(&summary.TotalActiveStores).Error; err != nil {
+		log.Warn().Err(err).Str("section", "active_stores").Msg("MarketIntel query error")
+	}
+	if err := db.Model(&models.Product{}).Where("is_active = true").Count(&summary.TotalActiveProducts).Error; err != nil {
+		log.Warn().Err(err).Str("section", "active_products").Msg("MarketIntel query error")
+	}
 
-	// 2. 30 Days Aggregated Metrics
-	startDate := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
+	// 2. 30 Days Aggregated Metrics (UTC consistent)
+	startDate := time.Now().UTC().AddDate(0, 0, -30).Format("2006-01-02")
 
 	type AggStats struct {
 		TotalStoreViews  int64 `gorm:"column:total_store_views"`
@@ -177,27 +243,25 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 		TotalActions     int64 `gorm:"column:total_actions"`
 	}
 	var storeAgg AggStats
-	_ = db.Model(&models.StoreDailyAnalytics{}).
+	if err := db.Model(&models.StoreDailyAnalytics{}).
 		Select("COALESCE(SUM(store_views), 0) as total_store_views, COALESCE(SUM(direct_wa_clicks), 0) as total_direct_wa, COALESCE(SUM(marketplace_clicks), 0) as total_marketplace, COALESCE(SUM(rekber_clicks), 0) as total_rekber, COALESCE(SUM(video_views), 0) as total_video_views, COALESCE(SUM(total_actions), 0) as total_actions").
 		Where("date >= ?", startDate).
-		Scan(&storeAgg).Error
+		Scan(&storeAgg).Error; err != nil {
+		log.Warn().Err(err).Str("section", "store_daily_analytics").Msg("MarketIntel query error")
+	}
 
 	var prodViews int64
-	_ = db.Model(&models.ProductDailyAnalytics{}).
+	if err := db.Model(&models.ProductDailyAnalytics{}).
 		Select("COALESCE(SUM(views), 0)").
 		Where("date >= ?", startDate).
-		Scan(&prodViews).Error
+		Scan(&prodViews).Error; err != nil {
+		log.Warn().Err(err).Str("section", "product_daily_views").Msg("MarketIntel query error")
+	}
 
 	totalViews := storeAgg.TotalStoreViews + prodViews
-	if totalViews == 0 {
-		totalViews = storeAgg.TotalStoreViews
-	}
 	summary.TotalViews30D = totalViews
 	summary.TotalActions30D = storeAgg.TotalActions
-
-	if totalViews > 0 {
-		summary.OverallConversionRate = math.Round((float64(storeAgg.TotalActions)/float64(totalViews))*10000) / 100
-	}
+	summary.OverallConversionRate = clampRate(storeAgg.TotalActions, totalViews)
 
 	// Channel Breakdown
 	totalActions := storeAgg.TotalActions
@@ -211,56 +275,62 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 	summary.ChannelBreakdown.VideoViews = storeAgg.TotalVideoViews
 
 	if totalActions > 0 {
-		summary.ChannelBreakdown.DirectWAPercent = math.Round((float64(storeAgg.TotalDirectWA)/float64(totalActions))*1000) / 10
-		summary.ChannelBreakdown.MarketplacePercent = math.Round((float64(storeAgg.TotalMarketplace)/float64(totalActions))*1000) / 10
-		summary.ChannelBreakdown.RekberPercent = math.Round((float64(storeAgg.TotalRekber)/float64(totalActions))*1000) / 10
-		summary.ChannelBreakdown.VideoViewsPercent = math.Round((float64(storeAgg.TotalVideoViews)/float64(totalActions))*1000) / 10
+		summary.ChannelBreakdown.DirectWAPercent = math.Min(100.0, math.Round((float64(storeAgg.TotalDirectWA)/float64(totalActions))*1000)/10)
+		summary.ChannelBreakdown.MarketplacePercent = math.Min(100.0, math.Round((float64(storeAgg.TotalMarketplace)/float64(totalActions))*1000)/10)
+		summary.ChannelBreakdown.RekberPercent = math.Min(100.0, math.Round((float64(storeAgg.TotalRekber)/float64(totalActions))*1000)/10)
+		summary.ChannelBreakdown.VideoViewsPercent = math.Min(100.0, math.Round((float64(storeAgg.TotalVideoViews)/float64(totalActions))*1000)/10)
 	}
 
-	// 3. Category Market Trends (with K-Anonymity)
+	// 3. Category Market Trends (with K-Anonymity >= 3 unique stores and pre-aggregated product analytics to eliminate AVG fan-out distortion)
 	type CatRow struct {
 		CategoryID   uint    `gorm:"column:category_id"`
 		CategoryName string  `gorm:"column:category_name"`
 		ProductCount int64   `gorm:"column:product_count"`
+		StoreCount   int64   `gorm:"column:store_count"`
 		AvgPrice     float64 `gorm:"column:avg_price"`
 		TotalViews   int64   `gorm:"column:total_views"`
 		TotalActions int64   `gorm:"column:total_actions"`
 	}
 	var catRows []CatRow
-	_ = db.Raw(`
+	if err := db.Raw(`
 		SELECT 
 			MIN(c.id) as category_id,
 			COALESCE(c.name, 'Umum') as category_name,
 			COUNT(DISTINCT p.id) as product_count,
-			COALESCE(AVG(p.price), 0) as avg_price,
-			COALESCE(SUM(pda.views), 0) as total_views,
-			COALESCE(SUM(pda.total_actions), 0) as total_actions
+			COUNT(DISTINCT p.store_id) as store_count,
+			COALESCE(AVG(CASE WHEN p.price > 0 THEN p.price END), 0) as avg_price,
+			COALESCE(SUM(COALESCE(pda.views, 0)), 0) as total_views,
+			COALESCE(SUM(COALESCE(pda.total_actions, 0)), 0) as total_actions
 		FROM categories c
-		LEFT JOIN products p ON p.category_id = c.id AND p.is_active = true
-		LEFT JOIN product_daily_analytics pda ON pda.product_id = p.id AND pda.date >= ?
+		INNER JOIN products p ON p.category_id = c.id AND p.is_active = true
+		LEFT JOIN (
+			SELECT product_id, SUM(views) as views, SUM(total_actions) as total_actions
+			FROM product_daily_analytics
+			WHERE date >= ?
+			GROUP BY product_id
+		) pda ON pda.product_id = p.id
 		GROUP BY c.name
-		HAVING COUNT(DISTINCT p.store_id) >= 3
+		HAVING COUNT(DISTINCT p.store_id) >= ?
 		ORDER BY product_count DESC
 		LIMIT 15
-	`, startDate).Scan(&catRows).Error
+	`, startDate, KAnonymityMinStores).Scan(&catRows).Error; err != nil {
+		log.Warn().Err(err).Str("section", "top_categories").Msg("MarketIntel query error")
+	}
 
 	for _, cr := range catRows {
-		convRate := 0.0
-		if cr.TotalViews > 0 {
-			convRate = math.Round((float64(cr.TotalActions)/float64(cr.TotalViews))*10000) / 100
-		}
 		summary.TopCategories = append(summary.TopCategories, CategoryTrendSummary{
-			CategoryID:     cr.CategoryID,
-			CategoryName:   cr.CategoryName,
-			ProductCount:   cr.ProductCount,
-			TotalViews:     cr.TotalViews,
-			TotalActions:   cr.TotalActions,
-			ConversionRate: convRate,
-			AveragePrice:   math.Round(cr.AvgPrice),
+			CategoryID:       cr.CategoryID,
+			CategoryName:     cr.CategoryName,
+			ProductCount:     cr.ProductCount,
+			UniqueStoreCount: cr.StoreCount,
+			TotalViews:       cr.TotalViews,
+			TotalActions:     cr.TotalActions,
+			ConversionRate:   clampRate(cr.TotalActions, cr.TotalViews),
+			AveragePrice:     math.Round(cr.AvgPrice),
 		})
 	}
 
-	// 4. Price Benchmarks per Category with Real PostgreSQL Percentiles & Strict K-Anonymity
+	// 4. Price Benchmarks per Category with Real Quartiles & Strict K-Anonymity (PostgreSQL PERCENTILE_CONT or portable Go interpolation)
 	type PriceBenchRow struct {
 		ProductType  string  `gorm:"column:product_type"`
 		CategoryName string  `gorm:"column:category_name"`
@@ -274,52 +344,121 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 		StoreCount   int64   `gorm:"column:store_count"`
 	}
 	var priceRows []PriceBenchRow
-	_ = db.Raw(`
-		SELECT 
-			COALESCE(p.product_type, 'physical') as product_type,
-			COALESCE(c.name, 'Umum') as category_name,
-			MIN(p.price) as min_price,
-			COALESCE(PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY p.price), MIN(p.price)) as p25_price,
-			COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY p.price), AVG(p.price)) as median_price,
-			COALESCE(PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY p.price), MAX(p.price)) as p75_price,
-			MAX(p.price) as max_price,
-			AVG(p.price) as avg_price,
-			COUNT(p.id) as sample_count,
-			COUNT(DISTINCT p.store_id) as store_count
-		FROM products p
-		LEFT JOIN categories c ON c.id = p.category_id
-		WHERE p.is_active = true AND p.price > 0
-		GROUP BY p.product_type, c.name
-		HAVING COUNT(DISTINCT p.store_id) >= 3
-		ORDER BY sample_count DESC
-		LIMIT 15
-	`).Scan(&priceRows).Error
+	if db.Dialector != nil && db.Dialector.Name() == "postgres" {
+		if err := db.Raw(`
+			SELECT 
+				COALESCE(NULLIF(p.product_type, ''), 'physical') as product_type,
+				COALESCE(c.name, 'Umum') as category_name,
+				MIN(p.price) as min_price,
+				COALESCE(PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY p.price), MIN(p.price)) as p25_price,
+				COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY p.price), AVG(p.price)) as median_price,
+				COALESCE(PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY p.price), MAX(p.price)) as p75_price,
+				MAX(p.price) as max_price,
+				AVG(p.price) as avg_price,
+				COUNT(p.id) as sample_count,
+				COUNT(DISTINCT p.store_id) as store_count
+			FROM products p
+			LEFT JOIN categories c ON c.id = p.category_id
+			WHERE p.is_active = true AND p.price > 0
+			GROUP BY COALESCE(NULLIF(p.product_type, ''), 'physical'), COALESCE(c.name, 'Umum')
+			HAVING COUNT(DISTINCT p.store_id) >= ?
+			ORDER BY sample_count DESC
+			LIMIT 15
+		`, KAnonymityMinStores).Scan(&priceRows).Error; err != nil {
+			log.Warn().Err(err).Str("section", "price_benchmarks_pg").Msg("MarketIntel query error")
+		}
+	} else {
+		type rawPriceSample struct {
+			ProductType  string  `gorm:"column:product_type"`
+			CategoryName string  `gorm:"column:category_name"`
+			Price        float64 `gorm:"column:price"`
+			StoreID      uint    `gorm:"column:store_id"`
+		}
+		var rawSamples []rawPriceSample
+		if err := db.Raw(`
+			SELECT 
+				COALESCE(NULLIF(p.product_type, ''), 'physical') as product_type,
+				COALESCE(c.name, 'Umum') as category_name,
+				p.price as price,
+				p.store_id as store_id
+			FROM products p
+			LEFT JOIN categories c ON c.id = p.category_id
+			WHERE p.is_active = true AND p.price > 0
+		`).Scan(&rawSamples).Error; err != nil {
+			log.Warn().Err(err).Str("section", "price_benchmarks_portable").Msg("MarketIntel query error")
+		} else {
+			type benchBucket struct {
+				productType  string
+				categoryName string
+				prices       []float64
+				stores       map[uint]struct{}
+				sum          float64
+			}
+			buckets := make(map[string]*benchBucket)
+			for _, rs := range rawSamples {
+				k := rs.ProductType + "|" + rs.CategoryName
+				b, ok := buckets[k]
+				if !ok {
+					b = &benchBucket{
+						productType:  rs.ProductType,
+						categoryName: rs.CategoryName,
+						stores:       make(map[uint]struct{}),
+					}
+					buckets[k] = b
+				}
+				b.prices = append(b.prices, rs.Price)
+				b.stores[rs.StoreID] = struct{}{}
+				b.sum += rs.Price
+			}
+			for _, b := range buckets {
+				if len(b.stores) < KAnonymityMinStores || len(b.prices) == 0 {
+					continue
+				}
+				sort.Float64s(b.prices)
+				n := len(b.prices)
+				priceRows = append(priceRows, PriceBenchRow{
+					ProductType:  b.productType,
+					CategoryName: b.categoryName,
+					MinPrice:     b.prices[0],
+					P25Price:     computeLinearPercentile(b.prices, 0.25),
+					MedianPrice:  computeLinearPercentile(b.prices, 0.50),
+					P75Price:     computeLinearPercentile(b.prices, 0.75),
+					MaxPrice:     b.prices[n-1],
+					AvgPrice:     b.sum / float64(n),
+					SampleCount:  int64(n),
+					StoreCount:   int64(len(b.stores)),
+				})
+			}
+			sort.Slice(priceRows, func(i, j int) bool {
+				if priceRows[i].SampleCount != priceRows[j].SampleCount {
+					return priceRows[i].SampleCount > priceRows[j].SampleCount
+				}
+				return priceRows[i].CategoryName < priceRows[j].CategoryName
+			})
+			if len(priceRows) > 15 {
+				priceRows = priceRows[:15]
+			}
+		}
+	}
 
 	for _, pr := range priceRows {
-		isKAnon := pr.StoreCount >= 3
-		minP := math.Round(pr.MinPrice)
-		maxP := math.Round(pr.MaxPrice)
-		// Privacy protection: If fewer than 3 unique stores, clamp min & max to P25 and P75 to avoid single-merchant price exposure
-		if !isKAnon && pr.P25Price > 0 {
-			minP = math.Round(pr.P25Price)
-			maxP = math.Round(pr.P75Price)
-		}
+		isKAnon := pr.StoreCount >= KAnonymityMinStores
 		summary.PriceBenchmarks = append(summary.PriceBenchmarks, CategoryPriceBenchmark{
 			ProductType:      pr.ProductType,
 			CategoryName:     pr.CategoryName,
-			MinPrice:         minP,
+			MinPrice:         math.Round(pr.MinPrice),
 			P25Price:         math.Round(pr.P25Price),
 			AvgPrice:         math.Round(pr.AvgPrice),
 			MedianPrice:      math.Round(pr.MedianPrice),
 			P75Price:         math.Round(pr.P75Price),
-			MaxPrice:         maxP,
+			MaxPrice:         math.Round(pr.MaxPrice),
 			SampleCount:      pr.SampleCount,
 			UniqueStoreCount: pr.StoreCount,
 			IsKAnonymous:     isKAnon,
 		})
 	}
 
-	// 5. 14 Days Daily Timeline
+	// 5. 14 Days Daily Timeline (UTC)
 	type DayPoint struct {
 		Date         string `gorm:"column:date"`
 		StoreViews   int64  `gorm:"column:store_views"`
@@ -327,8 +466,8 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 		TotalActions int64  `gorm:"column:total_actions"`
 	}
 	var dayPoints []DayPoint
-	fourteenDaysAgo := time.Now().AddDate(0, 0, -14).Format("2006-01-02")
-	_ = db.Raw(`
+	fourteenDaysAgo := time.Now().UTC().AddDate(0, 0, -14).Format("2006-01-02")
+	if err := db.Raw(`
 		SELECT 
 			d.date,
 			COALESCE(s.store_views, 0) as store_views,
@@ -352,7 +491,9 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 			GROUP BY date
 		) p ON p.date = d.date
 		ORDER BY d.date ASC
-	`, fourteenDaysAgo, fourteenDaysAgo, fourteenDaysAgo, fourteenDaysAgo).Scan(&dayPoints).Error
+	`, fourteenDaysAgo, fourteenDaysAgo, fourteenDaysAgo, fourteenDaysAgo).Scan(&dayPoints).Error; err != nil {
+		log.Warn().Err(err).Str("section", "trend_timeline").Msg("MarketIntel query error")
+	}
 
 	for _, dp := range dayPoints {
 		summary.TrendTimeline = append(summary.TrendTimeline, DailyMarketTrendPoint{
@@ -370,14 +511,16 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 		TotalActions int64  `gorm:"column:total_actions"`
 	}
 	var bracketRows []DimensionRow
-	_ = db.Raw(`
+	if err := db.Raw(`
 		SELECT dimension_value, SUM(views) as views, SUM(total_actions) as total_actions
 		FROM store_daily_audience_metrics
 		WHERE store_id = 0 AND dimension_type = 'price_bracket' AND date >= ?
 		GROUP BY dimension_value
 		ORDER BY views DESC
 		LIMIT 15
-	`, startDate).Scan(&bracketRows).Error
+	`, startDate).Scan(&bracketRows).Error; err != nil {
+		log.Warn().Err(err).Str("section", "price_bracket_elasticity").Msg("MarketIntel query error")
+	}
 
 	for _, br := range bracketRows {
 		parts := strings.Split(br.DimVal, "|")
@@ -387,29 +530,27 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 			pType = parts[0]
 			bracket = parts[1]
 		}
-		conv := 0.0
-		if br.Views > 0 {
-			conv = math.Round((float64(br.TotalActions)/float64(br.Views))*10000) / 100
-		}
 		summary.PriceBracketElasticity = append(summary.PriceBracketElasticity, PriceBracketMetric{
 			ProductType:    pType,
 			Bracket:        bracket,
 			Views:          br.Views,
 			TotalActions:   br.TotalActions,
-			ConversionRate: conv,
+			ConversionRate: clampRate(br.TotalActions, br.Views),
 		})
 	}
 
 	// 7. Geo-Industry Matrix (City x ProductType)
 	var geoRows []DimensionRow
-	_ = db.Raw(`
+	if err := db.Raw(`
 		SELECT dimension_value, SUM(views) as views, SUM(total_actions) as total_actions
 		FROM store_daily_audience_metrics
 		WHERE store_id = 0 AND dimension_type = 'geo_type' AND date >= ?
 		GROUP BY dimension_value
 		ORDER BY views DESC
 		LIMIT 15
-	`, startDate).Scan(&geoRows).Error
+	`, startDate).Scan(&geoRows).Error; err != nil {
+		log.Warn().Err(err).Str("section", "geo_industry_matrix").Msg("MarketIntel query error")
+	}
 
 	for _, gr := range geoRows {
 		parts := strings.Split(gr.DimVal, "|")
@@ -419,29 +560,27 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 			city = parts[0]
 			pType = parts[1]
 		}
-		conv := 0.0
-		if gr.Views > 0 {
-			conv = math.Round((float64(gr.TotalActions)/float64(gr.Views))*10000) / 100
-		}
 		summary.GeoIndustryMatrix = append(summary.GeoIndustryMatrix, GeoIndustryMetric{
 			City:           city,
 			ProductType:    pType,
 			Views:          gr.Views,
 			TotalActions:   gr.TotalActions,
-			ConversionRate: conv,
+			ConversionRate: clampRate(gr.TotalActions, gr.Views),
 		})
 	}
 
 	// 8. Device-Industry Matrix (OS x ProductType)
 	var devRows []DimensionRow
-	_ = db.Raw(`
+	if err := db.Raw(`
 		SELECT dimension_value, SUM(views) as views, SUM(total_actions) as total_actions
 		FROM store_daily_audience_metrics
 		WHERE store_id = 0 AND dimension_type = 'device_type' AND date >= ?
 		GROUP BY dimension_value
 		ORDER BY views DESC
 		LIMIT 12
-	`, startDate).Scan(&devRows).Error
+	`, startDate).Scan(&devRows).Error; err != nil {
+		log.Warn().Err(err).Str("section", "device_industry_matrix").Msg("MarketIntel query error")
+	}
 
 	for _, dr := range devRows {
 		parts := strings.Split(dr.DimVal, "|")
@@ -451,20 +590,16 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 			devOS = parts[0]
 			pType = parts[1]
 		}
-		conv := 0.0
-		if dr.Views > 0 {
-			conv = math.Round((float64(dr.TotalActions)/float64(dr.Views))*10000) / 100
-		}
 		summary.DeviceIndustryMatrix = append(summary.DeviceIndustryMatrix, DeviceIndustryMetric{
 			DeviceOS:       devOS,
 			ProductType:    pType,
 			Views:          dr.Views,
 			TotalActions:   dr.TotalActions,
-			ConversionRate: conv,
+			ConversionRate: clampRate(dr.TotalActions, dr.Views),
 		})
 	}
 
-	// 9. Merchandising / Catalog Quality Benchmarks
+	// 9. Merchandising / Catalog Quality Benchmarks (pre-aggregated pda & dialect-safe JSON check)
 	type QualityRow struct {
 		MultiImgViews    int64 `gorm:"column:multi_img_views"`
 		MultiImgActions  int64 `gorm:"column:multi_img_actions"`
@@ -478,37 +613,43 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 		RekberActive     int64 `gorm:"column:rekber_active"`
 	}
 	var qRow QualityRow
-	_ = db.Raw(`
+	rekberExpr := "p.detailed_info->>'rekber_enabled' = 'true'"
+	if db.Dialector != nil && db.Dialector.Name() != "postgres" {
+		rekberExpr = "(json_extract(p.detailed_info, '$.rekber_enabled') = 'true' OR json_extract(p.detailed_info, '$.rekber_enabled') = 1)"
+	}
+	qualitySQL := fmt.Sprintf(`
 		SELECT 
-			COALESCE(SUM(CASE WHEN img_cnt >= 4 THEN pda.views ELSE 0 END), 0) as multi_img_views,
-			COALESCE(SUM(CASE WHEN img_cnt >= 4 THEN pda.total_actions ELSE 0 END), 0) as multi_img_actions,
-			COALESCE(SUM(CASE WHEN img_cnt <= 1 THEN pda.views ELSE 0 END), 0) as single_img_views,
-			COALESCE(SUM(CASE WHEN img_cnt <= 1 THEN pda.total_actions ELSE 0 END), 0) as single_img_actions,
-			COALESCE(SUM(CASE WHEN has_vid THEN pda.views ELSE 0 END), 0) as video_views,
-			COALESCE(SUM(CASE WHEN has_vid THEN pda.total_actions ELSE 0 END), 0) as video_actions,
-			COALESCE(SUM(CASE WHEN NOT has_vid THEN pda.views ELSE 0 END), 0) as no_video_views,
-			COALESCE(SUM(CASE WHEN NOT has_vid THEN pda.total_actions ELSE 0 END), 0) as no_video_actions,
+			COALESCE(SUM(CASE WHEN p.img_cnt >= 4 THEN COALESCE(pda.views, 0) ELSE 0 END), 0) as multi_img_views,
+			COALESCE(SUM(CASE WHEN p.img_cnt >= 4 THEN COALESCE(pda.total_actions, 0) ELSE 0 END), 0) as multi_img_actions,
+			COALESCE(SUM(CASE WHEN p.img_cnt <= 1 THEN COALESCE(pda.views, 0) ELSE 0 END), 0) as single_img_views,
+			COALESCE(SUM(CASE WHEN p.img_cnt <= 1 THEN COALESCE(pda.total_actions, 0) ELSE 0 END), 0) as single_img_actions,
+			COALESCE(SUM(CASE WHEN p.has_vid THEN COALESCE(pda.views, 0) ELSE 0 END), 0) as video_views,
+			COALESCE(SUM(CASE WHEN p.has_vid THEN COALESCE(pda.total_actions, 0) ELSE 0 END), 0) as video_actions,
+			COALESCE(SUM(CASE WHEN NOT p.has_vid THEN COALESCE(pda.views, 0) ELSE 0 END), 0) as no_video_views,
+			COALESCE(SUM(CASE WHEN NOT p.has_vid THEN COALESCE(pda.total_actions, 0) ELSE 0 END), 0) as no_video_actions,
 			COUNT(DISTINCT p.id) as total_active,
-			COUNT(DISTINCT CASE WHEN p.detailed_info->>'rekber_enabled' = 'true' THEN p.id END) as rekber_active
+			COUNT(DISTINCT CASE WHEN %s THEN p.id END) as rekber_active
 		FROM (
 			SELECT id, 
-				(CASE WHEN video_url IS NOT NULL AND TRIM(video_url) != '' THEN true ELSE false END) as has_vid,
+				(CASE WHEN video_url IS NOT NULL AND TRIM(video_url) != '' THEN 1 ELSE 0 END) = 1 as has_vid,
 				(SELECT COUNT(*) FROM product_images WHERE product_id = products.id) as img_cnt,
 				detailed_info
 			FROM products
 			WHERE is_active = true
 		) p
-		LEFT JOIN product_daily_analytics pda ON pda.product_id = p.id AND pda.date >= ?
-	`, startDate).Scan(&qRow).Error
+		LEFT JOIN (
+			SELECT product_id, SUM(views) as views, SUM(total_actions) as total_actions
+			FROM product_daily_analytics
+			WHERE date >= ?
+			GROUP BY product_id
+		) pda ON pda.product_id = p.id
+	`, rekberExpr)
+	if err := db.Raw(qualitySQL, startDate).Scan(&qRow).Error; err != nil {
+		log.Warn().Err(err).Str("section", "catalog_quality_benchmarks").Msg("MarketIntel query error")
+	}
 
-	multiConv := 0.0
-	if qRow.MultiImgViews > 0 {
-		multiConv = math.Round((float64(qRow.MultiImgActions)/float64(qRow.MultiImgViews))*10000) / 100
-	}
-	singleConv := 0.0
-	if qRow.SingleImgViews > 0 {
-		singleConv = math.Round((float64(qRow.SingleImgActions)/float64(qRow.SingleImgViews))*10000) / 100
-	}
+	multiConv := clampRate(qRow.MultiImgActions, qRow.MultiImgViews)
+	singleConv := clampRate(qRow.SingleImgActions, qRow.SingleImgViews)
 	videoConv := 0.0
 	if qRow.VideoViews > 0 {
 		videoConv = float64(qRow.VideoActions) / float64(qRow.VideoViews)
@@ -521,10 +662,7 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 	if noVideoConv > 0 && videoConv > 0 {
 		videoBoost = math.Round((videoConv/noVideoConv)*100) / 100
 	}
-	rekberRate := 0.0
-	if qRow.TotalActive > 0 {
-		rekberRate = math.Round((float64(qRow.RekberActive)/float64(qRow.TotalActive))*1000) / 10
-	}
+	rekberRate := clampRate(qRow.RekberActive, qRow.TotalActive)
 
 	summary.CatalogQualityBenchmarks = CatalogQualityMetrics{
 		MultiPhotoConversionRate:  multiConv,
@@ -608,23 +746,30 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 		CTR          float64 `gorm:"column:ctr"`
 	}
 	var gapRows []GapRow
-	_ = db.Raw(`
+	if err := db.Raw(`
 		SELECT 
 			keyword,
 			COALESCE(NULLIF(product_type, ''), 'all') as product_type,
 			SUM(search_volume) as search_volume,
 			SUM(zero_result_count) as zero_count,
-			CASE WHEN SUM(search_volume) > 0 THEN LEAST(100.0, (SUM(clicked_product_count)::float / SUM(search_volume)::float) * 100) ELSE 0 END as ctr
+			CASE WHEN SUM(search_volume) > 0 THEN
+				CASE WHEN (CAST(SUM(clicked_product_count) AS DOUBLE PRECISION) / CAST(SUM(search_volume) AS DOUBLE PRECISION)) * 100.0 > 100.0
+				THEN 100.0
+				ELSE (CAST(SUM(clicked_product_count) AS DOUBLE PRECISION) / CAST(SUM(search_volume) AS DOUBLE PRECISION)) * 100.0
+				END
+			ELSE 0 END as ctr
 		FROM search_daily_rollups
 		WHERE date >= ?
 		GROUP BY keyword, COALESCE(NULLIF(product_type, ''), 'all')
 		HAVING SUM(zero_result_count) > 0
 		ORDER BY zero_count DESC
 		LIMIT 10
-	`, startDate).Scan(&gapRows).Error
+	`, startDate).Scan(&gapRows).Error; err != nil {
+		log.Warn().Err(err).Str("section", "demand_gaps_rollup").Msg("MarketIntel query error")
+	}
 
 	if len(gapRows) == 0 {
-		_ = db.Raw(`
+		if err := db.Raw(`
 			SELECT 
 				clean_keyword as keyword,
 				COALESCE(NULLIF(product_type, ''), 'all') as product_type,
@@ -637,16 +782,24 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 			HAVING SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) > 0
 			ORDER BY zero_count DESC
 			LIMIT 10
-		`, startDate).Scan(&gapRows).Error
+		`, startDate).Scan(&gapRows).Error; err != nil {
+			log.Warn().Err(err).Str("section", "demand_gaps_raw").Msg("MarketIntel query error")
+		}
 	}
 
 	for _, gr := range gapRows {
+		ctrVal := math.Round(gr.CTR*100) / 100
+		if ctrVal > 100.0 {
+			ctrVal = 100.0
+		} else if ctrVal < 0 {
+			ctrVal = 0
+		}
 		summary.TopSearchDemandGaps = append(summary.TopSearchDemandGaps, SearchDemandGapItem{
 			Keyword:      gr.Keyword,
 			ProductType:  gr.ProductType,
 			SearchVolume: gr.SearchVolume,
 			ZeroCount:    gr.ZeroCount,
-			CTR:          math.Round(gr.CTR*100) / 100,
+			CTR:          ctrVal,
 		})
 	}
 
@@ -659,12 +812,12 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 }
 
 func sanitizeMarketCSVCell(s string) string {
-	trimmed := strings.TrimSpace(s)
+	cleaned := strings.NewReplacer("\r\n", " ", "\r", " ", "\n", " ").Replace(s)
+	trimmed := strings.TrimSpace(cleaned)
 	if trimmed == "" {
 		return ""
 	}
-	switch trimmed[0] {
-	case '=', '+', '-', '@', '|':
+	if strings.ContainsRune("\t=+-@|", rune(cleaned[0])) || strings.ContainsRune("\t=+-@|", rune(trimmed[0])) {
 		return "'" + trimmed
 	}
 	return trimmed
@@ -683,6 +836,7 @@ func GenerateMarketIntelligenceCSV(db *gorm.DB) ([]byte, error) {
 	// Header comments
 	_ = w.Write([]string{"# CATAVOR ANONYMIZED MARKET INTELLIGENCE REPORT"})
 	_ = w.Write([]string{"# Generated At", summary.GeneratedAt})
+	_ = w.Write([]string{"# Privacy Threshold", fmt.Sprintf("K-Anonymity >= %d unique stores", summary.KAnonymityMinStores)})
 	_ = w.Write([]string{"# Compliance", summary.DataPrivacyNotice})
 	_ = w.Write([]string{""})
 
@@ -715,8 +869,8 @@ func GenerateMarketIntelligenceCSV(db *gorm.DB) ([]byte, error) {
 	_ = w.Write([]string{""})
 
 	// Section 3: Price Benchmarks (Quartiles & K-Anonymity)
-	_ = w.Write([]string{"SECTION 3: PRICE DISTRIBUTION & QUARTILES (K-ANONYMOUS)", "", "", "", "", "", "", "", ""})
-	_ = w.Write([]string{"INDUSTRY_TYPE", "CATEGORY", "MIN_PRICE_IDR", "P25_PRICE_IDR", "AVG_PRICE_IDR", "MEDIAN_PRICE_IDR", "P75_PRICE_IDR", "MAX_PRICE_IDR", "SAMPLE_SIZE"})
+	_ = w.Write([]string{"SECTION 3: PRICE DISTRIBUTION & QUARTILES (K-ANONYMOUS >= 3 UNIQUE STORES)", "", "", "", "", "", "", "", "", ""})
+	_ = w.Write([]string{"INDUSTRY_TYPE", "CATEGORY", "MIN_PRICE_IDR", "P25_PRICE_IDR", "AVG_PRICE_IDR", "MEDIAN_PRICE_IDR", "P75_PRICE_IDR", "MAX_PRICE_IDR", "SAMPLE_SIZE", "UNIQUE_STORES"})
 	for _, p := range summary.PriceBenchmarks {
 		_ = w.Write([]string{
 			sanitizeMarketCSVCell(p.ProductType),
@@ -728,6 +882,7 @@ func GenerateMarketIntelligenceCSV(db *gorm.DB) ([]byte, error) {
 			fmt.Sprintf("%.0f", p.P75Price),
 			fmt.Sprintf("%.0f", p.MaxPrice),
 			strconv.FormatInt(p.SampleCount, 10),
+			strconv.FormatInt(p.UniqueStoreCount, 10),
 		})
 	}
 	_ = w.Write([]string{""})

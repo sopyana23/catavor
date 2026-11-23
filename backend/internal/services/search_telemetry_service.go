@@ -20,6 +20,9 @@ var (
 	vowelRegex                 = regexp.MustCompile(`(?i)[aeiouy]`)
 	consecutiveConsonantsRegex = regexp.MustCompile(`(?i)[bcdfghjklmnpqrstvwxyz]{5,}`)
 	digitRegex                 = regexp.MustCompile(`[0-9]`)
+	emailQueryRegex            = regexp.MustCompile(`(?i)[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`)
+	urlQueryRegex              = regexp.MustCompile(`(?i)(https?://|www\.|wa\.me/|t\.me/|bit\.ly/)`)
+	phonePrefixRegex           = regexp.MustCompile(`(?:\+?62|08)[\s\-.\d]{6,}`)
 
 	// Common Indonesian business acronyms, tax/legal terms, and tech specs without vowels
 	validAcronyms = map[string]bool{
@@ -82,6 +85,26 @@ func IsValidSearchKeyword(raw string) bool {
 	// Reject character spam / repeated keys (e.g. "aaaaaa", "zzzz")
 	if hasRepeatedCharacters(raw) {
 		return false
+	}
+
+	// Reject PII (emails, URLs, phone numbers, NIK, bank accounts) before telemetry ingestion
+	if emailQueryRegex.MatchString(raw) || strings.Contains(raw, "@") {
+		return false
+	}
+	if urlQueryRegex.MatchString(raw) {
+		return false
+	}
+	if phonePrefixRegex.MatchString(raw) {
+		return false
+	}
+	totalDigits := 0
+	for _, r := range raw {
+		if r >= '0' && r <= '9' {
+			totalDigits++
+			if totalDigits >= 8 {
+				return false
+			}
+		}
 	}
 
 	lower := strings.ToLower(raw)
@@ -467,18 +490,23 @@ func RollupDailyMarketTrends(db *gorm.DB, targetDate string) error {
 	var rows []CatRollupRow
 	err := db.Raw(`
 		SELECT 
-			p.product_type,
+			COALESCE(NULLIF(p.product_type, ''), 'physical') as product_type,
 			COALESCE(c.name, 'Umum') as category_name,
 			COUNT(DISTINCT p.id) as active_count,
-			COALESCE(AVG(p.price), 0) as avg_price,
-			COALESCE(SUM(pda.views), 0) as views,
-			COALESCE(SUM(pda.direct_wa_clicks), 0) as wa_clicks,
-			COALESCE(SUM(pda.rekber_clicks), 0) as rekber_clicks
+			COALESCE(AVG(CASE WHEN p.price > 0 THEN p.price END), 0) as avg_price,
+			COALESCE(SUM(COALESCE(pda.views, 0)), 0) as views,
+			COALESCE(SUM(COALESCE(pda.wa_clicks, 0)), 0) as wa_clicks,
+			COALESCE(SUM(COALESCE(pda.rekber_clicks, 0)), 0) as rekber_clicks
 		FROM products p
 		LEFT JOIN categories c ON c.id = p.category_id
-		LEFT JOIN product_daily_analytics pda ON pda.product_id = p.id AND pda.date = ?
+		LEFT JOIN (
+			SELECT product_id, SUM(views) as views, SUM(direct_wa_clicks) as wa_clicks, SUM(rekber_clicks) as rekber_clicks
+			FROM product_daily_analytics
+			WHERE date = ?
+			GROUP BY product_id
+		) pda ON pda.product_id = p.id
 		WHERE p.is_active = true
-		GROUP BY p.product_type, c.name
+		GROUP BY COALESCE(NULLIF(p.product_type, ''), 'physical'), COALESCE(c.name, 'Umum')
 		HAVING COUNT(DISTINCT p.id) >= 1
 	`, targetDate).Scan(&rows).Error
 	if err != nil {
@@ -546,27 +574,88 @@ func CalculatePriceBenchmarks(db *gorm.DB, targetDate string) error {
 	}
 
 	var rows []BenchRow
-	err := db.Raw(`
-		SELECT 
-			p.product_type,
-			COALESCE(c.name, 'Umum') as category_name,
-			MIN(p.price) as min_price,
-			COALESCE(PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY p.price), MIN(p.price)) as p25_price,
-			COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY p.price), AVG(p.price)) as median_price,
-			COALESCE(PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY p.price), MAX(p.price)) as p75_price,
-			MAX(p.price) as max_price,
-			AVG(p.price) as avg_price,
-			COUNT(p.id) as sample_count,
-			COUNT(DISTINCT p.store_id) as store_count
-		FROM products p
-		LEFT JOIN categories c ON c.id = p.category_id
-		WHERE p.is_active = true AND p.price > 0
-		GROUP BY p.product_type, c.name
-		HAVING COUNT(DISTINCT p.store_id) >= 3 AND COUNT(p.id) >= 5
-	`).Scan(&rows).Error
-	if err != nil {
-		log.Warn().Err(err).Msg("CalculatePriceBenchmarks: PERCENTILE_CONT query failed, falling back to basic aggregation")
-		return err
+	if db.Dialector != nil && db.Dialector.Name() == "postgres" {
+		err := db.Raw(`
+			SELECT 
+				COALESCE(NULLIF(p.product_type, ''), 'physical') as product_type,
+				COALESCE(c.name, 'Umum') as category_name,
+				MIN(p.price) as min_price,
+				COALESCE(PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY p.price), MIN(p.price)) as p25_price,
+				COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY p.price), AVG(p.price)) as median_price,
+				COALESCE(PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY p.price), MAX(p.price)) as p75_price,
+				MAX(p.price) as max_price,
+				AVG(p.price) as avg_price,
+				COUNT(p.id) as sample_count,
+				COUNT(DISTINCT p.store_id) as store_count
+			FROM products p
+			LEFT JOIN categories c ON c.id = p.category_id
+			WHERE p.is_active = true AND p.price > 0
+			GROUP BY COALESCE(NULLIF(p.product_type, ''), 'physical'), COALESCE(c.name, 'Umum')
+			HAVING COUNT(DISTINCT p.store_id) >= ? AND COUNT(p.id) >= 5
+		`, KAnonymityMinStores).Scan(&rows).Error
+		if err != nil {
+			log.Warn().Err(err).Msg("CalculatePriceBenchmarks: PERCENTILE_CONT query failed")
+			return err
+		}
+	} else {
+		type rawSample struct {
+			ProductType  string  `gorm:"column:product_type"`
+			CategoryName string  `gorm:"column:category_name"`
+			Price        float64 `gorm:"column:price"`
+			StoreID      uint    `gorm:"column:store_id"`
+		}
+		var raw []rawSample
+		if err := db.Raw(`
+			SELECT COALESCE(NULLIF(p.product_type, ''), 'physical') as product_type, COALESCE(c.name, 'Umum') as category_name, p.price, p.store_id
+			FROM products p
+			LEFT JOIN categories c ON c.id = p.category_id
+			WHERE p.is_active = true AND p.price > 0
+		`).Scan(&raw).Error; err != nil {
+			return err
+		}
+		// Reuse portable percentile helper when dialect is non-postgres.
+		type bucket struct {
+			productType  string
+			categoryName string
+			prices       []float64
+			stores       map[uint]struct{}
+			sum          float64
+		}
+		grouped := make(map[string]*bucket)
+		for _, r := range raw {
+			key := r.ProductType + "|" + r.CategoryName
+			b, ok := grouped[key]
+			if !ok {
+				b = &bucket{productType: r.ProductType, categoryName: r.CategoryName, stores: make(map[uint]struct{})}
+				grouped[key] = b
+			}
+			b.prices = append(b.prices, r.Price)
+			b.stores[r.StoreID] = struct{}{}
+			b.sum += r.Price
+		}
+		for _, b := range grouped {
+			if len(b.stores) < KAnonymityMinStores || len(b.prices) < 5 {
+				continue
+			}
+			// Sort ascending using simple insertion/sort helper from stdlib? We can reuse market_intelligence helper cleanly.
+			for i := 1; i < len(b.prices); i++ {
+				for j := i; j > 0 && b.prices[j] < b.prices[j-1]; j-- {
+					b.prices[j], b.prices[j-1] = b.prices[j-1], b.prices[j]
+				}
+			}
+			rows = append(rows, BenchRow{
+				ProductType:  b.productType,
+				CategoryName: b.categoryName,
+				MinPrice:     b.prices[0],
+				P25Price:     computeLinearPercentile(b.prices, 0.25),
+				MedianPrice:  computeLinearPercentile(b.prices, 0.50),
+				P75Price:     computeLinearPercentile(b.prices, 0.75),
+				MaxPrice:     b.prices[len(b.prices)-1],
+				AvgPrice:     b.sum / float64(len(b.prices)),
+				SampleCount:  int64(len(b.prices)),
+				StoreCount:   int64(len(b.stores)),
+			})
+		}
 	}
 
 	for _, r := range rows {
