@@ -120,6 +120,9 @@ func main() {
 	// Initialize OTP Service for Email Verification & Password Recovery
 	services.InitOTPService(database.DB)
 
+	// Start RBAC Redis cache invalidation subscriber when Redis is available
+	services.StartRBACCacheSubscriber(context.Background())
+
 	// Start Background Notification Cleaner Worker (Purges expired and stale notifications every hour)
 	services.StartNotificationCleaner(context.Background(), database.DB, 1*time.Hour)
 
@@ -710,6 +713,8 @@ func main() {
 		adminApi.Post("/rbac/matrix", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.UpdateMatrix)
 		adminApi.Get("/rbac/roles", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.GetMatrix)
 		adminApi.Post("/rbac/roles", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.CreateRole)
+		adminApi.Put("/rbac/roles/:slug", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.UpdateRole)
+		adminApi.Delete("/rbac/roles/:slug", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.DeleteRole)
 		adminApi.Get("/rbac/staff", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.GetStaff)
 		adminApi.Post("/rbac/staff", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.AssignStaff)
 		adminApi.Post("/rbac/staff/assign", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.AssignStaff)
@@ -755,14 +760,14 @@ func main() {
 		// Monetization, Rekber Syariah & Platform Settings
 		// SECURITY (N-12): settings mengubah konfigurasi platform (monetisasi, iklan,
 		// kredensial partner) -> wajib izin khusus, bukan sekadar staf platform.
-		adminApi.Get("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Index)
-		adminApi.Post("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
+		adminApi.Get("/settings", middleware.RequireAnyPermission(cfg, "system:settings:manage", "finance:settings:manage", "monetization:google:manage"), settingHandler.Index)
+		adminApi.Post("/settings", middleware.RequireAnyPermission(cfg, "system:settings:manage", "finance:settings:manage", "monetization:google:manage"), settingHandler.Store)
 		adminApi.Get("/settings/policies", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.GetPolicies)
 		adminApi.Post("/settings/policies", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.UpdatePolicy)
 		adminApi.Post("/settings/policies/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetDefaultPolicies)
 		adminApi.Get("/settings/policy-audit-logs", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.GetPolicyAuditLogs)
 		adminApi.Post("/settings/rekber/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetRekberDefaults)
-		adminApi.Post("/payments/aulaa/test-connection", middleware.RequirePermission(cfg, "system:settings:manage"), paymentHandler.TestAulaaConnection)
+		adminApi.Post("/payments/aulaa/test-connection", middleware.RequireAnyPermission(cfg, "finance:settings:manage", "system:settings:manage"), paymentHandler.TestAulaaConnection)
 
 		// Master Safe Domains (Ecosystem URL Whitelist)
 		// SECURITY (N-29): daftar ini adalah whitelist domain tepercaya yang dipakai
@@ -780,7 +785,7 @@ func main() {
 		adminApi.Post("/safe-domains/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), safeDomainHandler.ResetDefaultSafeDomains)
 
 		// Finance & Billing
-		adminApi.Get("/subscription/orders", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.AdminListOrders)
+		adminApi.Get("/subscription/orders", middleware.RequireAnyPermission(cfg, "finance:orders:read", "finance:orders:manage", "finance:revenue:read"), subscriptionHandler.AdminListOrders)
 		adminApi.Get("/subscription/orders/:id/proof", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.GetOrderProof)
 		adminApi.Post("/subscription/orders/:id/approve", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.ApproveOrder)
 		adminApi.Post("/subscription/orders/:id/reject", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.RejectOrder)
@@ -796,7 +801,7 @@ func main() {
 
 		// Audit & Market Intelligence
 		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)
-		adminApi.Get("/analytics/overview", middleware.RequireAnyPermission(cfg, "market_intel:manage", "audit:logs:read", "system:settings:manage"), analyticsHandler.GetGlobalAnalyticsOverview)
+		adminApi.Get("/analytics/overview", middleware.RequireAnyPermission(cfg, "market_intel:manage", "audit:logs:read", "finance:revenue:read", "system:settings:manage"), analyticsHandler.GetGlobalAnalyticsOverview)
 		adminApi.Get("/market-intelligence", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetMarketIntelligenceSummary)
 		adminApi.Get("/market-intelligence/export", middleware.RequirePermission(cfg, "market_intel:manage"), middleware.ExportRateLimiter(), analyticsHandler.ExportMarketIntelligenceData)
 		adminApi.Get("/market-intelligence/trending-keywords", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetTrendingKeywords)

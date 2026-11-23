@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"strings"
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
@@ -92,6 +93,21 @@ func RequireAnyPermission(cfg *config.Config, permissions ...string) fiber.Handl
 		}
 
 		if !hasAny {
+			services.RecordActivity(services.RecordActivityParams{
+				DB:          database.DB,
+				UserID:      &user.ID,
+				ActorEmail:  user.Email,
+				ActorName:   user.Name,
+				ActorRole:   user.PlatformRole,
+				Action:      "RBAC_ACCESS_DENIED",
+				Category:    "security",
+				EntityType:  "permission",
+				EntityTitle: strings.Join(permissions, " | "),
+				Description: fmt.Sprintf("Akses ditolak untuk pengguna '%s' (Role: '%s') karena tidak memiliki satu pun izin [%s] di rute '%s'.", user.Email, user.PlatformRole, strings.Join(permissions, ", "), c.Path()),
+				IPAddress:   c.IP(),
+				UserAgent:   c.Get("User-Agent"),
+			})
+
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"code":    "FORBIDDEN_PERMISSION_REQUIRED",
@@ -109,10 +125,10 @@ func RequireAnyPermission(cfg *config.Config, permissions ...string) fiber.Handl
 // tapi ditolak di jalur lain.
 var PlatformStaffRoles = models.PlatformStaffRoles
 
-// IsPlatformStaffRole melaporkan apakah role (case-insensitive) termasuk staf platform.
+// IsPlatformStaffRole melaporkan apakah role (case-insensitive) termasuk staf platform,
+// termasuk custom role yang terdaftar di database.
 func IsPlatformStaffRole(role string) bool {
-	_, ok := PlatformStaffRoles[models.NormalizePlatformRole(role)]
-	return ok
+	return models.IsPlatformStaffRole(role)
 }
 
 // RequireAdmin ensures the user is a platform admin (not a regular merchant).

@@ -726,9 +726,9 @@ func seedDefaultCannedResponses(db *gorm.DB) {
 }
 
 func seedDefaultRBAC(db *gorm.DB) {
-	// 0. Clean up deprecated permissions (Articles & Comments)
-	db.Exec("DELETE FROM platform_role_permissions WHERE permission_id IN (SELECT id FROM platform_permissions WHERE key IN ('content:articles:manage', 'content:comments:moderate'))")
-	db.Exec("DELETE FROM platform_permissions WHERE key IN ('content:articles:manage', 'content:comments:moderate')")
+	// 0. Clean up deprecated & orphan permissions
+	db.Exec("DELETE FROM platform_role_permissions WHERE permission_id IN (SELECT id FROM platform_permissions WHERE key IN ('content:articles:manage', 'content:comments:moderate', 'support:help_articles:manage'))")
+	db.Exec("DELETE FROM platform_permissions WHERE key IN ('content:articles:manage', 'content:comments:moderate', 'support:help_articles:manage')")
 
 	// 1. Seed Granular Permissions if not exists
 	defaultPermissions := []models.PlatformPermission{
@@ -740,7 +740,6 @@ func seedDefaultRBAC(db *gorm.DB) {
 		// Support & Helpdesk
 		{Key: "support:tickets:read", Group: "support", Name: "Lihat Tiket Bantuan", Description: "Melihat daftar antrean tiket dan riwayat percakapan pelanggan"},
 		{Key: "support:tickets:reply", Group: "support", Name: "Balas Tiket Bantuan", Description: "Mengirimkan jawaban tiket atau menambahkan catatan internal CS"},
-		{Key: "support:help_articles:manage", Group: "support", Name: "Kelola Pusat Bantuan / FAQ", Description: "Menulis, mengedit, dan mempublikasikan artikel Pusat Bantuan"},
 
 		// Finance & Billing
 		{Key: "finance:orders:read", Group: "finance", Name: "Lihat Order Langganan", Description: "Melihat daftar pesanan langganan dan status invoice"},
@@ -808,12 +807,11 @@ func seedDefaultRBAC(db *gorm.DB) {
 		{
 			Slug:        "support",
 			Name:        "Customer Support Specialist",
-			Description: "Penanganan tiket merchant, mediasi pembeli, dan artikel Pusat Bantuan",
+			Description: "Penanganan tiket merchant, mediasi pembeli, dan respons cepat CS",
 			IsSystem:    true,
 			PermKeys: []string{
 				"support:tickets:read",
 				"support:tickets:reply",
-				"support:help_articles:manage",
 			},
 		},
 		{

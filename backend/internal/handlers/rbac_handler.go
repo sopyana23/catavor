@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"bytes"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -11,6 +13,21 @@ import (
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 )
+
+func rbacErrStatus(err error) int {
+	switch {
+	case errors.Is(err, services.ErrRBACForbidden):
+		return fiber.StatusForbidden
+	case errors.Is(err, services.ErrRBACNotFound):
+		return fiber.StatusNotFound
+	case errors.Is(err, services.ErrRBACConflict):
+		return fiber.StatusConflict
+	case errors.Is(err, services.ErrRBACValidation):
+		return fiber.StatusBadRequest
+	default:
+		return fiber.StatusBadRequest
+	}
+}
 
 type RBACHandler struct {
 	rbacService *services.RBACService
@@ -36,8 +53,8 @@ func (h *RBACHandler) GetMyPermissions(c *fiber.Ctx) error {
 	user := userVal.(*models.User)
 
 	perms := h.rbacService.GetUserPermissions(user)
-	isSuper := strings.EqualFold(user.PlatformRole, "superadmin")
-	isAdmin := user.PlatformRole != "" && user.PlatformRole != "merchant"
+	isSuper := user.IsSuperadmin()
+	isAdmin := user.IsPlatformStaff() || services.GetRBACService().IsRegisteredStaffRole(user.PlatformRole)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -99,7 +116,7 @@ func (h *RBACHandler) UpdateMatrix(c *fiber.Ctx) error {
 
 	if err := h.rbacService.UpdateRolePermissions(req.RoleSlug, req.PermissionKeys, actor); err != nil {
 		log.Error().Err(err).Msg("rbac: UpdateRolePermissions gagal")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return c.Status(rbacErrStatus(err)).JSON(fiber.Map{
 			"success": false,
 			"message": safeErrMsg(err, "Gagal memperbarui izin role."),
 		})
@@ -159,7 +176,7 @@ func (h *RBACHandler) CreateStaff(c *fiber.Ctx) error {
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("rbac: CreateStaff gagal")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return c.Status(rbacErrStatus(err)).JSON(fiber.Map{
 			"success": false,
 			"message": safeErrMsg(err, "Gagal membuat akun petugas baru."),
 		})
@@ -220,7 +237,7 @@ func (h *RBACHandler) AssignStaff(c *fiber.Ctx) error {
 
 	if err := h.rbacService.AssignStaffRole(target, role, actor); err != nil {
 		log.Error().Err(err).Msg("rbac: AssignStaffRole gagal")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return c.Status(rbacErrStatus(err)).JSON(fiber.Map{
 			"success": false,
 			"message": safeErrMsg(err, "Gagal menetapkan role staf."),
 		})
@@ -252,18 +269,25 @@ func (h *RBACHandler) RevokeStaff(c *fiber.Ctx) error {
 	}
 
 	var req RevokeStaffRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"message": "Format data tidak valid.",
-		})
-	}
-
-	if req.UserID == 0 {
-		// Try from url param
-		idParam := c.Params("id")
+	if idParam := strings.TrimSpace(c.Params("id")); idParam != "" {
 		if uID, err := strconv.ParseUint(idParam, 10, 64); err == nil {
 			req.UserID = uint(uID)
+		}
+	}
+
+	if len(bytes.TrimSpace(c.Body())) > 0 {
+		var bodyReq RevokeStaffRequest
+		if err := c.BodyParser(&bodyReq); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Format data tidak valid.",
+			})
+		}
+		if req.UserID == 0 {
+			req.UserID = bodyReq.UserID
+		}
+		if strings.TrimSpace(req.Email) == "" {
+			req.Email = bodyReq.Email
 		}
 	}
 
@@ -283,7 +307,7 @@ func (h *RBACHandler) RevokeStaff(c *fiber.Ctx) error {
 
 	if err := h.rbacService.RevokeStaffRole(req.UserID, actor); err != nil {
 		log.Error().Err(err).Msg("rbac: RevokeStaffRole gagal")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return c.Status(rbacErrStatus(err)).JSON(fiber.Map{
 			"success": false,
 			"message": safeErrMsg(err, "Gagal mencabut role staf."),
 		})
@@ -300,6 +324,13 @@ type CreateRoleRequest struct {
 	Name           string   `json:"name"`
 	Description    string   `json:"description"`
 	PermissionKeys []string `json:"permission_keys"`
+}
+
+type UpdateRoleRequest struct {
+	Name           string   `json:"name"`
+	Description    string   `json:"description"`
+	PermissionKeys []string `json:"permission_keys,omitempty"`
+	HasPermissions bool     `json:"has_permissions,omitempty"`
 }
 
 // CreateRole creates a new custom platform role.
@@ -321,7 +352,7 @@ func (h *RBACHandler) CreateRole(c *fiber.Ctx) error {
 	role, err := h.rbacService.CreateCustomRole(req.Slug, req.Name, req.Description, req.PermissionKeys, actor)
 	if err != nil {
 		log.Error().Err(err).Msg("rbac: CreateCustomRole gagal")
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return c.Status(rbacErrStatus(err)).JSON(fiber.Map{
 			"success": false,
 			"message": safeErrMsg(err, "Gagal membuat role kustom."),
 		})
@@ -331,5 +362,80 @@ func (h *RBACHandler) CreateRole(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Custom role baru berhasil dibuat.",
 		"data":    role,
+	})
+}
+
+// UpdateRole edits metadata (and optionally permissions) for a custom non-system role.
+func (h *RBACHandler) UpdateRole(c *fiber.Ctx) error {
+	userVal := c.Locals("user")
+	var actor *models.User
+	if userVal != nil {
+		actor = userVal.(*models.User)
+	}
+
+	slug := strings.TrimSpace(c.Params("slug"))
+	if slug == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Slug role wajib diisi.",
+		})
+	}
+
+	var req UpdateRoleRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data tidak valid.",
+		})
+	}
+
+	var permKeysPtr *[]string
+	if req.HasPermissions || req.PermissionKeys != nil {
+		permKeysPtr = &req.PermissionKeys
+	}
+
+	role, err := h.rbacService.UpdateCustomRole(slug, req.Name, req.Description, permKeysPtr, actor)
+	if err != nil {
+		log.Error().Err(err).Msg("rbac: UpdateCustomRole gagal")
+		return c.Status(rbacErrStatus(err)).JSON(fiber.Map{
+			"success": false,
+			"message": safeErrMsg(err, "Gagal memperbarui role kustom."),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Custom role berhasil diperbarui.",
+		"data":    role,
+	})
+}
+
+// DeleteRole removes a custom non-system role when no active staff holds it.
+func (h *RBACHandler) DeleteRole(c *fiber.Ctx) error {
+	userVal := c.Locals("user")
+	var actor *models.User
+	if userVal != nil {
+		actor = userVal.(*models.User)
+	}
+
+	slug := strings.TrimSpace(c.Params("slug"))
+	if slug == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Slug role wajib diisi.",
+		})
+	}
+
+	if err := h.rbacService.DeleteCustomRole(slug, actor); err != nil {
+		log.Error().Err(err).Msg("rbac: DeleteCustomRole gagal")
+		return c.Status(rbacErrStatus(err)).JSON(fiber.Map{
+			"success": false,
+			"message": safeErrMsg(err, "Gagal menghapus role kustom."),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Custom role berhasil dihapus.",
 	})
 }

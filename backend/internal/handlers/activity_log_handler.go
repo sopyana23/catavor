@@ -53,8 +53,7 @@ func (h *ActivityLogHandler) GetStoreActivityLogs(c *fiber.Ctx) error {
 	isStaff := user.IsPlatformStaff()
 	if isStaff && activeStore != nil && activeStore.UserID != user.ID {
 		canReadAudit := user.IsSuperadmin() ||
-			services.GetRBACService().HasPermission(user, "audit:logs:read") ||
-			services.GetRBACService().HasPermission(user, "system:audit_logs:read")
+			services.GetRBACService().HasPermission(user, "audit:logs:read")
 		if !canReadAudit {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
@@ -241,8 +240,7 @@ func (h *ActivityLogHandler) GetActivitySummary(c *fiber.Ctx) error {
 
 	if user.IsPlatformStaff() && activeStore != nil && activeStore.UserID != user.ID {
 		canReadAudit := user.IsSuperadmin() ||
-			services.GetRBACService().HasPermission(user, "audit:logs:read") ||
-			services.GetRBACService().HasPermission(user, "system:audit_logs:read")
+			services.GetRBACService().HasPermission(user, "audit:logs:read")
 		if !canReadAudit {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,

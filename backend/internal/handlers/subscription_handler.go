@@ -170,13 +170,13 @@ func (h *SubscriptionHandler) UpgradePlan(c *fiber.Ctx) error {
 	}
 	storeID := storeIDVal.(uint)
 
-	// Security Defense: Restrict direct plan upgrade to Platform Admins / Superadmins
-	userRole, _ := c.Locals("platform_role").(string)
-	isSuperadmin, _ := c.Locals("is_superadmin").(bool)
-	if userRole != "admin" && userRole != "superadmin" && !isSuperadmin {
+	// Security Defense: Restrict direct plan upgrade to staff holding finance:orders:manage
+	user, _ := c.Locals("user").(*models.User)
+	if user == nil || !user.IsPlatformStaff() || !services.GetRBACServiceForDB(h.db).HasPermission(user, "finance:orders:manage") {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
-			"message": "Peningkatan paket langsung hanya dapat dilakukan oleh administrator platform. Silakan gunakan alur checkout pesanan langganan.",
+			"code":    "FORBIDDEN_PERMISSION_REQUIRED",
+			"message": "Peningkatan paket langsung hanya dapat dilakukan oleh administrator dengan izin finance:orders:manage. Silakan gunakan alur checkout pesanan langganan.",
 		})
 	}
 
