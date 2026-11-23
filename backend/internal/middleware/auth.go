@@ -185,6 +185,11 @@ func GenerateToken(user *models.User, store *models.Store, cfg *config.Config) (
 	return token, err
 }
 
+// ParseJWTClaims safely validates and parses a token string with algorithm pinning and issuer/audience checks.
+func ParseJWTClaims(tokenString, secret string) (*JWTClaims, error) {
+	return parseJWTClaims(tokenString, secret)
+}
+
 // parseJWTClaims safely validates and parses a token string with algorithm pinning and issuer/audience checks.
 func parseJWTClaims(tokenString, secret string) (*JWTClaims, error) {
 	if tokenString == "" || secret == "" {
@@ -232,6 +237,29 @@ func ExtractOptionalClaims(c *fiber.Ctx, cfg *config.Config) *JWTClaims {
 		}
 	}
 	return nil
+}
+
+// ExtractVerifiedOptionalClaims safely extracts claims and verifies that the token
+// is NOT blacklisted, has not been revoked, and matches the active user state.
+// Returns nil if absent, expired, revoked, or untrusted.
+func ExtractVerifiedOptionalClaims(c *fiber.Ctx, db *gorm.DB, cfg *config.Config) *JWTClaims {
+	claims := ExtractOptionalClaims(c, cfg)
+	if claims == nil || claims.ID == "" {
+		return nil
+	}
+	if database.IsTokenBlacklisted(claims.ID) {
+		return nil
+	}
+	if db != nil && claims.UserID > 0 {
+		var user models.User
+		if err := db.Select("id, token_version, is_blacklisted").First(&user, claims.UserID).Error; err != nil {
+			return nil
+		}
+		if user.IsBlacklisted || user.TokenVersion != claims.TokenVersion {
+			return nil
+		}
+	}
+	return claims
 }
 
 // MfaGateDecision merepresentasikan putusan gerbang MFA terpusat pada middleware sesi.
@@ -881,10 +909,17 @@ func StoreOwnerRequired() fiber.Handler {
 		// rute tenant yang keliru dipanggil staf: jangan mencarikan toko
 		// pengganti (dulu: hardcode slug 'catavor' lalu sembarang toko id
 		// terkecil — itu menyuntikkan tenant acak ke konteks request).
-		// Staf tanpa toko cukup diloloskan tanpa konteks store; handler yang
-		// memang butuh store_id tetap akan menolak sendiri.
+		// Staf tanpa toko cukup diloloskan tanpa konteks store untuk metode inspeksi read-only (GET/HEAD);
+		// operasi mutasi (POST/PUT/DELETE/PATCH) wajib ditolak agar staf tanpa toko tidak membobol state tenant.
 		if matchedStore == nil {
 			if IsPlatformStaffRole(user.PlatformRole) {
+				if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodHead {
+					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+						"success": false,
+						"code":    "STORE_CONTEXT_REQUIRED",
+						"message": "Operasi ini memerlukan profil toko yang sah.",
+					})
+				}
 				return c.Next()
 			}
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
@@ -898,6 +933,9 @@ func StoreOwnerRequired() fiber.Handler {
 		c.Locals("store", matchedStore)
 		c.Locals("store_id", matchedStore.ID)
 		c.Locals("store_slug", matchedStore.Slug)
+		if matchedStore.UserID != user.ID {
+			c.Locals("is_staff_inspection", true)
+		}
 
 		return c.Next()
 	}

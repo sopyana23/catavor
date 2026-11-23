@@ -1,8 +1,27 @@
 # Migrasi SQL manual
 
 Folder ini menampung migrasi **idempoten** yang di-`go:embed` ke binary dan
-dijalankan otomatis oleh `RunMigrations` (`internal/database/migrator.go`) pada
-setiap boot server — termasuk saat `DB_AUTO_MIGRATE=false` / `SKIP_DB_MIGRATE=true`.
+dijalankan otomatis oleh `RunMigrations` (`internal/database/migrator.go`).
+
+## Kapan migrasi benar-benar jalan
+
+Dua flag mengatur ini dan **tidak setara** (`internal/database/db.go:83-103`):
+
+| `SKIP_DB_MIGRATE` | `DB_AUTO_MIGRATE` | Yang terjadi |
+|---|---|---|
+| `true` | apa pun | **BERHENTI lebih dulu.** Migrasi SQL TIDAK dijalankan. `db.go:83` `return` sebelum `RunMigrations` tercapai. |
+| `false` / tidak di-set | `false` | Migrasi SQL **dijalankan**; AutoMigrate dan seeder dilewati. |
+| `false` / tidak di-set | `true` | AutoMigrate + seed + migrasi SQL, semuanya jalan. |
+
+Jadi `SKIP_DB_MIGRATE=true` meniadakan `DB_AUTO_MIGRATE=false`. Setelan lokal
+yang memakai keduanya **tidak akan pernah** menerima migrasi baru — skema
+diam-diam tertinggal meski server boot normal dan `/healthz` balas 200.
+Untuk menjalankan migrasi di lokal, set `SKIP_DB_MIGRATE=false` (biarkan
+`DB_AUTO_MIGRATE=false` supaya seeder tidak ikut menimpa data).
+
+Produksi (`.github/workflows/release.yml`, `Dockerfile`, `deploy/docker-compose.prod.yml`)
+menyetel `DB_AUTO_MIGRATE=false` **tanpa** `SKIP_DB_MIGRATE`, sehingga
+migrasi tetap diterapkan saat boot.
 
 ## Cara kerja
 

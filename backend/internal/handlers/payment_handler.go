@@ -327,8 +327,19 @@ func (h *PaymentHandler) SyncOrderStatus(c *fiber.Ctx) error {
 		}
 	}
 
-	// SECURITY (N-41): Prevent cross-tenant IDOR / BOLA when invoked by a merchant.
-	if !isPlatformStaff {
+	// SECURITY (N-41): Prevent cross-tenant IDOR / BOLA when invoked by a merchant or unauthorized staff.
+	if isPlatformStaff {
+		user, _ := c.Locals("user").(*models.User)
+		canManageFinance := user != nil && (user.IsSuperadmin() ||
+			services.GetRBACService().HasPermission(user, "finance:orders:read") ||
+			services.GetRBACService().HasPermission(user, "finance:orders:manage"))
+		if !canManageFinance && (callerStoreID == 0 || order.StoreID != callerStoreID) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Akses Ditolak: Anda memerlukan izin 'finance:orders:read' untuk menyinkronkan status pesanan toko lain.",
+			})
+		}
+	} else {
 		if callerStoreID == 0 || order.StoreID != callerStoreID {
 			log.Warn().
 				Uint("caller_store_id", callerStoreID).

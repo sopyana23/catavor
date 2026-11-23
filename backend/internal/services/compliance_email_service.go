@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"html"
 	"strings"
 	"time"
 )
@@ -28,7 +29,13 @@ func SendSingleCatalogBannedEmail(toEmail, catalogTitle, catalogSlug, reportNumb
 		adminNotes = "Penonaktifan permanen atas pertimbangan keamanan dan kepatuhan platform."
 	}
 
-	subject := fmt.Sprintf("[Catavor Kepatuhan] Keputusan Final: Penonaktifan Permanen Profil Katalog '%s' - #%s", catalogTitle, reportNumber)
+	safeTitle := html.EscapeString(catalogTitle)
+	safeSlug := html.EscapeString(catalogSlug)
+	safeReportNumber := html.EscapeString(reportNumber)
+	safeReason := html.EscapeString(reasonLabel)
+	safeNotes := html.EscapeString(adminNotes)
+
+	subject := fmt.Sprintf("[Catavor Kepatuhan] Keputusan Final: Penonaktifan Permanen Profil Katalog '%s' - #%s", safeTitle, safeReportNumber)
 	headline := "Pemberitahuan Penonaktifan Permanen Profil Katalog"
 
 	bodyContent := fmt.Sprintf(`
@@ -53,7 +60,7 @@ Berdasarkan hasil investigasi mendalam Tim Kepatuhan & Keamanan Platform Catavor
 Seluruh data media dan informasi yang terkait dengan profil katalog yang ditutup telah dibersihkan secara aman dari server publik dan nama tautan (slug) telah dimasukkan ke dalam daftar terlarang sistem demi perlindungan ekosistem platform.<br><br>
 Hormat kami,<br>
 <strong>Tim Kepatuhan & Keamanan Platform Catavor (Trust & Safety)</strong>
-`, catalogTitle, catalogTitle, catalogSlug, reportNumber, reasonLabel, adminNotes)
+`, safeTitle, safeTitle, safeSlug, safeReportNumber, safeReason, safeNotes)
 
 	sendHTMLEmail(toEmail, subject, headline, bodyContent)
 }
@@ -79,7 +86,13 @@ func SendIdentityBannedEmail(toEmail, userName, reportNumber, reasonLabel, admin
 		adminNotes = "Pemutusan akses permanen sehubungan dengan pelanggaran fatal platform."
 	}
 
-	subject := fmt.Sprintf("[Catavor Kepatuhan] KEPUTUSAN FINAL: Pemutusan Akses & Penutupan Akun Permanen - #%s", reportNumber)
+	safeName := html.EscapeString(userName)
+	safeEmail := html.EscapeString(toEmail)
+	safeReportNumber := html.EscapeString(reportNumber)
+	safeReason := html.EscapeString(reasonLabel)
+	safeNotes := html.EscapeString(adminNotes)
+
+	subject := fmt.Sprintf("[Catavor Kepatuhan] KEPUTUSAN FINAL: Pemutusan Akses & Penutupan Akun Permanen - #%s", safeReportNumber)
 	headline := "Pemberitahuan Pemutusan Layanan & Pemblokiran Identitas Penuh"
 
 	bodyContent := fmt.Sprintf(`
@@ -102,7 +115,7 @@ Berdasarkan hasil audit menyeluruh dan penegakan hukum kepatuhan atas pelanggara
 Keputusan ini bersifat final dan mengikat demi menjaga keamanan seluruh pelaku usaha dan masyarakat dalam ekosistem platform Catavor.<br><br>
 Hormat kami,<br>
 <strong>Direktorat Kepatuhan & Keamanan Platform Catavor (Trust & Safety)</strong>
-`, userName, toEmail, reportNumber, reasonLabel, adminNotes)
+`, safeName, safeEmail, safeReportNumber, safeReason, safeNotes)
 
 	sendHTMLEmail(toEmail, subject, headline, bodyContent)
 }

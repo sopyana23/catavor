@@ -596,6 +596,23 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		applyEnforcement = *req.ApplyEnforcement
 	}
 
+	// Strict RBAC enforcement check:
+	// A staff member with only compliance:reports:manage cannot execute store suspension/ban or reactivation.
+	// They require compliance:stores:suspend or superadmin role.
+	isStoreEnforcement := actionTaken == "catalog_suspended" || actionTaken == "catalog_banned" ||
+		actionTaken == "identity_banned" || actionTaken == "catalog_reactivated" || actionTaken == "account_banned"
+	if applyEnforcement && isStoreEnforcement {
+		userVal, _ := c.Locals("user").(*models.User)
+		canSuspendStore := userVal != nil && (userVal.IsSuperadmin() || services.GetRBACService().HasPermission(userVal, "compliance:stores:suspend"))
+		if !canSuspendStore {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "FORBIDDEN_PERMISSION_REQUIRED",
+				"message": "Akses ditolak: Anda memerlukan izin 'compliance:stores:suspend' untuk menerapkan penegakan sanksi toko.",
+			})
+		}
+	}
+
 	// Idempotency guard: If this report was already processed with identical status, action_taken, and admin_notes, prevent duplicate execution
 	if report.Status == newStatus && report.ActionTaken == actionTaken && report.AdminNotes == adminNotes && report.ReviewedAt != nil {
 		return c.JSON(fiber.Map{
@@ -791,6 +808,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 						"is_suspended":          true,
 						"suspension_reason":     "moderation_violation",
 						"dormancy_suspended_at": &now,
+						"reactivation_token":    "",
 					}).Error; err != nil {
 						return err
 					}
@@ -798,6 +816,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				}
 			case "catalog_banned", "account_banned":
 				if report.StoreID > 0 {
+					_ = tx.Model(&models.Store{}).Where("id = ?", report.StoreID).Update("reactivation_token", "").Error
 					if err := purgeBannedStore(tx, report.StoreID, report.StoreSlug, report.StoreTitle, report.ReportNumber, report.ReasonLabel, actorName); err != nil {
 						return err
 					}
@@ -809,6 +828,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 						"is_suspended":          false,
 						"suspension_reason":     "none",
 						"dormancy_suspended_at": nil,
+						"reactivation_token":    "",
 					}).Error; err != nil {
 						return err
 					}

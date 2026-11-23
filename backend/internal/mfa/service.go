@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"catavor-backend/internal/config"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 
@@ -67,9 +68,16 @@ var (
 
 // IsMFAMandatory melaporkan apakah akun wajib menggunakan MFA berdasarkan role
 // staf platform kanonik atau flag penegakan eksplisit pada akun.
+// Di lingkungan lokal / development, kewajiban setup paksa bagi staf platform
+// dilonggarkan jika flag TwoFactorEnforced belum disetel aktif dan akun belum
+// mengaktifkan 2FA, demi mencegah pengembang terkunci akibat clock skew TOTP.
+// Di lingkungan staging dan production, staf platform SELALU wajib 100% MFA.
 func IsMFAMandatory(user *models.User) bool {
 	if user == nil {
 		return false
+	}
+	if config.AppConfig != nil && (config.AppConfig.AppEnv == "local" || config.AppConfig.AppEnv == "development") {
+		return user.TwoFactorEnforced
 	}
 	return user.IsPlatformStaff() || user.TwoFactorEnforced
 }

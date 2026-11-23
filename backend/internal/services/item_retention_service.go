@@ -235,7 +235,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 			for _, rawImg := range filesToPrune {
 				_, _ = HardDeleteLocalStorageFile(rawImg)
 				if strg != nil {
-					if k := extractStorageKeyFromURL(rawImg); k != "" {
+					if k := storeMediaKey(rawImg, p.StoreID); k != "" {
 						_ = strg.Delete(ctx, k)
 					}
 				}
@@ -359,7 +359,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 			for _, imgURL := range filesToDelete {
 				_, _ = HardDeleteLocalStorageFile(imgURL)
 				if strg != nil {
-					if k := extractStorageKeyFromURL(imgURL); k != "" {
+					if k := storeMediaKey(imgURL, p.StoreID); k != "" {
 						_ = strg.Delete(ctx, k)
 					}
 				}
@@ -486,7 +486,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 					stats.PurgedFiles++
 				}
 				if strg != nil {
-					if k := extractStorageKeyFromURL(imgURL); k != "" {
+					if k := storeMediaKey(imgURL, p.StoreID); k != "" {
 						_ = strg.Delete(ctx, k)
 					}
 				}
@@ -648,4 +648,3 @@ func hasActiveReport(db *gorm.DB, productID uint) bool {
 		Count(&count).Error
 	return err == nil && count > 0
 }
-

@@ -161,6 +161,13 @@ func RequireMFACompleted(cfg *config.Config) fiber.Handler {
 				"message": "Autentikasi diperlukan.",
 			})
 		}
+		// Di lingkungan local / development, izinkan staf platform mengakses
+		// konsol pengelola jika akun belum di-enforce (TwoFactorEnforced=false)
+		// dan belum mengaktifkan MFA (TwoFactorEnabled=false), demi kelancaran
+		// pengembangan lokal tanpa benturan clock skew TOTP mesin dev.
+		if cfg != nil && (cfg.AppEnv == "local" || cfg.AppEnv == "development") && !user.TwoFactorEnforced && !user.TwoFactorEnabled {
+			return c.Next()
+		}
 		if cfg == nil || !cfg.MFAEnabled {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 				"success": false,

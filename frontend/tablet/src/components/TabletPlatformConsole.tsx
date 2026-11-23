@@ -1,3 +1,8 @@
+import { FinancePager, useFinancePage } from '../../../shared/finance/FinancePaging';
+import { paymentChannel, formatGatewayResponse } from '../../../shared/finance/paymentChannel';
+import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColors, useFinanceSection } from '../../../shared/finance/FinanceControls';
+import { AutomationConsole } from '../../../shared/automation/AutomationConsole';
+import { AutomationCatalog } from './AutomationCatalog';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   LayoutDashboard,
@@ -271,7 +276,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     textPrimary: isDark ? '#f8fafc' : '#0f172a',
     textSecondary: isDark ? '#94a3b8' : '#475569',
     textMuted: isDark ? '#64748b' : '#94a3b8',
-    primary: 'var(--primary, #0284c7)'
+    primary: 'var(--primary, #0284c7)',
+    chipActiveBg: isDark ? '#6ee7b7' : '#047857'
   }), [isDark]);
 
   // Responsive Tablet Form-Factor Tracking (Tablet Mini < 880px vs Tablet Lebar >= 880px)
@@ -409,7 +415,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       case 'market-intel':
         return { title: 'Riset Pasar & Intelijen Permintaan B2B', subtitle: 'Analitik tren belanja nasional, demand gap, dan benchmark harga' };
       case 'automation':
-        return { title: 'Mesin Otomatisasi & Bot Worker', subtitle: 'Pemantauan status daemon dan background job' };
+        return { title: 'Mesin Otomatisasi', subtitle: 'Status, jadwal, dan riwayat pekerjaan platform' };
       case 'monetization':
         return { title: 'Monetisasi & Integrasi Google', subtitle: 'Pengaturan Google AdSense, ads.txt dan GA4' };
       case 'policies':
@@ -452,6 +458,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [urgentTicketsCount, setUrgentTicketsCount] = useState(0);
   const [actionRequiredTicketsCount, setActionRequiredTicketsCount] = useState(0);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+  const orderPageProvidesTotals = useRef(false);
 
   // Load metrics from backend (guarded by user permissions)
   const loadPlatformStats = useCallback(async () => {
@@ -514,28 +521,19 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       }
 
       // 4. Pending billing orders (only if user has finance permission)
-      if (canAccessFinance) {
+      if (canAccessFinance && !orderPageProvidesTotals.current) {
         try {
-          const ordRes = await fetch('/api/admin/subscription/orders', {
+          const ordRes = await fetch('/api/admin/subscription/orders?summary=1', {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (ordRes.ok) {
             const oj = await ordRes.json();
-            const olist = oj.data || [];
-            const pending = olist.filter((o: any) => {
-              const st = (o.payment_status || o.status || 'pending').toLowerCase();
-              return st === 'pending' || st === 'pending_payment' || st === 'pending_verification';
-            }).length;
-            const paidOrders = olist.filter((o: any) => {
-              const st = (o.payment_status || o.status || '').toLowerCase();
-              return st === 'paid' || st === 'active';
-            });
-            const rev = paidOrders.reduce((sum: number, o: any) => sum + Number(o.final_amount ?? o.amount ?? o.price ?? 0), 0);
+            const {pending = 0, paid = 0, revenue = 0} = oj.summary || {};
             setPendingOrdersCount(pending);
             setMetrics(prev => ({
               ...prev,
-              total_revenue: rev,
-              pro_stores: paidOrders.length
+              total_revenue: revenue,
+              pro_stores: paid
             }));
           }
         } catch {
@@ -1484,14 +1482,24 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: FINANCE (Keuangan & Billing)
   // =========================================================================
-  const [orders, setOrders] = useState<any[]>([]);
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
-  const [financeFilter, setFinanceFilter] = useState<'all' | 'pending' | 'pending_verification' | 'pending_payment' | 'paid' | 'rejected'>('all');
-  const [ordersConfigFilter, setOrdersConfigFilter] = useState<'all' | 'gateway_aulaa' | 'manual_qris' | 'manual_bank' | 'coupon_free'>('all');
-  const [ordersSearchQuery, setOrdersSearchQuery] = useState<string>('');
+  const [inspectedOrder, setInspectedOrder] = useState<any>(null);
+  const selectedOrderId = inspectedOrder?.id ?? null;
+  const setSelectedOrderId = (id: number | null) => setInspectedOrder(orders.find(o => o.id === id) || null);
   const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
   const [actionLoadingOrder, setActionLoadingOrder] = useState<boolean>(false);
-  const [financeSubTab, setFinanceSubTab] = useState<'orders' | 'settings' | 'coupons'>('orders');
+  const [financeSubTab, setFinanceSubTab] = useFinanceSection(activeView === 'finance', canManagePaymentSettings, canManageCoupons);
+  const orderPage = useFinancePage('orders', activeView === 'finance' && financeSubTab === 'orders' && canAccessFinance, token);
+  orderPageProvidesTotals.current = activeView === 'finance' && financeSubTab === 'orders' && !orderPage.keyword;
+  useEffect(() => {
+    if (orderPageProvidesTotals.current && orderPage.ready) {
+      const { pending = 0, paid = 0, revenue = 0 } = orderPage.summary;
+      setPendingOrdersCount(pending);
+      setMetrics(prev => ({ ...prev, total_revenue: revenue, pro_stores: paid }));
+    }
+  }, [orderPage.ready, orderPage.summary]);
+  const couponPage = useFinancePage('coupons', activeView === 'finance' && financeSubTab === 'coupons' && canManageCoupons, token);
+  const { data: orders, input: ordersSearchQuery, setKeyword: setOrdersSearchQuery } = orderPage;
+  const { data: coupons, loading: loadingCoupons, input: couponSearchFilter, setKeyword: setCouponSearchFilter, refresh: fetchCoupons } = couponPage;
   const [showAulaaSecrets, setShowAulaaSecrets] = useState(false);
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
   const [isUploadingQRISImage, setIsUploadingQRISImage] = useState(false);
@@ -1535,24 +1543,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     const gatewayProvider = (o?.gateway_provider || '').toLowerCase().trim();
     const gatewayRef = (o?.gateway_reference || '').trim();
     const gatewayLink = (o?.gateway_payment_link || '').trim();
-    const gatewayRawResponse = (o?.gateway_raw_response || '').trim();
-
-    let configType: 'gateway_aulaa' | 'manual_qris' | 'manual_bank' | 'coupon_free' = 'manual_bank';
-    if (finalAmount === 0 && (couponCode || methodRaw === 'coupon_free' || discountAmount >= originalAmount)) {
-      configType = 'coupon_free';
-    } else if (
-      gatewayProvider === 'aulaa' ||
-      Boolean(gatewayRef) ||
-      Boolean(gatewayLink) ||
-      methodRaw.startsWith('aulaa') ||
-      ['va', 'ewallet', 'card'].includes(methodRaw)
-    ) {
-      configType = 'gateway_aulaa';
-    } else if (methodRaw.includes('qris')) {
-      configType = 'manual_qris';
-    } else {
-      configType = 'manual_bank';
-    }
+    const gatewayRawResponse = formatGatewayResponse(o?.gateway_raw_response);
+    const configType = paymentChannel(o);
 
     const subChannelLabel =
       configType === 'coupon_free'
@@ -1562,7 +1554,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             ? 'Virtual Account (Aulaa Gateway)'
             : methodRaw.includes('ewallet')
               ? 'E-Wallet / Dompet Digital (Aulaa Gateway)'
-              : methodRaw.includes('card')
+              : methodRaw === 'cc' || methodRaw.includes('card')
                 ? 'Kartu Kredit / Debit (Aulaa Gateway)'
                 : 'QRIS Dinamis Instan (Aulaa Gateway)'
           : configType === 'manual_qris'
@@ -1719,11 +1711,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   }, [googleSettings.payment_qris_manual_merchant, googleSettings.payment_bank_name, googleSettings.payment_bank_account]);
 
   // Tablet Platform Coupons State
-  const [coupons, setCoupons] = useState<any[]>([]);
-  const [loadingCoupons, setLoadingCoupons] = useState(false);
   const [showCouponModal, setShowCouponModal] = useState(false);
+  useModalBackHandler({ isOpen: showCouponModal, onClose: () => setShowCouponModal(false), modalId: 'tablet-finance-coupon' });
   const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
-  const [couponSearchFilter, setCouponSearchFilter] = useState('');
   const [savingCoupon, setSavingCoupon] = useState(false);
   const [deletingCouponCode, setDeletingCouponCode] = useState<string | null>(null);
   const [togglingCouponCode, setTogglingCouponCode] = useState<string | null>(null);
@@ -1745,63 +1735,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     is_active: true
   });
 
-  const fetchOrders = useCallback(async () => {
-    if (!token) return;
-    try {
-      const res = await authFetch('/api/admin/subscription/orders', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const j = await res.json();
-        const list = Array.isArray(j) ? j : (j.data || j.orders || []);
-        setOrders(list);
-      }
-    } catch {
-      // Fail silently
-    }
-  }, [token, authFetch]);
-
+  const fetchOrders = orderPage.refresh;
   useEffect(() => {
-    if (activeView === 'finance') {
-      fetchOrders();
-      fetchSettings();
-    }
-  }, [activeView, fetchOrders, fetchSettings]);
-
-  const filteredOrders = useMemo(() => {
-    const q = ordersSearchQuery.trim().toLowerCase();
-    return orders.filter(o => {
-      const desc = describeSubscriptionOrder(o);
-      if (financeFilter === 'pending' && !desc.isPending) return false;
-      if (financeFilter === 'pending_verification' && desc.rawStatus !== 'pending_verification') return false;
-      if (financeFilter === 'pending_payment' && desc.rawStatus !== 'pending' && desc.rawStatus !== 'pending_payment') return false;
-      if (financeFilter === 'paid' && !desc.isActive) return false;
-      if (financeFilter === 'rejected' && !desc.isRejected) return false;
-      if (ordersConfigFilter !== 'all' && desc.configType !== ordersConfigFilter) return false;
-      if (q) {
-        const hay = [
-          desc.orderNumber,
-          desc.storeName,
-          desc.storeSlug,
-          desc.customerName,
-          desc.customerEmail,
-          desc.customerPhone,
-          desc.senderAccountName,
-          desc.senderPhone,
-          desc.gatewayRef,
-          desc.couponCode,
-          desc.subChannelLabel,
-          String(o.id || '')
-        ].join(' ').toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [orders, financeFilter, ordersConfigFilter, ordersSearchQuery, describeSubscriptionOrder]);
-
-  const selectedOrder = useMemo(() => {
-    return orders.find(o => o.id === selectedOrderId) || null;
-  }, [orders, selectedOrderId]);
+    if (activeView === 'finance') fetchSettings();
+  }, [activeView, fetchSettings]);
+  const filteredOrders = orders;
+  const selectedOrder = orders.find(o => o.id === selectedOrderId) || inspectedOrder;
 
   const handleSyncOrderWithAulaa = async (orderId: number) => {
     if (!orderId) return;
@@ -1817,6 +1756,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         showToast(data.message || 'Status pembayaran berhasil disinkronkan dengan Aulaa', 'success');
+        setInspectedOrder((current: { id: number } | null) => current?.id === orderId ? null : current);
         await fetchOrders();
         loadPlatformStats();
       } else {
@@ -1853,6 +1793,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               ? 'Pesanan ditolak & status langganan disesuaikan'
               : 'Pesanan dikembalikan ke antrean verifikasi pending';
         showToast(data.message || msg, 'success');
+        setInspectedOrder((current: { id: number } | null) => current?.id === orderId ? null : current);
         await fetchOrders();
         loadPlatformStats();
         setShowRejectModal(false);
@@ -1982,32 +1923,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   };
 
-  const fetchCoupons = useCallback(async () => {
-    if (!token) return;
-    setLoadingCoupons(true);
-    try {
-      const res = await authFetch('/api/admin/coupons', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data)) {
-          setCoupons(data.data);
-        }
-      }
-    } catch (err) {
-      console.warn('Gagal memuat kupon platform:', err);
-    } finally {
-      setLoadingCoupons(false);
-    }
-  }, [token, authFetch]);
-
-  useEffect(() => {
-    if (activeView === 'finance' && financeSubTab === 'coupons') {
-      fetchCoupons();
-    }
-  }, [activeView, financeSubTab, fetchCoupons]);
-
   const handleOpenCreateCouponModal = () => {
     setEditingCoupon(null);
     setCouponForm({
@@ -2107,7 +2022,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(data.message || `Kupon "${code}" berhasil dihapus.`, 'success');
-        setCoupons(prev => prev.filter(cItem => cItem.code !== code));
+        fetchCoupons();
       } else {
         showToast(data.message || 'Gagal menghapus kupon.', 'error');
       }
@@ -2129,7 +2044,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(data.message || `Status kupon "${code}" berhasil diubah.`, 'success');
-        setCoupons(prev => prev.map(cItem => cItem.code === code ? { ...cItem, is_active: data.is_active } : cItem));
+        fetchCoupons();
       } else {
         showToast(data.message || 'Gagal mengubah status kupon.', 'error');
       }
@@ -2773,226 +2688,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   }, [selectedBroadcast]);
 
   // =========================================================================
-  // SUB-VIEW: AUTOMATION & BOT SENTINEL (11 BOTS MATRIX)
+  // SUB-VIEW: AUTOMATION & BOT SENTINEL (KATALOG)
   // =========================================================================
   const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
-  const [automationStatus, setAutomationStatus] = useState<any>(null);
-  const [automationLogs, setAutomationLogs] = useState<any[]>([]);
-  const [automationLogsTotal, setAutomationLogsTotal] = useState<number>(0);
-  const [automationLogsBotFilter, setAutomationLogsBotFilter] = useState<string>('all');
-  const [automationLogsStatusFilter, setAutomationLogsStatusFilter] = useState<string>('all');
-  const [automationLogsSearch, setAutomationLogsSearch] = useState<string>('');
-  const [automationSubView, setAutomationSubView] = useState<'overview' | 'bots' | 'logs' | 'sandbox'>('overview');
-  const [isTriggeringBot, setIsTriggeringBot] = useState<string | null>(null);
-  const [isFetchingAutomation, setIsFetchingAutomation] = useState(false);
-  const [isTestingSandbox, setIsTestingSandbox] = useState(false);
-
-  const fetchAutomationData = useCallback(async (botFilter = automationLogsBotFilter, statusFilter = automationLogsStatusFilter, search = automationLogsSearch) => {
-    if (!token || !canAccessAutomation) return;
-    setIsFetchingAutomation(true);
-    try {
-      const params = new URLSearchParams();
-      if (botFilter !== 'all') params.set('bot', botFilter);
-      if (statusFilter !== 'all') params.set('status', statusFilter);
-      if (search.trim()) params.set('q', search.trim());
-      params.set('limit', '50');
-
-      const [statusRes, logsRes] = await Promise.allSettled([
-        authFetch('/api/admin/automation/status', { headers: { Authorization: `Bearer ${token}` } }),
-        authFetch(`/api/admin/automation/logs?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
-      ]);
-      if (statusRes.status === 'fulfilled' && statusRes.value.ok) {
-        const j = await statusRes.value.json();
-        setAutomationStatus(j.data || j);
-      }
-      if (logsRes.status === 'fulfilled' && logsRes.value.ok) {
-        const lj = await logsRes.value.json();
-        setAutomationLogs(Array.isArray(lj.data) ? lj.data : Array.isArray(lj) ? lj : []);
-        setAutomationLogsTotal(typeof lj.total === 'number' ? lj.total : (Array.isArray(lj.data) ? lj.data.length : 0));
-      }
-    } catch (err) {
-      console.error('Failed to fetch automation data:', err);
-    } finally {
-      setIsFetchingAutomation(false);
-    }
-  }, [token, canAccessAutomation, authFetch, automationLogsBotFilter, automationLogsStatusFilter, automationLogsSearch]);
-
-  const fetchAutomation = fetchAutomationData;
-
-  useEffect(() => {
-    if (activeView === 'automation' && canAccessAutomation) {
-      fetchAutomationData();
-    }
-  }, [activeView, canAccessAutomation, fetchAutomationData]);
-
-  const handleTriggerBot = async (botType: string, label: string) => {
-    if (!token || !canAccessAutomation) return;
-    setIsTriggeringBot(botType);
-    try {
-      const res = await authFetch('/api/admin/automation/trigger', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ bot_type: botType, action: botType })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        showToast(data.message || `Bot "${label}" berhasil dieksekusi!`, 'success');
-        await fetchAutomationData();
-      } else {
-        showToast(data.error || data.message || `Gagal menjalankan bot "${label}"`, 'error');
-      }
-    } catch (err: any) {
-      showToast(err?.message || 'Terjadi kesalahan saat memicu bot', 'error');
-    } finally {
-      setIsTriggeringBot(null);
-    }
-  };
-
-  const handleTriggerSpecificBot = handleTriggerBot;
-
-  const handleRunSandboxTest = async () => {
-    if (!token || !canAccessAutomation) return;
-    setIsTestingSandbox(true);
-    try {
-      const res = await authFetch('/api/admin/automation/trigger', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ action: 'test_guide' })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        showToast('Notifikasi simulasi panduan berhasil dikirim via SSE!', 'success');
-        await fetchAutomationData();
-      } else {
-        showToast(data.error || 'Gagal mengirim simulasi', 'error');
-      }
-    } catch (err: any) {
-      showToast(err?.message || 'Gagal memproses sandbox', 'error');
-    } finally {
-      setIsTestingSandbox(false);
-    }
-  };
-
-  const BOT_WORKERS_CATALOG = [
-    {
-      id: 'store_expiry',
-      name: 'Bot Kedaluwarsa & Paket Merchant',
-      category: 'Lifecycle',
-      categoryColor: '#3b82f6',
-      freq: 'Setiap 1 Jam',
-      desc: 'Memeriksa masa aktif paket merchant (Free/Pro). Mengubah status merchant menjadi expired dan otomatis mengirimkan pengumuman peringatan perpanjangan.',
-      icon: StoreIcon,
-      color: '#3b82f6'
-    },
-    {
-      id: 'dormancy_worker',
-      name: 'Engine Lifecycle Dormansi Merchant',
-      category: 'Lifecycle',
-      categoryColor: '#8b5cf6',
-      freq: 'Setiap 1 Jam',
-      desc: 'Memindai akun free inaktif secara bertahap: Peringatan Hari ke-30, Pembekuan Hari ke-38, Pengarsipan Hari ke-45, dan Penghapusan Permanen Hari ke-60.',
-      icon: Clock,
-      color: '#8b5cf6'
-    },
-    {
-      id: 'promo_expiry',
-      name: 'Bot Kedaluwarsa Promo & Kupon',
-      category: 'Commerce',
-      categoryColor: '#10b981',
-      freq: 'Setiap 15 Menit',
-      desc: 'Memindai voucher diskon & banner promo katalog item merchant yang telah melewati masa berlaku untuk dinonaktifkan otomatis.',
-      icon: Tag,
-      color: '#10b981'
-    },
-    {
-      id: 'flash_sale',
-      name: 'Bot Sinkronisasi Flash Sale Realtime',
-      category: 'Commerce',
-      categoryColor: '#ef4444',
-      freq: 'Setiap 5 Menit',
-      desc: 'Mengaktifkan sesi flash sale terjadwal dan menutup sesi promo diskon yang telah habis waktunya secara otomatis.',
-      icon: Zap,
-      color: '#ef4444'
-    },
-    {
-      id: 'support_lifecycle',
-      name: 'Bot Helpdesk SLA & Auto-Resolve',
-      category: 'Support',
-      categoryColor: '#06b6d4',
-      freq: 'Setiap 15 Menit',
-      desc: 'Mengirimkan pengingat tiket membeku (72 jam), auto-resolve tiket tanpa respon merchant (48 jam), auto-close (7 hari), dan deteksi pelanggaran SLA.',
-      icon: HelpCircle,
-      color: '#06b6d4'
-    },
-    {
-      id: 'ticket_retention_worker',
-      name: 'Bot Retensi & Pemusnahan Data PDP Tiket',
-      category: 'Compliance',
-      categoryColor: '#ec4899',
-      freq: 'Setiap 24 Jam (Retensi 30-60 Hari)',
-      desc: 'Memusnahkan tiket closed (billing/akun 30h, teknis 60h) beserta berkas lampiran fisik dari penyimpanan server sesuai regulasi PDP.',
-      icon: ShieldAlert,
-      color: '#ec4899'
-    },
-    {
-      id: 'item_retention_worker',
-      name: 'Bot Retensi & Pembersihan Item Moderasi',
-      category: 'Compliance',
-      categoryColor: '#f43f5e',
-      freq: 'Setiap 24 Jam (Retensi 30-90 Hari)',
-      desc: 'Memproses pengingat H-7 barang moderasi, pengarsipan otomatis hari ke-30, dan pembersihan total dari sistem pada hari ke-90.',
-      icon: FileText,
-      color: '#f43f5e'
-    },
-    {
-      id: 'cleaner_worker',
-      name: 'Worker Pembersih Notifikasi & Log',
-      category: 'System',
-      categoryColor: '#64748b',
-      freq: 'Setiap 1 Jam',
-      desc: 'Menghapus notifikasi kedaluwarsa dan riwayat terbaca > 30 hari secara berkala guna menjaga performa dan kapasitas penyimpanan basis data.',
-      icon: Trash2,
-      color: '#64748b'
-    },
-    {
-      id: 'weekly_summary',
-      name: 'Bot Ringkasan Mingguan Platform',
-      category: 'System',
-      categoryColor: '#f59e0b',
-      freq: 'Setiap Minggu 08:00 WIB',
-      desc: 'Mengompilasi statistik transaksi mingguan, pendaftaran merchant baru, kepatuhan, dan mempublikasikan ringkasan otomatis ke dashboard pengelola.',
-      icon: BarChart3,
-      color: '#f59e0b'
-    },
-    {
-      id: 'onboarding_engine',
-      name: 'Bot Panduan Onboarding Merchant Baru',
-      category: 'Lifecycle',
-      categoryColor: '#10b981',
-      freq: 'Event-Driven Realtime',
-      desc: 'Secara instan menyuntikkan 3 artikel panduan starter kit katalog digital saat ada merchant baru yang menyelesaikan pendaftaran merchant.',
-      icon: Award,
-      color: '#10b981'
-    },
-    {
-      id: 'sse_hub',
-      name: 'SSE Realtime Streaming Gateway',
-      category: 'Streaming',
-      categoryColor: '#38bdf8',
-      freq: 'Persistent Web Streaming',
-      desc: 'Melayani transmisi siaran, status pergerakan tiket CS, dan pembaruan notifikasi langsung tanpa polling ke seluruh aplikasi pengguna aktif.',
-      icon: Radio,
-      color: '#38bdf8'
-    }
-  ];
-
-  // =========================================================================
+  const [automationRevision, setAutomationRevision] = useState(0);
   // SUB-VIEW: MONETIZATION (AdSense & GA4)
   // =========================================================================
   const [monetizationSubTab, setMonetizationSubTab] = useState<'adsense' | 'analytics'>('adsense');
@@ -3613,12 +3312,14 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       } else if (activeView === 'support') {
         await fetchTickets();
       } else if (activeView === 'finance') {
-        await fetchOrders();
+        if (financeSubTab === 'orders') fetchOrders();
+        if (financeSubTab === 'coupons') fetchCoupons();
+        if (financeSubTab === 'settings') await fetchSettings();
       } else if (activeView === 'broadcast') {
         broadcastCacheRef.current.clear();
         await fetchBroadcasts(broadcastPage, true);
       } else if (activeView === 'automation') {
-        await fetchAutomation();
+        setAutomationRevision(n => n + 1);
       } else if (activeView === 'audit') {
         await fetchAuditLogs();
       }
@@ -3634,14 +3335,22 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const roleInfo = getRoleBadge(currentUser?.platform_role || (currentUser?.is_superadmin ? 'superadmin' : 'admin'));
 
   return (
-    <div style={{
+    <div data-platform-theme={themeMode} style={{
+      '--bg-deep': isDark ? '#090d16' : '#f8fafc',
+      '--bg-card': theme.surface,
+      '--bg-surface': theme.surface,
+      '--bg-card-hover': theme.cardAlt,
+      '--border-light': theme.border,
+      '--text-primary': theme.textPrimary,
+      '--text-secondary': theme.textSecondary,
+      '--text-muted': isDark ? '#94a3b8' : '#64748b',
       display: 'flex',
       width: '100vw',
       height: '100vh',
       overflow: 'hidden',
       backgroundColor: 'var(--bg-deep)',
       color: 'var(--text-primary)'
-    }}>
+    } as React.CSSProperties}>
       {/* Toast Notification */}
       {toast && (
         <div style={{
@@ -4790,7 +4499,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Status Daemon 24/7</div>
                     <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <Cpu size={14} />
-                      <span>11 Bot Worker Aktif</span>
+                      <span>Katalog pekerjaan</span>
                     </div>
                   </div>
                   <div>
@@ -7331,95 +7040,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
           {/* TAB 5: FINANCE (KEUANGAN & BILLING) */}
           {activeView === 'finance' && canAccessFinance && (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-              {/* Finance Sub-Tabs Navigation */}
-              <div style={{
-                padding: '0.75rem 1.25rem',
-                borderBottom: '1px solid var(--border-light)',
-                backgroundColor: 'var(--bg-deep)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexShrink: 0
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setFinanceSubTab('orders')}
-                    style={{
-                      minHeight: '44px',
-                      padding: '0 1rem',
-                      borderRadius: '0.65rem',
-                      border: `1px solid ${financeSubTab === 'orders' ? '#10b981' : 'var(--border-light)'}`,
-                      backgroundColor: financeSubTab === 'orders' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
-                      color: financeSubTab === 'orders' ? '#10b981' : 'var(--text-muted)',
-                      fontSize: '0.84rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.45rem',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <CreditCard size={16} />
-                    <span>Daftar Transaksi Billing ({filteredOrders.length})</span>
-                  </button>
-
-                  {canManagePaymentSettings && (
-                    <button
-                      type="button"
-                      onClick={() => setFinanceSubTab('settings')}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0 1rem',
-                        borderRadius: '0.65rem',
-                        border: `1px solid ${financeSubTab === 'settings' ? '#10b981' : 'var(--border-light)'}`,
-                        backgroundColor: financeSubTab === 'settings' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
-                        color: financeSubTab === 'settings' ? '#10b981' : 'var(--text-muted)',
-                        fontSize: '0.84rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.45rem',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <SlidersHorizontal size={16} />
-                      <span>Konfigurasi Sistem Pembayaran</span>
-                    </button>
-                  )}
-
-                  {canManageCoupons && (
-                    <button
-                      type="button"
-                      onClick={() => setFinanceSubTab('coupons')}
-                      style={{
-                        minHeight: '44px',
-                        padding: '0 1rem',
-                        borderRadius: '0.65rem',
-                        border: `1px solid ${financeSubTab === 'coupons' ? '#10b981' : 'var(--border-light)'}`,
-                        backgroundColor: financeSubTab === 'coupons' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
-                        color: financeSubTab === 'coupons' ? '#10b981' : 'var(--text-muted)',
-                        fontSize: '0.84rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.45rem',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <Tag size={16} />
-                      <span>Kupon Diskon ({coupons.length})</span>
-                    </button>
-                  )}
-                </div>
+            <div className="finance-workspace" style={{ ...financeColors(isDark, theme), display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+              <div className="finance-toolbar">
+                <FinanceNav section={financeSubTab} select={setFinanceSubTab} settings={canManagePaymentSettings}
+                  coupons={canManageCoupons} pending={pendingOrdersCount}/>
 
                 {financeSubTab === 'settings' && canManagePaymentSettings && (
                   <button
                     type="button"
+                    className="finance-action"
                     onClick={handleSavePaymentSettings}
                     disabled={isSavingSettings}
                     style={{
@@ -7447,6 +7076,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 {financeSubTab === 'coupons' && canManageCoupons && (
                   <button
                     type="button"
+                    className="finance-action"
                     onClick={handleOpenCreateCouponModal}
                     style={{
                       minHeight: '44px',
@@ -7474,12 +7104,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 <div style={{ flex: 1, overflow: 'hidden' }}>
                   <TabletMasterDetailView
                     title="Billing Langganan Pro"
-                    subtitle={`${filteredOrders.length} order transaksi`}
+                    subtitle={`${orderPage.total} transaksi`}
                     hideHeaderTitle={true}
                     selectedId={selectedOrderId}
                     onClearSelection={() => setSelectedOrderId(null)}
                     masterPane={
-                      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                      <div className="finance-scroll-pane" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                         {/* Search Input + Status & Payment System Configuration Filters */}
                         <div style={{
                           padding: '0.75rem',
@@ -7550,91 +7180,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             </button>
                           </div>
 
-                          {/* Status Filter Pills */}
-                          <div style={{
-                            display: 'flex',
-                            gap: '0.35rem',
-                            overflowX: 'auto',
-                            scrollbarWidth: 'thin',
-                            WebkitOverflowScrolling: 'touch'
-                          }}>
-                            {([
-                              { id: 'all', label: 'Semua Status' },
-                              { id: 'pending', label: 'Pending / Verifikasi' },
-                              { id: 'paid', label: 'Aktif / Lunas' },
-                              { id: 'rejected', label: 'Ditolak / Batal' }
-                            ] as const).map(tab => (
-                              <button
-                                key={tab.id}
-                                type="button"
-                                onClick={() => setFinanceFilter(tab.id)}
-                                style={{
-                                  minHeight: '38px',
-                                  padding: '0.3rem 0.65rem',
-                                  borderRadius: '999px',
-                                  border: `1px solid ${financeFilter === tab.id ? '#10b981' : 'var(--border-light)'}`,
-                                  backgroundColor: financeFilter === tab.id ? 'rgba(16, 185, 129, 0.14)' : 'transparent',
-                                  color: financeFilter === tab.id ? '#10b981' : 'var(--text-muted)',
-                                  fontSize: '0.7rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  whiteSpace: 'nowrap',
-                                  flexShrink: 0,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}
-                              >
-                                {tab.label}
-                              </button>
-                            ))}
-                          </div>
-
-                          {/* Payment System Configuration Filter Pills */}
-                          <div style={{
-                            display: 'flex',
-                            gap: '0.35rem',
-                            overflowX: 'auto',
-                            scrollbarWidth: 'thin',
-                            WebkitOverflowScrolling: 'touch'
-                          }}>
-                            {([
-                              { id: 'all', label: 'Semua Sistem' },
-                              { id: 'gateway_aulaa', label: 'Aulaa Gateway' },
-                              { id: 'manual_qris', label: 'QRIS Manual' },
-                              { id: 'manual_bank', label: 'Transfer Bank' },
-                              { id: 'coupon_free', label: 'Kupon Gratis' }
-                            ] as const).map(cf => (
-                              <button
-                                key={cf.id}
-                                type="button"
-                                onClick={() => setOrdersConfigFilter(cf.id)}
-                                style={{
-                                  minHeight: '36px',
-                                  padding: '0.28rem 0.6rem',
-                                  borderRadius: '0.5rem',
-                                  border: `1px solid ${ordersConfigFilter === cf.id ? '#38bdf8' : 'var(--border-light)'}`,
-                                  backgroundColor: ordersConfigFilter === cf.id ? 'rgba(56, 189, 248, 0.14)' : 'var(--bg-deep)',
-                                  color: ordersConfigFilter === cf.id ? '#38bdf8' : 'var(--text-secondary)',
-                                  fontSize: '0.68rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  whiteSpace: 'nowrap',
-                                  flexShrink: 0,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center'
-                                }}
-                              >
-                                {cf.label}
-                              </button>
-                            ))}
-                          </div>
+                          <OrderFilters Picker={TabletCustomSelect} status={orderPage.status} channel={orderPage.kind}
+                    facets={orderPage.facets} ready={orderPage.ready} onStatus={orderPage.setStatus} onChannel={orderPage.setKind}/>
                         </div>
 
                         {/* Master List Cards */}
-                        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                          {filteredOrders.length === 0 ? (
+                        <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                          {!orderPage.ready ? null : filteredOrders.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
                               <CreditCard size={36} color="#10b981" style={{ marginBottom: '0.5rem' }} />
                               <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>Tidak ada transaksi yang sesuai filter</div>
@@ -7818,6 +7370,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             })
                           )}
                         </div>
+                        <FinancePager list={orderPage} device="tablet"/>
                       </div>
                     }
                     detailPane={
@@ -8329,72 +7882,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 </div>
               ) : financeSubTab === 'settings' ? (
                 /* VIEW 2: KONFIGURASI SISTEM PEMBAYARAN PLATFORM */
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  {/* Mode Switcher Tabs (3 Interactive Cards for Tablet) */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      Pilih Mode Sistem Pembayaran Platform:
-                    </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
-                      {[
-                        { key: 'gateway_aulaa', label: 'Aulaa Gateway', desc: 'Otomatis via API Aulaa.co (QRIS Instan, VA, E-Wallet, CC)', icon: Zap, color: '#10b981' },
-                        { key: 'manual_qris', label: 'QRIS & Transfer Manual', desc: 'Scan QRIS Shopee/BCA mandiri dengan kode unik 3-digit', icon: QrCode, color: '#0284c7' },
-                        { key: 'maintenance', label: 'Pemeliharaan', desc: 'Menutup sementara seluruh checkout paket di platform', icon: ShieldAlert, color: '#ef4444' }
-                      ].map(mode => {
-                        const isSelected = (googleSettings.payment_system_mode || 'gateway_aulaa') === mode.key;
-                        const ModeIcon = mode.icon;
-                        const activeBg = mode.key === 'gateway_aulaa' ? 'rgba(16, 185, 129, 0.08)' : mode.key === 'manual_qris' ? 'rgba(2, 132, 199, 0.08)' : 'rgba(239, 68, 68, 0.08)';
-                        const activeBadgeBg = mode.key === 'gateway_aulaa' ? 'rgba(16, 185, 129, 0.15)' : mode.key === 'manual_qris' ? 'rgba(2, 132, 199, 0.15)' : 'rgba(239, 68, 68, 0.15)';
-
-                        return (
-                          <div
-                            key={mode.key}
-                            onClick={() => setGoogleSettings(prev => ({ ...prev, payment_system_mode: mode.key }))}
-                            style={{
-                              minHeight: '44px',
-                              padding: '1rem',
-                              borderRadius: '0.75rem',
-                              backgroundColor: isSelected ? activeBg : 'var(--bg-card)',
-                              border: `2px solid ${isSelected ? mode.color : 'var(--border-light)'}`,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.45rem',
-                              boxShadow: isSelected ? `0 0 0 1px ${mode.color}` : undefined,
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div style={{
-                                width: '34px',
-                                height: '34px',
-                                borderRadius: '0.5rem',
-                                backgroundColor: isSelected ? mode.color : 'var(--bg-main)',
-                                color: isSelected ? '#ffffff' : 'var(--text-primary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}>
-                                <ModeIcon size={18} />
-                              </div>
-                              {isSelected ? (
-                                <span style={{ fontSize: '0.66rem', fontWeight: 800, color: mode.color, backgroundColor: activeBadgeBg, padding: '0.2rem 0.5rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                  <CheckCircle2 size={11} /> MODE AKTIF
-                                </span>
-                              ) : (
-                                <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-                                  Klik untuk aktifkan
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: '0.84rem', fontWeight: 800, color: 'var(--text-primary)' }}>{mode.label}</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{mode.desc}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
+                <div className="finance-scroll-pane" style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <PaymentModePicker value={googleSettings.payment_system_mode || 'gateway_aulaa'}
+                    select={payment_system_mode => setGoogleSettings(prev => ({ ...prev, payment_system_mode }))}/>
                   {/* Focused Configuration Panel for Selected Mode */}
                   {(() => {
                     const activeMode = googleSettings.payment_system_mode || 'gateway_aulaa';
@@ -8426,7 +7916,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               <Zap size={20} color="#10b981" />
                               <div>
                                 <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)', display: 'block' }}>
-                                  Konfigurasi Gateway Aulaa.co (Mode Aktif)
+                                  Konfigurasi Gateway Aulaa.co
                                 </strong>
                                 <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
                                   Transaksi pendaftaran dan upgrade merchant diproses otomatis via gateway Aulaa.
@@ -8458,7 +7948,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           </div>
 
                           {/* 2-Column Grid */}
-                          <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.2fr', gap: '1.25rem' }}>
+                          <div className="finance-gateway-fields" style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.2fr', gap: '1.25rem' }}>
                             {/* Left: Sub-channel Toggles */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                               <div>
@@ -8521,7 +8011,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                     Aulaa API Key:
                                   </label>
-                                  <button
+                                  <button className="finance-utility"
                                     type="button"
                                     onClick={() => setShowAulaaSecrets(!showAulaaSecrets)}
                                     style={{ minHeight: '44px', background: 'none', border: 'none', color: '#10b981', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
@@ -8694,7 +8184,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   }}>
                                     {typeof window !== 'undefined' ? `${window.location.origin}/api/payments/webhook/aulaa` : '/api/payments/webhook/aulaa'}
                                   </code>
-                                  <button
+                                  <button className="finance-utility"
                                     type="button"
                                     onClick={() => {
                                       if (typeof window !== 'undefined') {
@@ -8755,7 +8245,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <QrCode size={20} color="#0284c7" />
                             <div>
                               <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)', display: 'block' }}>
-                                Konfigurasi QRIS &amp; Rekening Manual (Mode Aktif)
+                                Konfigurasi QRIS &amp; Rekening Manual
                               </strong>
                               <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
                                 Pengguna membayar via scan QRIS merchant (nominal pas) atau transfer bank langsung dengan alokasi otomatis kode unik nominal 3-digit.
@@ -9065,10 +8555,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <ShieldAlert size={20} color="#ef4444" />
                             <div>
                               <strong style={{ fontSize: '0.88rem', color: '#ef4444', display: 'block' }}>
-                                PERINGATAN: Mode Pemeliharaan Sedang Dipilih Sebagai Mode Aktif
+                                Pemeliharaan checkout
                               </strong>
                               <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
-                                Seluruh formulir pembayaran dan pendaftaran berbayar saat ini ditutup sementara. Pengunjung akan melihat pengumuman di bawah ini.
+                                Jika mode ini disimpan, checkout paket berbayar ditutup dan pengunjung melihat pengumuman berikut.
                               </span>
                             </div>
                           </div>
@@ -9180,7 +8670,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 </div>
               ) : (
                 /* VIEW 3: MANAJEMEN KUPON PLATFORM (TABLET) */
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div className="finance-scroll-pane" style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {/* Top Bar: Search & Stats */}
                   <div style={{
                     display: 'flex',
@@ -9197,6 +8687,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       <Search size={15} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                       <input
                         type="text"
+                        aria-label="Cari kupon"
                         placeholder="Cari kode atau label kupon..."
                         value={couponSearchFilter}
                         onChange={(e) => setCouponSearchFilter(e.target.value)}
@@ -9219,35 +8710,32 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                       <div style={{ padding: '0.45rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', fontSize: '0.75rem' }}>
                         <span style={{ color: 'var(--text-muted)' }}>Total: </span>
-                        <strong style={{ color: 'var(--text-primary)' }}>{coupons.length}</strong>
+                        <strong style={{ color: 'var(--text-primary)' }}>{couponPage.summary.total ?? 0}</strong>
                       </div>
                       <div style={{ padding: '0.45rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', fontSize: '0.75rem' }}>
                         <span style={{ color: '#10b981' }}>Aktif: </span>
-                        <strong style={{ color: '#10b981' }}>{coupons.filter(c => c.is_active).length}</strong>
+                        <strong style={{ color: '#10b981' }}>{couponPage.summary.active ?? 0}</strong>
                       </div>
                       <div style={{ padding: '0.45rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'rgba(2, 132, 199, 0.1)', border: '1px solid rgba(2, 132, 199, 0.25)', fontSize: '0.75rem' }}>
                         <span style={{ color: '#0284c7' }}>Diskon: </span>
-                        <strong style={{ color: '#0284c7' }}>{coupons.filter(c => c.type === 'discount').length}</strong>
+                        <strong style={{ color: '#0284c7' }}>{couponPage.summary.discount ?? 0}</strong>
                       </div>
                       <div style={{ padding: '0.45rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', fontSize: '0.75rem' }}>
                         <span style={{ color: '#f59e0b' }}>Gratis: </span>
-                        <strong style={{ color: '#f59e0b' }}>{coupons.filter(c => c.type === 'free').length}</strong>
+                        <strong style={{ color: '#f59e0b' }}>{couponPage.summary.free ?? 0}</strong>
                       </div>
                     </div>
                   </div>
 
+                  <CouponFilters Picker={TabletCustomSelect} facets={couponPage.facets} ready={couponPage.ready} status={couponPage.status} kind={couponPage.kind}
+                    onStatus={couponPage.setStatus} onKind={couponPage.setKind}/>
                   {/* Coupons Table */}
-                  {loadingCoupons ? (
+                  {couponPage.error ? null : loadingCoupons ? (
                     <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                       Memuat data kupon...
                     </div>
                   ) : (() => {
-                    const filtered = coupons.filter(c => {
-                      const q = couponSearchFilter.trim().toLowerCase();
-                      if (!q) return true;
-                      return (c.code || '').toLowerCase().includes(q) || (c.label || '').toLowerCase().includes(q);
-                    });
-
+                    const filtered = coupons;
                     if (filtered.length === 0) {
                       return (
                         <div style={{
@@ -9275,6 +8763,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           {!couponSearchFilter && (
                             <button
                               type="button"
+                              className="finance-action"
                               onClick={handleOpenCreateCouponModal}
                               style={{
                                 minHeight: '44px',
@@ -9308,7 +8797,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         overflow: 'hidden'
                       }}>
                         <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
+                          <table className="finance-coupons" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
                             <thead>
                               <tr style={{ backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)' }}>
                                 <th style={{ padding: '0.85rem 1rem', fontWeight: 800, color: 'var(--text-muted)' }}>Kode Kupon</th>
@@ -9329,14 +8818,17 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 return (
                                   <tr key={item.id || item.code} style={{ borderBottom: '1px solid var(--border-light)' }}>
                                     <td style={{ padding: '0.85rem 1rem' }}>
+                                      <span className="finance-field-label" aria-hidden="true">Kode kupon</span>
                                       <span style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '0.88rem', color: 'var(--text-primary)', letterSpacing: '0.04em' }}>
                                         {item.code}
                                       </span>
                                     </td>
                                     <td style={{ padding: '0.85rem 1rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                      <span className="finance-field-label" aria-hidden="true">Deskripsi</span>
                                       {item.label}
                                     </td>
                                     <td style={{ padding: '0.85rem 1rem' }}>
+                                      <span className="finance-field-label" aria-hidden="true">Jenis dan diskon</span>
                                       <span style={{
                                         fontSize: '0.72rem',
                                         fontWeight: 800,
@@ -9350,12 +8842,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                       </span>
                                     </td>
                                     <td style={{ padding: '0.85rem 1rem', color: 'var(--text-primary)' }}>
+                                      <span className="finance-field-label" aria-hidden="true">Pemakaian</span>
                                       <strong>{item.used_count || 0}</strong> {item.usage_limit > 0 ? `/ ${item.usage_limit}` : <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>(Bebas)</span>}
                                     </td>
                                     <td style={{ padding: '0.85rem 1rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                                      <span className="finance-field-label" aria-hidden="true">Berlaku hingga</span>
                                       {item.expires_at ? new Date(item.expires_at).toLocaleDateString('id-ID') : 'Permanen'}
                                     </td>
                                     <td style={{ padding: '0.85rem 1rem' }}>
+                                      <span className="finance-field-label" aria-hidden="true">Status</span>
                                       <span style={{
                                         fontSize: '0.7rem',
                                         fontWeight: 800,
@@ -9376,8 +8871,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           disabled={togglingCouponCode === item.code}
                                           title={item.is_active ? 'Nonaktifkan kupon' : 'Aktifkan kupon'}
                                           style={{
-                                            minHeight: '36px',
-                                            minWidth: '36px',
+                                            minHeight: '44px',
+                                            minWidth: '44px',
                                             borderRadius: '0.45rem',
                                             border: '1px solid var(--border-light)',
                                             backgroundColor: item.is_active ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
@@ -9395,8 +8890,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           onClick={() => handleOpenEditCouponModal(item)}
                                           title="Edit kupon"
                                           style={{
-                                            minHeight: '36px',
-                                            minWidth: '36px',
+                                            minHeight: '44px',
+                                            minWidth: '44px',
                                             borderRadius: '0.45rem',
                                             border: '1px solid var(--border-light)',
                                             backgroundColor: 'var(--bg-deep)',
@@ -9419,8 +8914,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           disabled={deletingCouponCode === item.code}
                                           title="Hapus kupon"
                                           style={{
-                                            minHeight: '36px',
-                                            minWidth: '36px',
+                                            minHeight: '44px',
+                                            minWidth: '44px',
                                             borderRadius: '0.45rem',
                                             border: '1px solid var(--border-light)',
                                             backgroundColor: 'transparent',
@@ -9444,6 +8939,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       </div>
                     );
                   })()}
+                  <FinancePager list={couponPage} device="tablet"/>
                 </div>
               )}
             </div>
@@ -11554,7 +11050,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             </div>
           )}
 
-          {/* TAB 8: AUTOMATION (MESIN OTOMATISASI & 11 BOTS) */}
+          {/* TAB 8: AUTOMATION (MESIN OTOMATISASI) */}
           {activeView === 'market_intel' && canAccessMarketIntel && (
             <TabletMarketIntelView
               token={token}
@@ -11563,1016 +11059,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {activeView === 'automation' && canAccessAutomation && (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              {/* Module Header Sub-Tabs Switcher */}
-              <div style={{
-                padding: '0.75rem 1.5rem',
-                borderBottom: '1px solid var(--border-light)',
-                display: 'flex',
-                alignItems: 'center',
-                backgroundColor: 'var(--bg-deep)',
-                gap: '0.75rem',
-                flexWrap: 'wrap'
-              }}>
-                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.2rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch', width: '100%' }}>
-                  {[
-                    { id: 'overview', label: 'Ringkasan', icon: LayoutDashboard },
-                    { id: 'bots', label: `${automationStatus?.total_workers || 11} Bot Platform`, icon: Bot, badge: String(automationStatus?.total_workers || 11) },
-                    { id: 'logs', label: 'Riwayat & Audit', icon: Activity, badge: String(automationLogsTotal || automationLogs.length) },
-                    { id: 'sandbox', label: 'Sandbox Uji Coba', icon: Zap }
-                  ].map(tab => {
-                    const Icon = tab.icon;
-                    const isActive = automationSubView === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => {
-                          setAutomationSubView(tab.id as any);
-                          if (tab.id === 'logs' || tab.id === 'overview') {
-                            fetchAutomation();
-                          }
-                        }}
-                        style={{
-                          minHeight: '44px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.45rem',
-                          padding: '0.55rem 1rem',
-                          borderRadius: '0.65rem',
-                          border: `1px solid ${isActive ? 'var(--primary)' : 'var(--border-light)'}`,
-                          backgroundColor: isActive ? 'rgba(59, 130, 246, 0.14)' : 'var(--bg-card)',
-                          color: isActive ? 'var(--primary)' : 'var(--text-muted)',
-                          fontSize: '0.82rem',
-                          fontWeight: isActive ? 800 : 600,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0
-                        }}
-                      >
-                        <Icon size={16} />
-                        <span>{tab.label}</span>
-                        {tab.badge && (
-                          <span style={{
-                            fontSize: '0.65rem',
-                            fontWeight: 900,
-                            padding: '0.1rem 0.45rem',
-                            borderRadius: '999px',
-                            backgroundColor: isActive ? 'var(--primary)' : 'rgba(100, 116, 139, 0.15)',
-                            color: isActive ? '#ffffff' : 'var(--text-muted)'
-                          }}>
-                            {tab.badge}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* SUB-VIEW 1: OVERVIEW & SYSTEM HEALTH TELEMETRY */}
-              {automationSubView === 'overview' && (
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
-                  <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    {/* Hero Status Banner */}
-                    <div style={{
-                      padding: '1.4rem 1.6rem',
-                      borderRadius: '1.15rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      boxShadow: 'var(--card-shadow, 0 4px 12px rgba(0,0,0,0.05))',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.9rem'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                          <span style={{
-                            width: '12px',
-                            height: '12px',
-                            borderRadius: '50%',
-                            backgroundColor: '#10b981',
-                            boxShadow: '0 0 12px #10b981',
-                            display: 'inline-block'
-                          }} />
-                          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            Status Mesin: {automationStatus?.total_workers || 11} Bot Worker Aktif &amp; Terjadwal (24/7 Daemon)
-                          </h3>
-                        </div>
-
-                        <span style={{
-                          fontSize: '0.74rem',
-                          fontWeight: 700,
-                          padding: '0.25rem 0.65rem',
-                          borderRadius: '999px',
-                          backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                          color: '#10b981',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem'
-                        }}>
-                          <CheckCircle2 size={13} />
-                          <span>Daemon Berjalan Normal</span>
-                        </span>
-                      </div>
-
-                      <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                        Mesin otomatisasi platform mengelola siklus hidup merchant (inaktivitas &amp; kedaluwarsa), sinkronisasi promo/diskon katalog, eskalasi SLA tiket helpdesk, dan pembersihan sampah data otomatis di latar belakang.
-                      </p>
-
-                      {/* 4 Telemetry Metrics Grid (Responsive Wrap) */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', paddingTop: '0.25rem' }}>
-                        <div style={{ padding: '0.9rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#38bdf8', marginBottom: '0.25rem' }}>
-                            <Bot size={15} />
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>Total Bot Terdaftar</span>
-                          </div>
-                          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: 'var(--text-primary)' }}>
-                            {automationStatus?.total_workers || 11} Bot
-                          </div>
-                          <div style={{ fontSize: '0.68rem', color: '#10b981', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
-                            <span>{automationStatus?.healthy_workers || 11} Sehat / Normal</span>
-                          </div>
-                        </div>
-
-                        <div style={{ padding: '0.9rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981', marginBottom: '0.25rem' }}>
-                            <CheckCheck size={15} />
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>Tingkat Sukses 24 Jam</span>
-                          </div>
-                          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#10b981' }}>
-                            {automationStatus?.success_rate_24h || '100.0%'}
-                          </div>
-                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                            0 kegagalan fatal
-                          </div>
-                        </div>
-
-                        <div style={{ padding: '0.9rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#f59e0b', marginBottom: '0.25rem' }}>
-                            <Activity size={15} />
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>Eksekusi 24 Jam</span>
-                          </div>
-                          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: 'var(--text-primary)' }}>
-                            {automationStatus?.executions_24h || automationLogs.length} Kali
-                          </div>
-                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                            Pemicu Cron &amp; Manual
-                          </div>
-                        </div>
-
-                        <div style={{ padding: '0.9rem', borderRadius: '0.85rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#6366f1', marginBottom: '0.25rem' }}>
-                            <Clock size={15} />
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>Uptime Daemon</span>
-                          </div>
-                          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: 'var(--text-primary)' }}>
-                            24 / 7
-                          </div>
-                          <div style={{ fontSize: '0.68rem', color: '#10b981', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
-                            <span>Realtime Loop Active</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Infrastructure Gateway & Streaming Status */}
-                    <div style={{
-                      padding: '1.25rem 1.5rem',
-                      borderRadius: '1.15rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.85rem'
-                    }}>
-                      <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <Radio size={16} color="#38bdf8" />
-                        <span>Konektivitas Transmisi Real-Time &amp; Antrean</span>
-                      </h4>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
-                        <div style={{
-                          padding: '0.9rem 1rem',
-                          borderRadius: '0.85rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.3rem'
-                        }}>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
-                            SSE Event Stream Gateway
-                          </div>
-                          <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
-                            <span>{automationStatus?.sse_clients_count || 1} Klien Terhubung</span>
-                          </div>
-                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                            Siaran instan tanpa refresh (Server-Sent Events)
-                          </div>
-                        </div>
-
-                        <div style={{
-                          padding: '0.9rem 1rem',
-                          borderRadius: '0.85rem',
-                          backgroundColor: 'var(--bg-deep)',
-                          border: '1px solid var(--border-light)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.3rem'
-                        }}>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
-                            Redis Cache / Message Bus
-                          </div>
-                          <div style={{ fontSize: '0.92rem', fontWeight: 800, color: automationStatus?.redis_available ? '#10b981' : '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: automationStatus?.redis_available ? '#10b981' : '#38bdf8', display: 'inline-block' }} />
-                            <span>{automationStatus?.redis_available ? 'Redis Standby' : 'Memori In-App'}</span>
-                          </div>
-                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                            {automationStatus?.redis_available ? 'Cluster Cache Aktif' : 'Penyimpanan Cepat Aktif'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Quick Actions Bar */}
-                    <div style={{
-                      padding: '1.25rem 1.5rem',
-                      borderRadius: '1.15rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.85rem'
-                    }}>
-                      <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <Zap size={16} color="#f59e0b" />
-                        <span>Aksi Cepat &amp; Pintasan Operasional</span>
-                      </h4>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleTriggerSpecificBot('ticket_retention_worker', 'Pemusnahan Data PDP Tiket')}
-                          disabled={isTriggeringBot !== null}
-                          style={{
-                            minHeight: '44px',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.75rem',
-                            backgroundColor: 'rgba(236, 72, 153, 0.1)',
-                            border: '1px solid rgba(236, 72, 153, 0.25)',
-                            color: '#ec4899',
-                            fontSize: '0.78rem',
-                            fontWeight: 800,
-                            cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <ShieldAlert size={15} />
-                          <span>Pemusnahan PDP Tiket</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleTriggerSpecificBot('store_expiry', 'Kedaluwarsa Toko')}
-                          disabled={isTriggeringBot !== null}
-                          style={{
-                            minHeight: '44px',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.75rem',
-                            backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                            border: '1px solid rgba(56, 189, 248, 0.25)',
-                            color: '#0284c7',
-                            fontSize: '0.78rem',
-                            fontWeight: 800,
-                            cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <StoreIcon size={15} />
-                          <span>Pindai Toko &amp; Paket</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleTriggerSpecificBot('promo_expiry', 'Promo Merchant')}
-                          disabled={isTriggeringBot !== null}
-                          style={{
-                            minHeight: '44px',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.75rem',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            border: '1px solid rgba(16, 185, 129, 0.25)',
-                            color: '#10b981',
-                            fontSize: '0.78rem',
-                            fontWeight: 800,
-                            cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <Tag size={15} />
-                          <span>Pindai Kupon Promo</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleTriggerSpecificBot('cleaner_worker', 'Pembersih Notifikasi')}
-                          disabled={isTriggeringBot !== null}
-                          style={{
-                            minHeight: '44px',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.75rem',
-                            backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                            border: '1px solid rgba(244, 63, 94, 0.25)',
-                            color: '#f43f5e',
-                            fontSize: '0.78rem',
-                            fontWeight: 800,
-                            cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <Trash2 size={15} />
-                          <span>Bersihkan Notif Lama</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setAutomationSubView('sandbox')}
-                          style={{
-                            minHeight: '44px',
-                            padding: '0.65rem 0.85rem',
-                            borderRadius: '0.75rem',
-                            backgroundColor: 'rgba(234, 179, 8, 0.1)',
-                            border: '1px solid rgba(234, 179, 8, 0.25)',
-                            color: '#d97706',
-                            fontSize: '0.78rem',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <Zap size={15} />
-                          <span>Buka Sandbox Uji Coba</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SUB-VIEW 2: 11 BOTS CATALOG & INTERACTIVE CONTROLS */}
-              {automationSubView === 'bots' && (
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
-                  <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <Bot size={18} color="#38bdf8" />
-                        <span>Katalog {automationStatus?.total_workers || 11} Bot Platform (Interactive Control Matrix)</span>
-                      </h4>
-                      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                        Klik "Jalankan Sekarang" untuk pemicu paksa manual
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-                      {BOT_WORKERS_CATALOG.map(bot => {
-                        const Icon = bot.icon;
-                        const isRunning = isTriggeringBot === bot.id;
-                        const runtimeWorker = automationStatus?.workers?.find((w: any) => w.name === bot.id);
-                        const isExecuting = runtimeWorker?.is_executing || isRunning;
-
-                        return (
-                          <div
-                            key={bot.id}
-                            style={{
-                              padding: '1.15rem 1.25rem',
-                              borderRadius: '1rem',
-                              backgroundColor: 'var(--bg-card)',
-                              border: '1px solid var(--border-light)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              justifyContent: 'space-between',
-                              gap: '0.75rem',
-                              boxShadow: 'var(--card-shadow, 0 2px 8px rgba(0,0,0,0.04))'
-                            }}
-                          >
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                  <div style={{
-                                    width: '42px',
-                                    height: '42px',
-                                    borderRadius: '0.75rem',
-                                    backgroundColor: `${bot.categoryColor}15`,
-                                    color: bot.color,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    flexShrink: 0
-                                  }}>
-                                    <Icon size={20} />
-                                  </div>
-                                  <div>
-                                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                                      <span>{bot.name}</span>
-                                      <span style={{
-                                        fontSize: '0.62rem',
-                                        fontWeight: 800,
-                                        padding: '0.1rem 0.45rem',
-                                        borderRadius: '0.35rem',
-                                        backgroundColor: `${bot.categoryColor}18`,
-                                        color: bot.categoryColor
-                                      }}>
-                                        {bot.category}
-                                      </span>
-                                    </div>
-                                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: bot.color, display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.15rem' }}>
-                                      <Clock size={12} />
-                                      <span>{bot.freq}</span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {bot.id !== 'sse_hub' && bot.id !== 'onboarding_engine' ? (
-                                  <button
-                                    type="button"
-                                    disabled={isExecuting || isTriggeringBot !== null}
-                                    onClick={() => handleTriggerSpecificBot(bot.id, bot.name)}
-                                    style={{
-                                      minHeight: '44px',
-                                      padding: '0.45rem 0.85rem',
-                                      borderRadius: '0.65rem',
-                                      backgroundColor: isExecuting ? 'rgba(245, 158, 11, 0.2)' : 'var(--primary)',
-                                      border: 'none',
-                                      color: '#ffffff',
-                                      fontSize: '0.76rem',
-                                      fontWeight: 800,
-                                      cursor: (isExecuting || isTriggeringBot !== null) ? 'not-allowed' : 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '0.35rem',
-                                      whiteSpace: 'nowrap',
-                                      boxShadow: '0 2px 6px rgba(59, 130, 246, 0.25)'
-                                    }}
-                                  >
-                                    {isExecuting ? (
-                                      <>
-                                        <Loader2 size={13} className="spin" />
-                                        <span>Memproses...</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Play size={13} fill="currentColor" />
-                                        <span>Jalankan</span>
-                                      </>
-                                    )}
-                                  </button>
-                                ) : (
-                                  <span style={{
-                                    fontSize: '0.68rem',
-                                    fontWeight: 700,
-                                    padding: '0.2rem 0.5rem',
-                                    borderRadius: '0.45rem',
-                                    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-                                    color: '#0284c7'
-                                  }}>
-                                    {bot.id === 'sse_hub' ? 'Streaming' : 'Event-Driven'}
-                                  </span>
-                                )}
-                              </div>
-
-                              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                                {bot.desc}
-                              </p>
-                            </div>
-
-                            {/* Runtime Status Footer */}
-                            <div style={{
-                              paddingTop: '0.5rem',
-                              borderTop: '1px solid var(--border-light)',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              fontSize: '0.72rem',
-                              color: 'var(--text-muted)'
-                            }}>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                <span>Status:</span>
-                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
-                                <strong style={{ color: '#10b981' }}>Aktif (Normal)</strong>
-                              </span>
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAutomationLogsBotFilter(bot.id);
-                                  setAutomationSubView('logs');
-                                  fetchAutomation(bot.id, automationLogsStatusFilter, automationLogsSearch);
-                                }}
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  color: 'var(--primary)',
-                                  fontWeight: 700,
-                                  fontSize: '0.74rem',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.25rem',
-                                  padding: '0.2rem 0.4rem'
-                                }}
-                              >
-                                <span>Lihat Log Bot Ini →</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SUB-VIEW 3: EXECUTION LOGS & AUDIT TRAIL STREAM */}
-              {automationSubView === 'logs' && (
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
-                  <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <Activity size={16} color="#10b981" />
-                        <span>Riwayat &amp; Log Eksekusi ({automationLogsTotal || automationLogs.length})</span>
-                      </h4>
-
-                      <button
-                        type="button"
-                        onClick={() => fetchAutomation()}
-                        disabled={isFetchingAutomation}
-                        style={{
-                          minHeight: '44px',
-                          minWidth: '44px',
-                          padding: '0.35rem 0.85rem',
-                          borderRadius: '0.55rem',
-                          backgroundColor: 'var(--bg-card)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-muted)',
-                          fontSize: '0.76rem',
-                          fontWeight: 700,
-                          cursor: isFetchingAutomation ? 'not-allowed' : 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '0.35rem'
-                        }}
-                      >
-                        <RefreshCw size={13} className={isFetchingAutomation ? 'spin' : ''} />
-                        <span>Segarkan</span>
-                      </button>
-                    </div>
-
-                    {/* Filter Chips by Bot */}
-                    <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}>
-                      {[
-                        { id: 'all', label: 'Semua Bot' },
-                        { id: 'ticket_retention_worker', label: 'Retensi PDP Tiket' },
-                        { id: 'item_retention_worker', label: 'Retensi Item' },
-                        { id: 'support_lifecycle', label: 'Support SLA' },
-                        { id: 'store_expiry', label: 'Toko Expired' },
-                        { id: 'dormancy_worker', label: 'Dormansi' },
-                        { id: 'promo_expiry', label: 'Promo' },
-                        { id: 'flash_sale', label: 'Flash Sale' },
-                        { id: 'cleaner_worker', label: 'Pembersih' },
-                        { id: 'weekly_summary', label: 'Ringkasan' }
-                      ].map(chip => (
-                        <button
-                          key={chip.id}
-                          type="button"
-                          onClick={() => {
-                            setAutomationLogsBotFilter(chip.id);
-                            fetchAutomation(chip.id, automationLogsStatusFilter, automationLogsSearch);
-                          }}
-                          style={{
-                            minHeight: '44px',
-                            minWidth: '44px',
-                            padding: '0.35rem 0.85rem',
-                            borderRadius: '0.65rem',
-                            fontSize: '0.76rem',
-                            fontWeight: automationLogsBotFilter === chip.id ? 800 : 600,
-                            border: `1px solid ${automationLogsBotFilter === chip.id ? 'var(--primary)' : 'var(--border-light)'}`,
-                            backgroundColor: automationLogsBotFilter === chip.id ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-card)',
-                            color: automationLogsBotFilter === chip.id ? 'var(--primary)' : 'var(--text-muted)',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          {chip.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Search Bar */}
-                    <div style={{ position: 'relative' }}>
-                      <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
-                      <input
-                        type="text"
-                        placeholder="Cari detail log atau target..."
-                        value={automationLogsSearch}
-                        onChange={e => {
-                          setAutomationLogsSearch(e.target.value);
-                          fetchAutomation(automationLogsBotFilter, automationLogsStatusFilter, e.target.value);
-                        }}
-                        style={{
-                          width: '100%',
-                          minHeight: '44px',
-                          padding: '0.55rem 0.85rem 0.55rem 2.5rem',
-                          borderRadius: '0.75rem',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: 'var(--bg-card)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.82rem',
-                          outline: 'none',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
-
-                    {/* Log Cards List */}
-                    {isFetchingAutomation ? (
-                      <div style={{ padding: '3rem 1rem', textAlign: 'center', backgroundColor: 'var(--bg-card)', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
-                        <Loader2 size={24} className="spin" color="var(--primary)" style={{ margin: '0 auto 0.5rem' }} />
-                        <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>Memuat log eksekusi...</p>
-                      </div>
-                    ) : automationLogs.length === 0 ? (
-                      <div style={{
-                        padding: '3rem 1rem',
-                        textAlign: 'center',
-                        backgroundColor: 'var(--bg-card)',
-                        borderRadius: '1rem',
-                        border: '1px solid var(--border-light)'
-                      }}>
-                        <Clock size={36} color="#94a3b8" style={{ margin: '0 auto 0.65rem', opacity: 0.6 }} />
-                        <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                          Belum ada riwayat eksekusi bot yang cocok dengan filter.
-                        </p>
-                      </div>
-                    ) : (
-                      automationLogs.map((log, idx) => {
-                        const isSuccess = log.status === 'success';
-                        const isError = log.status === 'error';
-                        const statusColor = isSuccess ? '#10b981' : (log.status === 'info' ? '#38bdf8' : '#ef4444');
-                        const statusBg = isSuccess ? 'rgba(16, 185, 129, 0.12)' : (log.status === 'info' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(239, 68, 68, 0.12)');
-                        const timeVal = log.timestamp || log.created_at;
-
-                        return (
-                          <div
-                            key={log.id || idx}
-                            style={{
-                              padding: '1rem 1.25rem',
-                              borderRadius: '0.95rem',
-                              backgroundColor: 'var(--bg-card)',
-                              border: '1px solid var(--border-light)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.5rem',
-                              boxShadow: 'var(--card-shadow, 0 2px 6px rgba(0,0,0,0.03))'
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <span style={{
-                                  fontSize: '0.66rem',
-                                  fontWeight: 800,
-                                  padding: '0.15rem 0.5rem',
-                                  borderRadius: '0.4rem',
-                                  backgroundColor: statusBg,
-                                  color: statusColor
-                                }}>
-                                  {log.status ? log.status.toUpperCase() : 'SUKSES'}
-                                </span>
-                                <span style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                  {log.bot_title || log.bot_name || log.bot_type || log.bot_id || 'Bot Worker'}
-                                </span>
-                              </div>
-
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                                {timeVal ? new Date(timeVal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : 'Baru saja'}
-                              </span>
-                            </div>
-
-                            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
-                              {log.details || log.message}
-                            </p>
-
-                            {log.error_message && (
-                              <div style={{
-                                padding: '0.55rem 0.85rem',
-                                borderRadius: '0.6rem',
-                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                border: '1px solid rgba(239, 68, 68, 0.25)',
-                                color: '#ef4444',
-                                fontSize: '0.76rem',
-                                fontWeight: 600
-                              }}>
-                                <strong>Error:</strong> {log.error_message}
-                              </div>
-                            )}
-
-                            {/* Metadata Footer */}
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              paddingTop: '0.45rem',
-                              borderTop: '1px solid var(--border-light)',
-                              fontSize: '0.72rem',
-                              color: 'var(--text-muted)',
-                              flexWrap: 'wrap',
-                              gap: '0.45rem'
-                            }}>
-                              <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-                                <span>Durasi: <strong style={{ color: 'var(--text-primary)' }}>{log.duration_ms ?? 0} ms</strong></span>
-                                <span>•</span>
-                                <span>Terdampak: <strong style={{ color: 'var(--text-primary)' }}>{log.affected_count ?? 0} entitas</strong></span>
-                              </div>
-                              <span style={{
-                                fontSize: '0.66rem',
-                                padding: '0.12rem 0.5rem',
-                                borderRadius: '0.35rem',
-                                backgroundColor: log.trigger_type === 'manual' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(99, 102, 241, 0.15)',
-                                color: log.trigger_type === 'manual' ? '#d97706' : '#6366f1',
-                                fontWeight: 700
-                              }}>
-                                {log.trigger_type === 'manual' ? 'Pemicu Manual' : 'Cron Otomatis'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* SUB-VIEW 4: SANDBOX & SIMULATOR ENGINE */}
-              {automationSubView === 'sandbox' && (
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', boxSizing: 'border-box' }}>
-                  <div style={{ maxWidth: '850px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div style={{
-                      padding: '1.4rem 1.6rem',
-                      borderRadius: '1.15rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.85rem'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <div style={{
-                          width: '38px',
-                          height: '38px',
-                          borderRadius: '0.75rem',
-                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#f59e0b',
-                          flexShrink: 0
-                        }}>
-                          <Zap size={20} />
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            Sandbox Simulator &amp; Pengujian Bot
-                          </h4>
-                          <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                            Simulasikan proses pengiriman notifikasi atau trigger bot tanpa mengganggu operasional normal.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div style={{
-                        padding: '0.85rem 1rem',
-                        borderRadius: '0.85rem',
-                        backgroundColor: 'var(--bg-deep)',
-                        border: '1px solid var(--border-light)',
-                        fontSize: '0.78rem',
-                        color: 'var(--text-muted)',
-                        lineHeight: 1.5,
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: '0.5rem'
-                      }}>
-                        <Info size={16} color="#38bdf8" style={{ flexShrink: 0, marginTop: '0.1rem' }} />
-                        <span><strong>Petunjuk:</strong> Modul sandbox memungkinkan Superadmin untuk menguji jalur transmisi SSE, validasi logic siklus toko/promo, dan memastikan antrean bot berjalan tanpa bottleneck.</span>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.35rem' }}>
-                        <button
-                          type="button"
-                          disabled={isTestingSandbox}
-                          onClick={handleRunSandboxTest}
-                          style={{
-                            minHeight: '46px',
-                            padding: '0.8rem 1.25rem',
-                            borderRadius: '0.85rem',
-                            backgroundColor: '#f59e0b',
-                            color: '#000000',
-                            fontSize: '0.84rem',
-                            fontWeight: 800,
-                            border: 'none',
-                            cursor: isTestingSandbox ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '0.5rem',
-                            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.25)'
-                          }}
-                        >
-                          {isTestingSandbox ? (
-                            <>
-                              <Loader2 size={16} className="spin" />
-                              <span>Mengirimkan Simulasi Realtime...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Send size={16} />
-                              <span>Uji Transmisi Event SSE (Test Guide)</span>
-                            </>
-                          )}
-                        </button>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.65rem' }}>
-                          <button
-                            type="button"
-                            disabled={isTriggeringBot !== null}
-                            onClick={() => handleTriggerSpecificBot('store_expiry', 'Kedaluwarsa Toko')}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.7rem 0.95rem',
-                              borderRadius: '0.75rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            <StoreIcon size={15} color="#3b82f6" />
-                            <span>Simulasi Toko Expired</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isTriggeringBot !== null}
-                            onClick={() => handleTriggerSpecificBot('dormancy_worker', 'Dormansi Toko')}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.7rem 0.95rem',
-                              borderRadius: '0.75rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            <Clock size={15} color="#8b5cf6" />
-                            <span>Simulasi Dormansi</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isTriggeringBot !== null}
-                            onClick={() => handleTriggerSpecificBot('promo_expiry', 'Promo Merchant')}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.7rem 0.95rem',
-                              borderRadius: '0.75rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            <Tag size={15} color="#10b981" />
-                            <span>Simulasi Promo Expired</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isTriggeringBot !== null}
-                            onClick={() => handleTriggerSpecificBot('cleaner_worker', 'Pembersih Notifikasi')}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.7rem 0.95rem',
-                              borderRadius: '0.75rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            <Trash2 size={15} color="#64748b" />
-                            <span>Pembersih Notifikasi</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isTriggeringBot !== null}
-                            onClick={() => handleTriggerSpecificBot('onboarding_engine', 'Starter Kit Onboarding')}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.7rem 0.95rem',
-                              borderRadius: '0.75rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            <Award size={15} color="#10b981" />
-                            <span>Simulasi Onboarding Toko</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isTriggeringBot !== null}
-                            onClick={() => handleTriggerSpecificBot('support_lifecycle', 'Audit SLA Tiket')}
-                            style={{
-                              minHeight: '44px',
-                              padding: '0.7rem 0.95rem',
-                              borderRadius: '0.75rem',
-                              backgroundColor: 'var(--bg-deep)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-primary)',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: isTriggeringBot !== null ? 'not-allowed' : 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            <HelpCircle size={15} color="#06b6d4" />
-                            <span>Simulasi SLA Tiket Helpdesk</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+            <div style={{ padding: '1.25rem', height: '100%', overflowY: 'auto', boxSizing: 'border-box' }}>
+              <ErrorBoundary sectionName="Mesin otomasi">
+                <AutomationConsole token={token} canManage={hasPermission(currentUser, 'system:automation:manage') || isSuperAdmin(currentUser)}
+                  device="tablet" theme={theme} isDark={isDark} revision={automationRevision} Catalog={AutomationCatalog}/>
+              </ErrorBoundary>
             </div>
           )}
 

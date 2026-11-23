@@ -240,10 +240,12 @@ func (s *SearchTelemetryService) startBatchFlusher() {
 		batch = batch[:0]
 
 		if err := s.db.CreateInBatches(toInsert, 50).Error; err != nil {
+			observeCycle("search_ingest", 0, 0, err)
 			log.Error().Err(err).Int("count", len(toInsert)).Msg("Failed to persist search telemetry batch to PostgreSQL")
 			return
 		}
 
+		observeCycle("search_ingest", 0, int64(len(toInsert)), nil)
 		// Real-time incremental rollup into search_daily_rollups so CTR & demand gaps are immediately live
 		type rollupAcc struct {
 			date        string
@@ -353,6 +355,7 @@ func (s *SearchTelemetryService) persistSearchClick(ev searchClickEvent) {
 			ctr_percentage = ROUND(LEAST(100.0, ((search_daily_rollups.clicked_product_count + 1)::numeric / GREATEST(search_daily_rollups.search_volume, 1)::numeric) * 100), 2),
 			updated_at = ?
 	`, ev.date, ev.keyword, ev.productType, now, now, now).Error
+	observeCycle("search_click", 0, 0, err)
 	if err != nil {
 		log.Warn().Err(err).Str("keyword", ev.keyword).Msg("Failed to record search click attribution")
 	}
@@ -506,11 +509,11 @@ func RollupDailyMarketTrends(db *gorm.DB, targetDate string) error {
 			Columns: []clause.Column{{Name: "date"}, {Name: "product_type"}, {Name: "category_name"}},
 			DoUpdates: clause.Assignments(map[string]interface{}{
 				"total_active_products": r.ActiveCount,
-				"total_views":          r.Views,
+				"total_views":           r.Views,
 				"total_wa_clicks":       r.WAClicks,
 				"total_rekber_clicks":   r.RekberClicks,
-				"conversion_rate":      convRate,
-				"average_price":        math.Round(r.AvgPrice),
+				"conversion_rate":       convRate,
+				"average_price":         math.Round(r.AvgPrice),
 			}),
 		}).Create(&item).Error
 	}

@@ -43,7 +43,7 @@ export function reportClientError(report: CrashReport): void {
     stack: String(report.stack || '').slice(0, 8000),
     section: String(report.section || '').slice(0, 300),
     component: String(report.component || '').slice(0, 300),
-    url: String(window.location.href).slice(0, 300),
+    url: `${window.location.origin}${window.location.pathname}`.slice(0, 300),
     user_agent: String(navigator.userAgent || '').slice(0, 300),
     platform: window.innerWidth < 768 ? 'mobile' : 'desktop',
     build: String((import.meta as any)?.env?.VITE_BUILD_ID || '').slice(0, 80),

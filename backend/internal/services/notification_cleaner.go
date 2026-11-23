@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -36,9 +37,9 @@ func StartNotificationCleaner(ctx context.Context, db *gorm.DB, interval time.Du
 }
 
 // runCleanup executes the database cleanup queries for expired notifications and 30-day retention.
-func runCleanup(db *gorm.DB) {
+func runCleanup(db *gorm.DB) error {
 	if db == nil {
-		return
+		return fmt.Errorf("database tidak tersedia")
 	}
 
 	now := time.Now().UTC()
@@ -101,7 +102,9 @@ func runCleanup(db *gorm.DB) {
 
 	// 6. Delete expired user sessions older than 30 days (Industry Standard Housekeeping)
 	var purgedSessions int64
+	var sessionErr error
 	if count, err := CleanupExpiredUserSessions(db); err != nil {
+		sessionErr = err
 		log.Warn().Err(err).Msg("Failed to clean expired user sessions")
 	} else if count > 0 {
 		purgedSessions = count
@@ -129,13 +132,20 @@ func runCleanup(db *gorm.DB) {
 	}
 
 	summary := fmt.Sprintf("Pembersihan selesai. Total %d record kedaluwarsa dibersihkan.", totalCleaned)
+	fault := ""
+	status := "success"
+	cycleErr := errors.Join(resExpired.Error, resOldTargeted.Error, resRetention.Error, resOldDismissed.Error, resOrphaned.Error, sessionErr)
+	if cycleErr != nil {
+		fault = cycleErr.Error()
+		status = "error"
+	}
 	GetAutomationTracker().RecordWorkerHeartbeat(
 		"cleaner_worker",
-		"running",
+		status,
 		summary,
-		"",
+		fault,
 		totalCleaned,
 		time.Now().UTC().Add(1*time.Hour),
 	)
+	return cycleErr
 }
-

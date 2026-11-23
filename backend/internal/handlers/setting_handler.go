@@ -114,14 +114,17 @@ func (h *SettingHandler) PublicIndex(c *fiber.Ctx) error {
 		"legal_warning_banner":         true,
 	}
 
+	keys := make([]string, 0, len(publicKeys))
+	for key := range publicKeys {
+		keys = append(keys, key)
+	}
 	var settings []models.Setting
-	h.db.Find(&settings)
-
+	if err := h.db.Where("key IN ?", keys).Find(&settings).Error; err != nil {
+		return fiber.NewError(500, "Gagal memuat pengaturan")
+	}
 	res := make(map[string]string)
 	for _, s := range settings {
-		if publicKeys[s.Key] {
-			res[s.Key] = s.Value
-		}
+		res[s.Key] = s.Value
 	}
 
 	h.applyFallbacks(res)
@@ -159,7 +162,13 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 		})
 	}
 	var settings []models.Setting
-	h.db.Find(&settings)
+	query := h.db
+	if c.Query("exclude") == "master_coupons" {
+		query = query.Where("key <> ?", "master_coupons")
+	}
+	if err := query.Find(&settings).Error; err != nil {
+		return fiber.NewError(500, "Gagal memuat pengaturan")
+	}
 
 	res := make(map[string]string)
 	for _, s := range settings {

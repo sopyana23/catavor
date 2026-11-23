@@ -12333,10 +12333,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       }
     }
 
-    // 2. Real Google OAuth 2.0 Popup Window (100% Real Google Authorization Window)
+    // 2. Real Google OAuth 2.0 Popup Window with State Nonce (RFC 6749 CSRF Prevention)
     const redirectUri = encodeURIComponent(window.location.origin);
     const scope = encodeURIComponent('email profile openid');
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+    const oauthState = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+    try { sessionStorage.setItem('catavor_oauth_state', oauthState); } catch (_) {}
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}&state=${oauthState}`;
     
     const width = 520;
     const height = 640;
@@ -12378,8 +12380,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
           const hash = popup.location.hash.substring(1);
           const params = new URLSearchParams(hash);
           const accessToken = params.get('access_token');
+          const returnedState = params.get('state');
+          let expectedState = '';
+          try {
+            expectedState = sessionStorage.getItem('catavor_oauth_state') || '';
+            sessionStorage.removeItem('catavor_oauth_state');
+          } catch (_) {}
           try { popup.close(); } catch (_) {}
           clearInterval(checkPopup);
+
+          if (expectedState && returnedState !== expectedState) {
+            console.error('OAuth state CSRF validation failed');
+            return;
+          }
 
           if (accessToken) {
             fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -12459,14 +12472,32 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
     };
 
+    const validateOAuthState = (returnedState: string | null): boolean => {
+      let expectedState = '';
+      try {
+        expectedState = sessionStorage.getItem('catavor_oauth_state') || '';
+      } catch (_) {}
+      if (expectedState) {
+        if (!returnedState || returnedState !== expectedState) {
+          console.error('OAuth state CSRF validation failed');
+          return false;
+        }
+        try { sessionStorage.removeItem('catavor_oauth_state'); } catch (_) {}
+      }
+      return true;
+    };
+
     // 1. window message listener (from popup opener.postMessage)
     const handleAuthMessage = async (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'CATAVOR_GOOGLE_AUTH_CALLBACK') {
         const hash = event.data.hash ? event.data.hash.replace(/^#/, '') : '';
-        const params = new URLSearchParams(hash);
+        const search = event.data.search ? event.data.search.replace(/^\?/, '') : '';
+        const params = new URLSearchParams(hash || search);
         const accessToken = params.get('access_token');
+        const state = params.get('state') || event.data.state || null;
         if (accessToken) {
+          if (!validateOAuthState(state)) return;
           handleOAuthToken(accessToken);
         }
       }
@@ -12481,9 +12512,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
         bc.onmessage = (event) => {
           if (event.data?.type === 'CATAVOR_GOOGLE_AUTH_CALLBACK') {
             const hash = event.data.hash ? event.data.hash.replace(/^#/, '') : '';
-            const params = new URLSearchParams(hash);
+            const search = event.data.search ? event.data.search.replace(/^\?/, '') : '';
+            const params = new URLSearchParams(hash || search);
             const accessToken = params.get('access_token');
+            const state = params.get('state') || event.data.state || null;
             if (accessToken) {
+              if (!validateOAuthState(state)) return;
               handleOAuthToken(accessToken);
             }
           }
@@ -12496,11 +12530,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
       if (e.key === 'catavor_oauth_broadcast' && e.newValue) {
         try {
           const payload = JSON.parse(e.newValue);
-          if (payload && payload.hash) {
-            const hash = payload.hash.replace(/^#/, '');
-            const params = new URLSearchParams(hash);
+          if (payload && (payload.hash || payload.search)) {
+            const hash = payload.hash ? payload.hash.replace(/^#/, '') : '';
+            const search = payload.search ? payload.search.replace(/^\?/, '') : '';
+            const params = new URLSearchParams(hash || search);
             const accessToken = params.get('access_token');
+            const state = params.get('state') || payload.state || null;
             if (accessToken) {
+              if (!validateOAuthState(state)) return;
               handleOAuthToken(accessToken);
             }
           }
@@ -12514,8 +12551,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const hash = window.location.hash.replace(/^#/, '');
       const params = new URLSearchParams(hash);
       const accessToken = params.get('access_token');
+      const state = params.get('state');
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
       if (accessToken) {
+        if (!validateOAuthState(state)) return;
         handleOAuthToken(accessToken);
       }
     }
@@ -15323,6 +15362,29 @@ Terima kasih atas perhatian dan kerja samanya.`;
             </span>
           </div>
         </div>
+
+        {mfaChallenge && (
+          <MFAChallengeView
+            challenge={mfaChallenge.challenge}
+            email={mfaChallenge.email}
+            apiBase={API_BASE}
+            onCancel={() => { setMfaChallenge(null); setLoginError(null); }}
+            onVerified={handleMFAVerified}
+          />
+        )}
+        {mfaSetupPending && (
+          <MFAOnboardingModal
+            setupToken={mfaSetupPending.setupToken}
+            email={mfaSetupPending.email}
+            apiBase={API_BASE}
+            onCancel={() => { setMfaSetupPending(null); setLoginError(null); }}
+            onCompleted={(verifiedData) => {
+              const pending = mfaSetupPending;
+              setMfaSetupPending(null);
+              finalizeLogin(verifiedData, pending?.slug || null);
+            }}
+          />
+        )}
       </div>
     );
   }

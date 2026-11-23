@@ -61,6 +61,11 @@ func (s *OTPService) GenerateAndSendPasswordResetOTP(email string, recipientName
 	return s.generateAndSendOTP(email, recipientName, "password_reset", "Atur Ulang Kata Sandi Akun Catavor", "Gunakan kode berikut untuk memulihkan dan mengatur ulang kata sandi akun Anda:")
 }
 
+// GenerateAndSendEmailChangeOTP generates and sends an OTP for verifying a new email address.
+func (s *OTPService) GenerateAndSendEmailChangeOTP(email string, recipientName string) (string, error) {
+	return s.generateAndSendOTP(email, recipientName, "email_change", "Verifikasi Penggantian Alamat Email Catavor", "Gunakan kode berikut untuk mengonfirmasi penggantian alamat email akun Anda ke alamat baru ini:")
+}
+
 func (s *OTPService) generateAndSendOTP(email string, recipientName string, purpose string, subject string, introText string) (string, error) {
 	cleanedEmail := strings.TrimSpace(strings.ToLower(email))
 	if cleanedEmail == "" {

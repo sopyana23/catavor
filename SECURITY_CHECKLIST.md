@@ -274,4 +274,12 @@ graph LR
 | **DevSecOps** | Dependabot & Gosec CI/CD Scanner | **Masa Depan (Server)** | 🟡 Integrasi GitHub Actions |
 
 ---
-*Dokumen ini dibuat sebagai standar operasional prosedur (SOP) keamanan pengembangan dan operasional sistem Catavor (DFauna). Riwayat audit mendalam Putaran 7 (Hybrid Agent + Cloudflare Security Audit Methodology) tercatat pada [`security-audit/audit-putaran-7-2026-11-08.md`](security-audit/audit-putaran-7-2026-11-08.md).*
+
+## 5. Metodologi Pelengkap Audit Mendalam (`security-audit-cloudflare`)
+
+Checklist pada Fase 1 & Fase 2 di atas berfungsi sebagai **Lapis 1 (Preventive Baseline)** saat implementasi fitur harian. Untuk menangkap celah logika bisnis kompleks, *parallel-path RBAC bypass*, *TOCTOU race conditions*, dan kebocoran lintas-komponen yang tidak terdeteksi oleh *checklist* statis, platform ini menetapkan skill **`security-audit-cloudflare`** sebagai **Lapis 2 (Invariant & Trust-Boundary Deep Audit)** resmi sesuai standar [.agents/rules/09_security_audit_methodology.md](file:///c:/MyProject/DFauna/.agents/rules/09_security_audit_methodology.md):
+- **Guidance Mode**: Digunakan saat meninjau *pull request*, penggabungan cabang antar-agent, atau perubahan pada modul Auth/MFA/RBAC/Billing/Storage.
+- **Full Audit Mode (`quick` / `standard` / `deep`)**: Digunakan untuk audit *end-to-end* terstruktur menggunakan *deterministic coverage ledger* (`coverage-ledger.json`), *domain companions* (`WEB-PROTOCOL-AND-AUTH`, `DATA-ISOLATION-AND-LIFECYCLE`, `CLIENT-SIDE`, `PROTOCOLS-RPC-AND-MESSAGING`, `RESOURCE-EXHAUSTION-AND-AVAILABILITY`, `CLOUD-AND-DEPLOYMENT`, `SUPPLY-CHAIN-AND-RELEASE`), serta pemisahan ketat *Hunter* vs *Fresh Independent Verifier* tanpa menyentuh server/DB aktif.
+
+---
+*Dokumen ini dibuat sebagai standar operasional prosedur (SOP) keamanan pengembangan dan operasional sistem Catavor (DFauna). Riwayat audit mendalam tercatat pada [`security-audit/audit-putaran-7-2026-11-08.md`](security-audit/audit-putaran-7-2026-11-08.md) dan aturan permanen [`.agents/rules/09_security_audit_methodology.md`](.agents/rules/09_security_audit_methodology.md).*

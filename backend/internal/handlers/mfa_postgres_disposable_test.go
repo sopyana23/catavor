@@ -61,18 +61,14 @@ func openDisposablePostgres(t *testing.T) *gorm.DB {
 		t.Fatalf("reset schema PostgreSQL disposable: %v", err)
 	}
 
-	if err := pgDB.AutoMigrate(
-		&models.User{},
-		&models.UserSession{},
-		&models.Store{},
-		&models.ActivityLog{},
-		&models.EmailVerificationOTP{},
-		&models.PlatformRole{},
-		&models.PlatformPermission{},
-		&models.PlatformRolePermission{},
-		&models.Setting{},
-	); err != nil {
-		t.Fatalf("AutoMigrate tabel inti di PostgreSQL disposable: %v", err)
+	// Seluruh skema wajib berasal dari jalur produksi: BootstrapProductionSchema
+	// menjalankan AutoMigrate gelombang demi gelombang, lalu RunMigrations dan
+	// verifikasi N-60 di dalamnya. Sebelumnya test menyusun AutoMigrate sebagian
+	// model sendiri, sehingga tabel dari migrasi terbaru (mis. n62
+	// pending_owner_media_deletions) tidak ada dan DeleteAccount gagal dengan
+	// SQLSTATE 42P01 — kegagalan murni artefak test, bukan regresi kode.
+	if err := database.BootstrapProductionSchema(pgDB); err != nil {
+		t.Fatalf("BootstrapProductionSchema di PostgreSQL disposable: %v", err)
 	}
 
 	// Terapkan berkas migrasi N-60 asli agar seluruh CHECK constraint, UNIQUE index,
@@ -538,22 +534,12 @@ func TestMFAPostgresConcurrencyRollbackAndSingleUse(t *testing.T) {
 
 	// --- Subtes 6: DeleteAccount & CleanupExpiredUserSessions di PostgreSQL riil dengan FK RESTRICT mfa_auth_completions ---
 	t.Run("delete_account_and_cleanup_sessions_with_pg_fk_restrict", func(t *testing.T) {
-		if err := pgDB.AutoMigrate(
-			&models.Category{},
-			&models.Product{},
-			&models.ProductVariant{},
-			&models.ProductImage{},
-			&models.Article{},
-			&models.StoreDailyAnalytics{},
-			&models.ProductDailyAnalytics{},
-			&models.StoreDailyTrafficSource{},
-			&models.NotificationRead{},
-			&models.UserPolicyAgreement{},
-			&models.SupportTicket{},
-			&models.SupportMessage{},
-			&models.SupportAttachment{},
-		); err != nil {
-			t.Fatalf("AutoMigrate tabel toko di PostgreSQL disposable gagal: %v", err)
+		cfg.StorageDriver = "local"
+		cfg.StorageLocalRoot = t.TempDir()
+		cfg.StoragePrivateRoot = t.TempDir()
+		cfg.StorageDir = cfg.StorageLocalRoot
+		if err := database.BootstrapProductionSchema(pgDB); err != nil {
+			t.Fatalf("bootstrap skema penghapusan akun PostgreSQL: %v", err)
 		}
 		authH := NewAuthHandler(cfg, pgDB)
 		app.Post("/api/user/account/delete", middleware.AuthRequired(cfg), authH.DeleteAccount)

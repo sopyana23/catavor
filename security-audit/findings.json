@@ -1,857 +1,858 @@
 {
- "audit_date": "2026-10-18",
- "target": "C:\\MyProject\\DFauna",
- "scope": "backend Go (Fiber+GORM) + frontend React TS",
- "read_only": true,
- "findings": [
-  {
-   "id": "H1",
-   "severity": "high",
-   "title": "err.Error() + raw request body leaked to client",
-   "location": "backend/internal/handlers/auth_handler.go:1555",
-   "endpoint": "SendRegistrationOTP",
-   "impact": "Information disclosure; raw request body echoed to HTTP response",
-   "fix": "Generic message to client, detail to server log only",
-   "status": "fixed",
-   "resolution": "err.Error() tidak lagi dikirim mentah; diverifikasi 0 pola di handlers/middleware"
-  },
-  {
-   "id": "H2",
-   "severity": "high",
-   "title": "Vulnerable dependencies (active CVEs)",
-   "packages": [
+  "audit_date": "2026-10-18",
+  "target": "C:\\MyProject\\DFauna",
+  "scope": "backend Go (Fiber+GORM) + frontend React TS",
+  "read_only": true,
+  "findings": [
     {
-     "name": "github.com/gofiber/fiber/v2",
-     "version": "v2.52.5",
-     "cve": [
-      "CVE-2025-66630",
-      "CVE-2025-48075"
-     ],
-     "fix_version": "latest 2.52.x"
+      "id": "H1",
+      "severity": "high",
+      "title": "err.Error() + raw request body leaked to client",
+      "location": "backend/internal/handlers/auth_handler.go:1555",
+      "endpoint": "SendRegistrationOTP",
+      "impact": "Information disclosure; raw request body echoed to HTTP response",
+      "fix": "Generic message to client, detail to server log only",
+      "status": "fixed",
+      "resolution": "err.Error() tidak lagi dikirim mentah; diverifikasi 0 pola di handlers/middleware"
     },
     {
-     "name": "github.com/golang-jwt/jwt/v5",
-     "version": "v5.2.1",
-     "cve": [
-      "CVE-2025-30204"
-     ],
-     "fix_version": ">=5.2.2"
+      "id": "H2",
+      "severity": "high",
+      "title": "Vulnerable dependencies (active CVEs)",
+      "packages": [
+        {
+          "name": "github.com/gofiber/fiber/v2",
+          "version": "v2.52.5",
+          "cve": [
+            "CVE-2025-66630",
+            "CVE-2025-48075"
+          ],
+          "fix_version": "latest 2.52.x"
+        },
+        {
+          "name": "github.com/golang-jwt/jwt/v5",
+          "version": "v5.2.1",
+          "cve": [
+            "CVE-2025-30204"
+          ],
+          "fix_version": ">=5.2.2"
+        },
+        {
+          "name": "github.com/go-playground/validator/v10",
+          "version": "v10.23.0",
+          "cve": [],
+          "fix_version": "latest"
+        }
+      ],
+      "fix": "go get -u ...; go mod tidy; govulncheck ./...",
+      "status": "fixed",
+      "resolution": "govulncheck Go 1.26.9: 'No vulnerabilities found', 0 affected"
     },
     {
-     "name": "github.com/go-playground/validator/v10",
-     "version": "v10.23.0",
-     "cve": [],
-     "fix_version": "latest"
+      "id": "M1",
+      "severity": "medium",
+      "title": "JWT stored in localStorage",
+      "location": "frontend/desktop/src/utils/apiClient.ts:106 (and App.tsx)",
+      "impact": "Single XSS = full account takeover",
+      "status": "fixed",
+      "resolution": "cookie HttpOnly + CSRF + tiket SSE sekali pakai; lihat perbaikan-m1-penuh.md"
+    },
+    {
+      "id": "M2",
+      "severity": "medium",
+      "title": "Weak CSP (unsafe-inline, unsafe-eval in script-src)",
+      "location": "backend/internal/middleware/security.go:37",
+      "impact": "CSP XSS protection largely nullified; wildcard img-src/connect-src",
+      "status": "fixed",
+      "resolution": "CSP pakai SHA-256 hash, tanpa unsafe-eval; lihat perbaikan-m2-csp.md"
+    },
+    {
+      "id": "M3",
+      "severity": "medium",
+      "title": "Security state in-memory (bypass on restart / multi-instance)",
+      "location": "backend/internal/database/redis.go:282-418; middleware/security.go:90,120,137",
+      "impact": "Without Redis: logout blacklist, login lockout, rate limit reset on restart; per-instance counters in multi-replica",
+      "status": "fixed",
+      "resolution": "fail closed di production: startup, blacklist JWT, lockout login"
+    },
+    {
+      "id": "M4",
+      "severity": "medium",
+      "title": "err.Error() leaked to client in many handlers",
+      "location": [
+        "analytics_handler.go:1105,1124,1135",
+        "notification_handler.go:1273-1300",
+        "dormancy_handler.go:105"
+      ],
+      "impact": "Internal error detail disclosure",
+      "status": "fixed",
+      "resolution": "safe_error.go; respons error generik"
+    },
+    {
+      "id": "L1",
+      "severity": "low",
+      "title": "Potential path traversal / ambiguous LIKE lookup",
+      "location": "support_handler.go:2312",
+      "status": "fixed",
+      "resolution": "escape wildcard LIKE; kode auth_handler"
+    },
+    {
+      "id": "L2",
+      "severity": "low",
+      "title": "Regex-based SanitizeRichText (blacklist, bypassable)",
+      "location": "security/sanitizer.go",
+      "status": "fixed",
+      "resolution": "sanitizer allowlist parser (x/net/html), bukan regex blacklist"
+    },
+    {
+      "id": "L3",
+      "severity": "low",
+      "title": "CORS AllowCredentials true (ensure no wildcard origin in prod)",
+      "location": "middleware/security.go:57",
+      "status": "fixed",
+      "resolution": "wildcard origin ditolak, AllowCredentials hanya untuk origin eksplisit"
+    },
+    {
+      "id": "L4",
+      "severity": "low",
+      "title": "Default JWT secret only warns, no fatal in production",
+      "location": "config/config.go:82",
+      "status": "fixed",
+      "resolution": "JWT secret default/panjang<32 -> log.Fatal di production/staging"
+    },
+    {
+      "id": "L5",
+      "severity": "low",
+      "title": "err.Error() in dormancy_handler.go:49",
+      "location": "dormancy_handler.go:49",
+      "status": "fixed",
+      "resolution": "dormancy_handler tidak lagi memakai err.Error()"
+    },
+    {
+      "id": "L6",
+      "severity": "low",
+      "title": "DB_SSLMODE=disable in .env",
+      "location": ".env",
+      "status": "fixed",
+      "resolution": "fail closed di production; .env.example kini mencontohkan require"
+    },
+    {
+      "id": "N-10",
+      "severity": "medium",
+      "title": "Ignored return of ValidateAndConsumeToken in password reset flows",
+      "location": "backend/internal/handlers/auth_handler.go:1457,1790",
+      "endpoint": "ForgotPasswordReset, ResetPasswordDirect",
+      "impact": "Expired/reused verification token still allowed password reset. Not an auth bypass: a valid OTP is still required first.",
+      "fix": "Check the bool return; return 422 when the token is invalid. In ResetPasswordDirect, look up the user before consuming the token.",
+      "status": "fixed",
+      "commit": "8c7a78d",
+      "resolution": "grep '_ = .*ValidateAndConsumeToken' -> 0 after fix; runtime reset with fake OTP -> 422"
+    },
+    {
+      "id": "N-11",
+      "severity": "critical",
+      "title": "Registration email verification fully bypassable",
+      "location": "backend/internal/handlers/auth_handler.go:580",
+      "endpoint": "POST /api/auth/register",
+      "impact": "VerifyOTP never called and token consume result discarded; only 'verification_token != \\\"\\\"' was checked. Anyone could create email-verified accounts and stores without receiving any email.",
+      "fix": "Require a successful ValidateAndConsumeToken for purpose 'registration'; reject 422 otherwise.",
+      "status": "fixed",
+      "commit": "8c7a78d",
+      "resolution": "Runtime pre-fix: fabricated token -> 200 (store 26), no token -> 200 (store 27), email_verification_otps count = 0 while email_verified_at set. Post-fix: 422 for both, valid flow 200, replay 422. Negative control on vulnerable build FAILS as required."
+    },
+    {
+      "id": "N-12",
+      "severity": "high",
+      "title": "Platform settings writable by any non-merchant platform staff (blacklist role check)",
+      "location": "backend/internal/handlers/setting_handler.go; backend/cmd/server/main.go:519-521",
+      "endpoint": "GET/POST /api/admin/settings, POST /api/admin/settings/rekber/reset-defaults",
+      "impact": "Handler used a blacklist (role == \\\"\\\" || role == \\\"merchant\\\"), so every staff role outside merchant passed; GET had no authz check at all. Staff 'support' altered monetization/ads/partner settings.",
+      "fix": "Gate the three routes with RequirePermission(\\\"system:settings:manage\\\") (already present in the RBAC matrix, superadmin-only); replace the handler blacklist with the IsPlatformStaffRole whitelist as defense in depth.",
+      "status": "fixed",
+      "commit": "02a22b8",
+      "resolution": "support: 200 -> 403 (negatif control on vulnerable build: 200). superadmin 200, merchant 403. ads_test_mode changed 0->true then restored to 0. No regression on /admin/support/tickets and /admin/rbac/me."
+    },
+    {
+      "id": "N-13",
+      "severity": "critical",
+      "title": "Paket berbayar aktif tanpa pembayaran lewat POST /api/auth/google",
+      "location": "backend/internal/handlers/auth_handler.go: GoogleAuth (CASE B)",
+      "status": "fixed",
+      "commit": "ac1ae3e",
+      "summary": "GoogleAuth memakai req.Plan untuk menetapkan plan pro_* dan payment_status paid tanpa harga/invoice/verifikasi admin. Register() sudah punya penjagaan yang sama tetapi tidak dipasang di jalur Google.",
+      "runtime_proof": "belum end-to-end (butuh token Google asli); unit test + kontrol negatif"
+    },
+    {
+      "id": "N-14",
+      "severity": "high",
+      "title": "Klaim email_verified Google diabaikan; akun dapat diambil alih",
+      "location": "backend/internal/handlers/auth_handler.go: verifyGoogleCredential, GoogleAuth (CASE A)",
+      "status": "fixed",
+      "commit": "ac1ae3e",
+      "summary": "email_verified dibaca tetapi tidak diperiksa di kedua jalur verifikasi; CASE A menempelkan google_id ke akun mana pun dengan email sama. Penjagaan wajib mensyaratkan akun belum tertaut Google agar 5 akun produksi tidak terkunci.",
+      "runtime_proof": "unit test + kontrol negatif; cek data 5 akun lolos"
+    },
+    {
+      "id": "N-15",
+      "severity": "high",
+      "title": "X-Forwarded-For dapat dipalsukan; rate limiter & dedup per-IP dilewati",
+      "location": "backend/internal/config/config.go (TrustedProxies), backend/cmd/server/main.go: fiber.Config, backend/internal/handlers/analytics_handler.go, backend/internal/handlers/report_handler.go",
+      "status": "fixed",
+      "summary": "TrustedProxies di-hardcode mencakup 127.0.0.1/::1 dan seluruh RFC1918 sehingga siapa pun di LAN dianggap proxy terpercaya. Dua handler juga membaca X-Forwarded-For mentah, melewati normalisasi Fiber. Daftar kini konfigurabel via TRUSTED_PROXIES (default loopback) dan kedua handler memakai c.IP().",
+      "runtime_proof": "Dari IP LAN 192.168.1.6: 15 request -> 429; 8 request dengan XFF berputar sebelumnya 200 semua, sesudah perbaikan 429 semua."
+    },
+    {
+      "id": "N-16",
+      "severity": "medium",
+      "title": "POST /api/help/articles/:id/helpful tanpa rate limiter dan tanpa dedup",
+      "location": "backend/cmd/server/main.go (registrasi rute), backend/internal/handlers/support_handler.go: VoteHelpful",
+      "status": "fixed",
+      "summary": "Rute publik menaikkan helpful_count tanpa batas. Ditambahkan PublicSubmissionRateLimiter dan dedup per (IP, artikel) berjendela 24 jam.",
+      "runtime_proof": "40 POST dari satu IP: sebelumnya helpful_count 0->40; sesudah perbaikan 200 x15 lalu 429 x25 dan helpful_count tetap 1."
+    },
+    {
+      "id": "N-17",
+      "severity": "medium",
+      "title": "Enumerasi akun lewat /api/send-register-otp dan forgot-password",
+      "location": "backend/internal/handlers/auth_handler.go: SendRegistrationOTP, ForgotPasswordRequest",
+      "status": "fixed",
+      "summary": "Email terdaftar dibalas 422 'Email sudah terdaftar' sementara email bebas 200; cabang blacklist juga 403 dengan alasan eksplisit. Semua jalur keluar (termasuk honeypot) kini memakai satu respons seragam.",
+      "runtime_proof": "Respons byte-identik 200 untuk email terdaftar dan tidak terdaftar. Uji versi pertama tidak sah (lulus walau jalur dibedakan); diganti dan dibuktikan gagal saat satu jalur dibedakan."
+    },
+    {
+      "id": "N-18",
+      "severity": "critical",
+      "title": "Merchant dapat menerbitkan, mengubah, dan menghapus artikel platform serta menulis master settings",
+      "location": "backend/cmd/server/main.go rute /articles (POST/PUT/DELETE), /settings, /settings/policies",
+      "status": "fixed",
+      "summary": "Rute tulis artikel dan settings hanya dijaga StoreOwnerRequired; handler Store/Update/Destroy tidak memeriksa peran sama sekali, dan Destroy menghapus berdasarkan id tanpa filter kepemilikan.",
+      "runtime_proof": "Merchant: POST /articles 201, PUT /articles/1 200 (judul platform berubah), DELETE 200. Sesudah perbaikan kelimanya 403 untuk merchant; superadmin tetap 201/200. Data dipulihkan, hash artikel id 1 kembali identik."
+    },
+    {
+      "id": "N-19",
+      "severity": "critical",
+      "title": "Kupon gratis hardcoded mengaktifkan paket berbayar tanpa pembayaran",
+      "location": "backend/internal/services/subscription_service.go: CreateSubscriptionOrder",
+      "status": "fixed",
+      "summary": "Kupon bawaan CATAVOR100/GRATISPRO memberi potongan harga penuh sehingga finalAmount 0 dan payment_status otomatis paid; paket langsung aktif. Kupon kini hanya dari setting master_coupons yang dikelola admin.",
+      "runtime_proof": "Sebelum: order pro_business annual dengan CATAVOR100 -> discount 1290000, status paid, stores.id=25 plan pro_business sampai 2027. Sesudah: discount 0, status pending, toko tetap free; kupon sah admin (fixed 10000 dan type free) tetap berfungsi."
+    },
+    {
+      "id": "N-20",
+      "severity": "medium",
+      "title": "Persetujuan invoice langganan tidak meninggalkan jejak audit",
+      "location": "backend/internal/handlers/subscription_handler.go: ApproveOrder",
+      "status": "fixed",
+      "summary": "Approve mengubah order pending menjadi paid dan mengaktifkan paket, tetapi tidak menulis activity_logs dan subscription_orders tidak punya kolom approved_by; hanya zerolog ke stdout. Aksi katalog biasa justru tercatat. Kini ditulis sebagai billing.subscription_approve lengkap dengan pelaku dan approved_by.",
+      "runtime_proof": "Sebelum: approve 200, activity_logs ILIKE '%approv%' = 0 baris. Sesudah: tercatat user_id=12, action=billing.subscription_approve, entity_title=INV-SUB-..., changes.approved_by=12. Kontrol negatif: pencatatan dicabut -> approve 200 tetapi baris audit tetap 1->1; patch dipulihkan -> 1->2."
+    },
+    {
+      "id": "N-21",
+      "severity": "medium",
+      "title": "Toko dengan slug mengandung merek platform tidak dapat diakses publik (404)",
+      "location": "backend/internal/handlers/store_handler.go:114 (IsReservedSlug), dipakai ShowStore & IndexProducts",
+      "status": "fixed",
+      "category": "fungsional",
+      "summary": "IsReservedSlug() menolak setiap slug yang mengandung varian merek (catavor/catafor/katavor/catafr/...), dan pemeriksaan yang sama dipakai saat MEMBACA toko yang sudah ada, bukan hanya saat registrasi. Akibatnya /api/u/:slug dan /api/u/:slug/products mengembalikan 404 'Toko tidak ditemukan.' untuk toko yang slug-nya mengandung nama merek.",
+      "evidence": "Runtime tanpa auth: /api/u/dfauna|adidas|gendolo|shop66698|iop semua 200; /api/u/catavor dan /api/u/catavor-compliance keduanya 404 (ShowStore dan IndexProducts). Toko id=1 slug=catavor plan=pro status=active punya 11 produk aktif yang tidak dapat dibuka publik. check-slug menolak slug ini dengan 'kata kunci sistem yang dicadangkan'.",
+      "impact": "Katalog toko milik pemilik platform (11 produk aktif) tidak dapat diakses publik maupun lewat API. Bukan kebocoran data; kebalikannya — kehilangan akses sah.",
+      "fix": "Reserved-slug dicabut dari 4 handler BACA publik (ShowStore, IndexProducts, IndexFauna, CatalogMetrics) karena validasi penamaan adalah aturan write-path, bukan syarat lookup. Reserved-slug TETAP ditegakkan di semua jalur tulis: Register, CreateStore, UpdateStore (rename), dan CheckSlug.",
+      "resolution": "FIXED di 6eb0d20. Bukti runtime (PID 39724): /api/u/catavor-uji, /products, /fauna, /catalog-metrics semuanya 200 (sebelumnya 404) dan body memuat store_title toko tsb (bukan 200 kosong). Kontrol positif: slug normal 200. Kontrol negatif: slug tidak ada 404. Jalur tulis tetap menolak: check-slug catavor-palsu -> available=false, slug bebas -> available=true. Bukti browser: /catavor-demo ter-render 'Toko Demo Catavor', sebelumnya 404. Regresi N-36 (iss/aud palsu 401) dan N-32 (cmap 39443B) tetap PASS. 17 PASS / 0 FAIL. Data uji dihapus, stores=0.",
+      "verified_at": "2026-10-18"
+    },
+    {
+      "id": "N-22",
+      "severity": "medium",
+      "title": "Urutan Stores[0] tidak deterministik — toko blacklisted terpilih sebagai default login",
+      "location": "backend/internal/handlers/auth_handler.go:309, :933 (Preload \"Stores\" tanpa ORDER BY)",
+      "status": "fixed",
+      "summary": "Login/GoogleAuth memuat relasi Stores tanpa ORDER BY lalu memakai user.Stores[0] sebagai toko default. Postgres mengembalikan urutan fisik: untuk user 5 (7 toko) elemen pertama adalah toko id 8 'jaja' yang is_suspended dan is_blacklisted. Token berisi store_id=8 sementara middleware memasang store 15 ke request, sehingga token dan request aktif tidak sepakat soal toko.",
+      "evidence": "Sebelum: JWT store_id=8 (jaja, blacklisted) x3 login stabil; request aktif store_id=15. Sesudah helper preloadUserStores(): store_id=5 (adidas) 3/3, request aktif 5. Kontrol negatif (ORDER BY dihapus, build bersih): kembali store_id=8.",
+      "impact": "Pengguna dengan lebih dari satu toko bisa mendarat di toko yang salah, termasuk toko suspended/blacklisted. Token dan konteks request menunjuk toko berbeda, berisiko operasi tulis masuk ke toko yang tidak dipilih pengguna.",
+      "fix": "func preloadUserStores(q *gorm.DB) *gorm.DB { return q.Preload(\"Stores\", func(db *gorm.DB) *gorm.DB { return db.Order(\"is_blacklisted ASC, is_suspended ASC, id ASC\") }) } — dipakai di ketiga Preload(\"Stores\").",
+      "resolution": "Terverifikasi runtime; kontrol negatif mereproduksi bug; hash owner dipulihkan dan password probe ditolak 401."
+    },
+    {
+      "id": "N-23",
+      "severity": "high",
+      "title": "Route admin platform terdaftar di grup merchant (StoreOwnerRequired) — staf tanpa toko tertolak 403, dan duplikasi route menutupi versi yang benar",
+      "location": "backend/cmd/server/main.go:314 (guarded), :354-364, :418-427, :448-456, :458-481, :486-491; backend/internal/middleware/auth.go:355 StoreOwnerRequired",
+      "status": "fixed",
+      "summary": "28 route /admin/* (notifications, users/stores search, automation, audit-logs, market-intelligence, safe-domains, support tickets+templates) terdaftar DUA KALI: di grup adminApi (AuthRequired+RequireAdmin, benar) dan di grup guarded (mensyaratkan StoreOwnerRequired, salah). Fiber memakai handler terdaftar pertama, sehingga versi merchant yang menang. Akibatnya superadmin/staf platform yang tidak punya toko katalog tertolak 403 \"Toko Anda belum terdaftar.\" padahal Role sudah memegang izin. Jalur admin platform juga tidak terpisah dari middleware tenant, melanggar prinsip OWASP 'cross-tenant administrative path harus explicit, separately authorized, dan auditable'.",
+      "evidence": "Runtime sebelum: seluruh 16 endpoint admin -> 403 \"Toko Anda belum terdaftar.\" dengan DB stores=0. Sesudah: 16/16 -> 200; merchant dengan toko -> 403 di 6 endpoint admin (kontrol positif); route merchant /admin/analytics & /admin/categories tetap 200 untuk merchant, tetap menolak staf tanpa toko. Alias non-/admin (/users/search, /stores/search, /automation/*) kini 404 dan terbukti tidak dipakai frontend (hanya /api/admin/*).",
+      "fix": "Hapus 28 route duplikat dari grup guarded; pindahkan /admin/comments (3 route) ke adminApi; sisakan hanya /admin/categories & /admin/analytics* di grup merchant karena memang memakai store_id konteks. Satu sumber kebenaran: adminApi."
+    },
+    {
+      "id": "N-24",
+      "severity": "medium",
+      "title": "Middleware tenant menyuntikkan store acak ke konteks staf platform (hardcode slug 'catavor' + fallback toko id terkecil)",
+      "location": "backend/internal/middleware/auth.go:443-450 (sebelum perbaikan)",
+      "status": "fixed",
+      "summary": "StoreOwnerRequired, bila user tidak punya toko, mencari toko ber-slug 'catavor' (nama platform, hardcode) lalu bila gagal memakai toko dengan id terkecil, dan memasangnya sebagai konteks store request. Staf platform jadi memperoleh tenant sembarang — bukan miliknya — sehingga query ber-scope store_id bisa membaca data tenant lain. Selain itu slug 'catavor' adalah nama platform yang dilarang dipakai toko mana pun.",
+      "evidence": "grep hardcode: auth.go:446 WHERE LOWER(slug) = 'catavor'. Setelah perbaikan blok tersebut dihapus total; staf tanpa toko diloloskan tanpa konteks store (c.Next()), handler yang butuh store_id tetap menolak sendiri (terbukti: /admin/analytics -> 403, /admin/categories -> 400 untuk staf tanpa toko).",
+      "fix": "Hapus fallback toko pengganti. Staf platform tanpa toko diloloskan tanpa store context; merchant tanpa toko tetap 403 STORE_NOT_REGISTERED."
+    },
+    {
+      "id": "N-25",
+      "severity": "high",
+      "title": "Penanda staf platform berbasis string email hardcode (34 titik)",
+      "category": "Broken Access Control / CWE-798",
+      "status": "fixed",
+      "description": "Otorisasi staf platform ditentukan dengan membandingkan email ke literal 'admin@catavor.com' di 34 titik (middleware + 6 handler + service). Akun tersebut tidak ada di database, sehingga nilainya murni string magic. Efek: (a) staf dengan role sah (support/finance/compliance/content) tidak diakui pada jalur yang memakai hardcode; (b) beberapa blok memakai role fiktif ('platform_admin','super_admin','moderator','investigator','admin') yang tidak ada di tabel platform_roles; (c) penanda anti-lockout terikat ke email sehingga hilang bila email diganti.",
+      "impact": "Staf platform dengan role sah dapat kehilangan akses pada jalur tertentu, dan sebaliknya logika penanda staf tidak konsisten antar-endpoint.",
+      "remediation": "Satu sumber kebenaran: models.PlatformStaffRoles, models.IsPlatformStaffRole(role), models.NormalizePlatformRole, (*User).IsPlatformStaff(), (*User).IsSuperadmin(). middleware.PlatformStaffRoles menjadi alias. 34 titik hardcode email diganti helper; role fiktif dihapus; anti-lockout dihitung dari jumlah superadmin di DB, bukan email.",
+      "evidence": "grep 'admin@catavor.com' -> 34 titik sebelum perbaikan; setelah perbaikan 0 titik otorisasi (sisa hanya komentar dan seeder instalasi-baru). Verifikasi runtime 30 PASS / 0 FAIL.",
+      "verified_by": "hermes-verify-n25.sh + cmd/hermes_verify_lockout (cabang anti-lockout, kontrol positif superadmin=2 -> izin)"
+    },
+    {
+      "id": "N-26",
+      "severity": "high",
+      "title": "DeleteStore selalu 500: transaksi ter-abort karena error diabaikan + kolom store_id salah",
+      "category": "Error Handling / CWE-754",
+      "status": "fixed",
+      "description": "StoreHandler.DeleteStore menghapus 10 tabel dengan `_ = ...Delete(...).Error` sehingga kegagalan diabaikan. Di PostgreSQL satu perintah gagal membuat transaksi berstatus aborted (SQLSTATE 25P02) dan semua perintah berikutnya ikut gagal, termasuk DELETE toko. Dua kegagalan nyata ditemukan: (1) tabel store_daily_traffic_sources tidak ada di DB karena DB_AUTO_MIGRATE=false; (2) product_variants dan product_images tidak memiliki kolom store_id (relasi lewat product_id), sehingga WHERE store_id = ? selalu error.",
+      "impact": "Merchant tidak dapat menghapus tokonya sendiri; endpoint mengembalikan 500 tanpa informasi penyebab. Data toko tetap utuh sebagian.",
+      "remediation": "Setiap error kini ditangani: rollback + log tabel penyebab + pesan spesifik. Purge mengikuti relasi sebenarnya (product_variants/product_images lewat product_id sub-query; sisanya store_id). Tabel store_daily_traffic_sources dibuat via migrasi idempoten (backend/migrations).",
+      "evidence": "Sebelum: POST /api/stores/{id}/delete -> 500, log 'current transaction is aborted (SQLSTATE 25P02)'. Sesudah: 200 dan baris toko hilang dari DB. Regresi 26 PASS / 0 FAIL.",
+      "verified_by": "hermes-verify-regresi.sh (buat toko -> konfirmasi slug -> hapus -> verifikasi DB kosong)"
+    },
+    {
+      "id": "N-27",
+      "severity": "high",
+      "category": "availability / frontend robustness",
+      "title": "Landing page crash total saat /stores/featured mengembalikan data:null",
+      "status": "fixed",
+      "location": "frontend/desktop/src/App.tsx + frontend/mobile/src/App.tsx (setFeaturedStores, setFaunas)",
+      "evidence": "GET /api/stores/featured -> {\"data\":null,\"success\":true}; state disimpan tanpa cek tipe; featuredStores.filter() melempar TypeError dan ErrorBoundary mengaktifkan 'Kendala Memuat Aplikasi Catavor Desktop'.",
+      "impact": "Seluruh halaman depan tidak dapat diakses setiap kali DB tidak punya toko unggulan (termasuk instalasi baru).",
+      "fix": "Array.isArray guard pada setFeaturedStores/setFaunas; fallback (featuredStores || []) di titik pemakaian; build ulang public/{desktop,mobile}.",
+      "verification": "Landing desktop & mobile dimuat ulang di browser: render penuh, 0 console error, 0 JS exception.",
+      "related": [
+        "N-26"
+      ]
+    },
+    {
+      "id": "N-28",
+      "severity": "medium",
+      "category": "correctness / static asset handling",
+      "title": "Catch-all ServeSPA menyajikan index.html (200) untuk berkas statis yang tidak ada",
+      "status": "fixed",
+      "location": "backend/internal/handlers/spa_handler.go (ServeSPA), catch-all di cmd/server/main.go:535",
+      "evidence": "GET /storage/stores/1/branding/...jpg milik toko yang sudah dihapus -> 200, content-type text/html (isi: index.html SPA), bukan 404.",
+      "impact": "Gambar rusak tanpa error jaringan yang jelas; CDN/proxy dapat meng-cache 'gambar' berisi HTML selama MaxAge 30 hari; pemantauan tidak pernah melihat 404 sehingga berkas hilang tak terdeteksi.",
+      "fix": "isStaticAssetPath() menangkap prefix /storage/, /desktop/, /tablet/, /mobile/ sebelum menyajikan index.html dan mengembalikan 404 JSON.",
+      "verification": "4 path statis tidak ada -> 404 application/json; kontrol positif: 8 aset nyata & 3 halaman SPA tetap 200; 6 path routing klien (/tokosaya, /admin/dashboard, ...) tetap 200 text/html; browser: landing desktop & mobile render penuh, 0 error konsol.",
+      "related": [
+        "N-27"
+      ]
+    },
+    {
+      "id": "N-29",
+      "severity": "high",
+      "title": "Master safe-domains bisa diubah SEMUA staf platform (whitelist anti-phishing tanpa otorisasi)",
+      "location": "backend/cmd/server/main.go:510-515 + 526-531 (duplikat), backend/internal/handlers/safe_domain_handler.go",
+      "endpoint": "GET/POST /api/admin/safe-domains, PUT/DELETE /api/admin/safe-domains/:id, POST /api/admin/safe-domains/reset-defaults",
+      "impact": "safe_domains adalah whitelist domain yang dipakai frontend safeHref: tautan ke domain di daftar ini DIBUKA TANPA peringatan konfirmasi anti-phishing. Rute terdaftar dua kali di adminApi TANPA RequirePermission, hence lolos dengan RequireAdmin saja (semua staf platform). Staf support/content/finance bisa menambahkan domain penyerang lalu mematikan guard redirect untuk seluruh pengguna platform. Dibuktikan runtime: staf platform_role='support' -> POST 201 dan DB mencatat domain 'evil-n29b.example'; setelah perbaikan 4/4 mutasi -> 403.",
+      "fix": "Hapus 5 rute duplikat dan wajibkan RequirePermission(cfg, \"system:settings:manage\") pada seluruh rute safe-domains (izin yang hanya dimiliki Superadmin).",
+      "status": "fixed",
+      "resolution": "Duplikat dihapus, rute tunggal ber-permission system:settings:manage. Verifikasi: support GET/POST/PUT/reset -> 403 (DB tidak bertambah), superadmin -> 200 (fitur utuh). 10 PASS / 0 FAIL."
+    },
+    {
+      "id": "N-30",
+      "severity": "info",
+      "title": "CSRF protection: terpasang dan benar (bukan temuan, hasil verifikasi ulang)",
+      "location": "backend/internal/middleware/security.go:107 (CSRFProtection dipasang via SetupSecurity)",
+      "endpoint": "Seluruh POST/PUT/DELETE /api/*",
+      "impact": "Audit ulang memastikan proteksi CSRF berbasis Origin/Referer benar-benar aktif. Diuji runtime: POST bermutasi dengan Origin asing -> 403, Origin sah -> 200, GET tidak diblokir. Tidak ada celah.",
+      "fix": "Tidak ada tindakan (sudah benar).",
+      "status": "verified-ok",
+      "resolution": "Terpasang di middleware security.go dan terbukti 403 untuk origin asing."
+    },
+    {
+      "id": "N-31",
+      "severity": "high",
+      "title": "pdfjs-dist 3.11.174 rentan arbitrary JS execution saat membuka PDF berbahaya",
+      "location": "frontend/{desktop,mobile}/package.json, frontend/*/src/components/DocumentPreviewModal.tsx",
+      "endpoint": "DocumentPreviewModal (runtime dependency, bukan devDependency)",
+      "impact": "Advisory GHSA-wgrm-67xf-hhpq: pdfjs-dist <=4.7.76 bisa mengeksekusi JavaScript sembarang saat membuka PDF yang dibuat penyerang. Previewer ini dipakai untuk membuka dokumen unggahan merchant/staf, jadi PDF berbahaya berpotensi RCE di origin aplikasi. Mitigasi parsial yang sudah ada: isEvalSupported=false dan CSP ketat (script-src 'self' + hash, tanpa unsafe-inline/eval) — tetapi library tetap harus di-upgrade.",
+      "fix": "Upgrade pdfjs-dist ke 6.4.299 (menghilangkan kanvas/node-pre-gyp/tar), sesuaikan import worker ke build/pdf.worker.min.mjs, lalu npm audit fix.",
+      "status": "fixed",
+      "resolution": "pdfjs-dist 6.4.299 terpasang di desktop & mobile; npm audit keduanya 0 vulnerabilities (sebelumnya 7: 1 critical, 4 high, 2 moderate). Verifikasi fungsional: typecheck PASS, vite build PASS (1 bundel + worker .mjs, MIME text/javascript), harness Node memuat PDF uji -> 1 halaman, viewport 200x200, teks 'HALO' terekstrak, render() tersedia."
+    },
+    {
+      "id": "N-32",
+      "severity": "low",
+      "title": "PDF preview tidak menyediakan standardFontDataUrl/cMapUrl (hardening, bukan degradasi)",
+      "location": "frontend/{desktop,mobile}/src/components/DocumentPreviewModal.tsx:379",
+      "endpoint": "DocumentPreviewModal",
+      "impact": "cMapPacked=true di-set tetapi cMapUrl/standardFontDataUrl tidak, sehingga PDF.js tidak bisa memuat CMap untuk PDF ber-encoding CJK (UniJIS/UniGB/UniKS) maupun font standar non-embedded. PDF Latin biasa tetap ter-render, tetapi PDF non-Latin berisiko kehilangan glyph (tofu).",
+      "fix": "Diterapkan 2026-10-18 (commit 0bce344): cmaps/ (169 file) + standard_fonts/ (17 file) disalin dari pdfjs-dist 6.4.299 ke frontend/{desktop,mobile}/public/pdfjs/ agar ikut ter-bundle vite; cMapUrl + standardFontDataUrl diset ke ${import.meta.env.BASE_URL}pdfjs/... sehingga mengikuti base SPA.",
+      "status": "fixed",
+      "resolution": "Dibuktikan runtime di browser: bundle produksi desktop memuat `/desktop/pdfjs/` dan mobile `/mobile/pdfjs/`; preview PDF CJK non-embedded lewat UI Helpdesk membuat PDF.js benar-benar memuat /desktop/pdfjs/cmaps/UniJIS-UTF16-H.bcmap dan Adobe-Japan1-UCS2.bcmap lalu menampilkan '1 Hal'. Aset tersaji 200 byte-utuh (cmap 39443B, LiberationSans 139512B, Foxit 19469B). Data uji (tiket + lampiran + file) dihapus setelah verifikasi."
+    },
+    {
+      "id": "N-33",
+      "severity": "medium",
+      "title": "Pencabutan role staf tidak meng-invalidate sesi yang sudah terbit",
+      "location": "backend/internal/services/rbac_service.go:RevokeStaffRole",
+      "endpoint": "POST /api/admin/rbac/staff/revoke",
+      "impact": "Otorisasi RBAC memang membaca role dari DB sehingga /admin/* langsung 403 setelah demote, TETAPI token JWT lama tetap diterima endpoint terautentikasi biasa sampai kedaluwarsa (24 jam). Dibuktikan runtime: token staf masih 200 di /api/auth/me setelah role dicabut; token_version tidak di-bump. Artinya staf yang dipecat tetap memegang sesi aktif.",
+      "fix": "Panggil RevokeAllSessionsForUser(db, userID) setelah demote: blacklist TokenID tiap sesi, tandai is_revoked, dan bump users.token_version.",
+      "status": "fixed",
+      "resolution": "Diverifikasi lewat jalur nyata: superadmin POST /admin/rbac/staff/revoke -> 200, role jadi merchant, token staf lama -> 401 SESSION_REVOKED (sebelumnya 200). 5 PASS / 0 FAIL."
+    },
+    {
+      "id": "N-34",
+      "severity": "low",
+      "title": "Runtime toolchain tidak di-pin; Node lokal di bawah minimum dependency",
+      "location": ".nvmrc (baru), frontend/{desktop,mobile}/package.json (engines), .github/workflows/security-audit.yml",
+      "endpoint": "Proses build frontend (bukan endpoint runtime)",
+      "impact": "pdfjs-dist 6.4.299 mensyaratkan node >=22.13.0 dan vite 8.1.4 mensyaratkan ^20.19.0 || >=22.12.0, sementara mesin build lokal memakai Node 20.13.1 (di bawah keduanya, memunculkan EBADENGINE). Sebelumnya tidak ada pin versi Node di repo maupun di CI (CI hanya menjalankan gitleaks, tanpa step build), sehingga hasil build bergantung pada mesin siapa yang menjalankannya. Build saat ini tetap sukses, tetapi lingkungan tidak reproducible dan bisa gagal diam-diam pada dependency berikutnya yang menaikkan syarat.",
+      "fix": "Tambahkan engines.node '>=22.13.0' di kedua package.json dan .nvmrc berisi 22.13.0 agar versi terbaca otomatis oleh nvm/CI.",
+      "status": "fixed",
+      "resolution": "Pin ditambahkan; 'npm pkg get engines' mengonfirmasi >=22.13.0 dan npm melaporkan EBADENGINE secara eksplisit untuk Node 20.13.1. Build ulang desktop & mobile exit 0 dengan hash bundel identik (index-CIb2qLus.js / index-y3D47Wht.js, pdf.worker.min-CjEcRF4W.mjs) -> build deterministik. Runtime diverifikasi: kedua SPA render (H1 tampil, #root 1 anak, ErrorBoundary false, 0 console error). Catatan: mesin lokal MASIH Node 20.13.1; upgrade Node disarankan agar peringatan hilang."
+    },
+    {
+      "id": "N-35",
+      "severity": "low",
+      "title": "Audit log platform hanya mencakup 5 aksi RBAC; login & perubahan sensitif tidak tercatat",
+      "location": "backend/internal/services/ (RecordActivity), backend/internal/handlers/auth_handler.go",
+      "endpoint": "POST /api/auth/login, ganti password, hapus toko, ubah settings",
+      "impact": "Aksi yang tercatat di audit log platform hanya RBAC_ACCESS_DENIED, RBAC_CUSTOM_ROLE_CREATED, RBAC_ROLE_PERMISSIONS_UPDATED, RBAC_STAFF_ROLE_ASSIGNED, RBAC_STAFF_ROLE_REVOKED. Login sukses/gagal, perubahan password, penghapusan toko, dan perubahan settings TIDAK masuk audit log governance. Dampak kepatuhan: tidak ada jejak 'siapa mengubah apa' untuk aksi destruktif di luar RBAC. Tidak ada kebocoran kredensial di log (diverifikasi: 0 pemakaian log password/token/secret/otp).",
+      "fix": "Helper logAuthEvent() di internal/handlers/auth_audit.go, dipanggil di dua titik kegagalan Login(): reason=unknown_email (tanpa actor; email hanya di Changes) dan reason=bad_password (dengan user_id/actor + attempts + flag locked). Tidak mencatat password, hash, maupun token.",
+      "status": "fixed",
+      "resolution": "PERBAIKAN DITERAPKAN + VERIFIKASI RUNTIME 20 PASS / 0 FAIL: tiap percobaan login gagal menghasilkan tepat 1 baris AUTH_LOGIN_FAILED (action/category/reason/IP/user_agent benar), user_id terisi untuk akun nyata, password & hash bcrypt terbukti TIDAK tersimpan, login sukses tetap 200 dan tetap tercatat (auth.login), regresi healthz/landing/mobile/401 admin OK. KLARIFIKASI: login SUKSES sudah tercatat sejak sebelumnya di auth_handler.go:394 (kredensial) dan :1013 (Google) -- klaim 'login tidak tercatat' TIDAK berlaku untuk jalur sukses; celah nyata hanya pada percobaan GAGAL. Aksi hapus toko & ubah settings tetap tercatat minim dan dicatat sebagai backlog."
+    },
+    {
+      "id": "N-36",
+      "severity": "medium",
+      "title": "Klaim iss/aud JWT diset saat terbit tetapi TIDAK divalidasi saat verifikasi",
+      "location": "backend/internal/middleware/auth.go:100 (ExtractOptionalClaims) dan :237 (AuthRequired)",
+      "endpoint": "GET /api/auth/me dan seluruh /api/* yang dilindungi AuthRequired",
+      "impact": "jwt.ParseWithClaims dipanggil tanpa opsi WithIssuer/WithAudience, sehingga klaim `iss` dan `aud` yang diset di GenerateTokenWithID hanya kosmetik. Token yang ditandatangani JWT_SECRET yang sama tetapi membawa iss=evil-issuer dan aud=evil-audience diterima HTTP 200, setara token sah. Membuka token confusion bila secret dipakai bersama sistem lain, dan membuat rotasi/migrasi issuer tidak bisa ditegakkan.",
+      "fix": "Diterapkan 2026-10-18 (commit 0d773d6): konstanta JWTIssuer/JWTAudience sebagai satu sumber kebenaran, dipakai saat menerbitkan DAN memverifikasi. Kedua titik verifikasi kini memakai jwt.WithValidMethods([\"HS256\"]), jwt.WithIssuer(JWTIssuer), jwt.WithAudience(JWTAudience).",
+      "status": "fixed",
+      "resolution": "Dibuktikan runtime (server PID 10484): iss=evil-issuer -> 401 (sebelum 200), aud=[evil-audience] -> 401 (sebelum 200), aud=[] -> 401, iss dihapus -> 401, aud dihapus -> 401, iss=catavor-saas-x -> 401. Kontrol positif token sah -> 200 dengan body berisi owner@catavor.local. Regresi: alg=none/token sampah/tanpa token 401; browser login SPA berhasil lalu /api/auth/me, /api/admin/rbac/me, /api/admin/automation/status semua 200 via cookie HttpOnly; N-32 cmap tetap 39443B; healthz/landing/desktop/mobile 200. 18 PASS / 0 FAIL."
+    },
+    {
+      "id": "N-37",
+      "severity": "high",
+      "title": "SanitizeVideoURL cocokkan domain sebagai substring — URL pihak ketiga lolos ke halaman toko publik",
+      "location": "backend/internal/security/sanitizer.go (SanitizeVideoURL) dipakai di fauna_handler.go:253/:385 dan product_handler.go:328/:630",
+      "endpoint": "POST /api/fauna, PUT /api/fauna/:id (jalur productHandler.Store/Update)",
+      "impact": "Pencocokan memakai strings.Contains(host, \"youtube.com\"), sehingga host penyerang seperti youtube.com.evil.com, notyoutube.com.evil.com, dan evil-youtu.be.attacker.net diterima dan disimpan apa adanya ke products.video_url. Penjual dapat menanamkan URL pihak ketiga di halaman toko publik. Dampak XSS dibatasi karena frontend merender host tak dikenal sebagai <a href> dengan rel=noopener noreferrer, bukan iframe — tetapi validasi domain tetap gagal dan kelak berbahaya bila render diubah menjadi iframe.",
+      "fix": "Diterapkan: pencocokan label domain utuh (host == domain atau berakhiran '.'+domain) untuk youtube.com, youtube-nocookie.com, youtu.be, vimeo.com. Skema berbahaya (javascript:, vbscript:, data:, file:, blob:) dan protokol-relatif '//host' ditolak. File video langsung (.mp4/.webm/.mov/.ogg/.m3u8) tetap diterima dari host mana pun karena dirender sebagai elemen <video>, bukan iframe. Keempat titik tulis video_url kini memakai SanitizeVideoURL (sebelumnya jalur produk memakai SanitizeURL yang hanya memfilter skema).",
+      "status": "fixed",
+      "resolution": "Dibuktikan runtime (server PID 31716, binary dibangun ulang dari source): POST /api/fauna dengan ketiga vektor bypass kini menyimpan video_url kosong (DB: <DIBUANG>), sedangkan https://www.youtube.com/watch?v=abc123 dan https://cdn.contoh.com/klip.mp4 tetap tersimpan. Kode LAMA + test baru GAGAL pada 3 vektor; kode baru LULUS (kontrol negatif). Unit test internal/security coverage 28.9% -> 90.2%."
+    },
+    {
+      "id": "N-38",
+      "severity": "medium",
+      "title": "UserIDFromLocals menerima NaN/Inf sebagai user ID sah dan string angka overflow",
+      "location": "backend/internal/security/locals.go (UserIDFromLocals)",
+      "endpoint": "Seluruh jalur yang membaca user_id dari fiber.Ctx.Locals",
+      "impact": "Konversi float64 -> integer pada amd64 mengubah NaN dan +Inf menjadi 9223372036854775808 tanpa error, sehingga nilai sampah lolos dengan ok=true sebagai 'user ID sah'. String angka raksasa juga membungkus (wrap around) ke nilai kecil yang tampak sah. Nilai pecahan (5.9) dipotong diam-diam menjadi 5. Berpotensi melewati pemeriksaan kepemilikan.",
+      "fix": "Diterapkan: float64 wajib bilangan bulat dan bukan NaN/±Inf serta berada dalam jangkauan uint; konversi string memakai penjagaan overflow sebelum akumulasi.",
+      "status": "fixed",
+      "resolution": "Dibuktikan dengan kontrol negatif: kode LAMA gagal (NaN ok=true id=9223372036854775808, +Inf ok=true, string overflow lolos); kode baru menolak semuanya. Positive control 4294967295 tetap terbaca."
+    },
+    {
+      "id": "N-39",
+      "severity": "medium",
+      "title": "APP_ENV=production tidak memvalidasi ALLOWED_ORIGINS — CORS localhost bisa terbawa ke produksi",
+      "location": "backend/internal/config/config.go (blok validasi production/staging)",
+      "endpoint": "Seluruh endpoint API lintas-origin",
+      "impact": "Validasi produksi hanya menegakkan JWT_SECRET, JWT_EXPIRATION_HOURS, dan DB_SSLMODE. ALLOWED_ORIGINS dibiarkan memakai default 'http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173,http://localhost:3000'. Terbukti runtime: server APP_ENV=production dengan ALLOWED_ORIGINS default TETAP berjalan sampai tahap koneksi database (hanya gagal karena DB lokal menolak TLS). Artinya deployment yang lupa menyesuaikan CORS akan sukses start dengan konfigurasi lokal.",
+      "fix": "Diterapkan: pada APP_ENV production/prod/staging, setiap origin di ALLOWED_ORIGINS diperiksa; alamat lokal (localhost, 127.0.0.1, 0.0.0.0) dan skema selain https:// menggagalkan start.",
+      "status": "fixed",
+      "resolution": "Dibuktikan runtime dengan binary hasil build ulang. A) production + ALLOWED_ORIGINS localhost -> FTL 'ALLOWED_ORIGINS memuat alamat lokal'. B) production + http://catavor.id -> FTL 'wajib memakai https://'. C) positive control production + https://catavor.id -> lolos gerbang config, berhenti di koneksi DB (sesuai harapan). D) mode lokal tanpa perubahan -> start normal, tidak ada FTL. go test ./... seluruh paket ok."
+    },
+    {
+      "id": "N-40",
+      "severity": "high",
+      "area": "storage",
+      "title": "LocalStorageService.Delete/DeletePrefix menghapus file di luar storage root",
+      "status": "fixed",
+      "found": "2026-10-18",
+      "round": 7,
+      "detail": "Delete memakai filepath.Join(s.localRoot, key) + os.Remove tanpa normalisasi/verifikasi; DeletePrefix memakai os.RemoveAll. Key berisi '..' menghapus file atau direktori di luar root. Terbukti dengan file korban di luar root yang benar-benar terhapus.",
+      "impact": "Penghapusan data sewenang-wenang di filesystem proses bila key berbahaya mencapai lapisan storage. Handler HTTP saat ini sudah memvalidasi (N-03), jadi bukan jalur serangan aktif — tetapi lapisan storage bergantung pada kesopanan pemanggil, dan jalur otomatis (dormancy/retention memakai extractStorageKeyFromURL) meneruskan key apa adanya.",
+      "fix": "Tambah resolveSafeKey(): tolak key kosong, path absolut, dan skema drive; normalisasi + EvalSymlinks; verifikasi filepath.Rel tidak keluar root. Delete dan DeletePrefix wajib memakainya. DeletePrefix juga menolak RemoveAll pada root storage itu sendiri.",
+      "evidence": "8 test di internal/storage/storage_delete_test.go (4 serangan + 4 kontrol positif). Kontrol negatif: implementasi lama GAGAL TestDelete_BlocksEscapeFromRoot ('REGRESI: file di luar root ikut terhapus'), implementasi baru LULUS. Runtime: DELETE /api/storage/file key '../../backend/.env' -> 403; file sah toko sendiri -> 200; file tenant lain -> 403 dan utuh.",
+      "files": [
+        "backend/internal/storage/storage.go",
+        "backend/internal/storage/storage_delete_test.go"
+      ]
+    },
+    {
+      "id": "N-41",
+      "severity": "medium",
+      "area": "rbac",
+      "title": "GetUserPermissions memakai daftar hitam role, meloloskan role sampah",
+      "status": "fixed",
+      "found": "2026-10-18",
+      "round": 7,
+      "detail": "HasPermission sudah memakai whitelist models.IsPlatformStaff (perbaikan N-25), tetapi GetUserPermissions masih memakai logika lama: hanya menolak \"\" dan \"merchant\". Role sampah seperti 'superadminx' dianggap staf dan menembus cache permission — termasuk wildcard '*'.",
+      "impact": "Endpoint yang menampilkan permission efektif (mis. /api/admin/rbac/me) dapat melaporkan wildcard ke akun dengan platform_role tidak sah. Tidak langsung memberi akses karena HasPermission tetap menolak, tetapi menciptakan ketidaksesuaian antara yang dilaporkan dan yang ditegakkan (fail-open di lapisan pelaporan).",
+      "fix": "GetUserPermissions memakai models.IsPlatformStaff() dan models.NormalizePlatformRole(), sama seperti HasPermission.",
+      "evidence": "4 test di internal/services/rbac_authz_test.go. Kontrol negatif: kode lama GAGAL ('role sampah \"superadminx\" seharusnya tidak punya permission, dapat [*]'), kode baru LULUS. Runtime: /api/admin/rbac/me superadmin tetap 19 permission, matriks RBAC utuh.",
+      "files": [
+        "backend/internal/services/rbac_service.go",
+        "backend/internal/services/rbac_authz_test.go"
+      ]
+    },
+    {
+      "id": "N-42",
+      "severity": "low",
+      "area": "crypto",
+      "title": "generateSecureToken mengabaikan error crypto/rand (risiko token nol)",
+      "status": "fixed",
+      "found": "2026-10-18",
+      "round": 7,
+      "detail": "generateSecureToken memakai '_, _ = rand.Read(bytes)'. Bila rand.Read gagal, buffer tetap nol dan fungsi mengembalikan 64 karakter '0' yang identik untuk semua pemanggilan. Token dipakai untuk link reaktivasi toko.",
+      "impact": "Bila kegagalan crypto/rand terjadi, semua link reaktivasi memakai token yang sama dan dapat diprediksi sehingga siapa pun bisa mengaktifkan kembali toko dorman.",
+      "fix": "Periksa error rand.Read; kembalikan string kosong dan catat log agar pemanggil membatalkan penerbitan link (fail-closed).",
+      "evidence": "TestGenerateSecureToken: 500 sampel, panjang 64 hex, tidak ada duplikat, tidak seluruhnya nol. go build + go test ./... hijau.",
+      "files": [
+        "backend/internal/services/dormancy_service.go",
+        "backend/internal/services/helpers_behavior_test.go"
+      ]
+    },
+    {
+      "id": "N-43",
+      "severity": "low",
+      "area": "pricing",
+      "title": "parsePrice membuang semua titik/koma sehingga harga desimal melonjak 100x",
+      "status": "fixed",
+      "found": "2026-10-18",
+      "round": 8,
+      "detail": "fauna_handler.parsePrice menghapus SEMUA titik dan koma sebelum ParseFloat: strings.ReplaceAll(ReplaceAll(v,\".\",\"\"),\",\",\"\"). Akibatnya '150000.50' -> '15000050' (100x lipat), '1500,50' -> '150050', '12.5' -> 125. Pemisah ribuan dan desimal diperlakukan identik. Ditemukan lewat test perilaku fungsi murni.",
+      "impact": "PENTING — dampak nyata terbatas: faunaHandler TIDAK dirutekan di cmd/server/main.go. Rute POST /api/fauna diarahkan ke productHandler.Store, dan ProductRequest.Price bertipe float64 sehingga harga string ditolak 400 sebelum parsePrice dipanggil. Jadi ini bug pada kode yang saat ini tidak dapat dijangkau dari HTTP. Namun fungsi tetap diperbaiki karena (a) kode mati bisa diaktifkan kembali tanpa disadari, dan (b) perilaku salah yang terbukti harus diperbaiki, bukan dibiarkan.",
+      "fix": "parsePriceString(): aturan pemisah eksplisit — titik sebagai ribuan hanya bila berpola kelompok 3 digit, koma sebagai desimal bila muncul sekali diikuti <=2 digit, dukungan format ID (1.500.000,50) dan EN (1,500,000.50), serta awalan 'Rp'. Tambah dukungan json.Number. Nilai tak terurai tetap 0.",
+      "evidence": "TestParsePrice (19 kasus) di internal/handlers/helpers_behavior_test.go. Kontrol negatif: logika lama GAGAL 6 kasus (termasuk 'REGRESI N-43: parsePrice(\"150000.50\") mengembalikan 1.500005e+07'); logika baru LULUS semua. Runtime: POST /api/fauna price 150000.5 (angka) -> 201, DB menyimpan 150000.50; price sebagai string \"150000.50\" -> 400 karena ProductRequest.Price float64.",
+      "files": [
+        "backend/internal/handlers/fauna_handler.go",
+        "backend/internal/handlers/helpers_behavior_test.go"
+      ]
+    },
+    {
+      "id": "N-44",
+      "severity": "low",
+      "area": "handlers",
+      "title": "clipClientLog panik bila max <= 0",
+      "status": "fixed",
+      "found": "2026-10-18",
+      "round": 8,
+      "detail": "clipClientLog melakukan s[:max] tanpa memeriksa max. Nilai max negatif memicu panic 'slice bounds out of range'.",
+      "impact": "Tidak dapat dipicu dari HTTP saat ini: seluruh pemanggil memakai konstanta positif (2000/8000/300/40/80). Dicatat sebagai cacat ketahanan (defensive programming), bukan kerentanan aktif.",
+      "fix": "Kembalikan \\\"\\\" bila max <= 0 sebelum slicing.",
+      "evidence": "TestClipClientLog memanggil clipClientLog(\"x\", -5) dan tidak lagi panik; pemotongan normal tetap menandai '…[dipotong]'.",
+      "files": [
+        "backend/internal/handlers/client_log_handler.go",
+        "backend/internal/handlers/helpers_behavior_test.go"
+      ]
+    },
+    {
+      "id": "N-45",
+      "title": "Atribut produk dinamis tanpa kontrak: mobile & desktop menyimpan medan berbeda, data user hilang saat edit lintas perangkat",
+      "severity": "high",
+      "status": "fixed",
+      "category": "data-integrity",
+      "component": "backend/internal/models/product_attribute_schema.go, backend/internal/handlers/product_handler.go, frontend/mobile/src/App.tsx, frontend/desktop/src/App.tsx",
+      "description": "products.attributes bertipe JSONB bebas (map[string]interface{}) tanpa skema per product_type. Mobile mengirim 5 medan yang tidak dikenal desktop (growing_media, plant_legality, ship_condition, watering_frequency, light_requirement) dan desktop mengirim 4 medan yang tidak dikenal mobile (lifespan, native_region, portion_size, prep_time). Karena edit dari sisi lain mengirim objek attributes penuh, medan milik sisi lain ter-overwrite menjadi kosong tanpa error apa pun.",
+      "impact": "Kehilangan data senyap pada 7 tipe item; pengguna yang mengisi atribut di ponsel lalu mengedit di desktop kehilangan isian tersebut.",
+      "fix": "Menambahkan models.ProductAttributeSchema sebagai kontrak tunggal (allow-list eksplisit per tipe) plus FilterProductAttributes yang dipanggil di jalur Store dan Update. Key di luar allow-list dibuang, tipe tak dikenal fail-closed.",
+      "verification": "Unit test TestProductAttributeSchemaCoverage (47 atribut, dua arah) + TestFilterProductAttributes dengan kontrol positif. Kontrol negatif: menghapus portion_size/prep_time dari skema membuat test FAIL, dikembalikan -> PASS. Runtime: POST /api/products tipe physical dengan 6 atribut campuran menyimpan hanya brand+material; tipe food menyimpan halal_status/prep_time/portion_size dan membuang brand; PUT /api/products/13 juga menyaring (dikonfirmasi langsung di DB). Data uji dihapus, DB kembali users=1 stores=0 products=0.",
+      "date": "2026-10-18"
+    },
+    {
+      "id": "N-46",
+      "title": "AutoMigrate untuk tabel pendukung membuang error (10 lokasi) - kegagalan skema tidak terlihat",
+      "severity": "high",
+      "status": "fixed",
+      "category": "reliability",
+      "component": "backend/internal/database/db.go",
+      "description": "Sepuluh pemanggilan `_ = db.AutoMigrate(...)` untuk tabel pendukung (reports, blacklisted_slugs, support*, activity_logs, platform_rbac, safe_domains, automation_logs, email_jobs, email_verification_otps, notifications) membuang error. Hanya blok migrasi utama yang memeriksa error. Dengan DB_AUTO_MIGRATE=true (default produksi), tabel yang gagal dibuat tidak menghasilkan sinyal apa pun: server start sehat lalu mengembalikan 500 saat fiturnya dipakai.",
+      "impact": "Kelas bug yang sama dengan N-26 yang sudah diperbaiki; kegagalan skema di produksi sepenuhnya senyap.",
+      "fix": "Menambahkan helper mustAutoMigrate(db, group, ...) yang mencatat kegagalan lewat zerolog dengan field group. Semua 10 pemanggilan dikonversi. Startup sengaja tidak dihentikan agar perilaku tidak berubah, tetapi kegagalan kini tercatat.",
+      "verification": "Unit test TestMustAutoMigrateLogsFailure memaksa kegagalan nyata (koneksi DB ditutup sebelum migrasi) dan membuktikan log error tercatat: {\"level\":\"error\",\"error\":\"sql: database is closed\",\"group\":\"probe_group\",...}. TestMustAutoMigrateSilentOnSuccess memastikan migrasi sah tidak menghasilkan log error dan tabel benar-benar terbentuk. Catatan metodologi: percobaan pertama memakai bentrok tipe kolom sqlite, yang ternyata direkonsiliasi tanpa error (err=nil) sehingga uji awal dinyatakan TIDAK SAH dan diganti.",
+      "date": "2026-10-18"
+    },
+    {
+      "id": "N-47",
+      "title": "Empat kolom memiliki foreign key duplikat; salah satunya tanpa ON DELETE sehingga memblokir penghapusan user",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "database-schema",
+      "component": "backend/migrations/20261018_n45_dedupe_foreign_keys.sql",
+      "description": "stores.user_id, products.store_id, sightings.fauna_id, dan support_tickets.rated_agent_id masing-masing memiliki DUA foreign key ke tabel yang sama, akibat campuran AutoMigrate dan SQL manual (mis. rename faunas -> products) yang tidak pernah dibersihkan. Pada support_tickets.rated_agent_id satu constraint tidak memiliki ON DELETE SET NULL, sehingga aturan yang berlaku bergantung pada constraint mana yang dievaluasi lebih dulu.",
+      "impact": "Biaya perawatan ganda pada setiap INSERT/UPDATE/DELETE, konflik nama saat pg_dump/restore atau migrasi skema, dan risiko penghapusan user gagal karena dinilai memblokir tiket CSAT.",
+      "fix": "Migrasi idempoten menyisakan satu constraint per kolom dengan aturan ON DELETE yang tepat: CASCADE untuk stores.user_id, products.store_id, sightings.fauna_id; ON DELETE SET NULL untuk support_tickets.rated_agent_id. Constraint yang sudah ada ikut diperbaiki definisinya, bukan hanya dilewati.",
+      "verification": "Sebelum: 8 constraint untuk 4 kolom, total FK 29. Sesudah: 0 duplikat, total FK 25 (tepat 4 dibuang). Migrasi dijalankan dua kali tanpa error (idempoten). Integritas diuji: INSERT stores dengan user_id yatim ditolak (violates foreign key constraint). ON DELETE CASCADE diuji runtime: insert user+store+produk lalu DELETE user -> store dan produk ikut terhapus (0 dan 0), transaksi di-ROLLBACK, DB kembali bersih.",
+      "date": "2026-10-18"
+    },
+    {
+      "id": "N-48",
+      "title": "Validasi password frontend lebih longgar dari aturan backend (6 vs 8 karakter)",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "validation-parity",
+      "component": "frontend/mobile/src/App.tsx, frontend/desktop/src/App.tsx",
+      "description": "security.ValidatePassword mewajibkan minimal 8 karakter, tetapi form registrasi di mobile dan desktop hanya memvalidasi minimal 6 karakter. Pengguna yang mendaftar dengan password 6-7 karakter lolos validasi klien lalu ditolak server dengan pesan error yang tidak terkait dengan field mana pun.",
+      "impact": "Kegagalan registrasi yang membingungkan; validasi klien memberi rasa aman palsu.",
+      "fix": "Ambang validasi registrasi di kedua SPA disamakan menjadi 8 karakter, termasuk teks pesan.",
+      "verification": "grep konfirmasi kedua SPA sebelumnya < 6 dan sesudah < 8 dengan pesan 'minimal 8 karakter'. Typecheck `npx tsc -b --noEmit` bersih di mobile dan desktop. Aturan backend dibaca langsung dari internal/security/sanitizer.go:393.",
+      "date": "2026-10-18"
+    },
+    {
+      "id": "N-49",
+      "title": "Validasi OTP ganti password di mobile menerima 4 digit padahal backend hanya menerbitkan 6 digit",
+      "severity": "low",
+      "status": "fixed",
+      "category": "validation-parity",
+      "component": "frontend/mobile/src/App.tsx",
+      "description": "Handler handleSaveBackupPassword di mobile memakai syarat profileOtpCode.trim().length < 4, sedangkan desktop memakai !== 6. OTP yang diterbitkan backend selalu 6 digit (GenerateCryptographicOTP: rand.Int(900000)+100000 diformat %06d), sehingga input 4-5 digit lolos validasi klien namun pasti gagal di server.",
+      "impact": "Pesan error membingungkan pada alur pemulihan akun; tidak ada risiko keamanan karena server tetap menolak.",
+      "fix": "Syarat disamakan menjadi !== 6 dengan pesan 'Kode verifikasi OTP harus berjumlah 6 digit angka'.",
+      "verification": "Pemindaian seluruh pola validasi OTP di kedua SPA: semua titik lain sudah menggunakan !== 6, hanya titik ini yang menyimpang. Format OTP dikonfirmasi dari internal/services/otp_service.go:41-47. Typecheck mobile bersih.",
+      "date": "2026-10-18"
+    },
+    {
+      "id": "N-50",
+      "title": "product_type tidak divalidasi: tipe sembarang diterima API, seluruh atribut lalu dibuang senyap",
+      "severity": "medium",
+      "status": "fixed",
+      "category": "validation",
+      "component": "backend/internal/handlers/product_handler.go",
+      "description": "req.ProductType hanya di-lowercase dan di-trim; tidak pernah dicocokkan ke daftar tipe resmi. POST /api/products dengan product_type 'superadminx' dijawab 201 Created. Setelah N-45 (filter atribut fail-closed untuk tipe tak dikenal), produk bertipe sampah tersimpan dengan attributes kosong tanpa pesan apa pun ke pengguna. Jalur Update punya celah sama, sehingga tipe produk valid dapat digeser ke tipe sampah lewat PUT.",
+      "impact": "Data kotor pada products.product_type, atribut produk hilang tanpa penjelasan, dan pelanggaran kontrak 7 tipe item. Ditemukan sendiri saat verifikasi N-45.",
+      "fix": "Gerbang models.ValidProductType di jalur Store dan Update, mengembalikan 400 'Tipe item tidak dikenal.' Daftar resmi memakai kunci ProductAttributeSchema sehingga kontrak atribut dan daftar tipe tidak dapat menyimpang.",
+      "verification": "Sebelum perbaikan: POST product_type 'superadminx' -> 201. Sesudah: -> 400. Skrip ad-hoc 13 PASS / 0 FAIL, mencakup healthz/readyz, filter atribut physical & food, penyaringan jalur Update, penolakan tipe tak dikenal, validasi frontend, FK duplikat=0, 3 FK ON DELETE CASCADE, dan DB kembali bersih (stores=0).",
+      "date": "2026-10-18"
+    },
+    {
+      "id": "N-51",
+      "title": "Kolom relasi tanpa foreign key constraint",
+      "severity": "medium",
+      "status": "fixed",
+      "description": "Kolom user_sessions.user_id, notification_reads.{user_id,store_id}, user_policy_agreements.{user_id,store_id}, articles.store_id menyimpan referensi tetapi tanpa FK constraint, sehingga baris yatim dapat terbentuk.",
+      "fix": "Migrasi 20261018_n51_add_missing_foreign_keys.sql: 6 FK dengan aturan ON DELETE CASCADE/SET NULL. articles.store_id diubah jadi nullable. Model Go diperbarui untuk deklarasi FK.",
+      "verified": "Runtime: insert yatim ditolak, CASCADE menghapus sesi, SET NULL mempertahankan catatan. Idempoten."
+    },
+    {
+      "id": "N-52",
+      "title": "Tabel faunas usang tidak dihapus",
+      "severity": "low",
+      "status": "fixed",
+      "description": "Tabel 'faunas' adalah warisan iterasi awal DFauna. Handler tidak dirutekan (dead code), model Fauna adalah subset dari Product. Data 0 baris, 0 FK references.",
+      "fix": "Migrasi 20261018_n52_drop_faunas_table.sql: DROP TABLE IF EXISTS. fauna_handler.go dan cmd/test-categories dihapus. Seeder Fauna -> Product. Import SQLite faunas di db.go dibersihkan.",
+      "verified": "Runtime: tabel tidak ada, server sehat, /api/products=200, semua seeder compile."
+    },
+    {
+      "id": "N-53",
+      "title": "Master categories hardcoded di Go source (3x)",
+      "severity": "medium",
+      "status": "fixed",
+      "description": "DefaultMasterCategories di store_handler.go adalah sumber tunggal yang hardcoded. Frontend tidak dapat menemukan kategori default via API. Tiga fungsi helper (append/replace/remove) langsung merujuk map ini.",
+      "fix": "Model MasterCategory + migrasi 20261018_n53_master_categories.sql (tabel + seed 55 kategori). Endpoint GET /api/master-categories. Cache DB-backed (sync.Once) dengan fallback ke hardcoded. Semua helper diarahkan ke GetMasterCategories().",
+      "verified": "Runtime: endpoint 200, cache dimuat dari DB (55 kategori), 7 product types termasuk plant."
+    },
+    {
+      "id": "N-54",
+      "title": "ApplyMasterPreset tidak punya case 'plant' — preset tanaman jatuh ke default generic",
+      "severity": "medium",
+      "status": "fixed",
+      "description": "Fungsi ApplyMasterPreset di store_handler.go memiliki switch case untuk 6 tipe produk (physical, digital, fauna, service, food, property) tetapi tidak ada case 'plant'. Saat toko menerapkan preset 'plant', jatuh ke default dan mendapat kategori generic ('Kategori Utama', 'Koleksi Populer') alih-alih kategori tanaman spesifik.",
+      "fix": "Tambah case 'plant' dengan classes/habitats/statuses/shipping yang relevan untuk tanaman hias.",
+      "verified": "Runtime: POST /api/stores/apply-master-preset preset=plant mengembalikan classes=['Tanaman Hias Daun','Tanaman Bunga & Anggrek',...]. Regresi physical+food masih benar. Kontrol negatif unknown→default tetap generic."
+    },
+    {
+      "id": "N-55",
+      "title": "Route /api/fauna legacy dihapus — frontend sudah migrasi ke /api/products",
+      "severity": "low",
+      "status": "fixed",
+      "description": "7 route /fauna (GET/POST/PUT/DELETE + /u/:slug/fauna) adalah backward-compatible alias ke productHandler. Frontend sudah pakai /api/products. Route mati tidak menambah nilai, hanya memperluas attack surface.",
+      "fix": "Hapus semua 7 route /fauna dari cmd/server/main.go.",
+      "verified": "Runtime: GET /api/fauna (authenticated) = 404; GET /api/products = 200; source grep 0 match."
+    },
+    {
+      "id": "N-56",
+      "title": "ApplyMasterPreset hardcoded switch → DB-backed master_presets table",
+      "severity": "medium",
+      "status": "fixed",
+      "description": "ApplyMasterPreset punya switch 7+1 case dengan data preset (classes/habitats/statuses/shipping) hardcoded. Tidak bisa diubah tanpa redeploy. Duplikasi pola SoT dengan master_categories (P4).",
+      "fix": "Buat tabel master_presets (product_type + 4 JSONB), migrasi N-55 seed 8 baris, cache sync.Once, ApplyMasterPreset baca dari cache DB. Fallback ke 'default' row jika preset type tidak dikenal.",
+      "verified": "Runtime: 8 preset (physical/digital/fauna/service/food/property/plant/nonexistent→default) semua success dengan data benar. master_presets=8 rows. go test PASS."
+    },
+    {
+      "id": "N-57",
+      "title": "DI proof-of-concept: HealthHandler refactor + parsePrice helper restoration",
+      "severity": "low",
+      "status": "fixed",
+      "description": "health_handler.go mengakses database.DB global langsung → tidak testable tanpa DB live. Sekaligus: helpers_behavior_test.go TestParsePrice (N-43 regression) broken karena parsePrice function hilang dari codebase.",
+      "fix": "1) Refactor HealthHandler: struct + NewHealthHandler(db *gorm.DB) constructor, Readiness jadi method. 2) Implementasi parsePrice di helpers.go (format ID/EN, ribuan+desimal). 3) Test: TestHealthHandler_NilDB (db=nil → 503), TestHealthHandler_LivenessNoDB (200 tanpa DB), TestParsePrice (17 case N-43).",
+      "verified": "go test handlers PASS (3 test). Runtime: healthz=ok readyz=ready dengan handler baru. Pattern siap diikuti handler lain."
+    },
+    {
+      "id": "N-58",
+      "severity": "low",
+      "status": "fixed",
+      "title": "Dead routes: /taxonomy/culinary, /culinary-taxonomy, /upload-image",
+      "detail": "Tiga route legacy tidak dipakai frontend (0 referensi). /taxonomy/culinary dan /culinary-taxonomy = hardcoded 82-baris taxonomy data duplikat master_presets. /upload-image = backward-compat alias ke /storage/upload. Semua dihapus.",
+      "fixed_in": "58e5d4c",
+      "evidence": "grep -rn 'taxonomy/culinary|culinary-taxonomy|upload-image' frontend -> 0 match; go build exit 0"
+    },
+    {
+      "id": "N-59",
+      "severity": "info",
+      "status": "fixed",
+      "title": "DI refactor: CategoryHandler (10 database.DB refs -> h.db)",
+      "detail": "CategoryHandler struct tambah field db *gorm.DB; NewCategoryHandler(db) terima param; 10 referensi database.DB -> h.db; InvalidateStoreCategoriesCache terima db param. Nil-db guard di Index (503). Unit test: TestCategoryHandler_NilDB_NoPanic + TestCategoryHandler_WithDB.",
+      "fixed_in": "58e5d4c",
+      "evidence": "grep -c 'database.DB' category_handler.go -> 0; go test PASS (2/2)"
+    },
+    {
+      "id": "N-60",
+      "severity": "info",
+      "status": "fixed",
+      "title": "DI refactor: ProductHandler (39 database.DB refs -> h.db)",
+      "detail": "ProductHandler struct tambah field db *gorm.DB; NewProductHandler(cfg, db) terima param; 39 referensi database.DB -> h.db. Nil-db guard di Index (503). Unit test: TestProductHandler_NilDB_Index_NoPanic + TestProductHandler_WithDB. 4 referensi database.InvalidateStoreQuotaCache tetap (Redis cache, bukan DB global).",
+      "fixed_in": "58e5d4c",
+      "evidence": "grep -c 'database.DB' product_handler.go -> 0; go test PASS (2/2)"
+    },
+    {
+      "id": "N-61",
+      "severity": "medium",
+      "title": "DI refactor: eliminate all 301 database.DB global refs across 13 handler files",
+      "status": "fixed",
+      "description": "13 handler files refactored to injected *gorm.DB via struct field. Free functions parameterized with db arg. Zero database.DB refs remain.",
+      "evidence": "go build/vet/gofmt clean; grep returns 0 files",
+      "commit": "2a36e96"
+    },
+    {
+      "id": "N-62",
+      "severity": "medium",
+      "title": "Nil-db guards on 103 entry-point handler methods",
+      "status": "fixed",
+      "description": "All handler methods accessing h.db now return 503 instead of nil panic. 103 guards across 12 files.",
+      "evidence": "Unit tests verify 13 handlers return 503 with nil DB",
+      "commit": "2a36e96"
+    },
+    {
+      "id": "N-63",
+      "severity": "low",
+      "title": "Unit tests for all 13 refactored handlers (18/18 PASS)",
+      "status": "fixed",
+      "description": "di_handler_test.go expanded: 13 nil-db tests + constructor sanity + 4 existing. 18/18 PASS.",
+      "evidence": "go test ./internal/handlers/ -v: 18/18 PASS",
+      "commit": "2a36e96"
+    },
+    {
+      "id": "BC-1",
+      "severity": "high",
+      "title": "Tablet menjanjikan fitur banner katalog yang tidak ada di backend/DB",
+      "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx (+ backend/internal/handlers/notification_handler.go:671)",
+      "endpoint": "POST /api/admin/notifications/broadcast",
+      "impact": "Admin mencentang 'Sematkan Banner Strip di Katalog Merchant', memilih warna, mengirim siaran — tidak ada yang tersimpan atau tampil. UI berbohong ke operator. Field show_top_banner/banner_color tidak ada di BroadcastReq maupun kolom tabel notifications.",
+      "fix": "Dihapus dari tablet (7 titik: state, payload, reset, indikator detail, checkbox, swatch warna, preview). Tidak diimplementasikan di backend karena desktop & mobile pun tidak memilikinya.",
+      "status": "fixed",
+      "resolution": "7 titik dihapus; 0 sisa string di source & bundle publik. Payload tablet kini identik mobile."
+    },
+    {
+      "id": "BC-2",
+      "severity": "medium",
+      "title": "Tablet tidak pernah mengirim link_mobile_settings_tab (kolom DB nyata)",
+      "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:1126,1293,1322",
+      "endpoint": "POST /api/admin/notifications/broadcast",
+      "impact": "Backend menyimpan link_mobile_settings_tab varchar(64) dan memakainya untuk navigasi notifikasi. Tablet tidak punya state maupun field ini, jadi siaran ber-aksi 'navigate' yang dibuat dari tablet kehilangan tujuan deep-link di mobile.",
+      "fix": "Tambahkan state default 'about', kirim dengan kondisi yang sama seperti mobile.",
+      "status": "fixed",
+      "resolution": "State + payload ditambahkan; payload tablet identik mobile (diff nilai: kosong)."
+    },
+    {
+      "id": "BC-3",
+      "severity": "low",
+      "title": "Tablet tidak menandai field judul & pesan sebagai required",
+      "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:7424,7453",
+      "endpoint": "form siaran tablet",
+      "impact": "Validasi HTML5 hilang; hanya JS yang menjaga. Desktop & mobile punya required. Perbedaan affordance dan aksesibilitas (screen reader tidak mengumumkan field wajib).",
+      "fix": "Tambah atribut required pada input judul dan textarea pesan.",
+      "status": "fixed",
+      "resolution": "required=2 terverifikasi runtime di form tablet."
+    },
+    {
+      "id": "BC-4",
+      "severity": "low",
+      "title": "Label field tablet menyimpang dari mobile",
+      "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:7416,7446",
+      "endpoint": "form siaran tablet",
+      "impact": "Mobile/desktop: 'Judul Pengumuman' & 'Pesan Ringkas Notifikasi'. Tablet: 'Judul Siaran Pengumuman' & 'Ringkasan Pesan Singkat (Tampil di Notifikasi)'. Istilah field berbeda antar device untuk data yang sama.",
+      "fix": "Samakan label dengan mobile sebagai patokan.",
+      "status": "fixed",
+      "resolution": "Label disamakan; verifikasi runtime kelima label form ditemukan."
+    },
+    {
+      "id": "BC-5",
+      "severity": "medium",
+      "title": "Tablet menarik limit=50 tanpa paginasi — riwayat >50 tak terjangkau",
+      "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:2090,2366,9728-9737",
+      "endpoint": "GET /api/admin/notifications",
+      "impact": "Desktop & mobile memakai page=1&limit=10 + kontrol Sebelumnya/Selanjutnya. Tablet hardcode limit=50 dan tidak merender kontrol halaman; jika siaran melewati 50, riwayat lama tidak bisa diakses sama sekali dari tablet.",
+      "fix": "Samakan dengan mobile: limit=10 + state halaman + kontrol paginasi.",
+      "status": "fixed",
+      "resolution": "Sudah tertutup oleh commit 3813a5c (\"feat(tablet): optimasi siaran broadcast, hilangkan duplikat segarkan dan perbaiki paginasi list card\") — BUKAN oleh audit ini, dan temuan di findings.json belum pernah disegarkan setelahnya. Verifikasi ulang 2026-11-21: broadcastPageSize = 10 (L2090), params limit dikirim dari state (L2366), TabletSegmentedPagination dirender dengan currentPage/totalPages/totalRecords (L9728-9737). Dijaga test tests/audit/broadcast-single-writer.test.cjs: dengan 60 siaran (6 halaman), klik 'Halaman Selanjutnya' mengirim page=2 dan merender Siaran 011 — 10/10 asersi hijau.",
+      "impact_note": "Judul dan impact di atas mendokumentasikan kondisi saat audit, bukan kondisi sekarang."
+    },
+    {
+      "id": "BC-6",
+      "severity": "low",
+      "title": "Request daftar notifikasi ganda (portal induk + halaman broadcast)",
+      "location": "frontend/desktop/src/components/PlatformRolePortal.tsx:2498, frontend/mobile/src/components/PlatformRolePortal.tsx:2556",
+      "endpoint": "GET /api/admin/notifications",
+      "impact": "Dua request ke endpoint sama; yang tanpa parameter mengembalikan default 15 baris dan ikut meng-overwrite state daftar. Race state + beban server ganda.",
+      "fix": "Lewati fetch daftar di portal induk saat sub-tab broadcast aktif.",
+      "status": "fixed",
+      "resolution": "Ditutup 2026-11-21. Fetch preload tanpa parameter dihapus dari portal induk desktop (L2498) dan mobile (L2556); tablet memang sudah bersih sejak 3813a5c. Yang tersisa hanya satu penulis state `broadcasts` per aplikasi, yaitu fetchBroadcasts(page,limit,status,q). Penghapusan aman karena preload tidak menyuapi label yang tampil: satu-satunya pemakai `${broadcasts.length}` adalah objek allModules yang hanya dirujuk di blok header ber-`&& false` (dead code, L5058), sedangkan kartu dashboard siaran memakai subtitle statis 'Notifikasi Massal Pengguna' (L4096); halaman siaran sudah mengambil daftarnya sendiri saat activeView === 'broadcast' (L3403-3407). Bukti runtime: baseline public/ pra-perbaikan MERAH 4/6 (desktop+mobile gagal pada asersi 'tidak ada request tanpa parameter' dan 'memakai limit halaman'), tablet hijau; sesudah build ulang 10/10 hijau termasuk asersi bahwa daftar siaran tetap dirender. tsc -b desktop/mobile/tablet bersih."
+    },
+    {
+      "id": "BC-7",
+      "severity": "info",
+      "title": "target_id mati di ketiga device (jalur tidak hidup)",
+      "location": "ketiga bundle",
+      "endpoint": "POST /api/admin/notifications/broadcast",
+      "impact": "target_id selalu 0 dan tidak ada UI yang mengisinya. Backend punya lookup store/user via TargetID (notification_handler.go:760-772), tetapi tidak ada jalur hidup yang mencapainya. Tablet dulu tidak mengirim field ini — perbedaan struktural tanpa dampak fungsional.",
+      "fix": "Disamakan secara struktural (tablet kini kirim target_id:0). Bila tipe target single_store/single_user mau dihidupkan, UI pengisi harus dibuat di ketiga device.",
+      "status": "fixed",
+      "resolution": "Tablet mengirim target_id; payload identik mobile. Fitur pengisi tetap tidak ada (di luar lingkup)."
     }
-   ],
-   "fix": "go get -u ...; go mod tidy; govulncheck ./...",
-   "status": "fixed",
-   "resolution": "govulncheck Go 1.26.9: 'No vulnerabilities found', 0 affected"
-  },
-  {
-   "id": "M1",
-   "severity": "medium",
-   "title": "JWT stored in localStorage",
-   "location": "frontend/desktop/src/utils/apiClient.ts:106 (and App.tsx)",
-   "impact": "Single XSS = full account takeover",
-   "status": "fixed",
-   "resolution": "cookie HttpOnly + CSRF + tiket SSE sekali pakai; lihat perbaikan-m1-penuh.md"
-  },
-  {
-   "id": "M2",
-   "severity": "medium",
-   "title": "Weak CSP (unsafe-inline, unsafe-eval in script-src)",
-   "location": "backend/internal/middleware/security.go:37",
-   "impact": "CSP XSS protection largely nullified; wildcard img-src/connect-src",
-   "status": "fixed",
-   "resolution": "CSP pakai SHA-256 hash, tanpa unsafe-eval; lihat perbaikan-m2-csp.md"
-  },
-  {
-   "id": "M3",
-   "severity": "medium",
-   "title": "Security state in-memory (bypass on restart / multi-instance)",
-   "location": "backend/internal/database/redis.go:282-418; middleware/security.go:90,120,137",
-   "impact": "Without Redis: logout blacklist, login lockout, rate limit reset on restart; per-instance counters in multi-replica",
-   "status": "fixed",
-   "resolution": "fail closed di production: startup, blacklist JWT, lockout login"
-  },
-  {
-   "id": "M4",
-   "severity": "medium",
-   "title": "err.Error() leaked to client in many handlers",
-   "location": [
-    "analytics_handler.go:1105,1124,1135",
-    "notification_handler.go:1273-1300",
-    "dormancy_handler.go:105"
-   ],
-   "impact": "Internal error detail disclosure",
-   "status": "fixed",
-   "resolution": "safe_error.go; respons error generik"
-  },
-  {
-   "id": "L1",
-   "severity": "low",
-   "title": "Potential path traversal / ambiguous LIKE lookup",
-   "location": "support_handler.go:2312",
-   "status": "fixed",
-   "resolution": "escape wildcard LIKE; kode auth_handler"
-  },
-  {
-   "id": "L2",
-   "severity": "low",
-   "title": "Regex-based SanitizeRichText (blacklist, bypassable)",
-   "location": "security/sanitizer.go",
-   "status": "fixed",
-   "resolution": "sanitizer allowlist parser (x/net/html), bukan regex blacklist"
-  },
-  {
-   "id": "L3",
-   "severity": "low",
-   "title": "CORS AllowCredentials true (ensure no wildcard origin in prod)",
-   "location": "middleware/security.go:57",
-   "status": "fixed",
-   "resolution": "wildcard origin ditolak, AllowCredentials hanya untuk origin eksplisit"
-  },
-  {
-   "id": "L4",
-   "severity": "low",
-   "title": "Default JWT secret only warns, no fatal in production",
-   "location": "config/config.go:82",
-   "status": "fixed",
-   "resolution": "JWT secret default/panjang<32 -> log.Fatal di production/staging"
-  },
-  {
-   "id": "L5",
-   "severity": "low",
-   "title": "err.Error() in dormancy_handler.go:49",
-   "location": "dormancy_handler.go:49",
-   "status": "fixed",
-   "resolution": "dormancy_handler tidak lagi memakai err.Error()"
-  },
-  {
-   "id": "L6",
-   "severity": "low",
-   "title": "DB_SSLMODE=disable in .env",
-   "location": ".env",
-   "status": "fixed",
-   "resolution": "fail closed di production; .env.example kini mencontohkan require"
-  },
-  {
-   "id": "N-10",
-   "severity": "medium",
-   "title": "Ignored return of ValidateAndConsumeToken in password reset flows",
-   "location": "backend/internal/handlers/auth_handler.go:1457,1790",
-   "endpoint": "ForgotPasswordReset, ResetPasswordDirect",
-   "impact": "Expired/reused verification token still allowed password reset. Not an auth bypass: a valid OTP is still required first.",
-   "fix": "Check the bool return; return 422 when the token is invalid. In ResetPasswordDirect, look up the user before consuming the token.",
-   "status": "fixed",
-   "commit": "8c7a78d",
-   "resolution": "grep '_ = .*ValidateAndConsumeToken' -> 0 after fix; runtime reset with fake OTP -> 422"
-  },
-  {
-   "id": "N-11",
-   "severity": "critical",
-   "title": "Registration email verification fully bypassable",
-   "location": "backend/internal/handlers/auth_handler.go:580",
-   "endpoint": "POST /api/auth/register",
-   "impact": "VerifyOTP never called and token consume result discarded; only 'verification_token != \\\"\\\"' was checked. Anyone could create email-verified accounts and stores without receiving any email.",
-   "fix": "Require a successful ValidateAndConsumeToken for purpose 'registration'; reject 422 otherwise.",
-   "status": "fixed",
-   "commit": "8c7a78d",
-   "resolution": "Runtime pre-fix: fabricated token -> 200 (store 26), no token -> 200 (store 27), email_verification_otps count = 0 while email_verified_at set. Post-fix: 422 for both, valid flow 200, replay 422. Negative control on vulnerable build FAILS as required."
-  },
-  {
-   "id": "N-12",
-   "severity": "high",
-   "title": "Platform settings writable by any non-merchant platform staff (blacklist role check)",
-   "location": "backend/internal/handlers/setting_handler.go; backend/cmd/server/main.go:519-521",
-   "endpoint": "GET/POST /api/admin/settings, POST /api/admin/settings/rekber/reset-defaults",
-   "impact": "Handler used a blacklist (role == \\\"\\\" || role == \\\"merchant\\\"), so every staff role outside merchant passed; GET had no authz check at all. Staff 'support' altered monetization/ads/partner settings.",
-   "fix": "Gate the three routes with RequirePermission(\\\"system:settings:manage\\\") (already present in the RBAC matrix, superadmin-only); replace the handler blacklist with the IsPlatformStaffRole whitelist as defense in depth.",
-   "status": "fixed",
-   "commit": "02a22b8",
-   "resolution": "support: 200 -> 403 (negatif control on vulnerable build: 200). superadmin 200, merchant 403. ads_test_mode changed 0->true then restored to 0. No regression on /admin/support/tickets and /admin/rbac/me."
-  },
-  {
-   "id": "N-13",
-   "severity": "critical",
-   "title": "Paket berbayar aktif tanpa pembayaran lewat POST /api/auth/google",
-   "location": "backend/internal/handlers/auth_handler.go: GoogleAuth (CASE B)",
-   "status": "fixed",
-   "commit": "ac1ae3e",
-   "summary": "GoogleAuth memakai req.Plan untuk menetapkan plan pro_* dan payment_status paid tanpa harga/invoice/verifikasi admin. Register() sudah punya penjagaan yang sama tetapi tidak dipasang di jalur Google.",
-   "runtime_proof": "belum end-to-end (butuh token Google asli); unit test + kontrol negatif"
-  },
-  {
-   "id": "N-14",
-   "severity": "high",
-   "title": "Klaim email_verified Google diabaikan; akun dapat diambil alih",
-   "location": "backend/internal/handlers/auth_handler.go: verifyGoogleCredential, GoogleAuth (CASE A)",
-   "status": "fixed",
-   "commit": "ac1ae3e",
-   "summary": "email_verified dibaca tetapi tidak diperiksa di kedua jalur verifikasi; CASE A menempelkan google_id ke akun mana pun dengan email sama. Penjagaan wajib mensyaratkan akun belum tertaut Google agar 5 akun produksi tidak terkunci.",
-   "runtime_proof": "unit test + kontrol negatif; cek data 5 akun lolos"
-  },
-  {
-   "id": "N-15",
-   "severity": "high",
-   "title": "X-Forwarded-For dapat dipalsukan; rate limiter & dedup per-IP dilewati",
-   "location": "backend/internal/config/config.go (TrustedProxies), backend/cmd/server/main.go: fiber.Config, backend/internal/handlers/analytics_handler.go, backend/internal/handlers/report_handler.go",
-   "status": "fixed",
-   "summary": "TrustedProxies di-hardcode mencakup 127.0.0.1/::1 dan seluruh RFC1918 sehingga siapa pun di LAN dianggap proxy terpercaya. Dua handler juga membaca X-Forwarded-For mentah, melewati normalisasi Fiber. Daftar kini konfigurabel via TRUSTED_PROXIES (default loopback) dan kedua handler memakai c.IP().",
-   "runtime_proof": "Dari IP LAN 192.168.1.6: 15 request -> 429; 8 request dengan XFF berputar sebelumnya 200 semua, sesudah perbaikan 429 semua."
-  },
-  {
-   "id": "N-16",
-   "severity": "medium",
-   "title": "POST /api/help/articles/:id/helpful tanpa rate limiter dan tanpa dedup",
-   "location": "backend/cmd/server/main.go (registrasi rute), backend/internal/handlers/support_handler.go: VoteHelpful",
-   "status": "fixed",
-   "summary": "Rute publik menaikkan helpful_count tanpa batas. Ditambahkan PublicSubmissionRateLimiter dan dedup per (IP, artikel) berjendela 24 jam.",
-   "runtime_proof": "40 POST dari satu IP: sebelumnya helpful_count 0->40; sesudah perbaikan 200 x15 lalu 429 x25 dan helpful_count tetap 1."
-  },
-  {
-   "id": "N-17",
-   "severity": "medium",
-   "title": "Enumerasi akun lewat /api/send-register-otp dan forgot-password",
-   "location": "backend/internal/handlers/auth_handler.go: SendRegistrationOTP, ForgotPasswordRequest",
-   "status": "fixed",
-   "summary": "Email terdaftar dibalas 422 'Email sudah terdaftar' sementara email bebas 200; cabang blacklist juga 403 dengan alasan eksplisit. Semua jalur keluar (termasuk honeypot) kini memakai satu respons seragam.",
-   "runtime_proof": "Respons byte-identik 200 untuk email terdaftar dan tidak terdaftar. Uji versi pertama tidak sah (lulus walau jalur dibedakan); diganti dan dibuktikan gagal saat satu jalur dibedakan."
-  },
-  {
-   "id": "N-18",
-   "severity": "critical",
-   "title": "Merchant dapat menerbitkan, mengubah, dan menghapus artikel platform serta menulis master settings",
-   "location": "backend/cmd/server/main.go rute /articles (POST/PUT/DELETE), /settings, /settings/policies",
-   "status": "fixed",
-   "summary": "Rute tulis artikel dan settings hanya dijaga StoreOwnerRequired; handler Store/Update/Destroy tidak memeriksa peran sama sekali, dan Destroy menghapus berdasarkan id tanpa filter kepemilikan.",
-   "runtime_proof": "Merchant: POST /articles 201, PUT /articles/1 200 (judul platform berubah), DELETE 200. Sesudah perbaikan kelimanya 403 untuk merchant; superadmin tetap 201/200. Data dipulihkan, hash artikel id 1 kembali identik."
-  },
-  {
-   "id": "N-19",
-   "severity": "critical",
-   "title": "Kupon gratis hardcoded mengaktifkan paket berbayar tanpa pembayaran",
-   "location": "backend/internal/services/subscription_service.go: CreateSubscriptionOrder",
-   "status": "fixed",
-   "summary": "Kupon bawaan CATAVOR100/GRATISPRO memberi potongan harga penuh sehingga finalAmount 0 dan payment_status otomatis paid; paket langsung aktif. Kupon kini hanya dari setting master_coupons yang dikelola admin.",
-   "runtime_proof": "Sebelum: order pro_business annual dengan CATAVOR100 -> discount 1290000, status paid, stores.id=25 plan pro_business sampai 2027. Sesudah: discount 0, status pending, toko tetap free; kupon sah admin (fixed 10000 dan type free) tetap berfungsi."
-  },
-  {
-   "id": "N-20",
-   "severity": "medium",
-   "title": "Persetujuan invoice langganan tidak meninggalkan jejak audit",
-   "location": "backend/internal/handlers/subscription_handler.go: ApproveOrder",
-   "status": "fixed",
-   "summary": "Approve mengubah order pending menjadi paid dan mengaktifkan paket, tetapi tidak menulis activity_logs dan subscription_orders tidak punya kolom approved_by; hanya zerolog ke stdout. Aksi katalog biasa justru tercatat. Kini ditulis sebagai billing.subscription_approve lengkap dengan pelaku dan approved_by.",
-   "runtime_proof": "Sebelum: approve 200, activity_logs ILIKE '%approv%' = 0 baris. Sesudah: tercatat user_id=12, action=billing.subscription_approve, entity_title=INV-SUB-..., changes.approved_by=12. Kontrol negatif: pencatatan dicabut -> approve 200 tetapi baris audit tetap 1->1; patch dipulihkan -> 1->2."
-  },
-  {
-   "id": "N-21",
-   "severity": "medium",
-   "title": "Toko dengan slug mengandung merek platform tidak dapat diakses publik (404)",
-   "location": "backend/internal/handlers/store_handler.go:114 (IsReservedSlug), dipakai ShowStore & IndexProducts",
-   "status": "fixed",
-   "category": "fungsional",
-   "summary": "IsReservedSlug() menolak setiap slug yang mengandung varian merek (catavor/catafor/katavor/catafr/...), dan pemeriksaan yang sama dipakai saat MEMBACA toko yang sudah ada, bukan hanya saat registrasi. Akibatnya /api/u/:slug dan /api/u/:slug/products mengembalikan 404 'Toko tidak ditemukan.' untuk toko yang slug-nya mengandung nama merek.",
-   "evidence": "Runtime tanpa auth: /api/u/dfauna|adidas|gendolo|shop66698|iop semua 200; /api/u/catavor dan /api/u/catavor-compliance keduanya 404 (ShowStore dan IndexProducts). Toko id=1 slug=catavor plan=pro status=active punya 11 produk aktif yang tidak dapat dibuka publik. check-slug menolak slug ini dengan 'kata kunci sistem yang dicadangkan'.",
-   "impact": "Katalog toko milik pemilik platform (11 produk aktif) tidak dapat diakses publik maupun lewat API. Bukan kebocoran data; kebalikannya — kehilangan akses sah.",
-   "fix": "Reserved-slug dicabut dari 4 handler BACA publik (ShowStore, IndexProducts, IndexFauna, CatalogMetrics) karena validasi penamaan adalah aturan write-path, bukan syarat lookup. Reserved-slug TETAP ditegakkan di semua jalur tulis: Register, CreateStore, UpdateStore (rename), dan CheckSlug.",
-   "resolution": "FIXED di 6eb0d20. Bukti runtime (PID 39724): /api/u/catavor-uji, /products, /fauna, /catalog-metrics semuanya 200 (sebelumnya 404) dan body memuat store_title toko tsb (bukan 200 kosong). Kontrol positif: slug normal 200. Kontrol negatif: slug tidak ada 404. Jalur tulis tetap menolak: check-slug catavor-palsu -> available=false, slug bebas -> available=true. Bukti browser: /catavor-demo ter-render 'Toko Demo Catavor', sebelumnya 404. Regresi N-36 (iss/aud palsu 401) dan N-32 (cmap 39443B) tetap PASS. 17 PASS / 0 FAIL. Data uji dihapus, stores=0.",
-   "verified_at": "2026-10-18"
-  },
-  {
-   "id": "N-22",
-   "severity": "medium",
-   "title": "Urutan Stores[0] tidak deterministik — toko blacklisted terpilih sebagai default login",
-   "location": "backend/internal/handlers/auth_handler.go:309, :933 (Preload \"Stores\" tanpa ORDER BY)",
-   "status": "fixed",
-   "summary": "Login/GoogleAuth memuat relasi Stores tanpa ORDER BY lalu memakai user.Stores[0] sebagai toko default. Postgres mengembalikan urutan fisik: untuk user 5 (7 toko) elemen pertama adalah toko id 8 'jaja' yang is_suspended dan is_blacklisted. Token berisi store_id=8 sementara middleware memasang store 15 ke request, sehingga token dan request aktif tidak sepakat soal toko.",
-   "evidence": "Sebelum: JWT store_id=8 (jaja, blacklisted) x3 login stabil; request aktif store_id=15. Sesudah helper preloadUserStores(): store_id=5 (adidas) 3/3, request aktif 5. Kontrol negatif (ORDER BY dihapus, build bersih): kembali store_id=8.",
-   "impact": "Pengguna dengan lebih dari satu toko bisa mendarat di toko yang salah, termasuk toko suspended/blacklisted. Token dan konteks request menunjuk toko berbeda, berisiko operasi tulis masuk ke toko yang tidak dipilih pengguna.",
-   "fix": "func preloadUserStores(q *gorm.DB) *gorm.DB { return q.Preload(\"Stores\", func(db *gorm.DB) *gorm.DB { return db.Order(\"is_blacklisted ASC, is_suspended ASC, id ASC\") }) } — dipakai di ketiga Preload(\"Stores\").",
-   "resolution": "Terverifikasi runtime; kontrol negatif mereproduksi bug; hash owner dipulihkan dan password probe ditolak 401."
-  },
-  {
-   "id": "N-23",
-   "severity": "high",
-   "title": "Route admin platform terdaftar di grup merchant (StoreOwnerRequired) — staf tanpa toko tertolak 403, dan duplikasi route menutupi versi yang benar",
-   "location": "backend/cmd/server/main.go:314 (guarded), :354-364, :418-427, :448-456, :458-481, :486-491; backend/internal/middleware/auth.go:355 StoreOwnerRequired",
-   "status": "fixed",
-   "summary": "28 route /admin/* (notifications, users/stores search, automation, audit-logs, market-intelligence, safe-domains, support tickets+templates) terdaftar DUA KALI: di grup adminApi (AuthRequired+RequireAdmin, benar) dan di grup guarded (mensyaratkan StoreOwnerRequired, salah). Fiber memakai handler terdaftar pertama, sehingga versi merchant yang menang. Akibatnya superadmin/staf platform yang tidak punya toko katalog tertolak 403 \"Toko Anda belum terdaftar.\" padahal Role sudah memegang izin. Jalur admin platform juga tidak terpisah dari middleware tenant, melanggar prinsip OWASP 'cross-tenant administrative path harus explicit, separately authorized, dan auditable'.",
-   "evidence": "Runtime sebelum: seluruh 16 endpoint admin -> 403 \"Toko Anda belum terdaftar.\" dengan DB stores=0. Sesudah: 16/16 -> 200; merchant dengan toko -> 403 di 6 endpoint admin (kontrol positif); route merchant /admin/analytics & /admin/categories tetap 200 untuk merchant, tetap menolak staf tanpa toko. Alias non-/admin (/users/search, /stores/search, /automation/*) kini 404 dan terbukti tidak dipakai frontend (hanya /api/admin/*).",
-   "fix": "Hapus 28 route duplikat dari grup guarded; pindahkan /admin/comments (3 route) ke adminApi; sisakan hanya /admin/categories & /admin/analytics* di grup merchant karena memang memakai store_id konteks. Satu sumber kebenaran: adminApi."
-  },
-  {
-   "id": "N-24",
-   "severity": "medium",
-   "title": "Middleware tenant menyuntikkan store acak ke konteks staf platform (hardcode slug 'catavor' + fallback toko id terkecil)",
-   "location": "backend/internal/middleware/auth.go:443-450 (sebelum perbaikan)",
-   "status": "fixed",
-   "summary": "StoreOwnerRequired, bila user tidak punya toko, mencari toko ber-slug 'catavor' (nama platform, hardcode) lalu bila gagal memakai toko dengan id terkecil, dan memasangnya sebagai konteks store request. Staf platform jadi memperoleh tenant sembarang — bukan miliknya — sehingga query ber-scope store_id bisa membaca data tenant lain. Selain itu slug 'catavor' adalah nama platform yang dilarang dipakai toko mana pun.",
-   "evidence": "grep hardcode: auth.go:446 WHERE LOWER(slug) = 'catavor'. Setelah perbaikan blok tersebut dihapus total; staf tanpa toko diloloskan tanpa konteks store (c.Next()), handler yang butuh store_id tetap menolak sendiri (terbukti: /admin/analytics -> 403, /admin/categories -> 400 untuk staf tanpa toko).",
-   "fix": "Hapus fallback toko pengganti. Staf platform tanpa toko diloloskan tanpa store context; merchant tanpa toko tetap 403 STORE_NOT_REGISTERED."
-  },
-  {
-   "id": "N-25",
-   "severity": "high",
-   "title": "Penanda staf platform berbasis string email hardcode (34 titik)",
-   "category": "Broken Access Control / CWE-798",
-   "status": "fixed",
-   "description": "Otorisasi staf platform ditentukan dengan membandingkan email ke literal 'admin@catavor.com' di 34 titik (middleware + 6 handler + service). Akun tersebut tidak ada di database, sehingga nilainya murni string magic. Efek: (a) staf dengan role sah (support/finance/compliance/content) tidak diakui pada jalur yang memakai hardcode; (b) beberapa blok memakai role fiktif ('platform_admin','super_admin','moderator','investigator','admin') yang tidak ada di tabel platform_roles; (c) penanda anti-lockout terikat ke email sehingga hilang bila email diganti.",
-   "impact": "Staf platform dengan role sah dapat kehilangan akses pada jalur tertentu, dan sebaliknya logika penanda staf tidak konsisten antar-endpoint.",
-   "remediation": "Satu sumber kebenaran: models.PlatformStaffRoles, models.IsPlatformStaffRole(role), models.NormalizePlatformRole, (*User).IsPlatformStaff(), (*User).IsSuperadmin(). middleware.PlatformStaffRoles menjadi alias. 34 titik hardcode email diganti helper; role fiktif dihapus; anti-lockout dihitung dari jumlah superadmin di DB, bukan email.",
-   "evidence": "grep 'admin@catavor.com' -> 34 titik sebelum perbaikan; setelah perbaikan 0 titik otorisasi (sisa hanya komentar dan seeder instalasi-baru). Verifikasi runtime 30 PASS / 0 FAIL.",
-   "verified_by": "hermes-verify-n25.sh + cmd/hermes_verify_lockout (cabang anti-lockout, kontrol positif superadmin=2 -> izin)"
-  },
-  {
-   "id": "N-26",
-   "severity": "high",
-   "title": "DeleteStore selalu 500: transaksi ter-abort karena error diabaikan + kolom store_id salah",
-   "category": "Error Handling / CWE-754",
-   "status": "fixed",
-   "description": "StoreHandler.DeleteStore menghapus 10 tabel dengan `_ = ...Delete(...).Error` sehingga kegagalan diabaikan. Di PostgreSQL satu perintah gagal membuat transaksi berstatus aborted (SQLSTATE 25P02) dan semua perintah berikutnya ikut gagal, termasuk DELETE toko. Dua kegagalan nyata ditemukan: (1) tabel store_daily_traffic_sources tidak ada di DB karena DB_AUTO_MIGRATE=false; (2) product_variants dan product_images tidak memiliki kolom store_id (relasi lewat product_id), sehingga WHERE store_id = ? selalu error.",
-   "impact": "Merchant tidak dapat menghapus tokonya sendiri; endpoint mengembalikan 500 tanpa informasi penyebab. Data toko tetap utuh sebagian.",
-   "remediation": "Setiap error kini ditangani: rollback + log tabel penyebab + pesan spesifik. Purge mengikuti relasi sebenarnya (product_variants/product_images lewat product_id sub-query; sisanya store_id). Tabel store_daily_traffic_sources dibuat via migrasi idempoten (backend/migrations).",
-   "evidence": "Sebelum: POST /api/stores/{id}/delete -> 500, log 'current transaction is aborted (SQLSTATE 25P02)'. Sesudah: 200 dan baris toko hilang dari DB. Regresi 26 PASS / 0 FAIL.",
-   "verified_by": "hermes-verify-regresi.sh (buat toko -> konfirmasi slug -> hapus -> verifikasi DB kosong)"
-  },
-  {
-   "id": "N-27",
-   "severity": "high",
-   "category": "availability / frontend robustness",
-   "title": "Landing page crash total saat /stores/featured mengembalikan data:null",
-   "status": "fixed",
-   "location": "frontend/desktop/src/App.tsx + frontend/mobile/src/App.tsx (setFeaturedStores, setFaunas)",
-   "evidence": "GET /api/stores/featured -> {\"data\":null,\"success\":true}; state disimpan tanpa cek tipe; featuredStores.filter() melempar TypeError dan ErrorBoundary mengaktifkan 'Kendala Memuat Aplikasi Catavor Desktop'.",
-   "impact": "Seluruh halaman depan tidak dapat diakses setiap kali DB tidak punya toko unggulan (termasuk instalasi baru).",
-   "fix": "Array.isArray guard pada setFeaturedStores/setFaunas; fallback (featuredStores || []) di titik pemakaian; build ulang public/{desktop,mobile}.",
-   "verification": "Landing desktop & mobile dimuat ulang di browser: render penuh, 0 console error, 0 JS exception.",
-   "related": [
-    "N-26"
-   ]
-  },
-  {
-   "id": "N-28",
-   "severity": "medium",
-   "category": "correctness / static asset handling",
-   "title": "Catch-all ServeSPA menyajikan index.html (200) untuk berkas statis yang tidak ada",
-   "status": "fixed",
-   "location": "backend/internal/handlers/spa_handler.go (ServeSPA), catch-all di cmd/server/main.go:535",
-   "evidence": "GET /storage/stores/1/branding/...jpg milik toko yang sudah dihapus -> 200, content-type text/html (isi: index.html SPA), bukan 404.",
-   "impact": "Gambar rusak tanpa error jaringan yang jelas; CDN/proxy dapat meng-cache 'gambar' berisi HTML selama MaxAge 30 hari; pemantauan tidak pernah melihat 404 sehingga berkas hilang tak terdeteksi.",
-   "fix": "isStaticAssetPath() menangkap prefix /storage/, /desktop/, /tablet/, /mobile/ sebelum menyajikan index.html dan mengembalikan 404 JSON.",
-   "verification": "4 path statis tidak ada -> 404 application/json; kontrol positif: 8 aset nyata & 3 halaman SPA tetap 200; 6 path routing klien (/tokosaya, /admin/dashboard, ...) tetap 200 text/html; browser: landing desktop & mobile render penuh, 0 error konsol.",
-   "related": [
-    "N-27"
-   ]
-  },
-  {
-   "id": "N-29",
-   "severity": "high",
-   "title": "Master safe-domains bisa diubah SEMUA staf platform (whitelist anti-phishing tanpa otorisasi)",
-   "location": "backend/cmd/server/main.go:510-515 + 526-531 (duplikat), backend/internal/handlers/safe_domain_handler.go",
-   "endpoint": "GET/POST /api/admin/safe-domains, PUT/DELETE /api/admin/safe-domains/:id, POST /api/admin/safe-domains/reset-defaults",
-   "impact": "safe_domains adalah whitelist domain yang dipakai frontend safeHref: tautan ke domain di daftar ini DIBUKA TANPA peringatan konfirmasi anti-phishing. Rute terdaftar dua kali di adminApi TANPA RequirePermission, hence lolos dengan RequireAdmin saja (semua staf platform). Staf support/content/finance bisa menambahkan domain penyerang lalu mematikan guard redirect untuk seluruh pengguna platform. Dibuktikan runtime: staf platform_role='support' -> POST 201 dan DB mencatat domain 'evil-n29b.example'; setelah perbaikan 4/4 mutasi -> 403.",
-   "fix": "Hapus 5 rute duplikat dan wajibkan RequirePermission(cfg, \"system:settings:manage\") pada seluruh rute safe-domains (izin yang hanya dimiliki Superadmin).",
-   "status": "fixed",
-   "resolution": "Duplikat dihapus, rute tunggal ber-permission system:settings:manage. Verifikasi: support GET/POST/PUT/reset -> 403 (DB tidak bertambah), superadmin -> 200 (fitur utuh). 10 PASS / 0 FAIL."
-  },
-  {
-   "id": "N-30",
-   "severity": "info",
-   "title": "CSRF protection: terpasang dan benar (bukan temuan, hasil verifikasi ulang)",
-   "location": "backend/internal/middleware/security.go:107 (CSRFProtection dipasang via SetupSecurity)",
-   "endpoint": "Seluruh POST/PUT/DELETE /api/*",
-   "impact": "Audit ulang memastikan proteksi CSRF berbasis Origin/Referer benar-benar aktif. Diuji runtime: POST bermutasi dengan Origin asing -> 403, Origin sah -> 200, GET tidak diblokir. Tidak ada celah.",
-   "fix": "Tidak ada tindakan (sudah benar).",
-   "status": "verified-ok",
-   "resolution": "Terpasang di middleware security.go dan terbukti 403 untuk origin asing."
-  },
-  {
-   "id": "N-31",
-   "severity": "high",
-   "title": "pdfjs-dist 3.11.174 rentan arbitrary JS execution saat membuka PDF berbahaya",
-   "location": "frontend/{desktop,mobile}/package.json, frontend/*/src/components/DocumentPreviewModal.tsx",
-   "endpoint": "DocumentPreviewModal (runtime dependency, bukan devDependency)",
-   "impact": "Advisory GHSA-wgrm-67xf-hhpq: pdfjs-dist <=4.7.76 bisa mengeksekusi JavaScript sembarang saat membuka PDF yang dibuat penyerang. Previewer ini dipakai untuk membuka dokumen unggahan merchant/staf, jadi PDF berbahaya berpotensi RCE di origin aplikasi. Mitigasi parsial yang sudah ada: isEvalSupported=false dan CSP ketat (script-src 'self' + hash, tanpa unsafe-inline/eval) — tetapi library tetap harus di-upgrade.",
-   "fix": "Upgrade pdfjs-dist ke 6.4.299 (menghilangkan kanvas/node-pre-gyp/tar), sesuaikan import worker ke build/pdf.worker.min.mjs, lalu npm audit fix.",
-   "status": "fixed",
-   "resolution": "pdfjs-dist 6.4.299 terpasang di desktop & mobile; npm audit keduanya 0 vulnerabilities (sebelumnya 7: 1 critical, 4 high, 2 moderate). Verifikasi fungsional: typecheck PASS, vite build PASS (1 bundel + worker .mjs, MIME text/javascript), harness Node memuat PDF uji -> 1 halaman, viewport 200x200, teks 'HALO' terekstrak, render() tersedia."
-  },
-  {
-   "id": "N-32",
-   "severity": "low",
-   "title": "PDF preview tidak menyediakan standardFontDataUrl/cMapUrl (hardening, bukan degradasi)",
-   "location": "frontend/{desktop,mobile}/src/components/DocumentPreviewModal.tsx:379",
-   "endpoint": "DocumentPreviewModal",
-   "impact": "cMapPacked=true di-set tetapi cMapUrl/standardFontDataUrl tidak, sehingga PDF.js tidak bisa memuat CMap untuk PDF ber-encoding CJK (UniJIS/UniGB/UniKS) maupun font standar non-embedded. PDF Latin biasa tetap ter-render, tetapi PDF non-Latin berisiko kehilangan glyph (tofu).",
-   "fix": "Diterapkan 2026-10-18 (commit 0bce344): cmaps/ (169 file) + standard_fonts/ (17 file) disalin dari pdfjs-dist 6.4.299 ke frontend/{desktop,mobile}/public/pdfjs/ agar ikut ter-bundle vite; cMapUrl + standardFontDataUrl diset ke ${import.meta.env.BASE_URL}pdfjs/... sehingga mengikuti base SPA.",
-   "status": "fixed",
-   "resolution": "Dibuktikan runtime di browser: bundle produksi desktop memuat `/desktop/pdfjs/` dan mobile `/mobile/pdfjs/`; preview PDF CJK non-embedded lewat UI Helpdesk membuat PDF.js benar-benar memuat /desktop/pdfjs/cmaps/UniJIS-UTF16-H.bcmap dan Adobe-Japan1-UCS2.bcmap lalu menampilkan '1 Hal'. Aset tersaji 200 byte-utuh (cmap 39443B, LiberationSans 139512B, Foxit 19469B). Data uji (tiket + lampiran + file) dihapus setelah verifikasi."
-  },
-  {
-   "id": "N-33",
-   "severity": "medium",
-   "title": "Pencabutan role staf tidak meng-invalidate sesi yang sudah terbit",
-   "location": "backend/internal/services/rbac_service.go:RevokeStaffRole",
-   "endpoint": "POST /api/admin/rbac/staff/revoke",
-   "impact": "Otorisasi RBAC memang membaca role dari DB sehingga /admin/* langsung 403 setelah demote, TETAPI token JWT lama tetap diterima endpoint terautentikasi biasa sampai kedaluwarsa (24 jam). Dibuktikan runtime: token staf masih 200 di /api/auth/me setelah role dicabut; token_version tidak di-bump. Artinya staf yang dipecat tetap memegang sesi aktif.",
-   "fix": "Panggil RevokeAllSessionsForUser(db, userID) setelah demote: blacklist TokenID tiap sesi, tandai is_revoked, dan bump users.token_version.",
-   "status": "fixed",
-   "resolution": "Diverifikasi lewat jalur nyata: superadmin POST /admin/rbac/staff/revoke -> 200, role jadi merchant, token staf lama -> 401 SESSION_REVOKED (sebelumnya 200). 5 PASS / 0 FAIL."
-  },
-  {
-   "id": "N-34",
-   "severity": "low",
-   "title": "Runtime toolchain tidak di-pin; Node lokal di bawah minimum dependency",
-   "location": ".nvmrc (baru), frontend/{desktop,mobile}/package.json (engines), .github/workflows/security-audit.yml",
-   "endpoint": "Proses build frontend (bukan endpoint runtime)",
-   "impact": "pdfjs-dist 6.4.299 mensyaratkan node >=22.13.0 dan vite 8.1.4 mensyaratkan ^20.19.0 || >=22.12.0, sementara mesin build lokal memakai Node 20.13.1 (di bawah keduanya, memunculkan EBADENGINE). Sebelumnya tidak ada pin versi Node di repo maupun di CI (CI hanya menjalankan gitleaks, tanpa step build), sehingga hasil build bergantung pada mesin siapa yang menjalankannya. Build saat ini tetap sukses, tetapi lingkungan tidak reproducible dan bisa gagal diam-diam pada dependency berikutnya yang menaikkan syarat.",
-   "fix": "Tambahkan engines.node '>=22.13.0' di kedua package.json dan .nvmrc berisi 22.13.0 agar versi terbaca otomatis oleh nvm/CI.",
-   "status": "fixed",
-   "resolution": "Pin ditambahkan; 'npm pkg get engines' mengonfirmasi >=22.13.0 dan npm melaporkan EBADENGINE secara eksplisit untuk Node 20.13.1. Build ulang desktop & mobile exit 0 dengan hash bundel identik (index-CIb2qLus.js / index-y3D47Wht.js, pdf.worker.min-CjEcRF4W.mjs) -> build deterministik. Runtime diverifikasi: kedua SPA render (H1 tampil, #root 1 anak, ErrorBoundary false, 0 console error). Catatan: mesin lokal MASIH Node 20.13.1; upgrade Node disarankan agar peringatan hilang."
-  },
-  {
-   "id": "N-35",
-   "severity": "low",
-   "title": "Audit log platform hanya mencakup 5 aksi RBAC; login & perubahan sensitif tidak tercatat",
-   "location": "backend/internal/services/ (RecordActivity), backend/internal/handlers/auth_handler.go",
-   "endpoint": "POST /api/auth/login, ganti password, hapus toko, ubah settings",
-   "impact": "Aksi yang tercatat di audit log platform hanya RBAC_ACCESS_DENIED, RBAC_CUSTOM_ROLE_CREATED, RBAC_ROLE_PERMISSIONS_UPDATED, RBAC_STAFF_ROLE_ASSIGNED, RBAC_STAFF_ROLE_REVOKED. Login sukses/gagal, perubahan password, penghapusan toko, dan perubahan settings TIDAK masuk audit log governance. Dampak kepatuhan: tidak ada jejak 'siapa mengubah apa' untuk aksi destruktif di luar RBAC. Tidak ada kebocoran kredensial di log (diverifikasi: 0 pemakaian log password/token/secret/otp).",
-   "fix": "Helper logAuthEvent() di internal/handlers/auth_audit.go, dipanggil di dua titik kegagalan Login(): reason=unknown_email (tanpa actor; email hanya di Changes) dan reason=bad_password (dengan user_id/actor + attempts + flag locked). Tidak mencatat password, hash, maupun token.",
-   "status": "fixed",
-   "resolution": "PERBAIKAN DITERAPKAN + VERIFIKASI RUNTIME 20 PASS / 0 FAIL: tiap percobaan login gagal menghasilkan tepat 1 baris AUTH_LOGIN_FAILED (action/category/reason/IP/user_agent benar), user_id terisi untuk akun nyata, password & hash bcrypt terbukti TIDAK tersimpan, login sukses tetap 200 dan tetap tercatat (auth.login), regresi healthz/landing/mobile/401 admin OK. KLARIFIKASI: login SUKSES sudah tercatat sejak sebelumnya di auth_handler.go:394 (kredensial) dan :1013 (Google) -- klaim 'login tidak tercatat' TIDAK berlaku untuk jalur sukses; celah nyata hanya pada percobaan GAGAL. Aksi hapus toko & ubah settings tetap tercatat minim dan dicatat sebagai backlog."
-  },
-  {
-   "id": "N-36",
-   "severity": "medium",
-   "title": "Klaim iss/aud JWT diset saat terbit tetapi TIDAK divalidasi saat verifikasi",
-   "location": "backend/internal/middleware/auth.go:100 (ExtractOptionalClaims) dan :237 (AuthRequired)",
-   "endpoint": "GET /api/auth/me dan seluruh /api/* yang dilindungi AuthRequired",
-   "impact": "jwt.ParseWithClaims dipanggil tanpa opsi WithIssuer/WithAudience, sehingga klaim `iss` dan `aud` yang diset di GenerateTokenWithID hanya kosmetik. Token yang ditandatangani JWT_SECRET yang sama tetapi membawa iss=evil-issuer dan aud=evil-audience diterima HTTP 200, setara token sah. Membuka token confusion bila secret dipakai bersama sistem lain, dan membuat rotasi/migrasi issuer tidak bisa ditegakkan.",
-   "fix": "Diterapkan 2026-10-18 (commit 0d773d6): konstanta JWTIssuer/JWTAudience sebagai satu sumber kebenaran, dipakai saat menerbitkan DAN memverifikasi. Kedua titik verifikasi kini memakai jwt.WithValidMethods([\"HS256\"]), jwt.WithIssuer(JWTIssuer), jwt.WithAudience(JWTAudience).",
-   "status": "fixed",
-   "resolution": "Dibuktikan runtime (server PID 10484): iss=evil-issuer -> 401 (sebelum 200), aud=[evil-audience] -> 401 (sebelum 200), aud=[] -> 401, iss dihapus -> 401, aud dihapus -> 401, iss=catavor-saas-x -> 401. Kontrol positif token sah -> 200 dengan body berisi owner@catavor.local. Regresi: alg=none/token sampah/tanpa token 401; browser login SPA berhasil lalu /api/auth/me, /api/admin/rbac/me, /api/admin/automation/status semua 200 via cookie HttpOnly; N-32 cmap tetap 39443B; healthz/landing/desktop/mobile 200. 18 PASS / 0 FAIL."
-  },
-  {
-   "id": "N-37",
-   "severity": "high",
-   "title": "SanitizeVideoURL cocokkan domain sebagai substring — URL pihak ketiga lolos ke halaman toko publik",
-   "location": "backend/internal/security/sanitizer.go (SanitizeVideoURL) dipakai di fauna_handler.go:253/:385 dan product_handler.go:328/:630",
-   "endpoint": "POST /api/fauna, PUT /api/fauna/:id (jalur productHandler.Store/Update)",
-   "impact": "Pencocokan memakai strings.Contains(host, \"youtube.com\"), sehingga host penyerang seperti youtube.com.evil.com, notyoutube.com.evil.com, dan evil-youtu.be.attacker.net diterima dan disimpan apa adanya ke products.video_url. Penjual dapat menanamkan URL pihak ketiga di halaman toko publik. Dampak XSS dibatasi karena frontend merender host tak dikenal sebagai <a href> dengan rel=noopener noreferrer, bukan iframe — tetapi validasi domain tetap gagal dan kelak berbahaya bila render diubah menjadi iframe.",
-   "fix": "Diterapkan: pencocokan label domain utuh (host == domain atau berakhiran '.'+domain) untuk youtube.com, youtube-nocookie.com, youtu.be, vimeo.com. Skema berbahaya (javascript:, vbscript:, data:, file:, blob:) dan protokol-relatif '//host' ditolak. File video langsung (.mp4/.webm/.mov/.ogg/.m3u8) tetap diterima dari host mana pun karena dirender sebagai elemen <video>, bukan iframe. Keempat titik tulis video_url kini memakai SanitizeVideoURL (sebelumnya jalur produk memakai SanitizeURL yang hanya memfilter skema).",
-   "status": "fixed",
-   "resolution": "Dibuktikan runtime (server PID 31716, binary dibangun ulang dari source): POST /api/fauna dengan ketiga vektor bypass kini menyimpan video_url kosong (DB: <DIBUANG>), sedangkan https://www.youtube.com/watch?v=abc123 dan https://cdn.contoh.com/klip.mp4 tetap tersimpan. Kode LAMA + test baru GAGAL pada 3 vektor; kode baru LULUS (kontrol negatif). Unit test internal/security coverage 28.9% -> 90.2%."
-  },
-  {
-   "id": "N-38",
-   "severity": "medium",
-   "title": "UserIDFromLocals menerima NaN/Inf sebagai user ID sah dan string angka overflow",
-   "location": "backend/internal/security/locals.go (UserIDFromLocals)",
-   "endpoint": "Seluruh jalur yang membaca user_id dari fiber.Ctx.Locals",
-   "impact": "Konversi float64 -> integer pada amd64 mengubah NaN dan +Inf menjadi 9223372036854775808 tanpa error, sehingga nilai sampah lolos dengan ok=true sebagai 'user ID sah'. String angka raksasa juga membungkus (wrap around) ke nilai kecil yang tampak sah. Nilai pecahan (5.9) dipotong diam-diam menjadi 5. Berpotensi melewati pemeriksaan kepemilikan.",
-   "fix": "Diterapkan: float64 wajib bilangan bulat dan bukan NaN/±Inf serta berada dalam jangkauan uint; konversi string memakai penjagaan overflow sebelum akumulasi.",
-   "status": "fixed",
-   "resolution": "Dibuktikan dengan kontrol negatif: kode LAMA gagal (NaN ok=true id=9223372036854775808, +Inf ok=true, string overflow lolos); kode baru menolak semuanya. Positive control 4294967295 tetap terbaca."
-  },
-  {
-   "id": "N-39",
-   "severity": "medium",
-   "title": "APP_ENV=production tidak memvalidasi ALLOWED_ORIGINS — CORS localhost bisa terbawa ke produksi",
-   "location": "backend/internal/config/config.go (blok validasi production/staging)",
-   "endpoint": "Seluruh endpoint API lintas-origin",
-   "impact": "Validasi produksi hanya menegakkan JWT_SECRET, JWT_EXPIRATION_HOURS, dan DB_SSLMODE. ALLOWED_ORIGINS dibiarkan memakai default 'http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173,http://localhost:3000'. Terbukti runtime: server APP_ENV=production dengan ALLOWED_ORIGINS default TETAP berjalan sampai tahap koneksi database (hanya gagal karena DB lokal menolak TLS). Artinya deployment yang lupa menyesuaikan CORS akan sukses start dengan konfigurasi lokal.",
-   "fix": "Diterapkan: pada APP_ENV production/prod/staging, setiap origin di ALLOWED_ORIGINS diperiksa; alamat lokal (localhost, 127.0.0.1, 0.0.0.0) dan skema selain https:// menggagalkan start.",
-   "status": "fixed",
-   "resolution": "Dibuktikan runtime dengan binary hasil build ulang. A) production + ALLOWED_ORIGINS localhost -> FTL 'ALLOWED_ORIGINS memuat alamat lokal'. B) production + http://catavor.id -> FTL 'wajib memakai https://'. C) positive control production + https://catavor.id -> lolos gerbang config, berhenti di koneksi DB (sesuai harapan). D) mode lokal tanpa perubahan -> start normal, tidak ada FTL. go test ./... seluruh paket ok."
-  },
-  {
-   "id": "N-40",
-   "severity": "high",
-   "area": "storage",
-   "title": "LocalStorageService.Delete/DeletePrefix menghapus file di luar storage root",
-   "status": "fixed",
-   "found": "2026-10-18",
-   "round": 7,
-   "detail": "Delete memakai filepath.Join(s.localRoot, key) + os.Remove tanpa normalisasi/verifikasi; DeletePrefix memakai os.RemoveAll. Key berisi '..' menghapus file atau direktori di luar root. Terbukti dengan file korban di luar root yang benar-benar terhapus.",
-   "impact": "Penghapusan data sewenang-wenang di filesystem proses bila key berbahaya mencapai lapisan storage. Handler HTTP saat ini sudah memvalidasi (N-03), jadi bukan jalur serangan aktif — tetapi lapisan storage bergantung pada kesopanan pemanggil, dan jalur otomatis (dormancy/retention memakai extractStorageKeyFromURL) meneruskan key apa adanya.",
-   "fix": "Tambah resolveSafeKey(): tolak key kosong, path absolut, dan skema drive; normalisasi + EvalSymlinks; verifikasi filepath.Rel tidak keluar root. Delete dan DeletePrefix wajib memakainya. DeletePrefix juga menolak RemoveAll pada root storage itu sendiri.",
-   "evidence": "8 test di internal/storage/storage_delete_test.go (4 serangan + 4 kontrol positif). Kontrol negatif: implementasi lama GAGAL TestDelete_BlocksEscapeFromRoot ('REGRESI: file di luar root ikut terhapus'), implementasi baru LULUS. Runtime: DELETE /api/storage/file key '../../backend/.env' -> 403; file sah toko sendiri -> 200; file tenant lain -> 403 dan utuh.",
-   "files": [
-    "backend/internal/storage/storage.go",
-    "backend/internal/storage/storage_delete_test.go"
-   ]
-  },
-  {
-   "id": "N-41",
-   "severity": "medium",
-   "area": "rbac",
-   "title": "GetUserPermissions memakai daftar hitam role, meloloskan role sampah",
-   "status": "fixed",
-   "found": "2026-10-18",
-   "round": 7,
-   "detail": "HasPermission sudah memakai whitelist models.IsPlatformStaff (perbaikan N-25), tetapi GetUserPermissions masih memakai logika lama: hanya menolak \"\" dan \"merchant\". Role sampah seperti 'superadminx' dianggap staf dan menembus cache permission — termasuk wildcard '*'.",
-   "impact": "Endpoint yang menampilkan permission efektif (mis. /api/admin/rbac/me) dapat melaporkan wildcard ke akun dengan platform_role tidak sah. Tidak langsung memberi akses karena HasPermission tetap menolak, tetapi menciptakan ketidaksesuaian antara yang dilaporkan dan yang ditegakkan (fail-open di lapisan pelaporan).",
-   "fix": "GetUserPermissions memakai models.IsPlatformStaff() dan models.NormalizePlatformRole(), sama seperti HasPermission.",
-   "evidence": "4 test di internal/services/rbac_authz_test.go. Kontrol negatif: kode lama GAGAL ('role sampah \"superadminx\" seharusnya tidak punya permission, dapat [*]'), kode baru LULUS. Runtime: /api/admin/rbac/me superadmin tetap 19 permission, matriks RBAC utuh.",
-   "files": [
-    "backend/internal/services/rbac_service.go",
-    "backend/internal/services/rbac_authz_test.go"
-   ]
-  },
-  {
-   "id": "N-42",
-   "severity": "low",
-   "area": "crypto",
-   "title": "generateSecureToken mengabaikan error crypto/rand (risiko token nol)",
-   "status": "fixed",
-   "found": "2026-10-18",
-   "round": 7,
-   "detail": "generateSecureToken memakai '_, _ = rand.Read(bytes)'. Bila rand.Read gagal, buffer tetap nol dan fungsi mengembalikan 64 karakter '0' yang identik untuk semua pemanggilan. Token dipakai untuk link reaktivasi toko.",
-   "impact": "Bila kegagalan crypto/rand terjadi, semua link reaktivasi memakai token yang sama dan dapat diprediksi sehingga siapa pun bisa mengaktifkan kembali toko dorman.",
-   "fix": "Periksa error rand.Read; kembalikan string kosong dan catat log agar pemanggil membatalkan penerbitan link (fail-closed).",
-   "evidence": "TestGenerateSecureToken: 500 sampel, panjang 64 hex, tidak ada duplikat, tidak seluruhnya nol. go build + go test ./... hijau.",
-   "files": [
-    "backend/internal/services/dormancy_service.go",
-    "backend/internal/services/helpers_behavior_test.go"
-   ]
-  },
-  {
-   "id": "N-43",
-   "severity": "low",
-   "area": "pricing",
-   "title": "parsePrice membuang semua titik/koma sehingga harga desimal melonjak 100x",
-   "status": "fixed",
-   "found": "2026-10-18",
-   "round": 8,
-   "detail": "fauna_handler.parsePrice menghapus SEMUA titik dan koma sebelum ParseFloat: strings.ReplaceAll(ReplaceAll(v,\".\",\"\"),\",\",\"\"). Akibatnya '150000.50' -> '15000050' (100x lipat), '1500,50' -> '150050', '12.5' -> 125. Pemisah ribuan dan desimal diperlakukan identik. Ditemukan lewat test perilaku fungsi murni.",
-   "impact": "PENTING — dampak nyata terbatas: faunaHandler TIDAK dirutekan di cmd/server/main.go. Rute POST /api/fauna diarahkan ke productHandler.Store, dan ProductRequest.Price bertipe float64 sehingga harga string ditolak 400 sebelum parsePrice dipanggil. Jadi ini bug pada kode yang saat ini tidak dapat dijangkau dari HTTP. Namun fungsi tetap diperbaiki karena (a) kode mati bisa diaktifkan kembali tanpa disadari, dan (b) perilaku salah yang terbukti harus diperbaiki, bukan dibiarkan.",
-   "fix": "parsePriceString(): aturan pemisah eksplisit — titik sebagai ribuan hanya bila berpola kelompok 3 digit, koma sebagai desimal bila muncul sekali diikuti <=2 digit, dukungan format ID (1.500.000,50) dan EN (1,500,000.50), serta awalan 'Rp'. Tambah dukungan json.Number. Nilai tak terurai tetap 0.",
-   "evidence": "TestParsePrice (19 kasus) di internal/handlers/helpers_behavior_test.go. Kontrol negatif: logika lama GAGAL 6 kasus (termasuk 'REGRESI N-43: parsePrice(\"150000.50\") mengembalikan 1.500005e+07'); logika baru LULUS semua. Runtime: POST /api/fauna price 150000.5 (angka) -> 201, DB menyimpan 150000.50; price sebagai string \"150000.50\" -> 400 karena ProductRequest.Price float64.",
-   "files": [
-    "backend/internal/handlers/fauna_handler.go",
-    "backend/internal/handlers/helpers_behavior_test.go"
-   ]
-  },
-  {
-   "id": "N-44",
-   "severity": "low",
-   "area": "handlers",
-   "title": "clipClientLog panik bila max <= 0",
-   "status": "fixed",
-   "found": "2026-10-18",
-   "round": 8,
-   "detail": "clipClientLog melakukan s[:max] tanpa memeriksa max. Nilai max negatif memicu panic 'slice bounds out of range'.",
-   "impact": "Tidak dapat dipicu dari HTTP saat ini: seluruh pemanggil memakai konstanta positif (2000/8000/300/40/80). Dicatat sebagai cacat ketahanan (defensive programming), bukan kerentanan aktif.",
-   "fix": "Kembalikan \\\"\\\" bila max <= 0 sebelum slicing.",
-   "evidence": "TestClipClientLog memanggil clipClientLog(\"x\", -5) dan tidak lagi panik; pemotongan normal tetap menandai '…[dipotong]'.",
-   "files": [
-    "backend/internal/handlers/client_log_handler.go",
-    "backend/internal/handlers/helpers_behavior_test.go"
-   ]
-  },
-  {
-   "id": "N-45",
-   "title": "Atribut produk dinamis tanpa kontrak: mobile & desktop menyimpan medan berbeda, data user hilang saat edit lintas perangkat",
-   "severity": "high",
-   "status": "fixed",
-   "category": "data-integrity",
-   "component": "backend/internal/models/product_attribute_schema.go, backend/internal/handlers/product_handler.go, frontend/mobile/src/App.tsx, frontend/desktop/src/App.tsx",
-   "description": "products.attributes bertipe JSONB bebas (map[string]interface{}) tanpa skema per product_type. Mobile mengirim 5 medan yang tidak dikenal desktop (growing_media, plant_legality, ship_condition, watering_frequency, light_requirement) dan desktop mengirim 4 medan yang tidak dikenal mobile (lifespan, native_region, portion_size, prep_time). Karena edit dari sisi lain mengirim objek attributes penuh, medan milik sisi lain ter-overwrite menjadi kosong tanpa error apa pun.",
-   "impact": "Kehilangan data senyap pada 7 tipe item; pengguna yang mengisi atribut di ponsel lalu mengedit di desktop kehilangan isian tersebut.",
-   "fix": "Menambahkan models.ProductAttributeSchema sebagai kontrak tunggal (allow-list eksplisit per tipe) plus FilterProductAttributes yang dipanggil di jalur Store dan Update. Key di luar allow-list dibuang, tipe tak dikenal fail-closed.",
-   "verification": "Unit test TestProductAttributeSchemaCoverage (47 atribut, dua arah) + TestFilterProductAttributes dengan kontrol positif. Kontrol negatif: menghapus portion_size/prep_time dari skema membuat test FAIL, dikembalikan -> PASS. Runtime: POST /api/products tipe physical dengan 6 atribut campuran menyimpan hanya brand+material; tipe food menyimpan halal_status/prep_time/portion_size dan membuang brand; PUT /api/products/13 juga menyaring (dikonfirmasi langsung di DB). Data uji dihapus, DB kembali users=1 stores=0 products=0.",
-   "date": "2026-10-18"
-  },
-  {
-   "id": "N-46",
-   "title": "AutoMigrate untuk tabel pendukung membuang error (10 lokasi) - kegagalan skema tidak terlihat",
-   "severity": "high",
-   "status": "fixed",
-   "category": "reliability",
-   "component": "backend/internal/database/db.go",
-   "description": "Sepuluh pemanggilan `_ = db.AutoMigrate(...)` untuk tabel pendukung (reports, blacklisted_slugs, support*, activity_logs, platform_rbac, safe_domains, automation_logs, email_jobs, email_verification_otps, notifications) membuang error. Hanya blok migrasi utama yang memeriksa error. Dengan DB_AUTO_MIGRATE=true (default produksi), tabel yang gagal dibuat tidak menghasilkan sinyal apa pun: server start sehat lalu mengembalikan 500 saat fiturnya dipakai.",
-   "impact": "Kelas bug yang sama dengan N-26 yang sudah diperbaiki; kegagalan skema di produksi sepenuhnya senyap.",
-   "fix": "Menambahkan helper mustAutoMigrate(db, group, ...) yang mencatat kegagalan lewat zerolog dengan field group. Semua 10 pemanggilan dikonversi. Startup sengaja tidak dihentikan agar perilaku tidak berubah, tetapi kegagalan kini tercatat.",
-   "verification": "Unit test TestMustAutoMigrateLogsFailure memaksa kegagalan nyata (koneksi DB ditutup sebelum migrasi) dan membuktikan log error tercatat: {\"level\":\"error\",\"error\":\"sql: database is closed\",\"group\":\"probe_group\",...}. TestMustAutoMigrateSilentOnSuccess memastikan migrasi sah tidak menghasilkan log error dan tabel benar-benar terbentuk. Catatan metodologi: percobaan pertama memakai bentrok tipe kolom sqlite, yang ternyata direkonsiliasi tanpa error (err=nil) sehingga uji awal dinyatakan TIDAK SAH dan diganti.",
-   "date": "2026-10-18"
-  },
-  {
-   "id": "N-47",
-   "title": "Empat kolom memiliki foreign key duplikat; salah satunya tanpa ON DELETE sehingga memblokir penghapusan user",
-   "severity": "medium",
-   "status": "fixed",
-   "category": "database-schema",
-   "component": "backend/migrations/20261018_n45_dedupe_foreign_keys.sql",
-   "description": "stores.user_id, products.store_id, sightings.fauna_id, dan support_tickets.rated_agent_id masing-masing memiliki DUA foreign key ke tabel yang sama, akibat campuran AutoMigrate dan SQL manual (mis. rename faunas -> products) yang tidak pernah dibersihkan. Pada support_tickets.rated_agent_id satu constraint tidak memiliki ON DELETE SET NULL, sehingga aturan yang berlaku bergantung pada constraint mana yang dievaluasi lebih dulu.",
-   "impact": "Biaya perawatan ganda pada setiap INSERT/UPDATE/DELETE, konflik nama saat pg_dump/restore atau migrasi skema, dan risiko penghapusan user gagal karena dinilai memblokir tiket CSAT.",
-   "fix": "Migrasi idempoten menyisakan satu constraint per kolom dengan aturan ON DELETE yang tepat: CASCADE untuk stores.user_id, products.store_id, sightings.fauna_id; ON DELETE SET NULL untuk support_tickets.rated_agent_id. Constraint yang sudah ada ikut diperbaiki definisinya, bukan hanya dilewati.",
-   "verification": "Sebelum: 8 constraint untuk 4 kolom, total FK 29. Sesudah: 0 duplikat, total FK 25 (tepat 4 dibuang). Migrasi dijalankan dua kali tanpa error (idempoten). Integritas diuji: INSERT stores dengan user_id yatim ditolak (violates foreign key constraint). ON DELETE CASCADE diuji runtime: insert user+store+produk lalu DELETE user -> store dan produk ikut terhapus (0 dan 0), transaksi di-ROLLBACK, DB kembali bersih.",
-   "date": "2026-10-18"
-  },
-  {
-   "id": "N-48",
-   "title": "Validasi password frontend lebih longgar dari aturan backend (6 vs 8 karakter)",
-   "severity": "medium",
-   "status": "fixed",
-   "category": "validation-parity",
-   "component": "frontend/mobile/src/App.tsx, frontend/desktop/src/App.tsx",
-   "description": "security.ValidatePassword mewajibkan minimal 8 karakter, tetapi form registrasi di mobile dan desktop hanya memvalidasi minimal 6 karakter. Pengguna yang mendaftar dengan password 6-7 karakter lolos validasi klien lalu ditolak server dengan pesan error yang tidak terkait dengan field mana pun.",
-   "impact": "Kegagalan registrasi yang membingungkan; validasi klien memberi rasa aman palsu.",
-   "fix": "Ambang validasi registrasi di kedua SPA disamakan menjadi 8 karakter, termasuk teks pesan.",
-   "verification": "grep konfirmasi kedua SPA sebelumnya < 6 dan sesudah < 8 dengan pesan 'minimal 8 karakter'. Typecheck `npx tsc -b --noEmit` bersih di mobile dan desktop. Aturan backend dibaca langsung dari internal/security/sanitizer.go:393.",
-   "date": "2026-10-18"
-  },
-  {
-   "id": "N-49",
-   "title": "Validasi OTP ganti password di mobile menerima 4 digit padahal backend hanya menerbitkan 6 digit",
-   "severity": "low",
-   "status": "fixed",
-   "category": "validation-parity",
-   "component": "frontend/mobile/src/App.tsx",
-   "description": "Handler handleSaveBackupPassword di mobile memakai syarat profileOtpCode.trim().length < 4, sedangkan desktop memakai !== 6. OTP yang diterbitkan backend selalu 6 digit (GenerateCryptographicOTP: rand.Int(900000)+100000 diformat %06d), sehingga input 4-5 digit lolos validasi klien namun pasti gagal di server.",
-   "impact": "Pesan error membingungkan pada alur pemulihan akun; tidak ada risiko keamanan karena server tetap menolak.",
-   "fix": "Syarat disamakan menjadi !== 6 dengan pesan 'Kode verifikasi OTP harus berjumlah 6 digit angka'.",
-   "verification": "Pemindaian seluruh pola validasi OTP di kedua SPA: semua titik lain sudah menggunakan !== 6, hanya titik ini yang menyimpang. Format OTP dikonfirmasi dari internal/services/otp_service.go:41-47. Typecheck mobile bersih.",
-   "date": "2026-10-18"
-  },
-  {
-   "id": "N-50",
-   "title": "product_type tidak divalidasi: tipe sembarang diterima API, seluruh atribut lalu dibuang senyap",
-   "severity": "medium",
-   "status": "fixed",
-   "category": "validation",
-   "component": "backend/internal/handlers/product_handler.go",
-   "description": "req.ProductType hanya di-lowercase dan di-trim; tidak pernah dicocokkan ke daftar tipe resmi. POST /api/products dengan product_type 'superadminx' dijawab 201 Created. Setelah N-45 (filter atribut fail-closed untuk tipe tak dikenal), produk bertipe sampah tersimpan dengan attributes kosong tanpa pesan apa pun ke pengguna. Jalur Update punya celah sama, sehingga tipe produk valid dapat digeser ke tipe sampah lewat PUT.",
-   "impact": "Data kotor pada products.product_type, atribut produk hilang tanpa penjelasan, dan pelanggaran kontrak 7 tipe item. Ditemukan sendiri saat verifikasi N-45.",
-   "fix": "Gerbang models.ValidProductType di jalur Store dan Update, mengembalikan 400 'Tipe item tidak dikenal.' Daftar resmi memakai kunci ProductAttributeSchema sehingga kontrak atribut dan daftar tipe tidak dapat menyimpang.",
-   "verification": "Sebelum perbaikan: POST product_type 'superadminx' -> 201. Sesudah: -> 400. Skrip ad-hoc 13 PASS / 0 FAIL, mencakup healthz/readyz, filter atribut physical & food, penyaringan jalur Update, penolakan tipe tak dikenal, validasi frontend, FK duplikat=0, 3 FK ON DELETE CASCADE, dan DB kembali bersih (stores=0).",
-   "date": "2026-10-18"
-  },
-  {
-   "id": "N-51",
-   "title": "Kolom relasi tanpa foreign key constraint",
-   "severity": "medium",
-   "status": "fixed",
-   "description": "Kolom user_sessions.user_id, notification_reads.{user_id,store_id}, user_policy_agreements.{user_id,store_id}, articles.store_id menyimpan referensi tetapi tanpa FK constraint, sehingga baris yatim dapat terbentuk.",
-   "fix": "Migrasi 20261018_n51_add_missing_foreign_keys.sql: 6 FK dengan aturan ON DELETE CASCADE/SET NULL. articles.store_id diubah jadi nullable. Model Go diperbarui untuk deklarasi FK.",
-   "verified": "Runtime: insert yatim ditolak, CASCADE menghapus sesi, SET NULL mempertahankan catatan. Idempoten."
-  },
-  {
-   "id": "N-52",
-   "title": "Tabel faunas usang tidak dihapus",
-   "severity": "low",
-   "status": "fixed",
-   "description": "Tabel 'faunas' adalah warisan iterasi awal DFauna. Handler tidak dirutekan (dead code), model Fauna adalah subset dari Product. Data 0 baris, 0 FK references.",
-   "fix": "Migrasi 20261018_n52_drop_faunas_table.sql: DROP TABLE IF EXISTS. fauna_handler.go dan cmd/test-categories dihapus. Seeder Fauna -> Product. Import SQLite faunas di db.go dibersihkan.",
-   "verified": "Runtime: tabel tidak ada, server sehat, /api/products=200, semua seeder compile."
-  },
-  {
-   "id": "N-53",
-   "title": "Master categories hardcoded di Go source (3x)",
-   "severity": "medium",
-   "status": "fixed",
-   "description": "DefaultMasterCategories di store_handler.go adalah sumber tunggal yang hardcoded. Frontend tidak dapat menemukan kategori default via API. Tiga fungsi helper (append/replace/remove) langsung merujuk map ini.",
-   "fix": "Model MasterCategory + migrasi 20261018_n53_master_categories.sql (tabel + seed 55 kategori). Endpoint GET /api/master-categories. Cache DB-backed (sync.Once) dengan fallback ke hardcoded. Semua helper diarahkan ke GetMasterCategories().",
-   "verified": "Runtime: endpoint 200, cache dimuat dari DB (55 kategori), 7 product types termasuk plant."
-  },
-  {
-   "id": "N-54",
-   "title": "ApplyMasterPreset tidak punya case 'plant' — preset tanaman jatuh ke default generic",
-   "severity": "medium",
-   "status": "fixed",
-   "description": "Fungsi ApplyMasterPreset di store_handler.go memiliki switch case untuk 6 tipe produk (physical, digital, fauna, service, food, property) tetapi tidak ada case 'plant'. Saat toko menerapkan preset 'plant', jatuh ke default dan mendapat kategori generic ('Kategori Utama', 'Koleksi Populer') alih-alih kategori tanaman spesifik.",
-   "fix": "Tambah case 'plant' dengan classes/habitats/statuses/shipping yang relevan untuk tanaman hias.",
-   "verified": "Runtime: POST /api/stores/apply-master-preset preset=plant mengembalikan classes=['Tanaman Hias Daun','Tanaman Bunga & Anggrek',...]. Regresi physical+food masih benar. Kontrol negatif unknown→default tetap generic."
-  },
-  {
-   "id": "N-55",
-   "title": "Route /api/fauna legacy dihapus — frontend sudah migrasi ke /api/products",
-   "severity": "low",
-   "status": "fixed",
-   "description": "7 route /fauna (GET/POST/PUT/DELETE + /u/:slug/fauna) adalah backward-compatible alias ke productHandler. Frontend sudah pakai /api/products. Route mati tidak menambah nilai, hanya memperluas attack surface.",
-   "fix": "Hapus semua 7 route /fauna dari cmd/server/main.go.",
-   "verified": "Runtime: GET /api/fauna (authenticated) = 404; GET /api/products = 200; source grep 0 match."
-  },
-  {
-   "id": "N-56",
-   "title": "ApplyMasterPreset hardcoded switch → DB-backed master_presets table",
-   "severity": "medium",
-   "status": "fixed",
-   "description": "ApplyMasterPreset punya switch 7+1 case dengan data preset (classes/habitats/statuses/shipping) hardcoded. Tidak bisa diubah tanpa redeploy. Duplikasi pola SoT dengan master_categories (P4).",
-   "fix": "Buat tabel master_presets (product_type + 4 JSONB), migrasi N-55 seed 8 baris, cache sync.Once, ApplyMasterPreset baca dari cache DB. Fallback ke 'default' row jika preset type tidak dikenal.",
-   "verified": "Runtime: 8 preset (physical/digital/fauna/service/food/property/plant/nonexistent→default) semua success dengan data benar. master_presets=8 rows. go test PASS."
-  },
-  {
-   "id": "N-57",
-   "title": "DI proof-of-concept: HealthHandler refactor + parsePrice helper restoration",
-   "severity": "low",
-   "status": "fixed",
-   "description": "health_handler.go mengakses database.DB global langsung → tidak testable tanpa DB live. Sekaligus: helpers_behavior_test.go TestParsePrice (N-43 regression) broken karena parsePrice function hilang dari codebase.",
-   "fix": "1) Refactor HealthHandler: struct + NewHealthHandler(db *gorm.DB) constructor, Readiness jadi method. 2) Implementasi parsePrice di helpers.go (format ID/EN, ribuan+desimal). 3) Test: TestHealthHandler_NilDB (db=nil → 503), TestHealthHandler_LivenessNoDB (200 tanpa DB), TestParsePrice (17 case N-43).",
-   "verified": "go test handlers PASS (3 test). Runtime: healthz=ok readyz=ready dengan handler baru. Pattern siap diikuti handler lain."
-  },
-  {
-   "id": "N-58",
-   "severity": "low",
-   "status": "fixed",
-   "title": "Dead routes: /taxonomy/culinary, /culinary-taxonomy, /upload-image",
-   "detail": "Tiga route legacy tidak dipakai frontend (0 referensi). /taxonomy/culinary dan /culinary-taxonomy = hardcoded 82-baris taxonomy data duplikat master_presets. /upload-image = backward-compat alias ke /storage/upload. Semua dihapus.",
-   "fixed_in": "58e5d4c",
-   "evidence": "grep -rn 'taxonomy/culinary|culinary-taxonomy|upload-image' frontend -> 0 match; go build exit 0"
-  },
-  {
-   "id": "N-59",
-   "severity": "info",
-   "status": "fixed",
-   "title": "DI refactor: CategoryHandler (10 database.DB refs -> h.db)",
-   "detail": "CategoryHandler struct tambah field db *gorm.DB; NewCategoryHandler(db) terima param; 10 referensi database.DB -> h.db; InvalidateStoreCategoriesCache terima db param. Nil-db guard di Index (503). Unit test: TestCategoryHandler_NilDB_NoPanic + TestCategoryHandler_WithDB.",
-   "fixed_in": "58e5d4c",
-   "evidence": "grep -c 'database.DB' category_handler.go -> 0; go test PASS (2/2)"
-  },
-  {
-   "id": "N-60",
-   "severity": "info",
-   "status": "fixed",
-   "title": "DI refactor: ProductHandler (39 database.DB refs -> h.db)",
-   "detail": "ProductHandler struct tambah field db *gorm.DB; NewProductHandler(cfg, db) terima param; 39 referensi database.DB -> h.db. Nil-db guard di Index (503). Unit test: TestProductHandler_NilDB_Index_NoPanic + TestProductHandler_WithDB. 4 referensi database.InvalidateStoreQuotaCache tetap (Redis cache, bukan DB global).",
-   "fixed_in": "58e5d4c",
-   "evidence": "grep -c 'database.DB' product_handler.go -> 0; go test PASS (2/2)"
-  },
-  {
-   "id": "N-61",
-   "severity": "medium",
-   "title": "DI refactor: eliminate all 301 database.DB global refs across 13 handler files",
-   "status": "fixed",
-   "description": "13 handler files refactored to injected *gorm.DB via struct field. Free functions parameterized with db arg. Zero database.DB refs remain.",
-   "evidence": "go build/vet/gofmt clean; grep returns 0 files",
-   "commit": "2a36e96"
-  },
-  {
-   "id": "N-62",
-   "severity": "medium",
-   "title": "Nil-db guards on 103 entry-point handler methods",
-   "status": "fixed",
-   "description": "All handler methods accessing h.db now return 503 instead of nil panic. 103 guards across 12 files.",
-   "evidence": "Unit tests verify 13 handlers return 503 with nil DB",
-   "commit": "2a36e96"
-  },
-  {
-   "id": "N-63",
-   "severity": "low",
-   "title": "Unit tests for all 13 refactored handlers (18/18 PASS)",
-   "status": "fixed",
-   "description": "di_handler_test.go expanded: 13 nil-db tests + constructor sanity + 4 existing. 18/18 PASS.",
-   "evidence": "go test ./internal/handlers/ -v: 18/18 PASS",
-   "commit": "2a36e96"
-  },
-  {
-   "id": "BC-1",
-   "severity": "high",
-   "title": "Tablet menjanjikan fitur banner katalog yang tidak ada di backend/DB",
-   "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx (+ backend/internal/handlers/notification_handler.go:671)",
-   "endpoint": "POST /api/admin/notifications/broadcast",
-   "impact": "Admin mencentang 'Sematkan Banner Strip di Katalog Merchant', memilih warna, mengirim siaran — tidak ada yang tersimpan atau tampil. UI berbohong ke operator. Field show_top_banner/banner_color tidak ada di BroadcastReq maupun kolom tabel notifications.",
-   "fix": "Dihapus dari tablet (7 titik: state, payload, reset, indikator detail, checkbox, swatch warna, preview). Tidak diimplementasikan di backend karena desktop & mobile pun tidak memilikinya.",
-   "status": "fixed",
-   "resolution": "7 titik dihapus; 0 sisa string di source & bundle publik. Payload tablet kini identik mobile."
-  },
-  {
-   "id": "BC-2",
-   "severity": "medium",
-   "title": "Tablet tidak pernah mengirim link_mobile_settings_tab (kolom DB nyata)",
-   "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:1126,1293,1322",
-   "endpoint": "POST /api/admin/notifications/broadcast",
-   "impact": "Backend menyimpan link_mobile_settings_tab varchar(64) dan memakainya untuk navigasi notifikasi. Tablet tidak punya state maupun field ini, jadi siaran ber-aksi 'navigate' yang dibuat dari tablet kehilangan tujuan deep-link di mobile.",
-   "fix": "Tambahkan state default 'about', kirim dengan kondisi yang sama seperti mobile.",
-   "status": "fixed",
-   "resolution": "State + payload ditambahkan; payload tablet identik mobile (diff nilai: kosong)."
-  },
-  {
-   "id": "BC-3",
-   "severity": "low",
-   "title": "Tablet tidak menandai field judul & pesan sebagai required",
-   "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:7424,7453",
-   "endpoint": "form siaran tablet",
-   "impact": "Validasi HTML5 hilang; hanya JS yang menjaga. Desktop & mobile punya required. Perbedaan affordance dan aksesibilitas (screen reader tidak mengumumkan field wajib).",
-   "fix": "Tambah atribut required pada input judul dan textarea pesan.",
-   "status": "fixed",
-   "resolution": "required=2 terverifikasi runtime di form tablet."
-  },
-  {
-   "id": "BC-4",
-   "severity": "low",
-   "title": "Label field tablet menyimpang dari mobile",
-   "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:7416,7446",
-   "endpoint": "form siaran tablet",
-   "impact": "Mobile/desktop: 'Judul Pengumuman' & 'Pesan Ringkas Notifikasi'. Tablet: 'Judul Siaran Pengumuman' & 'Ringkasan Pesan Singkat (Tampil di Notifikasi)'. Istilah field berbeda antar device untuk data yang sama.",
-   "fix": "Samakan label dengan mobile sebagai patokan.",
-   "status": "fixed",
-   "resolution": "Label disamakan; verifikasi runtime kelima label form ditemukan."
-  },
-  {
-   "id": "BC-5",
-   "severity": "medium",
-   "title": "Tablet menarik limit=50 tanpa paginasi — riwayat >50 tak terjangkau",
-   "location": "frontend/tablet/src/components/TabletPlatformConsole.tsx:1216",
-   "endpoint": "GET /api/admin/notifications",
-   "impact": "Desktop & mobile memakai page=1&limit=10 + kontrol Sebelumnya/Selanjutnya. Tablet hardcode limit=50 dan tidak merender kontrol halaman; jika siaran melewati 50, riwayat lama tidak bisa diakses sama sekali dari tablet.",
-   "fix": "Samakan dengan mobile: limit=10 + state halaman + kontrol paginasi.",
-   "status": "open",
-   "resolution": "Belum dieksekusi — item terpisah berikutnya."
-  },
-  {
-   "id": "BC-6",
-   "severity": "low",
-   "title": "Request daftar notifikasi ganda (portal induk + halaman broadcast)",
-   "location": "frontend/desktop/src/components/PlatformRolePortal.tsx:2267 + tablet",
-   "endpoint": "GET /api/admin/notifications",
-   "impact": "Dua request ke endpoint sama; yang tanpa parameter mengembalikan default 15 baris dan ikut meng-overwrite state daftar. Race state + beban server ganda.",
-   "fix": "Lewati fetch daftar di portal induk saat sub-tab broadcast aktif.",
-   "status": "open",
-   "resolution": "Belum dieksekusi."
-  },
-  {
-   "id": "BC-7",
-   "severity": "info",
-   "title": "target_id mati di ketiga device (jalur tidak hidup)",
-   "location": "ketiga bundle",
-   "endpoint": "POST /api/admin/notifications/broadcast",
-   "impact": "target_id selalu 0 dan tidak ada UI yang mengisinya. Backend punya lookup store/user via TargetID (notification_handler.go:760-772), tetapi tidak ada jalur hidup yang mencapainya. Tablet dulu tidak mengirim field ini — perbedaan struktural tanpa dampak fungsional.",
-   "fix": "Disamakan secara struktural (tablet kini kirim target_id:0). Bila tipe target single_store/single_user mau dihidupkan, UI pengisi harus dibuat di ketiga device.",
-   "status": "fixed",
-   "resolution": "Tablet mengirim target_id; payload identik mobile. Fitur pengisi tetap tidak ada (di luar lingkup)."
+  ],
+  "verified_ok": [
+    "No SQL injection (all GORM parameterized; raw SQL is static DDL/migration only)",
+    "JWT alg pinning + token.Valid + jti blacklist + token-version",
+    "bcrypt cost 12 + 8-72 byte password boundary",
+    "Multi-tenant IDOR checks consistent (StoreOwnerRequired, ownership Where clauses)",
+    "File upload magic-byte + EXIF strip + UUID + 10MB limit",
+    "No dangerouslySetInnerHTML / eval / new Function in frontend",
+    ".env not tracked in git and not in history; gitleaks configured",
+    "Security headers set (nosniff, XFO, Referrer-Policy, COOP, Permissions-Policy, HSTS on secure)",
+    "CSRF protection aktif (Origin/Referer) — POST origin asing 403, origin sah 200",
+    "npm audit: 0 vulnerabilities di frontend desktop & mobile (setelah N-31)",
+    "Error disclosure: safeErrMsg menyaring jejak DB + fallback generik (hanya 2 pemakaian err.Error, salah satunya komentar)",
+    "Login lockout per-akun: 5 kegagalan / 15 menit, fail-closed bila Redis mati (production)",
+    "Rate limit login per-IP 20/menit; endpoint publik pakai PublicSubmissionRateLimiter",
+    "XSS sink: 0 dangerouslySetInnerHTML, 0 innerHTML, 0 eval/Function di kedua SPA",
+    "Upload: validasi magic bytes (DetectContentType), path traversal dicegah ResolveInsidePrefix",
+    "SSRF: fetch server-side hanya ke URL Google tetap, tidak ada URL dari input user",
+    "SQLi: seluruh Raw/Exec memakai string statis (DDL), tidak ada interpolasi input",
+    "govulncheck detail: 1 advisory GO-2026-5932 ada di module golang.org/x/crypto (openpgp, unmaintained & unsafe by design, Fixed in: N/A) TAPI tidak reachable — kode hanya memakai x/crypto/bcrypt, nol import openpgp. Bukan celah aktif.",
+    "govulncheck: 0 vulnerability reachable di backend"
+  ],
+  "standards": {
+    "OWASP_A03_injection": "pass",
+    "OWASP_A01_access_control": "pass",
+    "OWASP_A06_vulnerable_components": "pass (govulncheck 0 reachable, npm audit 0 vuln, N-31 pdfjs upgrade)",
+    "OWASP_A05_misconfig": "pass (TRUSTED_PROXIES configurable; ALLOWED_ORIGINS divalidasi di production N-39)",
+    "OWASP_A07_auth": "pass",
+    "SOC2_ISO27001_phase2": "not_started (governance/compliance, di luar audit teknis keamanan)"
   }
- ],
- "verified_ok": [
-  "No SQL injection (all GORM parameterized; raw SQL is static DDL/migration only)",
-  "JWT alg pinning + token.Valid + jti blacklist + token-version",
-  "bcrypt cost 12 + 8-72 byte password boundary",
-  "Multi-tenant IDOR checks consistent (StoreOwnerRequired, ownership Where clauses)",
-  "File upload magic-byte + EXIF strip + UUID + 10MB limit",
-  "No dangerouslySetInnerHTML / eval / new Function in frontend",
-  ".env not tracked in git and not in history; gitleaks configured",
-  "Security headers set (nosniff, XFO, Referrer-Policy, COOP, Permissions-Policy, HSTS on secure)",
-  "CSRF protection aktif (Origin/Referer) — POST origin asing 403, origin sah 200",
-  "npm audit: 0 vulnerabilities di frontend desktop & mobile (setelah N-31)",
-  "Error disclosure: safeErrMsg menyaring jejak DB + fallback generik (hanya 2 pemakaian err.Error, salah satunya komentar)",
-  "Login lockout per-akun: 5 kegagalan / 15 menit, fail-closed bila Redis mati (production)",
-  "Rate limit login per-IP 20/menit; endpoint publik pakai PublicSubmissionRateLimiter",
-  "XSS sink: 0 dangerouslySetInnerHTML, 0 innerHTML, 0 eval/Function di kedua SPA",
-  "Upload: validasi magic bytes (DetectContentType), path traversal dicegah ResolveInsidePrefix",
-  "SSRF: fetch server-side hanya ke URL Google tetap, tidak ada URL dari input user",
-  "SQLi: seluruh Raw/Exec memakai string statis (DDL), tidak ada interpolasi input",
-  "govulncheck detail: 1 advisory GO-2026-5932 ada di module golang.org/x/crypto (openpgp, unmaintained & unsafe by design, Fixed in: N/A) TAPI tidak reachable — kode hanya memakai x/crypto/bcrypt, nol import openpgp. Bukan celah aktif.",
-  "govulncheck: 0 vulnerability reachable di backend"
- ],
- "standards": {
-  "OWASP_A03_injection": "pass",
-  "OWASP_A01_access_control": "pass",
-  "OWASP_A06_vulnerable_components": "pass (govulncheck 0 reachable, npm audit 0 vuln, N-31 pdfjs upgrade)",
-  "OWASP_A05_misconfig": "pass (TRUSTED_PROXIES configurable; ALLOWED_ORIGINS divalidasi di production N-39)",
-  "OWASP_A07_auth": "pass",
-  "SOC2_ISO27001_phase2": "not_started (governance/compliance, di luar audit teknis keamanan)"
- }
 }

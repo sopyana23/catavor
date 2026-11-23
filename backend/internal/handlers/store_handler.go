@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +23,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type StoreHandler struct {
@@ -86,7 +86,7 @@ func (h *StoreHandler) isMerchantRequester(c *fiber.Ctx, store *models.Store, pr
 	if len(preExtractedClaims) > 0 && preExtractedClaims[0] != nil {
 		claims = preExtractedClaims[0]
 	} else {
-		claims = middleware.ExtractOptionalClaims(c, h.cfg)
+		claims = middleware.ExtractVerifiedOptionalClaims(c, h.db, h.cfg)
 	}
 	if claims == nil {
 		return false
@@ -259,7 +259,7 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	//   sehingga merchant/staf tidak pernah membaca varian masked dari cache publik.
 	// - Predikat Tulis (!isMerchant): Hanya merchant pemilik atau staf yang dilarang menulis cache (karena data mereka
 	//   mengandung status warning asli). Pembeli yang login menerima DTO masked (active) sehingga aman disimpan ke cache publik.
-	claims := middleware.ExtractOptionalClaims(c, h.cfg)
+	claims := middleware.ExtractVerifiedOptionalClaims(c, h.db, h.cfg)
 	isAuthRequester := claims != nil && claims.UserID > 0
 
 	profileCacheKey := fmt.Sprintf("catavor:store:%s:profile", slug)
@@ -607,7 +607,7 @@ func (h *StoreHandler) IndexProducts(c *fiber.Ctx) error {
 		})
 	}
 
-	if store.DormancyStatus == "suspended" {
+	if store.IsSuspended || store.DormancyStatus == "suspended" {
 		return c.JSON(fiber.Map{
 			"success": true,
 			"count":   0,
@@ -1288,7 +1288,6 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 		"slug_changed": slugChanged,
 	})
 }
-
 
 func (h *StoreHandler) AddMasterOption(c *fiber.Ctx) error {
 	if h.db == nil {
@@ -2130,6 +2129,7 @@ func (h *StoreHandler) SwitchStore(c *fiber.Ctx) error {
 		})
 	}
 
+	services.TouchStoreActivity(h.db, targetStore.ID)
 	theme := targetStore.StoreTheme
 	if theme == "" {
 		theme = "navy"
@@ -2284,101 +2284,23 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 		cfg = config.LoadConfig()
 	}
 
-	tx := h.db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		var locked models.Store
+		q := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND slug = ?", store.ID, store.Slug)
+		if !isSuperadmin {
+			q = q.Where("user_id = ?", user.ID)
 		}
-	}()
-
-	// Delete all products and variants
-	//
-	// PENTING (N-26): setiap error WAJIB ditangani. Di PostgreSQL, satu
-	// perintah yang gagal membuat seluruh transaksi berstatus aborted
-	// (SQLSTATE 25P02), sehingga semua perintah berikutnya ikut gagal —
-	// termasuk DELETE toko. Dengan `_ =` akar masalahnya tersembunyi dan
-	// pengguna hanya melihat 500 tanpa sebab yang jelas.
-	// Urutan purge mengikuti RELASI SEBENARNYA di skema (N-26):
-	//   product_variants / product_images  -> product_id  (BUKAN store_id)
-	//   products, categories, articles, ... -> store_id
-	// Sebelumnya semua tabel dihapus dengan WHERE store_id = ? sehingga
-	// tabel anak produk gagal dan (karena error diabaikan) transaksi
-	// PostgreSQL ter-abort, membuat DELETE toko selalu 500.
-	// Sub-query dipakai (bukan daftar ID di memori) agar tetap benar
-	// untuk toko dengan jumlah produk besar.
-	productIDs := tx.Unscoped().Model(&models.Product{}).Select("id").Where("store_id = ?", store.ID)
-	if err := tx.Unscoped().Where("product_id IN (?)", productIDs).Delete(&models.ProductVariant{}).Error; err != nil {
-		tx.Rollback()
-		log.Error().Err(err).Uint("store_id", store.ID).Str("tabel", "product_variants").
-			Msg("gagal membersihkan data toko; transaksi dibatalkan")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal menghapus data katalog: pembersihan product_variants gagal.",
-		})
-	}
-	if err := tx.Unscoped().Where("product_id IN (?)", productIDs).Delete(&models.ProductImage{}).Error; err != nil {
-		tx.Rollback()
-		log.Error().Err(err).Uint("store_id", store.ID).Str("tabel", "product_images").
-			Msg("gagal membersihkan data toko; transaksi dibatalkan")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal menghapus data katalog: pembersihan product_images gagal.",
-		})
-	}
-
-	purge := []struct {
-		label string
-		model interface{}
-	}{
-		{"products", &models.Product{}},
-		{"categories", &models.Category{}},
-		{"articles", &models.Article{}},
-		{"store_daily_analytics", &models.StoreDailyAnalytics{}},
-		{"product_daily_analytics", &models.ProductDailyAnalytics{}},
-		{"store_daily_traffic_sources", &models.StoreDailyTrafficSource{}},
-		{"notification_reads", &models.NotificationRead{}},
-		{"activity_logs", &models.ActivityLog{}},
-	}
-	for _, p := range purge {
-		if err := tx.Unscoped().Where("store_id = ?", store.ID).Delete(p.model).Error; err != nil {
-			tx.Rollback()
-			log.Error().Err(err).Uint("store_id", store.ID).Str("tabel", p.label).
-				Msg("gagal membersihkan data toko; transaksi dibatalkan")
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"success": false,
-				"message": "Gagal menghapus data katalog: pembersihan tabel " + p.label + " gagal.",
-			})
+		if err := q.First(&locked).Error; err != nil {
+			return err
 		}
+		return services.DeleteStoreRecords(tx, locked.ID)
+	}); err != nil {
+		log.Error().Err(err).Uint("store_id", store.ID).Msg("Catalog deletion rolled back")
+		return c.Status(500).JSON(fiber.Map{"success": false, "message": "Gagal menghapus data katalog."})
 	}
-
-	// Delete store record
-	if err := tx.Unscoped().Delete(&store).Error; err != nil {
-		tx.Rollback()
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal menghapus data katalog dari basis data.",
-		})
+	if err := services.RemoveStoreMedia(c.Context(), h.db, h.storage, cfg, store.ID); err != nil {
+		log.Error().Err(err).Uint("store_id", store.ID).Msg("Catalog media cleanup incomplete")
 	}
-
-	if err := tx.Commit().Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal menyelesaikan transaksi penghapusan.",
-		})
-	}
-
-	// Hard-delete physical media files from cloud storage and disk (AGENTS.md Rule 4)
-	if h.storage != nil {
-		_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("stores/%d/", store.ID))
-		_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/stores/%d/", store.ID))
-	}
-	if cfg != nil && cfg.StorageLocalRoot != "" {
-		storeMediaDir := filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", store.ID))
-		_ = os.RemoveAll(storeMediaDir)
-		legacyMediaDir := filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", store.ID))
-		_ = os.RemoveAll(legacyMediaDir)
-	}
-
 	// Fetch remaining active stores of user
 	var remainingStores []models.Store
 	h.db.Where("user_id = ? AND dormancy_status != 'banned' AND is_blacklisted = false", user.ID).
@@ -2715,4 +2637,3 @@ func (h *StoreHandler) AdminGetStoreDetail(c *fiber.Ctx) error {
 		"top_products":     topProducts,
 	})
 }
-

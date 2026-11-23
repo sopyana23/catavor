@@ -25,7 +25,8 @@ import (
 
 // CalculateRolling7DayTrendingScores mengeksekusi perhitungan skor kecepatan tren 7 hari
 // untuk seluruh produk dan toko aktif di platform Catavor.
-func CalculateRolling7DayTrendingScores(db *gorm.DB) error {
+func CalculateRolling7DayTrendingScores(db *gorm.DB) (cycleErr error) {
+	defer func() { observeCycle("trending", 2*time.Hour, 0, cycleErr) }()
 	if db == nil {
 		return fmt.Errorf("database handle nil")
 	}
@@ -129,4 +130,3 @@ func StartTrendingCalculatorWorker(db *gorm.DB, interval time.Duration) {
 		}
 	}()
 }
-

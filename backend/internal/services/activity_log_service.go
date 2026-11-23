@@ -86,7 +86,8 @@ func RecordActivity(params RecordActivityParams) {
 // - Free stores: retains 90 days of logs.
 // - Pro / System / Superadmin: retains 365 days of logs.
 // Preserves historical price change event counts into macro audience dimensions before purging.
-func CleanOldActivityLogs(db *gorm.DB) (int64, error) {
+func CleanOldActivityLogs(db *gorm.DB) (processed int64, cycleErr error) {
+	defer func() { observeCycle("activity_log_cleaner", 24*time.Hour, processed, cycleErr) }()
 	now := time.Now()
 	freeCutoff := now.AddDate(0, 0, -90)
 	globalCutoff := now.AddDate(0, 0, -365)

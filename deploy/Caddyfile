@@ -7,6 +7,12 @@
 	servers {
 		import cloudflare-ips.caddy
 		protocols h1 h2 h3
+		timeouts {
+			read_body 30s
+			read_header 15s
+			write 60s
+			idle 300s
+		}
 	}
 }
 

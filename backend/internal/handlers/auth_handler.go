@@ -12,8 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
+
 	"regexp"
 	"strconv"
 	"strings"
@@ -34,6 +33,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var validate = validator.New()
@@ -125,6 +125,8 @@ type GoogleAuthRequest struct {
 type UpdateProfileRequest struct {
 	Name            string `json:"name"`
 	Email           string `json:"email"`
+	NewEmailToken   string `json:"new_email_token,omitempty"`
+	NewEmailOTP     string `json:"new_email_otp,omitempty"`
 	CurrentPassword string `json:"current_password"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
@@ -164,6 +166,18 @@ func preloadUserStores(q *gorm.DB) *gorm.DB {
 	return q.Preload("Stores", func(db *gorm.DB) *gorm.DB {
 		return db.Order("is_blacklisted ASC, is_suspended ASC, id ASC")
 	})
+}
+
+func sessionStore(user *models.User, selectedID uint) *models.Store {
+	for i := range user.Stores {
+		if user.Stores[i].ID == selectedID {
+			return &user.Stores[i]
+		}
+	}
+	if user.Store != nil && user.Store.ID == selectedID {
+		return user.Store
+	}
+	return nil
 }
 
 // buildStoreSummaries menyusun ringkasan toko untuk respons autentikasi.
@@ -604,33 +618,21 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	var primaryStore *models.Store
-	if targetSlug != "" {
-		for i := range user.Stores {
-			if strings.EqualFold(user.Stores[i].Slug, targetSlug) {
-				primaryStore = &user.Stores[i]
-				break
-			}
-		}
-		if primaryStore == nil && user.Store != nil && strings.EqualFold(user.Store.Slug, targetSlug) {
-			primaryStore = user.Store
-		}
-	}
-	if primaryStore == nil {
-		if len(user.Stores) > 0 {
-			primaryStore = &user.Stores[0]
-		} else {
-			primaryStore = user.Store
-		}
-	}
+	primaryStore := sessionStore(&user, activeStore.ID)
 
 	allowSession, gateErr := h.evaluateMFASessionGate(c, &user, "password", targetSlug, storeList, activeStore)
 	if !allowSession {
 		return gateErr
 	}
 
+	isLocalStaffBypass := h.cfg != nil &&
+		(h.cfg.AppEnv == "local" || h.cfg.AppEnv == "development") &&
+		user.IsPlatformStaff() &&
+		!user.TwoFactorEnforced &&
+		!user.TwoFactorEnabled
+
 	token, _, _, err := h.mintDurableSession(c, &user, primaryStore, middleware.TokenOptions{
-		MFAVerified: false,
+		MFAVerified: isLocalStaffBypass,
 	})
 	if err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -641,12 +643,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	// Touch store activity upon admin login
-	for _, st := range user.Stores {
-		services.TouchStoreActivity(h.db, st.ID)
-	}
-	if user.Store != nil {
-		services.TouchStoreActivity(h.db, user.Store.ID)
-	}
+	services.TouchStoreActivity(h.db, activeStore.ID)
 
 	actorRole := user.PlatformStaffRoleLabel()
 	var activeStoreID *uint
@@ -1440,6 +1437,33 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 
 	// CASE A: USER ALREADY EXISTS (LOGIN FLOW)
 	if err == nil {
+		// SECURITY (N-14 & Cloudflare Audit): cegah pengambilalihan akun via Google SSO mismatch.
+		// Jika akun sudah memiliki google_id tertaut, google_id kredensial Google saat ini WAJIB cocok.
+		if user.GoogleID != nil && *user.GoogleID != "" && *user.GoogleID != googleID {
+			logAuthEvent(h.db, c, "AUTH_GOOGLE_IDENTITY_MISMATCH", "Percobaan Google SSO dengan ID Google berbeda ditolak", &user, map[string]interface{}{
+				"method":             "google_sso",
+				"stored_google_id":   *user.GoogleID,
+				"incoming_google_id": googleID,
+			})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "GOOGLE_IDENTITY_MISMATCH",
+				"message": "Autentikasi gagal: identitas akun Google tidak cocok dengan akun yang telah terdaftar.",
+			})
+		}
+		if strings.ToLower(strings.TrimSpace(user.Email)) != email {
+			logAuthEvent(h.db, c, "AUTH_GOOGLE_EMAIL_MISMATCH", "Percobaan Google SSO dengan email berbeda ditolak", &user, map[string]interface{}{
+				"method":         "google_sso",
+				"stored_email":   user.Email,
+				"incoming_email": email,
+			})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"success": false,
+				"code":    "GOOGLE_EMAIL_MISMATCH",
+				"message": "Autentikasi gagal: email akun Google tidak cocok dengan akun yang terhubung.",
+			})
+		}
+
 		// N-14: akun yang emailnya belum diverifikasi tidak boleh diambil alih
 		// lewat Google SSO. Penjagaan hanya berlaku bila akun ini BELUM pernah
 		// ditautkan ke Google (google_id kosong). Akun yang sudah punya
@@ -1514,25 +1538,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			})
 		}
 
-		var primaryStore *models.Store
-		if targetSlug != "" {
-			for i := range user.Stores {
-				if strings.EqualFold(user.Stores[i].Slug, targetSlug) {
-					primaryStore = &user.Stores[i]
-					break
-				}
-			}
-			if primaryStore == nil && user.Store != nil && strings.EqualFold(user.Store.Slug, targetSlug) {
-				primaryStore = user.Store
-			}
-		}
-		if primaryStore == nil {
-			if len(user.Stores) > 0 {
-				primaryStore = &user.Stores[0]
-			} else {
-				primaryStore = user.Store
-			}
-		}
+		primaryStore := sessionStore(&user, activeStore.ID)
 
 		allowSession, gateErr := h.evaluateMFASessionGate(c, &user, "google_sso", targetSlug, storeList, activeStore)
 		if !allowSession {
@@ -1551,12 +1557,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		}
 
 		// Touch store activity upon Google login
-		for _, st := range user.Stores {
-			services.TouchStoreActivity(h.db, st.ID)
-		}
-		if user.Store != nil {
-			services.TouchStoreActivity(h.db, user.Store.ID)
-		}
+		services.TouchStoreActivity(h.db, activeStore.ID)
 
 		// Industry Standard Security: Detect logins from new or unrecognized devices / browsers
 		var previousLoginCount int64
@@ -1641,8 +1642,8 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 	}
 
 	// CASE B: NEW USER (REGISTRATION FLOW)
-	storeName := strings.TrimSpace(req.StoreName)
-	storeSlug := cleanSlug(req.StoreSlug)
+	storeName := security.SanitizePlainText(req.StoreName, 100)
+	storeSlug := cleanSlug(security.SanitizePlainText(req.StoreSlug, 50))
 
 	if storeName == "" || storeSlug == "" {
 		regToken, _ := h.IssueGoogleRegistrationToken(email, googleID)
@@ -1660,6 +1661,20 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 				"avatar":                    avatar,
 				"google_registration_token": regToken,
 			},
+		})
+	}
+
+	if len(storeSlug) < 3 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Link username toko minimal 3 karakter.",
+		})
+	}
+
+	if IsReservedSlug(storeSlug) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Link username toko \"" + storeSlug + "\" dicadangkan untuk sistem platform.",
 		})
 	}
 
@@ -1812,6 +1827,11 @@ func claimsEmailVerified(v any) bool {
 
 // verifyGoogleCredential cryptographically validates Google ID Token or Access Token via official Google endpoints
 func verifyGoogleCredential(credentialStr string, expectedClientID string) (email, name, googleID, avatar string, err error) {
+	expectedClientID = strings.TrimSpace(expectedClientID)
+	if expectedClientID == "" {
+		return "", "", "", "", fmt.Errorf("layanan Google SSO belum dikonfigurasi pada server (GOOGLE_CLIENT_ID kosong)")
+	}
+
 	credentialStr = strings.TrimSpace(credentialStr)
 	if credentialStr == "" {
 		return "", "", "", "", fmt.Errorf("kredensial Google kosong")
@@ -2130,36 +2150,47 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
-	// Revoke current JWT token via Blacklist (Redis & Memory) and Database
-	if claims, ok := c.Locals("claims").(*middleware.JWTClaims); ok && claims != nil {
-		if claims.ID != "" {
-			ttl := 72 * time.Hour
-			if claims.ExpiresAt != nil {
-				remaining := time.Until(claims.ExpiresAt.Time)
-				if remaining > 0 {
-					ttl = remaining
-				}
-			}
-			database.BlacklistToken(claims.ID, ttl)
-			middleware.RevokeSessionFingerprint(claims.ID)
-			_ = services.RevokeSessionByTokenID(h.db, claims.ID)
+	revokeTokenStr := func(rawToken string) {
+		trimmed := strings.TrimSpace(rawToken)
+		if trimmed == "" {
+			return
 		}
-	} else {
-		// Fallback: extract optional claims if Locals not populated
-		claims := middleware.ExtractOptionalClaims(c, h.cfg)
-		if claims != nil && claims.ID != "" {
-			ttl := 72 * time.Hour
-			if claims.ExpiresAt != nil {
-				remaining := time.Until(claims.ExpiresAt.Time)
-				if remaining > 0 {
-					ttl = remaining
+		if strings.HasPrefix(strings.ToLower(trimmed), "bearer ") {
+			trimmed = strings.TrimSpace(trimmed[7:])
+		}
+		if h.cfg != nil && h.cfg.JWTSecret != "" {
+			if claims, err := middleware.ParseJWTClaims(trimmed, h.cfg.JWTSecret); err == nil && claims != nil && claims.ID != "" {
+				ttl := 72 * time.Hour
+				if claims.ExpiresAt != nil {
+					remaining := time.Until(claims.ExpiresAt.Time)
+					if remaining > 0 {
+						ttl = remaining
+					}
 				}
+				database.BlacklistToken(claims.ID, ttl)
+				middleware.RevokeSessionFingerprint(claims.ID)
+				_ = services.RevokeSessionByTokenID(h.db, claims.ID)
 			}
-			database.BlacklistToken(claims.ID, ttl)
-			middleware.RevokeSessionFingerprint(claims.ID)
-			_ = services.RevokeSessionByTokenID(h.db, claims.ID)
 		}
 	}
+
+	// Revoke current JWT token via Blacklist (Redis & Memory) and Database
+	if claims, ok := c.Locals("claims").(*middleware.JWTClaims); ok && claims != nil && claims.ID != "" {
+		ttl := 72 * time.Hour
+		if claims.ExpiresAt != nil {
+			remaining := time.Until(claims.ExpiresAt.Time)
+			if remaining > 0 {
+				ttl = remaining
+			}
+		}
+		database.BlacklistToken(claims.ID, ttl)
+		middleware.RevokeSessionFingerprint(claims.ID)
+		_ = services.RevokeSessionByTokenID(h.db, claims.ID)
+	}
+
+	// Double-revocation: ensure both cookie session and Authorization header token are revoked
+	revokeTokenStr(c.Cookies(middleware.SessionCookieName))
+	revokeTokenStr(c.Get("Authorization"))
 
 	// SECURITY (M1): hapus cookie sesi HttpOnly dan cookie registrasi Google saat logout.
 	clearSessionCookie(c, h.cfg)
@@ -2360,7 +2391,25 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 			})
 		}
 		if emailChanging {
+			// Verifikasi bahwa pengguna sah memiliki akses ke alamat email baru (Anti Pre-Account Takeover)
+			emailVerified := false
+			if strings.TrimSpace(req.NewEmailToken) != "" {
+				emailVerified = services.GetOTPService().ValidateAndConsumeToken(pendingNewEmail, req.NewEmailToken, "email_change")
+			} else if strings.TrimSpace(req.NewEmailOTP) != "" {
+				if _, err := services.GetOTPService().VerifyOTP(pendingNewEmail, req.NewEmailOTP, "email_change"); err == nil {
+					emailVerified = true
+				}
+			}
+			if !emailVerified {
+				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+					"success": false,
+					"code":    "EMAIL_OTP_VERIFICATION_REQUIRED",
+					"message": "Perubahan alamat email memerlukan verifikasi OTP ke alamat email baru tersebut. Silakan minta kode verifikasi email terlebih dahulu.",
+				})
+			}
 			user.Email = pendingNewEmail
+			nowUTC := time.Now().UTC()
+			user.EmailVerifiedAt = &nowUTC
 		}
 
 		mfaActive := mfa.RequiresMFA(user, h.cfg != nil && h.cfg.MFAEnabled)
@@ -3007,6 +3056,70 @@ func (h *AuthHandler) RequestProfilePasswordOTP(c *fiber.Ctx) error {
 	})
 }
 
+// RequestEmailChangeOTP sends an OTP to a prospective new email address to authorize an email change.
+func (h *AuthHandler) RequestEmailChangeOTP(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || user.ID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi sesi diperlukan.",
+		})
+	}
+
+	var req struct {
+		NewEmail string `json:"new_email"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data tidak valid.",
+		})
+	}
+
+	newEmail := strings.ToLower(strings.TrimSpace(req.NewEmail))
+	if !security.ValidateEmail(newEmail) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Format alamat email baru tidak valid.",
+		})
+	}
+
+	if newEmail == strings.ToLower(strings.TrimSpace(user.Email)) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Alamat email baru sama dengan alamat email saat ini.",
+		})
+	}
+
+	var cnt int64
+	h.db.Model(&models.User{}).Where("LOWER(email) = ? AND id != ?", newEmail, user.ID).Count(&cnt)
+	if cnt > 0 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Alamat email sudah digunakan oleh pengguna lain.",
+		})
+	}
+
+	_, err := services.GetOTPService().GenerateAndSendEmailChangeOTP(newEmail, user.Name)
+	if err != nil {
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+			"success": false,
+			"message": safeErrMsg(err, "Permintaan kode verifikasi tidak dapat diproses."),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Kode verifikasi perubahan email telah dikirimkan ke %s.", newEmail),
+	})
+}
+
 func cleanSlug(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	reg := regexp.MustCompile("[^a-z0-9-]+")
@@ -3155,43 +3268,42 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 		}
 	}
 
-	// 3. Clean up user's support tickets and physical media attachments under UU PDP / GDPR Right to Erasure
-	_, _, _ = services.PurgeUserTicketsAndAttachments(h.db, h.storage, user.ID)
-
-	// 4. Find all stores owned by user & collect active session IDs to blacklist post-commit
 	var stores []models.Store
-	h.db.Where("user_id = ?", user.ID).Find(&stores)
 	var activeSess []models.UserSession
-	h.db.Select("token_id").Where("user_id = ?", user.ID).Find(&activeSess)
-
 	if txErr := h.db.Transaction(func(tx *gorm.DB) error {
-		for _, s := range stores {
-			productIDs := tx.Unscoped().Model(&models.Product{}).Select("id").Where("store_id = ?", s.ID)
-			if err := tx.Unscoped().Where("product_id IN (?)", productIDs).Delete(&models.ProductVariant{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Unscoped().Where("product_id IN (?)", productIDs).Delete(&models.ProductImage{}).Error; err != nil {
-				return err
-			}
-			for _, storeModel := range []interface{}{
-				&models.Product{},
-				&models.Category{},
-				&models.Article{},
-				&models.StoreDailyAnalytics{},
-				&models.ProductDailyAnalytics{},
-				&models.StoreDailyTrafficSource{},
-				&models.NotificationRead{},
-				&models.ActivityLog{},
-			} {
-				if err := tx.Unscoped().Where("store_id = ?", s.ID).Delete(storeModel).Error; err != nil {
-					return err
-				}
-			}
-			if err := tx.Unscoped().Delete(&s).Error; err != nil {
-				return err
-			}
+		var owner models.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").First(&owner, user.ID).Error; err != nil {
+			return err
 		}
-
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", owner.ID).Order("id").Find(&stores).Error; err != nil {
+			return err
+		}
+		if err := tx.Select("token_id").Where("user_id = ?", owner.ID).Find(&activeSess).Error; err != nil {
+			return err
+		}
+		_, keys, err := services.DeleteOwnerTicketRecords(tx, owner.ID)
+		if err != nil {
+			return err
+		}
+		if err := services.QueueClosedAccountMedia(tx, owner.ID, keys); err != nil {
+			return err
+		}
+		storeIDs := make([]uint, 0, len(stores))
+		for _, store := range stores {
+			storeIDs = append(storeIDs, store.ID)
+		}
+		if err := services.DeleteStoreRecords(tx, storeIDs...); err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM email_jobs WHERE LOWER(recipient_email)=LOWER(?)", user.Email).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM email_verification_otps WHERE LOWER(email)=LOWER(?)", user.Email).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("target_type = 'single_user' AND target_id = ?", owner.ID).Delete(&models.Notification{}).Error; err != nil {
+			return err
+		}
 		// Delete MFA records BEFORE UserSession & User to satisfy PostgreSQL FK RESTRICT on mfa_auth_completions.session_id
 		if tx.Migrator().HasTable(&models.MFAAuthCompletion{}) {
 			sessIDs := tx.Unscoped().Model(&models.UserSession{}).Select("id").Where("user_id = ?", user.ID)
@@ -3213,7 +3325,7 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.UserSession{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.UserPolicyAgreement{}).Error; err != nil {
+		if err := tx.Model(&models.UserPolicyAgreement{}).Where("user_id = ?", user.ID).UpdateColumn("user_id", nil).Error; err != nil {
 			return err
 		}
 		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.NotificationRead{}).Error; err != nil {
@@ -3238,26 +3350,18 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 	}
 
 	// 5. Post-commit physical storage cleanup (Multi-Layer Rollback per AGENTS.md Rule 10)
-	for _, s := range stores {
-		if h.storage != nil {
-			_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("stores/%d/", s.ID))
-			_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/stores/%d/", s.ID))
-		}
-		if cfg != nil && cfg.StorageLocalRoot != "" {
-			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", s.ID)))
-			_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", s.ID)))
-		}
-		if cfg != nil && cfg.StoragePrivateRoot != "" {
-			_ = os.RemoveAll(filepath.Join(cfg.StoragePrivateRoot, "stores", fmt.Sprintf("%d", s.ID)))
+	driver := h.storage
+	if driver == nil && cfg != nil {
+		driver, _ = storage.NewStorageService(cfg)
+	}
+	if err := services.RemoveClosedAccountMedia(c.Context(), h.db, driver, cfg, user.ID); err != nil {
+		log.Error().Err(err).Uint("user_id", user.ID).Msg("Account media cleanup pending")
+	}
+	for _, store := range stores {
+		if err := services.RemoveStoreMedia(c.Context(), h.db, driver, cfg, store.ID); err != nil {
+			log.Error().Err(err).Uint("store_id", store.ID).Msg("Account catalog media cleanup incomplete")
 		}
 	}
-	if h.storage != nil {
-		_ = h.storage.DeletePrefix(c.Context(), fmt.Sprintf("private/billing/users/%d/", user.ID))
-	}
-	if cfg != nil && cfg.StoragePrivateRoot != "" {
-		_ = os.RemoveAll(filepath.Join(cfg.StoragePrivateRoot, "billing", "users", fmt.Sprintf("%d", user.ID)))
-	}
-
 	// Blacklist all user session JTIs + clear browser cookies
 	for _, s := range activeSess {
 		if s.TokenID != "" {

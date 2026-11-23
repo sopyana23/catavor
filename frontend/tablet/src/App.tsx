@@ -249,6 +249,12 @@ export const App: React.FC = () => {
     return null;
   });
 
+  // Identitas mitra escrow dari /api/settings, untuk kartu Rekber di landing.
+  const [rekberSettings, setRekberSettings] = useState<{ logoUrl: string; partnerName: string }>({
+    logoUrl: '',
+    partnerName: 'Rekber Syariah'
+  });
+
   // Login Form State
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -355,6 +361,13 @@ export const App: React.FC = () => {
           const data = await res.json();
           const s = data.data || data;
           if (s) {
+            // Identitas mitra escrow dipakai landing publik (kartu Rekber).
+            // Desktop & mobile sudah memakainya; tablet belum, sehingga
+            // landing tablet menampilkan ikon generik alih-alih logo mitra.
+            setRekberSettings({
+              logoUrl: (s.rekber_logo_url || '').trim(),
+              partnerName: (s.rekber_partner_name || 'Rekber Syariah').trim()
+            });
             if (s.ga_measurement_id) {
               const isGaEnabled = s.ga_enabled === '1' || s.ga_enabled === 'true';
               initGoogleAnalytics(s.ga_measurement_id, isGaEnabled);
@@ -608,9 +621,18 @@ export const App: React.FC = () => {
   };
 
   // Safe logout with smart redirect to dedicated admin portal (/admin) or merchant login (/login)
-  const handleLogout = (customRedirectUrl?: string) => {
+  const handleLogout = async (customRedirectUrl?: string) => {
     const isStaff = isPlatformAdmin(currentUser);
     const targetLoginUrl = customRedirectUrl || (isStaff || isPlatformAdminPath ? '/admin' : '/login');
+    try {
+      await fetch('/api/logout', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        credentials: 'include',
+      });
+    } catch {
+      // Ignore network errors during logout
+    }
     broadcastAuthEvent({ type: 'LOGOUT' });
     localStorage.removeItem('catavor_token');
     localStorage.removeItem('catavor_user');
@@ -938,10 +960,12 @@ export const App: React.FC = () => {
       }
     }
 
-    // 2. Real Google OAuth 2.0 Popup Window
+    // 2. Real Google OAuth 2.0 Popup Window with State Nonce (RFC 6749 CSRF Prevention)
     const redirectUri = encodeURIComponent(window.location.origin);
     const scope = encodeURIComponent('email profile openid');
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+    const oauthState = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+    try { sessionStorage.setItem('catavor_oauth_state', oauthState); } catch (_) {}
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}&state=${oauthState}`;
     const width = 520;
     const height = 640;
     const left = window.screenX + (window.outerWidth - width) / 2;
@@ -961,8 +985,20 @@ export const App: React.FC = () => {
             const hash = popup.location.hash.substring(1);
             const params = new URLSearchParams(hash);
             const accessToken = params.get('access_token');
-            try { popup.close(); } catch (_) { }
+            const returnedState = params.get('state');
+            let expectedState = '';
+            try {
+              expectedState = sessionStorage.getItem('catavor_oauth_state') || '';
+              sessionStorage.removeItem('catavor_oauth_state');
+            } catch (_) {}
+            try { popup.close(); } catch (_) {}
             clearInterval(checkPopup);
+
+            if (expectedState && returnedState !== expectedState) {
+              console.error('OAuth state CSRF validation failed');
+              return;
+            }
+
             if (accessToken) {
               handleOAuthToken(accessToken);
             }
@@ -974,13 +1010,33 @@ export const App: React.FC = () => {
 
   // Google OAuth Cross-Window Listener
   useEffect(() => {
+    const validateOAuthState = (returnedState: string | null): boolean => {
+      let expectedState = '';
+      try {
+        expectedState = sessionStorage.getItem('catavor_oauth_state') || '';
+      } catch (_) {}
+      if (expectedState) {
+        if (!returnedState || returnedState !== expectedState) {
+          console.error('OAuth state CSRF validation failed');
+          return false;
+        }
+        try { sessionStorage.removeItem('catavor_oauth_state'); } catch (_) {}
+      }
+      return true;
+    };
+
     const handleAuthMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'CATAVOR_GOOGLE_AUTH_CALLBACK') {
         const hash = event.data.hash ? event.data.hash.replace(/^#/, '') : '';
-        const params = new URLSearchParams(hash);
+        const search = event.data.search ? event.data.search.replace(/^\?/, '') : '';
+        const params = new URLSearchParams(hash || search);
         const accessToken = params.get('access_token');
-        if (accessToken) handleOAuthToken(accessToken);
+        const state = params.get('state') || event.data.state || null;
+        if (accessToken) {
+          if (!validateOAuthState(state)) return;
+          handleOAuthToken(accessToken);
+        }
       }
     };
     window.addEventListener('message', handleAuthMessage);
@@ -992,9 +1048,14 @@ export const App: React.FC = () => {
         bc.onmessage = (event) => {
           if (event.data?.type === 'CATAVOR_GOOGLE_AUTH_CALLBACK') {
             const hash = event.data.hash ? event.data.hash.replace(/^#/, '') : '';
-            const params = new URLSearchParams(hash);
+            const search = event.data.search ? event.data.search.replace(/^\?/, '') : '';
+            const params = new URLSearchParams(hash || search);
             const accessToken = params.get('access_token');
-            if (accessToken) handleOAuthToken(accessToken);
+            const state = params.get('state') || event.data.state || null;
+            if (accessToken) {
+              if (!validateOAuthState(state)) return;
+              handleOAuthToken(accessToken);
+            }
           }
         };
       } catch (_) { }
@@ -1004,11 +1065,16 @@ export const App: React.FC = () => {
       if (e.key === 'catavor_oauth_broadcast' && e.newValue) {
         try {
           const payload = JSON.parse(e.newValue);
-          if (payload?.hash) {
-            const hash = payload.hash.replace(/^#/, '');
-            const params = new URLSearchParams(hash);
+          if (payload && (payload.hash || payload.search)) {
+            const hash = payload.hash ? payload.hash.replace(/^#/, '') : '';
+            const search = payload.search ? payload.search.replace(/^\?/, '') : '';
+            const params = new URLSearchParams(hash || search);
             const accessToken = params.get('access_token');
-            if (accessToken) handleOAuthToken(accessToken);
+            const state = params.get('state') || payload.state || null;
+            if (accessToken) {
+              if (!validateOAuthState(state)) return;
+              handleOAuthToken(accessToken);
+            }
           }
         } catch (_) { }
       }
@@ -2364,6 +2430,8 @@ export const App: React.FC = () => {
   // 5. PUBLIC LANDING PAGE ROUTE FOR TABLET (Default)
   return (
     <TabletPublicLanding
+      rekberLogoUrl={rekberSettings.logoUrl}
+      rekberPartnerName={rekberSettings.partnerName}
       onSelectStore={(slug) => navigateTo(`/${slug}`)}
       onOpenLogin={() => navigateTo('/login')}
       onRegister={() => {

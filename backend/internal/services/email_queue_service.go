@@ -218,6 +218,7 @@ func (s *EmailQueueService) dispatchJob(job models.EmailJob) {
 
 	// 2. Execute SMTP delivery
 	err := SendHTMLEmail(job.RecipientEmail, job.Subject, job.FromName, job.BodyHTML)
+	observeCycle("email_queue", 0, 0, err)
 
 	if err == nil {
 		// Delivery Successful

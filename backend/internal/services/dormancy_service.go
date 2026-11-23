@@ -4,19 +4,20 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"html"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
-	"catavor-backend/internal/logutil"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/storage"
+	"gorm.io/gorm/clause"
 
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
@@ -103,8 +104,8 @@ func ReactivateStoreByToken(db *gorm.DB, token string) (*models.Store, error) {
 		return nil, fmt.Errorf("token reaktivasi tidak ditemukan atau sudah kedaluwarsa")
 	}
 
-	if store.DormancyStatus == "banned" || store.IsBlacklisted {
-		return nil, fmt.Errorf("toko ini telah ditangguhkan secara permanen oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
+	if store.DormancyStatus == "banned" || store.IsBlacklisted || store.IsSuspended {
+		return nil, fmt.Errorf("toko ini telah ditangguhkan atau dibekukan oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
 	}
 
 	now := time.Now().UTC()
@@ -158,8 +159,8 @@ func ReactivateStoreByID(db *gorm.DB, storeID uint) (*models.Store, error) {
 		return nil, fmt.Errorf("toko tidak ditemukan")
 	}
 
-	if store.DormancyStatus == "banned" || store.IsBlacklisted {
-		return nil, fmt.Errorf("toko ini telah ditangguhkan secara permanen oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
+	if store.DormancyStatus == "banned" || store.IsBlacklisted || store.IsSuspended {
+		return nil, fmt.Errorf("toko ini telah ditangguhkan atau dibekukan oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
 	}
 
 	now := time.Now().UTC()
@@ -210,9 +211,9 @@ func ReactivateStoreByID(db *gorm.DB, storeID uint) (*models.Store, error) {
 }
 
 // RunDormancyCycle evaluates all stores against the multi-stage dormancy lifecycle matrix.
-func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
+func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) (int64, error) {
 	if db == nil {
-		return
+		return 0, fmt.Errorf("database unavailable")
 	}
 
 	now := time.Now().UTC()
@@ -241,7 +242,7 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 			reactivateURL := fmt.Sprintf("%s/api/public/stores/reactivate?token=%s", baseURL, token)
 
 			// 1. In-App Notification
-			createInAppDormancyNotification(db, store.ID, store.UserID,
+			createInAppDormancyNotification(db, store.ID,
 				"Pemberitahuan Inaktivitas Katalog",
 				fmt.Sprintf("Katalog '%s' terdeteksi tidak aktif selama 30 hari. Perpanjang masa aktif gratis dalam 15 hari ke depan agar katalog tetap online.", store.StoreTitle),
 				"warning",
@@ -250,7 +251,7 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 			// 2. Automated Email
 			if store.User != nil && store.User.Email != "" {
 				sendDormancyEmail(
-					store.User.Email,
+					store.ID, store.User.Email,
 					store.StoreTitle,
 					"Peringatan Awal: Katalog Anda Terdeteksi Tidak Aktif",
 					1,
@@ -287,7 +288,7 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 
 			reactivateURL := fmt.Sprintf("%s/api/public/stores/reactivate?token=%s", baseURL, token)
 
-			createInAppDormancyNotification(db, store.ID, store.UserID,
+			createInAppDormancyNotification(db, store.ID,
 				"⚠️ 7 Hari Tersisa: Katalog Akan Dinonaktifkan Sementara",
 				fmt.Sprintf("Katalog '%s' akan dinonaktifkan dalam 7 hari karena tidak ada aktivitas. Klik tombol untuk memperpanjang masa aktif gratis.", store.StoreTitle),
 				"warning",
@@ -295,7 +296,7 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 
 			if store.User != nil && store.User.Email != "" {
 				sendDormancyEmail(
-					store.User.Email,
+					store.ID, store.User.Email,
 					store.StoreTitle,
 					"⚠️ 7 Hari Tersisa: Pertahankan Katalog & Data Anda",
 					2,
@@ -333,7 +334,7 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 
 			reactivateURL := fmt.Sprintf("%s/api/public/stores/reactivate?token=%s", baseURL, token)
 
-			createInAppDormancyNotification(db, store.ID, store.UserID,
+			createInAppDormancyNotification(db, store.ID,
 				"Katalog Dinonaktifkan Sementara",
 				fmt.Sprintf("Katalog '%s' telah dinonaktifkan sementara. Data dan foto produk Anda masih tersimpan aman selama 15 hari. Klik untuk mengaktifkan kembali.", store.StoreTitle),
 				"warning",
@@ -341,7 +342,7 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 
 			if store.User != nil && store.User.Email != "" {
 				sendDormancyEmail(
-					store.User.Email,
+					store.ID, store.User.Email,
 					store.StoreTitle,
 					"Katalog Anda Dinonaktifkan Sementara (Masa Tenggang 15 Hari)",
 					3,
@@ -368,180 +369,67 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) {
 	// -------------------------------------------------------------
 	day60Threshold := now.AddDate(0, 0, -60)
 	var stage4Stores []models.Store
-	err = db.Preload("User").
-		Where("plan = 'free' AND is_exempt_from_dormancy = false AND dormancy_status = 'suspended' AND (suspension_reason = 'dormancy' OR suspension_reason = 'none' OR suspension_reason = '' OR suspension_reason IS NULL) AND last_activity_at <= ?", day60Threshold).
-		Find(&stage4Stores).Error
-
-	if err == nil && len(stage4Stores) > 0 {
-		ctx := context.Background()
-		for _, store := range stage4Stores {
-			userEmail := ""
-			userName := ""
-			userID := store.UserID
-			if store.User != nil {
-				userEmail = store.User.Email
-				userName = store.User.Name
+	const purgeEligible = "plan = 'free' AND is_exempt_from_dormancy = false AND dormancy_status = 'suspended' AND COALESCE(suspension_reason,'') IN ('dormancy','none','') AND last_activity_at <= ?"
+	err = db.Where(purgeEligible, day60Threshold).Find(&stage4Stores).Error
+	purged := 0
+	var cycleErr error = err
+	for _, candidate := range stage4Stores {
+		var store models.Store
+		err := db.Transaction(func(tx *gorm.DB) error {
+			// Reactivation, simultaneous workers and ownership edits must resolve against
+			// the current row before any catalog or storage cleanup is authorized.
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Preload("User").Where("id = ?", candidate.ID).Where(purgeEligible, day60Threshold).First(&store).Error; err != nil {
+				return err
 			}
-
-			log.Warn().Uint("store_id", store.ID).Str("slug", store.Slug).Msg("Executing Hard Purge on 60-day dormant store...")
-
-			// 1. Collect all physical media file keys for deferred deletion
-			var products []models.Product
-			_ = db.Preload("Images").Where("store_id = ?", store.ID).Find(&products).Error
-
-			var filesToDelete []string
-			for _, prod := range products {
-				if prod.ImageURL != "" {
-					key := extractStorageKeyFromURL(prod.ImageURL)
-					if key != "" {
-						filesToDelete = append(filesToDelete, key)
-					}
-				}
-				for _, pImg := range prod.Images {
-					if pImg.ImageURL != "" {
-						key := extractStorageKeyFromURL(pImg.ImageURL)
-						if key != "" {
-							filesToDelete = append(filesToDelete, key)
-						}
-					}
-				}
-			}
-
-			if store.StoreLogoURL != "" {
-				key := extractStorageKeyFromURL(store.StoreLogoURL)
-				if key != "" {
-					filesToDelete = append(filesToDelete, key)
-				}
-			}
-			if store.PromoBanner != "" {
-				key := extractStorageKeyFromURL(store.PromoBanner)
-				if key != "" {
-					filesToDelete = append(filesToDelete, key)
-				}
-			}
-
-			// 2. Cascade delete database records in an ACID Transaction (AGENTS.md Rule 5 & Rule 10)
-			txErr := db.Transaction(func(tx *gorm.DB) error {
-				if err := tx.Exec("DELETE FROM product_images WHERE product_id IN (SELECT id FROM products WHERE store_id = ?)", store.ID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM product_variants WHERE product_id IN (SELECT id FROM products WHERE store_id = ?)", store.ID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM product_daily_analytics WHERE store_id = ?", store.ID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM store_daily_analytics WHERE store_id = ?", store.ID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM comments WHERE store_id = ?", store.ID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM articles WHERE store_id = ?", store.ID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM products WHERE store_id = ?", store.ID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM categories WHERE store_id = ?", store.ID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM notifications WHERE (target_type = 'single_store' AND target_id = ?) OR (target_type = 'single_user' AND target_id = ?)", store.ID, userID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM notification_reads WHERE store_id = ? OR user_id = ?", store.ID, userID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM support_messages WHERE ticket_id IN (SELECT id FROM support_tickets WHERE user_id = ?)", userID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM support_tickets WHERE user_id = ?", userID).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec("DELETE FROM stores WHERE id = ?", store.ID).Error; err != nil {
-					return err
-				}
-				if userID > 0 {
-					if err := tx.Exec("DELETE FROM users WHERE id = ?", userID).Error; err != nil {
-						return err
-					}
-				}
-				return nil
-			})
-
-			if txErr != nil {
-				log.Error().Err(txErr).Uint("store_id", store.ID).Msg("Failed to cascade delete dormant store database records")
-				continue
-			}
-
-			// 3. Multi-Layer Rollback (AGENTS.md Rule 10):
-			// Purge physical media files & store prefix from storage ONLY AFTER database commit succeeds.
-			deletedFilesCount := 0
-			if strg != nil {
-				for _, key := range filesToDelete {
-					_ = strg.Delete(ctx, key)
-					deletedFilesCount++
-				}
-				_ = strg.DeletePrefix(ctx, fmt.Sprintf("stores/%d/", store.ID))
-				_ = strg.DeletePrefix(ctx, fmt.Sprintf("private/stores/%d/", store.ID))
-			} else {
-				deletedFilesCount = len(filesToDelete)
-			}
-
-			if localRoot := GetStorageRoot(); localRoot != "" {
-				_ = os.RemoveAll(filepath.Join(localRoot, "stores", fmt.Sprintf("%d", store.ID)))
-				_ = os.RemoveAll(filepath.Join(localRoot, fmt.Sprintf("%d", store.ID)))
-			}
-
-			// Invalidate cache
-			activityCacheMutex.Lock()
-			delete(activityCache, store.ID)
-			activityCacheMutex.Unlock()
-
-			// 3. Send final notification email
-			if userEmail != "" {
-				sendDormancyEmail(
-					userEmail,
-					store.StoreTitle,
-					"Pemberitahuan Penghapusan Akun & Pembersihan Data Toko",
-					4,
-					0,
-					baseURL,
-				)
-			}
-
-			log.Info().
-				Uint("store_id", store.ID).
-				Str("user_email", logutil.MaskEmail(userEmail)).
-				Str("user_name", logutil.MaskName(userName)).
-				Int("freed_files", deletedFilesCount).
-				Msg("Hard Purge completed. Database records and physical media files successfully reclaimed.")
-
-			GetAutomationTracker().RecordLog(AutomationLogEntry{
-				BotName:   "dormancy_purge",
-				BotTitle:  "Engine Dormansi (Hard Purge)",
-				Target:    store.StoreTitle,
-				TargetID:  store.ID,
-				Action:    "purged_records",
-				Status:    "warning",
-				Details:   fmt.Sprintf("Toko '%s' dan %d berkas media dihapus permanen setelah 60 hari inaktif.", store.StoreTitle, deletedFilesCount),
-				Timestamp: now,
-			})
+			return DeleteStoreRecords(tx, store.ID)
+		})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			continue
 		}
+		if err != nil {
+			log.Error().Err(err).Uint("store_id", candidate.ID).Msg("Dormant catalog deletion rolled back")
+			cycleErr = errors.Join(cycleErr, err)
+			continue
+		}
+		purged++
+		err = RemoveStoreMedia(context.Background(), db, strg, config.AppConfig, store.ID)
+		status, fault := "success", ""
+		if err != nil {
+			status = "error"
+			fault = err.Error()
+			cycleErr = errors.Join(cycleErr, err)
+			log.Error().Err(err).Uint("store_id", store.ID).Msg("Dormant catalog media cleanup incomplete")
+		}
+		activityCacheMutex.Lock()
+		delete(activityCache, store.ID)
+		activityCacheMutex.Unlock()
+		database.InvalidateStoreQuotaCache(context.Background(), store.ID)
+		if database.IsRedisAvailable() && database.RedisClient != nil {
+			database.RedisClient.Del(context.Background(), fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug)))
+		}
+		if store.User != nil && store.User.Email != "" {
+			sendDormancyEmail(store.ID, store.User.Email, store.StoreTitle, "Pemberitahuan penghapusan katalog "+store.StoreTitle, 4, 0, baseURL)
+		}
+		GetAutomationTracker().RecordLog(AutomationLogEntry{BotName: "dormancy_worker", BotTitle: "Dormansi toko Free", Target: store.StoreTitle, TargetID: store.ID, Action: "purged_records", Status: status, ErrorMessage: fault, Details: fmt.Sprintf("Katalog %s dihapus setelah 60 hari inaktif.", store.StoreTitle), Timestamp: now})
 	}
 
-	totalEvents := len(stage1Stores) + len(stage2Stores) + len(stage3Stores) + len(stage4Stores)
+	totalEvents := len(stage1Stores) + len(stage2Stores) + len(stage3Stores) + purged
 	summary := fmt.Sprintf("Siklus selesai. Diproses: %d toko (W1: %d, W2: %d, Suspend: %d, Purge: %d).",
-		totalEvents, len(stage1Stores), len(stage2Stores), len(stage3Stores), len(stage4Stores))
+		totalEvents, len(stage1Stores), len(stage2Stores), len(stage3Stores), purged)
 
+	status, fault := "running", ""
+	if cycleErr != nil {
+		status, fault = "error", cycleErr.Error()
+	}
 	GetAutomationTracker().RecordWorkerHeartbeat(
 		"dormancy_worker",
-		"running",
+		status,
 		summary,
-		"",
+		fault,
 		int64(totalEvents),
 		time.Now().UTC().Add(1*time.Hour),
 	)
+	return int64(totalEvents), cycleErr
 }
 
 // RunModerationEscalationCycle evaluates all stores suspended due to moderation violations.
@@ -570,9 +458,12 @@ func RunModerationEscalationCycle(db *gorm.DB, strg storage.StorageService) {
 		for _, store := range suspendedModerationStores {
 			// Check if there is any active support ticket (appeal) for this user/store
 			var activeAppealCount int64
-			db.Model(&models.SupportTicket{}).
-				Where("user_id = ? AND status IN ('open', 'in_progress')", store.UserID).
-				Count(&activeAppealCount)
+			if err := db.Model(&models.SupportTicket{}).
+				Where("store_id = ? AND status IN ('open', 'in_progress')", store.ID).
+				Count(&activeAppealCount).Error; err != nil {
+				observeCycle("moderation_escalator", time.Hour, 0, err)
+				continue
+			}
 
 			// If merchant has an open/in_progress appeal ticket under review, DO NOT auto-ban.
 			if activeAppealCount > 0 {
@@ -605,13 +496,7 @@ func RunModerationEscalationCycle(db *gorm.DB, strg storage.StorageService) {
 				if err := db.Select("email").Where("id = ?", store.UserID).First(&u).Error; err == nil {
 					ownerEmail = u.Email
 				}
-				var remainingActiveCount int64
-				_ = db.Model(&models.Store{}).
-					Where("user_id = ? AND id != ? AND dormancy_status != 'banned' AND is_blacklisted = false", store.UserID, store.ID).
-					Count(&remainingActiveCount).Error
-				if remainingActiveCount == 0 {
-					db.Model(&models.User{}).Where("id = ?", store.UserID).Update("is_blacklisted", true)
-				}
+
 			}
 
 			// Register store slug into blacklisted_slugs table
@@ -691,7 +576,7 @@ func RunModerationEscalationCycle(db *gorm.DB, strg storage.StorageService) {
 				url.QueryEscape(adminNotes),
 			)
 
-			detailArticle := fmt.Sprintf(`### Penonaktifan Permanen Profil Katalog & Akun (Banned)
+			detailArticle := fmt.Sprintf(`### Penonaktifan Permanen Profil Katalog (Banned)
 Dokumen Resmi Penegakan Standar Komunitas & Kepatuhan Platform Catavor.
 
 ---
@@ -707,7 +592,7 @@ Dokumen Resmi Penegakan Standar Komunitas & Kepatuhan Platform Catavor.
 
 ---
 ### Penjelasan Keputusan & Status Eskalasi:
-Akses publik ke profil katalog **%s** dan akun pemilik telah ditangguhkan secara permanen oleh Sistem Otomatisasi Kepatuhan Catavor (*Bot: moderation_escalator*) karena masa tenggang banding (30 hari kerja) telah kedaluwarsa tanpa adanya permohonan sanggahan resmi.
+Akses publik ke profil katalog **%s** telah ditangguhkan secara permanen oleh Sistem Otomatisasi Kepatuhan Catavor (*Bot: moderation_escalator*) karena masa tenggang banding (30 hari kerja) telah kedaluwarsa tanpa adanya permohonan sanggahan resmi.
 
 ---
 ### Hak Banding & Peninjauan Terakhir (Right to Appeal):
@@ -729,8 +614,8 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 				TargetType:    "single_store",
 				TargetID:      store.ID,
 				TargetName:    store.StoreTitle,
-				Title:         "Eskalasi Sanksi: Akun & Katalog Ditangguhkan Secara Permanen",
-				Message:       fmt.Sprintf("Masa tenggang banding (30 hari) untuk katalog '%s' telah berakhir (#%s). Status akun dan katalog kini telah dinaikkan menjadi Ditangguhkan Permanen.", store.StoreTitle, reportNum),
+				Title:         "Eskalasi Sanksi: Katalog Ditangguhkan Secara Permanen",
+				Message:       fmt.Sprintf("Masa tenggang banding (30 hari) untuk katalog '%s' telah berakhir (#%s). Status katalog kini telah dinaikkan menjadi Ditangguhkan Permanen.", store.StoreTitle, reportNum),
 				Type:          "danger",
 				Category:      "KEAMANAN",
 				ActionEnabled: true,
@@ -771,6 +656,7 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 			}, store.ID)
 
 			// Record in AutomationTracker
+			observeCycle("moderation_escalator", 0, 1, nil)
 			GetAutomationTracker().RecordLog(AutomationLogEntry{
 				BotName:   "moderation_escalator",
 				BotTitle:  "Engine Eskalasi Moderasi (Auto-Ban)",
@@ -800,14 +686,14 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 			var filesToDelete []string
 			for _, prod := range products {
 				if prod.ImageURL != "" {
-					key := extractStorageKeyFromURL(prod.ImageURL)
+					key := storeMediaKey(prod.ImageURL, store.ID)
 					if key != "" {
 						filesToDelete = append(filesToDelete, key)
 					}
 				}
 				for _, pImg := range prod.Images {
 					if pImg.ImageURL != "" {
-						key := extractStorageKeyFromURL(pImg.ImageURL)
+						key := storeMediaKey(pImg.ImageURL, store.ID)
 						if key != "" {
 							filesToDelete = append(filesToDelete, key)
 						}
@@ -816,13 +702,13 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 			}
 
 			if store.StoreLogoURL != "" {
-				key := extractStorageKeyFromURL(store.StoreLogoURL)
+				key := storeMediaKey(store.StoreLogoURL, store.ID)
 				if key != "" {
 					filesToDelete = append(filesToDelete, key)
 				}
 			}
 			if store.PromoBanner != "" {
-				key := extractStorageKeyFromURL(store.PromoBanner)
+				key := storeMediaKey(store.PromoBanner, store.ID)
 				if key != "" {
 					filesToDelete = append(filesToDelete, key)
 				}
@@ -855,6 +741,7 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 					}
 				}
 
+				observeCycle("moderation_media_cleanup", 0, 1, nil)
 				GetAutomationTracker().RecordLog(AutomationLogEntry{
 					BotName:   "moderation_media_cleanup",
 					BotTitle:  "Pembersihan Media Toko Banned",
@@ -862,7 +749,7 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 					TargetID:  store.ID,
 					Action:    "purged_media_only",
 					Status:    "warning",
-					Details:   fmt.Sprintf("Dibersihkan %d berkas media dari toko banned '%s'. Rekam jejak akun tetap di-blacklist.", deletedFilesCount, store.StoreTitle),
+					Details:   fmt.Sprintf("Dibersihkan %d berkas media dari toko banned '%s'. Status pemblokiran katalog tetap tercatat.", deletedFilesCount, store.StoreTitle),
 					Timestamp: now,
 				})
 			}
@@ -897,7 +784,7 @@ func GetDormancyMetrics(db *gorm.DB) map[string]interface{} {
 	}
 }
 
-func createInAppDormancyNotification(db *gorm.DB, storeID uint, userID uint, title, message, notifType string) {
+func createInAppDormancyNotification(db *gorm.DB, storeID uint, title, message, notifType string) {
 	if db == nil {
 		return
 	}
@@ -950,7 +837,7 @@ func getAppBaseURL() string {
 	return "http://localhost:8000"
 }
 
-func sendDormancyEmail(toEmail, storeTitle, subject string, stage int, daysRemaining int, actionURL string) {
+func sendDormancyEmail(storeID uint, toEmail, storeTitle, subject string, stage int, daysRemaining int, actionURL string) {
 	toEmail = strings.TrimSpace(toEmail)
 	if toEmail == "" {
 		return
@@ -1022,12 +909,12 @@ func sendDormancyEmail(toEmail, storeTitle, subject string, stage int, daysRemai
 		ctaURL = "/"
 		bodyContent = fmt.Sprintf(`
 		<p style="margin: 0 0 14px 0;">Halo Rekan <strong>%s</strong>,</p>
-		<p style="margin: 0 0 14px 0;">Pemberitahuan resmi bahwa akun dan seluruh data katalog toko Anda telah <strong>dibersihkan dari server</strong> karena telah melampaui batas inaktivitas maksimal 60 hari.</p>
+		<p style="margin: 0 0 14px 0;">Pemberitahuan resmi bahwa katalog toko ini telah <strong>dihapus</strong> karena telah melampaui batas inaktivitas maksimal 60 hari.</p>
 		<p style="margin: 0 0 10px 0; font-size: 12.5px; color: #64748b;">Terima kasih telah menggunakan Catavor. Jika di masa mendatang Anda ingin kembali membuka katalog digital, Anda dapat membuat profil katalog baru kapan saja.</p>
 		`, html.EscapeString(storeTitle))
 	}
 
 	htmlMessage := wrapEmailLayout(badgeText, badgeColor, title, subtitle, bodyContent, ctaLabel, ctaURL)
 
-	_, _ = EnqueueEmail(toEmail, storeTitle, "Catavor Lifecycle", subject, htmlMessage, "dormancy_alert", "")
+	_, _ = EnqueueEmail(toEmail, storeTitle, "Catavor Lifecycle", subject, htmlMessage, "dormancy_alert", fmt.Sprintf("store:%d", storeID))
 }

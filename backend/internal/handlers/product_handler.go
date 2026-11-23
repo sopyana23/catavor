@@ -101,7 +101,7 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 			})
 		}
 		storeID = store.ID
-		claims := middleware.ExtractOptionalClaims(c, h.cfg)
+		claims := middleware.ExtractVerifiedOptionalClaims(c, h.db, h.cfg)
 		if claims != nil {
 			if claims.StoreID == store.ID || strings.EqualFold(claims.StoreSlug, store.Slug) {
 				isMerchantView = true
@@ -119,7 +119,7 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 			}
 		}
 	} else {
-		claims := middleware.ExtractOptionalClaims(c, h.cfg)
+		claims := middleware.ExtractVerifiedOptionalClaims(c, h.db, h.cfg)
 		if claims != nil && claims.StoreID > 0 {
 			storeID = claims.StoreID
 			isMerchantView = true
@@ -279,7 +279,7 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 		isAuthorized := false
 		if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil && storeVal.ID == product.StoreID {
 			isAuthorized = true
-		} else if claims := middleware.ExtractOptionalClaims(c, h.cfg); claims != nil {
+		} else if claims := middleware.ExtractVerifiedOptionalClaims(c, h.db, h.cfg); claims != nil {
 			if claims.StoreID == product.StoreID {
 				isAuthorized = true
 			} else if claims.UserID > 0 {
@@ -1238,7 +1238,7 @@ func (h *ProductHandler) Destroy(c *fiber.Ctx) error {
 }
 
 // isOwnedStoreMediaKey memverifikasi bahwa URL/key penyimpanan internal benar-benar
-// milik direktori katalog toko aktif (stores/<storeID>/) dan bukan billing/privat/platform/toko lain.
+// milik direktori katalog produk toko aktif (stores/<storeID>/products/) dan bukan branding/billing/privat/platform/toko lain.
 func isOwnedStoreMediaKey(storeID uint, rawURL string) bool {
 	if storeID == 0 {
 		return false
@@ -1251,7 +1251,8 @@ func isOwnedStoreMediaKey(storeID uint, rawURL string) bool {
 	if !strings.HasPrefix(key, expectedPrefix) {
 		return false
 	}
-	if strings.HasPrefix(key, expectedPrefix+"billing/") {
+	// Tolak berkas billing serta branding profil (logo/banner) agar kuota penyimpanan tidak dibypass
+	if strings.HasPrefix(key, expectedPrefix+"billing/") || strings.HasPrefix(key, expectedPrefix+"branding/") {
 		return false
 	}
 	return true

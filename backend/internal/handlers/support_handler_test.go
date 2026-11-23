@@ -16,6 +16,7 @@ import (
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -26,6 +27,47 @@ import (
 // ---------------------------------------------------------------------------
 
 // supportDB menyiapkan SQLite in-memory dengan tabel-tabel modul bantuan.
+// seedSupportRBAC mengisi platform_roles, platform_permissions, dan relasinya
+// supaya gerbang otorisasi berbasis permission benar-benar dieksekusi.
+//
+// Sebelum pengerasan RBAC, handler cukup memeriksa PlatformRole == "support".
+// Sekarang handler menuntut permission eksplisit (support:tickets:read), dan
+// permission itu hanya ada bila schema produksi ter-seed. Tanpa seed,
+// HasPermission() selalu false sehingga staf sah ditolak 403/404 — bukan karena
+// handler salah, melainkan karena fixture test-nya belum mencerminkan produksi.
+func seedSupportRBAC(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	perms := []models.PlatformPermission{
+		{Key: "support:tickets:read", Group: "support", Name: "Lihat Tiket Bantuan"},
+		{Key: "support:tickets:reply", Group: "support", Name: "Balas Tiket Bantuan"},
+		{Key: "support:help_articles:manage", Group: "support", Name: "Kelola Pusat Bantuan"},
+	}
+	for i := range perms {
+		if err := db.Where("key = ?", perms[i].Key).
+			FirstOrCreate(&perms[i]).Error; err != nil {
+			t.Fatalf("seed permission %s: %v", perms[i].Key, err)
+		}
+	}
+
+	role := models.PlatformRole{
+		Slug:        "support",
+		Name:        "Layanan Pelanggan",
+		Description: "Penanganan tiket merchant dan artikel Pusat Bantuan",
+		IsSystem:    true,
+	}
+	if err := db.Where("slug = ?", role.Slug).FirstOrCreate(&role).Error; err != nil {
+		t.Fatalf("seed role support: %v", err)
+	}
+	if err := db.Model(&role).Association("Permissions").Replace(perms); err != nil {
+		t.Fatalf("relasi role-permission: %v", err)
+	}
+
+	// Singleton RBAC menyimpan cache permission. Cache harus dimuat ulang setelah
+	// seed, jika tidak HasPermission() tetap membaca cache kosong.
+	services.GetRBACService().RefreshCache()
+}
+
 func supportDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := newTestDB(t)
@@ -36,6 +78,7 @@ func supportDB(t *testing.T) *gorm.DB {
 	); err != nil {
 		t.Fatalf("migrate tabel support: %v", err)
 	}
+	seedSupportRBAC(t, db)
 	return db
 }
 

@@ -51,6 +51,7 @@ func RunStorageSweep(db *gorm.DB) int {
 		return 0
 	}
 
+	retryDeletedStoreMedia(db)
 	var stores []models.Store
 	if err := db.Select("id, slug").Find(&stores).Error; err != nil {
 		log.Warn().Err(err).Msg("Storage Sweeper: Failed to list stores for audit")

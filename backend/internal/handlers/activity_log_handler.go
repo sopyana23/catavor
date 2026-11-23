@@ -51,6 +51,17 @@ func (h *ActivityLogHandler) GetStoreActivityLogs(c *fiber.Ctx) error {
 	}
 
 	isStaff := user.IsPlatformStaff()
+	if isStaff && activeStore != nil && activeStore.UserID != user.ID {
+		canReadAudit := user.IsSuperadmin() ||
+			services.GetRBACService().HasPermission(user, "audit:logs:read") ||
+			services.GetRBACService().HasPermission(user, "system:audit_logs:read")
+		if !canReadAudit {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Akses Ditolak: Anda memerlukan izin 'audit:logs:read' untuk melihat log aktivitas toko lain.",
+			})
+		}
+	}
 	if !isStaff && activeStore != nil && (activeStore.DormancyStatus == "suspended" || activeStore.IsSuspended || activeStore.DormancyStatus == "banned" || activeStore.IsBlacklisted) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
@@ -212,8 +223,10 @@ func (h *ActivityLogHandler) GetActivitySummary(c *fiber.Ctx) error {
 
 	storeVal := c.Locals("store")
 	var storeID uint
+	var activeStore *models.Store
 	if storeVal != nil {
-		storeID = storeVal.(*models.Store).ID
+		activeStore = storeVal.(*models.Store)
+		storeID = activeStore.ID
 	} else {
 		var store models.Store
 		if err := h.db.Where("user_id = ?", user.ID).Order("id asc").First(&store).Error; err != nil {
@@ -222,7 +235,20 @@ func (h *ActivityLogHandler) GetActivitySummary(c *fiber.Ctx) error {
 				"message": "Toko tidak ditemukan.",
 			})
 		}
+		activeStore = &store
 		storeID = store.ID
+	}
+
+	if user.IsPlatformStaff() && activeStore != nil && activeStore.UserID != user.ID {
+		canReadAudit := user.IsSuperadmin() ||
+			services.GetRBACService().HasPermission(user, "audit:logs:read") ||
+			services.GetRBACService().HasPermission(user, "system:audit_logs:read")
+		if !canReadAudit {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": "Akses Ditolak: Anda memerlukan izin 'audit:logs:read' untuk melihat ringkasan aktivitas toko lain.",
+			})
+		}
 	}
 
 	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)

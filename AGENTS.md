@@ -262,3 +262,15 @@ Detail lengkap diatur pada [.agents/rules/08_data_driven_dropdown_filter_standar
    - Dilarang keras menimpa, mengubah, atau menghapus blok catatan/evaluasi milik reviewer atau agent lain.
    - Gunakan slot respons khusus dan perbarui tabel matriks pelacakan status secara bertahap.
 
+---
+
+## 13. Complementary Deep Security Audit Standard (`security-audit-cloudflare`) (MANDATORY)
+Detail lengkap diatur pada [.agents/rules/09_security_audit_methodology.md](file:///c:/MyProject/DFauna/.agents/rules/09_security_audit_methodology.md):
+1. **Arsitektur Audit Dua Lapis (*Dual-Layer Security Audit*)**:
+   - **Lapis 1 (Preventive Baseline)**: Patuhi [SECURITY_CHECKLIST.md](file:///c:/MyProject/DFauna/SECURITY_CHECKLIST.md) pada setiap penulisan/perubahan kode harian.
+   - **Lapis 2 (Invariant & Trust-Boundary Hunting)**: Wajib gunakan skill `security-audit-cloudflare` sebagai pelengkap audit mendalam saat mengevaluasi hasil merge antar-agent, mengaudit modul sensitif (Auth/OAuth/MFA, RBAC, Billing/Kupon/Webhook, Storage Publik vs Privat, SSE, Tri-Frontend, CI/CD), atau melakukan *pre-release security audit*.
+2. **Disiplin Pembuktian & Non-Destructive Execution**:
+   - Gunakan *Guidance Mode* untuk review terfokus/PR dan *Full Audit Mode* (`quick`/`standard`/`deep`) untuk audit menyeluruh dengan pemisahan ketat *Hunter* vs *Fresh Independent Verifier*.
+   - Setiap temuan wajib membuktikan pelanggaran *trust boundary* nyata (`entrypoint -> propagation -> sink`), memisahkan `confirmed`, `needs_validation`, `rejected`, dan `hardening` tanpa menggelembungkan temuan semu, serta **dilarang keras** menyerang/mengganggu server atau database lokal yang sedang berjalan aktif.
+
+

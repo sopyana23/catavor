@@ -258,7 +258,7 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
       case 'market_intel':
         return { title: 'Riset Pasar & Intelijen Permintaan B2B', subtitle: 'Analitik tren belanja nasional, demand gap, benchmark harga, dan ekspor data komersial' };
       case 'automation':
-        return { title: 'Mesin Otomatisasi & Cron Bot', subtitle: 'Pemantauan kesehatan daemon worker, background scheduler, dan log otomatisasi' };
+        return { title: 'Mesin Otomatisasi', subtitle: 'Status, jadwal, dan riwayat pekerjaan platform' };
       case 'monetization':
         return { title: 'Monetisasi & Integrasi Google', subtitle: 'Pengaturan Google AdSense, file ads.txt, dan integrasi Google Analytics (GA4)' };
       case 'policies':

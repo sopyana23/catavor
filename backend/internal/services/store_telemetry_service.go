@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -144,9 +145,9 @@ type StoreTelemetryService struct {
 	recentEvents   []models.RecentVisitorEvent
 
 	// Live Visitor Ring Buffer (In-Memory per store and global)
-	ringMu      sync.RWMutex
-	storeRings  map[uint][]RecentVisitorDTO // last 50 per store
-	globalRing  []RecentVisitorDTO          // last 100 global
+	ringMu     sync.RWMutex
+	storeRings map[uint][]RecentVisitorDTO // last 50 per store
+	globalRing []RecentVisitorDTO          // last 100 global
 
 	// Daily Visitor Deduplication & Bounce Engagement Tracking (HMAC-SHA256 with CSPRNG daily rotating salt — SEC-10)
 	dedupMu       sync.RWMutex
@@ -254,6 +255,7 @@ func (s *StoreTelemetryService) startWorker() {
 			return
 		case event := <-s.eventChan:
 			s.processEvent(event)
+			observeCycle("store_ingest", 0, 1, nil)
 		}
 	}
 }
@@ -851,10 +853,13 @@ func (s *StoreTelemetryService) flushBatch() {
 	s.bufferMu.Unlock()
 
 	// 2. Perform Batch Upserts asynchronously
+	var batchErr error
 	defer func() {
 		if r := recover(); r != nil {
+			batchErr = errors.Join(batchErr, fmt.Errorf("flush interrupted: %v", r))
 			log.Error().Interface("panic", r).Msg("Recovered panic in StoreTelemetryService flushBatch")
 		}
+		observeCycle("store_flush", 0, 0, batchErr)
 	}()
 
 	now := time.Now()
@@ -913,10 +918,10 @@ func (s *StoreTelemetryService) flushBatch() {
 			TotalActions:      m.TotalActions,
 		}
 
-		_ = s.db.Clauses(clause.OnConflict{
+		batchErr = errors.Join(batchErr, s.db.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "store_id"}, {Name: "date"}},
 			DoUpdates: clause.Assignments(assignments),
-		}).Create(&initStore).Error
+		}).Create(&initStore).Error)
 	}
 
 	// B. Stores Count Delta
@@ -929,7 +934,7 @@ func (s *StoreTelemetryService) flushBatch() {
 			updates["total_actions_count"] = gorm.Expr("total_actions_count + ?", diff.ActionsDelta)
 		}
 		if len(updates) > 0 {
-			_ = s.db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumns(updates).Error
+			batchErr = errors.Join(batchErr, s.db.Model(&models.Store{}).Where("id = ?", storeID).UpdateColumns(updates).Error)
 		}
 	}
 
@@ -957,10 +962,10 @@ func (s *StoreTelemetryService) flushBatch() {
 			TotalActions:   m.TotalActions,
 		}
 
-		_ = s.db.Clauses(clause.OnConflict{
+		batchErr = errors.Join(batchErr, s.db.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "store_id"}, {Name: "date"}, {Name: "source"}},
 			DoUpdates: clause.Assignments(tAssign),
-		}).Create(&initTraffic).Error
+		}).Create(&initTraffic).Error)
 	}
 
 	// D. Audience Dimension Metrics
@@ -988,10 +993,10 @@ func (s *StoreTelemetryService) flushBatch() {
 			TotalActions:   m.TotalActions,
 		}
 
-		_ = s.db.Clauses(clause.OnConflict{
+		batchErr = errors.Join(batchErr, s.db.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "store_id"}, {Name: "date"}, {Name: "dimension_type"}, {Name: "dimension_value"}},
 			DoUpdates: clause.Assignments(aAssign),
-		}).Create(&initAudience).Error
+		}).Create(&initAudience).Error)
 	}
 
 	// E. Product Daily Metrics
@@ -1033,10 +1038,10 @@ func (s *StoreTelemetryService) flushBatch() {
 			TotalActions:      m.TotalActions,
 		}
 
-		_ = s.db.Clauses(clause.OnConflict{
+		batchErr = errors.Join(batchErr, s.db.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "product_id"}, {Name: "date"}},
 			DoUpdates: clause.Assignments(pAssign),
-		}).Create(&initProd).Error
+		}).Create(&initProd).Error)
 
 		// Update product entity counts
 		prodUpdates := map[string]interface{}{}
@@ -1059,7 +1064,7 @@ func (s *StoreTelemetryService) flushBatch() {
 			prodUpdates["popularity_score"] = gorm.Expr("popularity_score + ?", m.PopularityDelta)
 		}
 		if len(prodUpdates) > 0 {
-			_ = s.db.Model(&models.Product{}).Where("id = ?", k.ProductID).UpdateColumns(prodUpdates).Error
+			batchErr = errors.Join(batchErr, s.db.Model(&models.Product{}).Where("id = ?", k.ProductID).UpdateColumns(prodUpdates).Error)
 		}
 	}
 
@@ -1071,7 +1076,7 @@ func (s *StoreTelemetryService) flushBatch() {
 			if end > len(recents) {
 				end = len(recents)
 			}
-			_ = s.db.CreateInBatches(recents[i:end], batchSize).Error
+			batchErr = errors.Join(batchErr, s.db.CreateInBatches(recents[i:end], batchSize).Error)
 		}
 	}
 }
@@ -1222,10 +1227,25 @@ func (s *StoreTelemetryService) startPeriodicCleaner() {
 		case <-s.stopChan:
 			return
 		case <-ticker.C:
-			if s.db != nil {
-				cutoff := time.Now().UTC().AddDate(0, 0, -7)
-				// Pre-prune aggregation to preserve anonymous device x city journey density
-				_ = s.db.Exec(`
+			if err := s.PruneRecentVisitors(time.Now().UTC()); err != nil {
+				log.Error().Err(err).Msg("Recent visitor retention failed")
+			}
+		}
+	}
+}
+
+// PruneRecentVisitors aggregates exactly the rows removed by this invocation.
+// A failed aggregate rolls back the deletion in the same PostgreSQL statement.
+func (s *StoreTelemetryService) PruneRecentVisitors(now time.Time) (cycleErr error) {
+	defer func() { observeCycle("visitor_retention", time.Hour, 0, cycleErr) }()
+	if s.db == nil {
+		return nil
+	}
+	return s.db.Exec(`
+					WITH expired AS (
+						DELETE FROM recent_visitor_events WHERE created_at < ?
+						RETURNING created_at, device_type, city, store_id, event
+					)
 					INSERT INTO store_daily_audience_metrics (store_id, date, dimension_type, dimension_value, views, unique_visitors, total_actions, created_at, updated_at)
 					SELECT 
 						0 as store_id,
@@ -1237,21 +1257,14 @@ func (s *StoreTelemetryService) startPeriodicCleaner() {
 						SUM(CASE WHEN event NOT IN ('store_view', 'product_view') THEN 1 ELSE 0 END) as total_actions,
 						NOW(),
 						NOW()
-					FROM recent_visitor_events
-					WHERE created_at < ?
+					FROM expired
 					GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD'), device_type, city
 					ON CONFLICT (store_id, date, dimension_type, dimension_value) DO UPDATE SET
 						views = store_daily_audience_metrics.views + EXCLUDED.views,
 						unique_visitors = store_daily_audience_metrics.unique_visitors + EXCLUDED.unique_visitors,
 						total_actions = store_daily_audience_metrics.total_actions + EXCLUDED.total_actions,
 						updated_at = NOW()
-				`, cutoff).Error
-
-				// Delete raw items older than 7 days
-				_ = s.db.Where("created_at < ?", cutoff).Delete(&models.RecentVisitorEvent{}).Error
-			}
-		}
-	}
+				`, now.UTC().AddDate(0, 0, -7)).Error
 }
 
 // Stop gracefully flushes remaining in-memory buffers when server shuts down.
@@ -1265,4 +1278,3 @@ func (s *StoreTelemetryService) Stop() {
 		log.Info().Msg("StoreTelemetryService stopped: all buffers safely flushed to DB")
 	})
 }
-

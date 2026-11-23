@@ -1,0 +1,70 @@
+.finance-workspace { min-width: 0; width: 100%; margin-inline: auto; max-width: 1440px; box-sizing: border-box; }
+.finance-nav, .finance-toolbar { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.finance-nav { background: var(--fin-surface); border: 1px solid var(--fin-line); border-radius: .8rem; padding: .25rem; width: fit-content; max-width: 100%; box-sizing: border-box; }
+.finance-nav button {
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  min-height: 40px; background: transparent; color: var(--fin-muted); border: 0; border-radius: .55rem;
+  padding: .4rem .8rem; font: inherit; font-size: .84rem; font-weight: 650; cursor: pointer;
+}
+.finance-nav svg { width: 1rem; height: 1rem; stroke-width: 1.75; }
+.finance-nav button[aria-current=page], .finance-modes label.selected { background: color-mix(in srgb, var(--fin-accent) 11%, var(--fin-surface)); color: var(--fin-accent); }
+.finance-nav button span { border-radius: .45rem; padding: 0 .35rem; background: var(--fin-alt); color: var(--fin-ink); font-size: .72rem; }
+.finance-modes { min-width: 0; padding: 0; border: 0; margin: 0; color: var(--fin-ink); }
+.finance-modes legend { font-weight: 750; font-size: .96rem; padding: 0; }
+.finance-modes p { font-size: .82rem; color: var(--fin-muted); margin: .25rem 0 .65rem; line-height: 1.5; }
+.finance-modes > div { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .55rem; }
+.finance-modes label { cursor: pointer; display: flex; align-items: flex-start; gap: .55rem; border: 1px solid var(--fin-line); background: var(--fin-surface); padding: .8rem; border-radius: .75rem; }
+.finance-modes label.selected { border-color: var(--fin-accent); }
+.finance-modes input { accent-color: var(--fin-accent); width: 1rem; height: 1rem; margin: .15rem 0 0; flex: none; }
+.finance-modes strong, .finance-modes small { display: block; }
+.finance-modes strong { font-size: .84rem; }
+.finance-modes small { font-size: .76rem; color: var(--fin-muted); margin-top: .15rem; line-height: 1.45; }
+.finance-filters { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fit,minmax(min(100%,10rem),1fr)); width: 100%; max-width: 34rem; }
+.finance-filter { min-width: 0; }
+.finance-filter > span { display: block; font-size: .76rem; margin-bottom: .25rem; color: var(--fin-muted); font-weight: 650; }
+.finance-toolbar { flex: none; justify-content: space-between; padding: .65rem 1.25rem; border-bottom: 1px solid var(--fin-line); }
+.finance-workspace button.finance-action { background: var(--fin-accent) !important; color: var(--fin-action-text) !important; box-shadow: none !important; min-height: 40px; }
+.finance-workspace :is(button,input):focus-visible { outline: 2px solid var(--fin-accent) !important; outline-offset: 2px; }
+.finance-workspace input[type=radio]:focus-visible { outline-offset: 3px; }
+.finance-workspace .finance-utility { min-height: 32px; color: var(--fin-accent) !important; }
+.finance-coupons .finance-field-label { display: none; }
+.finance-save-bar { position: sticky; bottom: calc(60px + env(safe-area-inset-bottom,0px)); z-index: 2; padding: .5rem; border: 1px solid var(--fin-line); border-radius: .75rem; background: var(--fin-surface); }
+.finance-save-bar button { display: flex; align-items: center; justify-content: center; width: 100%; gap: .5rem; padding: .6rem; border: 0; border-radius: .55rem; font: inherit; font-size: .85rem; font-weight: 700; }
+.finance-save-bar button:disabled { opacity: .6; }
+@media (max-width: 1023px) {
+  .finance-nav button, .finance-workspace button.finance-action, .finance-workspace .finance-utility { min-height: 44px; }
+}
+@media (max-width: 879px) {
+  .finance-modes > div { grid-template-columns: 1fr; }
+  .finance-modes label { padding: .65rem .8rem; min-height: 44px; box-sizing: border-box; }
+  .finance-gateway-fields { grid-template-columns: 1fr !important; }
+  .finance-coupons { display: block; }
+  .finance-coupons thead { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; }
+  .finance-coupons tbody { display: block; }
+  .finance-coupons tbody tr { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); padding: .7rem; align-items: start; }
+  .finance-coupons tbody td { padding: .45rem !important; min-width: 0; overflow-wrap: anywhere; }
+  .finance-coupons tbody td:last-child { grid-column: 1 / -1; border-top: 1px solid var(--fin-line); margin-top: .4rem; }
+  .finance-coupons td:last-child > div { justify-content: start !important; }
+  .finance-coupons .finance-field-label { display: block; font-weight: 550; font-size: .73rem; color: var(--fin-muted); margin-bottom: .22rem; }
+}
+@media (max-width: 767px) {
+  .finance-nav { width: 100%; gap: .1rem; }
+  .finance-nav button { flex: 1; padding: .35rem .25rem; gap: .25rem; font-size: .78rem; }
+}
+@media (max-width: 480px) { .finance-filters { grid-template-columns: 1fr; } }
+@media (max-width: 379px) {
+  .finance-nav svg { display: none; }
+  .finance-summary { grid-template-columns: 1fr !important; }
+  .finance-summary > button > div { display: flex; gap: .75rem; align-items: center; }
+}
+.finance-pager { padding: .75rem; color: var(--fin-muted); font-size: .8rem; border-top: 1px solid var(--fin-line); background: var(--fin-surface); }
+.finance-pager, .finance-pager > div, .finance-pager form { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.finance-pager button, .finance-pager select, .finance-pager input { color: var(--fin-ink); background: var(--fin-alt); border: 1px solid var(--fin-line); padding: .4rem .55rem; border-radius: .5rem; font: inherit; }
+.finance-pager button:enabled { cursor: pointer; }
+.finance-pager button:disabled { opacity: .5; }
+.finance-pager [aria-current=page] { color: var(--fin-action-text); background: var(--fin-accent); }
+.finance-pager input { width: 4rem; }
+@media (max-width:1023px) { .finance-pager :is(button,input) { min-height:44px; } }
+.finance-scroll-pane { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
+.finance-scroll-pane > * { flex-shrink: 0; }
+.finance-scroll-pane .finance-pager { flex-shrink: 0; }
