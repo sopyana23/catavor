@@ -517,8 +517,8 @@ func main() {
 	api.Get("/auth/check-slug/:slug", storeHandler.CheckSlug)
 	api.Get("/auth/check-slug", storeHandler.CheckSlug)
 
-	// User Auth-Guarded Endpoints (Requires valid JWT Token)
-	authOnly := api.Group("", middleware.AuthRequired(cfg))
+	// User Auth-Guarded Endpoints (Requires valid JWT Token — scoped per route)
+	authOnly := newScopedGroup(api, middleware.AuthRequired(cfg))
 	{
 		authOnly.Get("/auth/verify", authHandler.VerifyToken)
 		authOnly.Get("/auth/me", authHandler.VerifyToken)
@@ -563,10 +563,10 @@ func main() {
 		authOnly.Get("/v1/notifications", notificationHandler.GetNotifications)
 	}
 
-	// Guarded Admin & Merchant Endpoints (Requires JWT Token & Store Ownership)
-	guarded := api.Group("", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired())
+	// Guarded Admin & Merchant Endpoints (Requires JWT Token & Store Ownership — scoped per route)
+	guarded := newScopedGroup(api, middleware.AuthRequired(cfg), middleware.StoreOwnerRequired())
 	// Guarded Mutation Endpoints (Requires Active/Operational Store - Blocks Banned/Suspended Stores)
-	guardedMutations := api.Group("", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), middleware.OperationalStoreRequired())
+	guardedMutations := newScopedGroup(api, middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), middleware.OperationalStoreRequired())
 	{
 		// Storage & Cloud Object Endpoints (S3 / MinIO / Local)
 		guardedMutations.Post("/storage/upload", storageHandler.Upload)
