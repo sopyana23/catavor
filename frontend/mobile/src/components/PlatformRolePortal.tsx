@@ -428,7 +428,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['policies', 'policy', 'kebijakan', 'legal', 'settings', 'setting', 'terms', 'aturan'].includes(tabParam)) return 'policies';
       if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) return 'master_data';
       if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) return 'audit';
-      if (['market_intel', 'market-intel', 'intelligence', 'riset', 'riset-pasar'].includes(tabParam)) return 'market_intel';
+      if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'riset-pasar', 'b2b'].includes(tabParam)) return 'market_intel';
     } catch {
       // fallback
     }
@@ -1542,6 +1542,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
 
   const [automationRevision, setAutomationRevision] = useState(0);
+  const [marketIntelRevision, setMarketIntelRevision] = useState(0);
 
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditTotal, setAuditTotal] = useState<number>(0);
@@ -2712,6 +2713,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             setActiveView('master_data');
           } else if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) {
             setActiveView('audit');
+          } else if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'riset-pasar', 'b2b'].includes(tabParam)) {
+            setActiveView('market_intel');
           }
         }
 
@@ -4819,6 +4822,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             iconColor: '#10b981',
             onClick: () => {
               loadData();
+              setMarketIntelRevision((r) => r + 1);
               showToast('Data riset pasar diperbarui', 'success');
             }
           }
@@ -10914,15 +10918,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
               {/* Submit Save Button */}
               <button
-                type="submit"
-                disabled={savingSettings}
-                style={{
-                  padding: '0.85rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: '#eab308',
-                  color: '#000000',
-                  border: 'none',
-                  fontSize: '0.82rem',
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
@@ -12945,11 +12940,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* ========================================================================= */}
       {activeView === 'market_intel' && canAccessMarketIntel && (
         <div style={{ animation: 'fadeIn 0.25s ease-out', paddingBottom: '4.5rem' }}>
-          <MobileMarketIntelView
-            token={token}
-            themeMode={isDark ? 'dark' : 'light'}
-            showToast={showToast}
-          />
+          <ErrorBoundary sectionName="Riset Pasar B2B">
+            <MobileMarketIntelView
+              token={token}
+              themeMode={isDark ? 'dark' : 'light'}
+              showToast={showToast}
+              canTriggerBot={isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:automation:manage')}
+              revision={marketIntelRevision}
+            />
+          </ErrorBoundary>
         </div>
       )}
 

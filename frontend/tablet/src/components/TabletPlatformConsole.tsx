@@ -11050,12 +11050,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             </div>
           )}
 
-          {/* TAB 8: AUTOMATION (MESIN OTOMATISASI) */}
+          {/* TAB 7B: MARKET INTELLIGENCE B2B */}
           {activeView === 'market_intel' && canAccessMarketIntel && (
-            <TabletMarketIntelView
-              token={token}
-              showToast={showToast}
-            />
+            <ErrorBoundary sectionName="Riset Pasar B2B">
+              <TabletMarketIntelView
+                token={token}
+                showToast={showToast}
+                canTriggerBot={isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:automation:manage')}
+              />
+            </ErrorBoundary>
           )}
 
           {activeView === 'automation' && canAccessAutomation && (

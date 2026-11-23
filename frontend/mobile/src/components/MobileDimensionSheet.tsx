@@ -22,7 +22,9 @@ export const MobileDimensionSheet: React.FC<MobileDimensionSheetProps> = ({
   totalViews: propTotalViews,
   themeMode
 }) => {
-  const isDark = themeMode === 'dark' || document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+  const isDark = themeMode
+    ? themeMode === 'dark'
+    : document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'views_desc' | 'name_asc' | 'cr_desc'>('views_desc');
 
@@ -289,25 +291,30 @@ export const MobileDimensionSheet: React.FC<MobileDimensionSheetProps> = ({
             {searchTerm && (
               <button
                 type="button"
+                aria-label="Hapus pencarian"
                 onClick={() => setSearchTerm('')}
                 style={{
                   position: 'absolute',
-                  right: '0.65rem',
+                  right: '0.2rem',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   background: 'none',
                   border: 'none',
                   color: theme.textSecondary,
                   cursor: 'pointer',
-                  padding: '4px'
+                  minWidth: '44px',
+                  minHeight: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}
               >
-                <X size={14} />
+                <X size={15} />
               </button>
             )}
           </div>
 
-          {/* Sort Pills (Min-Height 40px) */}
+          {/* Sort Pills (Min-Height 44px) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.35rem' }}>
             {[
               { key: 'views_desc', label: 'Kunjungan' },
@@ -319,7 +326,7 @@ export const MobileDimensionSheet: React.FC<MobileDimensionSheetProps> = ({
                 type="button"
                 onClick={() => setSortBy(s.key as any)}
                 style={{
-                  minHeight: '40px',
+                  minHeight: '44px',
                   borderRadius: '0.55rem',
                   border: `1px solid ${sortBy === s.key ? accentColor : theme.border}`,
                   backgroundColor: sortBy === s.key ? theme.surface : 'transparent',

@@ -425,7 +425,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['monetization', 'iklan', 'ads', 'google'].includes(tabParam)) return 'monetization';
       if (['broadcast', 'siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
       if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
-      if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'b2b'].includes(tabParam)) return 'market_intel';
+      if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'riset-pasar', 'b2b'].includes(tabParam)) return 'market_intel';
       if (['policies', 'policy', 'kebijakan', 'legal', 'settings', 'setting', 'terms', 'aturan'].includes(tabParam)) return 'policies';
       if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) return 'master_data';
       if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) return 'audit';
@@ -2635,6 +2635,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             setActiveView('master_data');
           } else if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) {
             setActiveView('audit');
+          } else if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'riset-pasar', 'b2b'].includes(tabParam)) {
+            setActiveView('market_intel');
           }
         }
 
@@ -14326,12 +14328,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* MODULE: MARKET INTELLIGENCE & B2B RESEARCH                                */}
       {/* ========================================================================= */}
       {activeView === 'market_intel' && canAccessMarketIntel && (
-        <PlatformMarketIntelView
-          token={token}
-          isDark={isDark}
-          theme={theme}
-          showToast={showToast}
-        />
+        <ErrorBoundary sectionName="Riset Pasar B2B">
+          <PlatformMarketIntelView
+            token={token}
+            isDark={isDark}
+            theme={theme}
+            showToast={showToast}
+            canTriggerBot={isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:automation:manage')}
+          />
+        </ErrorBoundary>
       )}
 
       {activeView === 'automation' && canAccessAutomation && (
