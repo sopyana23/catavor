@@ -155,8 +155,11 @@ export { RichTextarea, HeadingDropdown, ListDropdown, type RichTextareaProps }
 import { SafeImage } from './components/SafeImage'
 import { checkUrlSecurity, cleanDomainString, loadDynamicSafeDomains } from './utils/urlSecurity'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
-import { initGoogleAnalytics } from './utils/googleAnalytics'
-import { initGoogleAdSense } from './utils/googleAdSense'
+import { initGoogleAnalytics, trackPageView } from './utils/googleAnalytics'
+import { initGoogleAdSense, syncGoogleAdSenseHead } from './utils/googleAdSense'
+import { CookieConsentBanner } from '../../shared/monetization/CookieConsentBanner'
+import { PublicFeaturedShowcase } from '../../shared/monetization/PublicFeaturedShowcase'
+import { MerchantAdsView } from '../../shared/monetization/MerchantAdsView'
 import { ConnectedDevicesView } from './components/ConnectedDevicesView'
 import { MFASettingsView } from './components/MFASettingsView'
 import { MFAChallengeView, type MFAChallengeFactor } from './components/MFAChallengeView'
@@ -5300,12 +5303,13 @@ Terima kasih.`;
           if (settingsData.ga_measurement_id) {
             const isGaEnabled = settingsData.ga_enabled === '1' || settingsData.ga_enabled === 'true';
             initGoogleAnalytics(settingsData.ga_measurement_id, isGaEnabled);
+            trackPageView(window.location.pathname + window.location.search);
           }
-          if (settingsData.ads_client_id) {
-            const isAdsEnabled = settingsData.ads_enabled === '1' || settingsData.ads_enabled === 'true';
-            const isAutoEnabled = settingsData.ads_auto_enabled === '1' || settingsData.ads_auto_enabled === 'true';
-            initGoogleAdSense(settingsData.ads_client_id, isAdsEnabled, isAutoEnabled);
-          }
+          syncGoogleAdSenseHead(settingsData, {
+            storePlan: settings.plan || 'free',
+            isAdminView: activeTab === 'admin',
+            isPublicCatalog: activeTab !== 'admin' && Boolean(storeSlug),
+          });
         }
       }
     } catch (err) {
@@ -16752,6 +16756,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     <ArrowRight size={16} />
                   </button>
                 </div>
+                <PublicFeaturedShowcase device="mobile" />
               </main>
 
               {renderMobileFooter()}
@@ -20657,6 +20662,16 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
             {/* Important Information with Dynamic Contextual Action Buttons */}
             <ProductImportantInfoSection item={selectedFauna} isMobile={true} />
+
+            {activeTab !== 'admin' && (
+              <div style={{ padding: '0.5rem 1rem' }}>
+                <AdSenseUnit
+                  storePlan={settings.plan || 'free'}
+                  slotType="product_detail"
+                  settings={{ ...platformSettings, ...settings }}
+                />
+              </div>
+            )}
 
             {/* Universal Multi-Platform Video Embed (YouTube, Shorts, TikTok, IG Reels) */}
             {selectedFauna.video_url && (
@@ -25239,6 +25254,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   </div>
                                 ) : (
                                   <>
+                                    <AdSenseUnit
+                                      storePlan={settings.plan || 'free'}
+                                      slotType="header"
+                                      settings={{ ...platformSettings, ...settings }}
+                                    />
                                     <div className="mobile-list-grid">
                                       {filteredFaunas.map((item, itemIdx) => (
                                         <React.Fragment key={item.id}>
@@ -25447,7 +25467,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                               <AdSenseUnit
                                                 storePlan={settings.plan || 'free'}
                                                 slotType="infeed"
-                                                settings={settings}
+                                                settings={{ ...platformSettings, ...settings }}
                                                 onUpgradeClick={() => {
                                                   if (isStoreOwner) {
                                                     setActiveTab('admin');
@@ -25465,7 +25485,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     <AdSenseUnit
                                       storePlan={settings.plan || 'free'}
                                       slotType="bottom"
-                                      settings={settings}
+                                      settings={{ ...platformSettings, ...settings }}
                                       onUpgradeClick={() => {
                                         if (isStoreOwner) {
                                           setActiveTab('admin');
@@ -27428,18 +27448,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       )}
                                     </div>
                                   </div>
-
-                                  {/* AdSense Dashboard Sponsor (Free Tier only) */}
-                                  <AdSenseUnit
-                                    storePlan={storeQuota?.plan?.code || settings.plan || 'free'}
-                                    slotType="dashboard"
-                                    settings={settings}
-                                    onUpgradeClick={() => {
-                                      setAdminSubTab('subscription');
-                                      const slug = getStoreSlug();
-                                      if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
-                                    }}
-                                  />
                                 </div>
                               )}
 
@@ -33280,6 +33288,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       }
                                     }}
                                   />
+                                  <MerchantAdsView
+                                    device="mobile"
+                                    token={token}
+                                    storeSlug={storeSlug}
+                                    products={filteredFaunas as any}
+                                    onToast={(msg, type) => showToast(msg, type || 'success')}
+                                  />
                                 </div>
                               )}
 
@@ -37441,6 +37456,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
           </div>
         </div>
       )}
+      <CookieConsentBanner settings={{ ...platformSettings, ...settings }} />
     </>
   )
 }

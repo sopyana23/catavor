@@ -1717,6 +1717,12 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
               {/* Important Information with Dynamic Contextual Action Buttons & Policy Guidance */}
               <ProductImportantInfoSection item={selectedFauna} isMobile={false} />
 
+              <AdSenseUnit
+                storePlan={settings?.plan || 'free'}
+                slotType="product_detail"
+                settings={adSettings}
+              />
+
               {/* Video Embed Player if available */}
               {selectedFauna.video_url && (
                 <div style={{ marginTop: '0.5rem' }}>
@@ -3293,6 +3299,14 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                   </button>
                 </div>
               ) : (
+                <>
+                  <div style={{ marginBottom: '0.85rem' }}>
+                    <AdSenseUnit
+                      storePlan={settings?.plan || 'free'}
+                      slotType="header"
+                      settings={adSettings}
+                    />
+                  </div>
                 <div className="tablet-catalog-grid">
                   {filteredFaunas.map((fauna, faunaIdx) => (
                     <React.Fragment key={fauna.id}>
@@ -3546,6 +3560,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                   </React.Fragment>
                 ))}
               </div>
+              </>
             )}
 
             {/* Google AdSense Bottom Banner (Tablet Free Tier only) */}

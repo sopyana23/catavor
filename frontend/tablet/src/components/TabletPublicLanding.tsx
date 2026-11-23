@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 
 import { ErrorBoundary } from './ErrorBoundary';
+import { PublicFeaturedShowcase } from '../../../shared/monetization/PublicFeaturedShowcase';
 
 export const CATALOG_TYPES_INFO = [
   {
@@ -1327,6 +1328,8 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
       {/* =========================================================================
           SECTION 3: CARA KERJA 3 LANGKAH (#steps-section)
           ========================================================================= */}
+      <PublicFeaturedShowcase device="tablet" />
+
       <section id="steps-section" style={{
         maxWidth: 'var(--tablet-container-max, 960px)',
         margin: `0 auto ${sectionGap} auto`,

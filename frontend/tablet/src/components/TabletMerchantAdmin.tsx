@@ -93,6 +93,7 @@ import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { TabletAnalyticsView } from './TabletAnalyticsView';
 import { TabletSubscriptionModal, TabletQuotaWidget, type StoreQuotaData } from './TabletSubscriptionModal';
+import { MerchantAdsView } from '../../../shared/monetization/MerchantAdsView';
 import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { MFASettingsView } from './MFASettingsView';
 import { MFAChallengeView, type MFAChallengeFactor } from './MFAChallengeView';
@@ -9441,6 +9442,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 </div>
               </div>
             </div>
+
+            <MerchantAdsView
+              device="tablet"
+              token={token}
+              storeSlug={storeSlug}
+              onToast={(msg) => showToast(msg)}
+            />
 
             {/* Riwayat Tagihan / Orders */}
             <div style={{

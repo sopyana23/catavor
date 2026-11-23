@@ -170,8 +170,11 @@ import { MFAChallengeView, type MFAChallengeFactor } from './components/MFAChall
 import { MFAOnboardingModal } from './components/MFAOnboardingModal'
 import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
 import { isSuperAdmin, hasPermission, isPlatformAdmin, getRoleBadge } from './utils/rbac'
-import { initGoogleAnalytics } from './utils/googleAnalytics'
-import { initGoogleAdSense } from './utils/googleAdSense'
+import { initGoogleAnalytics, trackPageView } from './utils/googleAnalytics'
+import { initGoogleAdSense, syncGoogleAdSenseHead } from './utils/googleAdSense'
+import { CookieConsentBanner } from '../../shared/monetization/CookieConsentBanner'
+import { PublicFeaturedShowcase } from '../../shared/monetization/PublicFeaturedShowcase'
+import { MerchantAdsView } from '../../shared/monetization/MerchantAdsView'
 import { SwipeableToast } from './components/SwipeableToast'
 import { RichTextarea, FormattedText, ExternalLinkWarningModal, type RichTextareaProps } from './components/RichTextarea';
 export { RichTextarea, type RichTextareaProps };
@@ -5389,12 +5392,13 @@ Terima kasih.`;
           if (settingsData.ga_measurement_id) {
             const isGaEnabled = settingsData.ga_enabled === '1' || settingsData.ga_enabled === 'true';
             initGoogleAnalytics(settingsData.ga_measurement_id, isGaEnabled);
+            trackPageView(window.location.pathname + window.location.search);
           }
-          if (settingsData.ads_client_id) {
-            const isAdsEnabled = settingsData.ads_enabled === '1' || settingsData.ads_enabled === 'true';
-            const isAutoEnabled = settingsData.ads_auto_enabled === '1' || settingsData.ads_auto_enabled === 'true';
-            initGoogleAdSense(settingsData.ads_client_id, isAdsEnabled, isAutoEnabled);
-          }
+          syncGoogleAdSenseHead(settingsData, {
+            storePlan: settings.plan || 'free',
+            isAdminView: view === 'admin',
+            isPublicCatalog: view !== 'admin' && Boolean(storeSlug),
+          });
         }
       }
     } catch (err) {
@@ -15443,7 +15447,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
     return (
       <>
         {/* Floating Toast Notification Desktop Portal */}
-        <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />
+        <CookieConsentBanner settings={{ ...platformSettings, ...settings }} />
+      <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />
 
         <div className="portal-container" style={{ minHeight: '100vh', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", position: 'relative' }}>
         {/* Toast Notification for WhatsApp Simulator */}
@@ -16243,6 +16248,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   </button>
                 </div>
               </section>
+              <PublicFeaturedShowcase device="desktop" />
             </main>
             
             {/* Corporate Footer */}
@@ -18966,6 +18972,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 {/* Important Information with Dynamic Contextual Action Buttons */}
                 <ProductImportantInfoSection item={selectedFauna} isMobile={false} />
 
+                {view !== 'admin' && (
+                  <AdSenseUnit
+                    storePlan={settings.plan || 'free'}
+                    slotType="product_detail"
+                    format="horizontal"
+                    settings={{ ...platformSettings, ...settings }}
+                    onUpgradeClick={() => setShowSubscriptionModal(true)}
+                  />
+                )}
+
                 {/* Universal Multi-Platform Video Embed (YouTube, Shorts, TikTok, IG Reels) */}
                 {selectedFauna.video_url && (
                   <div style={{ marginTop: '1.5rem' }}>
@@ -20908,7 +20924,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           <AdSenseUnit
                             storePlan={settings.plan || 'free'}
                             slotType="header"
-                            settings={settings}
+                            settings={{ ...platformSettings, ...settings }}
                             onUpgradeClick={() => setShowSubscriptionModal(true)}
                           />
                         </div>
@@ -21250,7 +21266,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             <AdSenseUnit
                               storePlan={settings.plan || 'free'}
                               slotType="infeed"
-                              settings={settings}
+                              settings={{ ...platformSettings, ...settings }}
                               onUpgradeClick={() => setShowSubscriptionModal(true)}
                             />
                           </div>
@@ -21263,7 +21279,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   <AdSenseUnit
                     storePlan={settings.plan || 'free'}
                     slotType="bottom"
-                    settings={settings}
+                    settings={{ ...platformSettings, ...settings }}
                     onUpgradeClick={() => setShowSubscriptionModal(true)}
                   />
 
@@ -29638,6 +29654,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       });
                     }}
                   />
+                  <MerchantAdsView
+                    device="desktop"
+                    token={token}
+                    storeSlug={storeSlug}
+                    products={filteredFaunas as any}
+                    onToast={(msg, type) => showToast(msg, type || 'success')}
+                  />
                 </div>
               )}
 
@@ -34757,6 +34780,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           onStepUpVerify={mfaStepUpAction.execute}
         />
       )}
+      <CookieConsentBanner settings={{ ...platformSettings, ...settings }} />
       <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />
     </>
   )

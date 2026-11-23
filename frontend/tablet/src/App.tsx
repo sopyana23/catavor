@@ -32,8 +32,9 @@ import {
   appendViewParam,
   trySilentCookieRefresh
 } from './utils/authSync';
-import { initGoogleAdSense } from './utils/googleAdSense';
-import { initGoogleAnalytics } from './utils/googleAnalytics';
+import { initGoogleAdSense, syncGoogleAdSenseHead } from './utils/googleAdSense';
+import { initGoogleAnalytics, trackPageView } from './utils/googleAnalytics';
+import { CookieConsentBanner } from '../../shared/monetization/CookieConsentBanner';
 import { smartBack } from './utils/navigation';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ExternalLinkWarningModal } from './components/ExternalLinkWarningModal';
@@ -371,12 +372,11 @@ export const App: React.FC = () => {
             if (s.ga_measurement_id) {
               const isGaEnabled = s.ga_enabled === '1' || s.ga_enabled === 'true';
               initGoogleAnalytics(s.ga_measurement_id, isGaEnabled);
+              trackPageView(window.location.pathname + window.location.search);
             }
-            if (s.ads_client_id) {
-              const isAdsEnabled = s.ads_enabled === '1' || s.ads_enabled === 'true';
-              const isAutoEnabled = s.ads_auto_enabled === '1' || s.ads_auto_enabled === 'true';
-              initGoogleAdSense(s.ads_client_id, isAdsEnabled, isAutoEnabled);
-            }
+            syncGoogleAdSenseHead(s, {
+              isPublicCatalog: Boolean(activeSlug),
+            });
           }
         }
       } catch (err) {
@@ -2633,6 +2633,7 @@ export const App: React.FC = () => {
           }}
         />
       )}
+      <CookieConsentBanner />
       <TabletGlobalSecurityModal />
     </>
   );
