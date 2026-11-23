@@ -16974,13 +16974,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
           {/* REGISTER TAB VIEW MOBILE - CLEAN MODERN COMMERCE */}
           {portalTab === 'register' && (
-            <div style={{ padding: '2.5rem 1.25rem', maxWidth: '460px', margin: '0 auto' }}>
-              <div style={{ width: '100%', padding: '2.25rem 1.5rem', borderRadius: '1.25rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 12px 35px -8px rgba(15, 23, 42, 0.08)' }} className="animate-fade-in">
+            <div style={{ width: '100%', padding: '1.5rem clamp(0.75rem, 3.5vw, 1.25rem)', maxWidth: '460px', margin: '0 auto', boxSizing: 'border-box' }}>
+              <div style={{ width: '100%', maxWidth: '100%', padding: '1.5rem clamp(1rem, 4.5vw, 1.5rem)', borderRadius: '1.25rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 12px 35px -8px rgba(15, 23, 42, 0.08)', boxSizing: 'border-box' }} className="animate-fade-in">
                 <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                   <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto', border: '1px solid #dbeafe', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.1)' }}>
                     <Store size={22} />
                   </div>
-                  <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem 0', letterSpacing: '-0.02em' }}>
+                  <h2 style={{ fontSize: 'clamp(1.2rem, 5vw, 1.35rem)', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem 0', letterSpacing: '-0.02em' }}>
                     Buat Katalog Bisnis
                   </h2>
                   <p style={{ color: '#64748b', fontSize: '0.78rem', margin: 0, lineHeight: 1.45 }}>
@@ -16990,17 +16990,17 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
                 {/* 3-Step Progress Indicator Clean Mobile */}
                 <div style={{ marginBottom: '1.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', padding: '0 0.1rem' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: registerStep >= 1 ? 800 : 600, color: registerStep >= 1 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: registerStep >= 1 ? '#2563eb' : '#f1f5f9', color: registerStep >= 1 ? '#ffffff' : '#64748b', border: registerStep >= 1 ? 'none' : '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800 }}>1</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', marginBottom: '0.5rem', padding: '0 0.1rem' }}>
+                    <span style={{ fontSize: 'clamp(0.66rem, 2.8vw, 0.72rem)', fontWeight: registerStep >= 1 ? 800 : 600, color: registerStep >= 1 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap' }}>
+                      <span style={{ width: '20px', height: '20px', flexShrink: 0, borderRadius: '50%', backgroundColor: registerStep >= 1 ? '#2563eb' : '#f1f5f9', color: registerStep >= 1 ? '#ffffff' : '#64748b', border: registerStep >= 1 ? 'none' : '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800 }}>1</span>
                       Akun
                     </span>
-                    <span style={{ fontSize: '0.72rem', fontWeight: registerStep >= 2 ? 800 : 600, color: registerStep >= 2 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: registerStep >= 2 ? '#2563eb' : '#f1f5f9', color: registerStep >= 2 ? '#ffffff' : '#64748b', border: registerStep >= 2 ? 'none' : '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800 }}>2</span>
+                    <span style={{ fontSize: 'clamp(0.66rem, 2.8vw, 0.72rem)', fontWeight: registerStep >= 2 ? 800 : 600, color: registerStep >= 2 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap' }}>
+                      <span style={{ width: '20px', height: '20px', flexShrink: 0, borderRadius: '50%', backgroundColor: registerStep >= 2 ? '#2563eb' : '#f1f5f9', color: registerStep >= 2 ? '#ffffff' : '#64748b', border: registerStep >= 2 ? 'none' : '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800 }}>2</span>
                       Profil Toko
                     </span>
-                    <span style={{ fontSize: '0.72rem', fontWeight: registerStep === 3 ? 800 : 600, color: registerStep === 3 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <span style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: registerStep === 3 ? '#2563eb' : '#f1f5f9', color: registerStep === 3 ? '#ffffff' : '#64748b', border: registerStep === 3 ? 'none' : '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800 }}>3</span>
+                    <span style={{ fontSize: 'clamp(0.66rem, 2.8vw, 0.72rem)', fontWeight: registerStep === 3 ? 800 : 600, color: registerStep === 3 ? '#2563eb' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap' }}>
+                      <span style={{ width: '20px', height: '20px', flexShrink: 0, borderRadius: '50%', backgroundColor: registerStep === 3 ? '#2563eb' : '#f1f5f9', color: registerStep === 3 ? '#ffffff' : '#64748b', border: registerStep === 3 ? 'none' : '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800 }}>3</span>
                       Pilih Paket
                     </span>
                   </div>
@@ -17041,7 +17041,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       onClick={handleGoogleSSO}
                       style={{
                         width: '100%',
-                        padding: '0.75rem 1rem',
+                        minHeight: '44px',
+                        padding: '0.7rem 1rem',
                         borderRadius: '0.75rem',
                         backgroundColor: '#ffffff',
                         border: '1.5px solid #cbd5e1',
@@ -17053,6 +17054,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         justifyContent: 'center',
                         gap: '0.65rem',
                         cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        boxSizing: 'border-box',
                         boxShadow: '0 1px 3px rgba(15, 23, 42, 0.05)',
                         transition: 'all 0.15s ease'
                       }}
@@ -17063,7 +17066,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                       </svg>
-                      <span>Daftar Cepat dengan Google</span>
+                      <span>Daftar dengan Google</span>
                     </button>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -17256,7 +17259,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         style={{
                           width: '100%',
                           minHeight: '44px',
-                          padding: '0.8rem',
+                          padding: '0.7rem 1rem',
                           justifyContent: 'center',
                           fontSize: '0.86rem',
                           marginTop: '0.35rem',
@@ -17268,19 +17271,21 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           display: 'flex',
                           alignItems: 'center',
                           gap: '0.45rem',
+                          whiteSpace: 'nowrap',
+                          boxSizing: 'border-box',
                           cursor: registerLoading ? 'not-allowed' : 'pointer',
                           boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
                         }}
                       >
                         {registerLoading ? (
                           <>
-                            <Loader2 size={16} className="animate-spin" />
-                            <span>Memeriksa Email...</span>
+                            <Loader2 size={16} className="animate-spin" style={{ flexShrink: 0 }} />
+                            <span>Memeriksa...</span>
                           </>
                         ) : (
                           <>
-                            <span>Lanjut ke Informasi Usaha</span>
-                            <ChevronRight size={15} />
+                            <span>Lanjut</span>
+                            <ChevronRight size={15} style={{ flexShrink: 0 }} />
                           </>
                         )}
                       </button>
@@ -17288,7 +17293,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         type="button"
                         style={{
                           width: '100%',
-                          padding: '0.7rem',
+                          minHeight: '44px',
+                          padding: '0.7rem 1rem',
                           justifyContent: 'center',
                           fontSize: '0.8rem',
                           backgroundColor: '#ffffff',
@@ -17299,6 +17305,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           display: 'flex',
                           alignItems: 'center',
                           gap: '0.45rem',
+                          whiteSpace: 'nowrap',
+                          boxSizing: 'border-box',
                           cursor: 'pointer'
                         }}
                         onClick={() => {
@@ -17306,7 +17314,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           setPortalTab('home');
                         }}
                       >
-                        <Home size={15} />
+                        <Home size={15} style={{ flexShrink: 0 }} />
                         <span>Kembali ke Beranda</span>
                       </button>
                     </form>
@@ -17376,14 +17384,24 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
                     <div>
                       <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem', display: 'block' }}>Link Tautan Katalog (ID Unik) *</label>
-                      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'stretch',
+                        width: '100%',
+                        maxWidth: '100%',
+                        boxSizing: 'border-box',
+                        borderRadius: '0.75rem',
+                        overflow: 'hidden',
+                        backgroundColor: '#ffffff',
+                        border: fieldErrors.store_slug ? '1.5px solid #dc2626' : (slugStatus ? (slugStatus.available ? '1.5px solid #16a34a' : '1.5px solid #dc2626') : '1.5px solid #cbd5e1')
+                      }}>
                         <span style={{
-                          padding: '0.75rem 0.85rem',
+                          flexShrink: 0,
+                          whiteSpace: 'nowrap',
+                          padding: '0.7rem 0.65rem',
                           background: '#f8fafc',
-                          border: '1.5px solid #cbd5e1',
-                          borderRight: 'none',
-                          borderRadius: '0.75rem 0 0 0.75rem',
-                          fontSize: '0.82rem',
+                          borderRight: '1px solid #e2e8f0',
+                          fontSize: '0.78rem',
                           color: '#475569',
                           display: 'flex',
                           alignItems: 'center',
@@ -17403,33 +17421,37 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           }}
                           style={{
                             flex: 1,
-                            padding: '0.75rem 0.85rem',
-                            borderRadius: '0 0.75rem 0.75rem 0',
-                            border: fieldErrors.store_slug ? '1.5px solid #dc2626' : (slugStatus ? (slugStatus.available ? '1.5px solid #16a34a' : '1.5px solid #dc2626') : '1.5px solid #cbd5e1'),
-                            backgroundColor: '#ffffff',
+                            minWidth: 0,
+                            width: '100%',
+                            padding: '0.7rem 0.75rem',
+                            border: 'none',
+                            backgroundColor: 'transparent',
                             color: '#0f172a',
-                            fontSize: '0.88rem',
+                            fontSize: '0.86rem',
                             outline: 'none',
-                            fontFamily: 'monospace'
+                            fontFamily: 'monospace',
+                            boxSizing: 'border-box'
                           }}
                         />
                       </div>
                       {slugChecking && (
-                        <div style={{ fontSize: '0.72rem', color: '#2563eb', marginTop: '0.3rem', fontWeight: 600 }}>Memeriksa ketersediaan username...</div>
+                        <div style={{ fontSize: '0.72rem', color: '#2563eb', marginTop: '0.3rem', fontWeight: 600, overflowWrap: 'anywhere' }}>Memeriksa ketersediaan username...</div>
                       )}
                       {!slugChecking && slugStatus && (
-                        <div style={{ fontSize: '0.72rem', color: slugStatus.available ? '#16a34a' : '#dc2626', marginTop: '0.3rem', fontWeight: 600 }}>
+                        <div style={{ fontSize: '0.72rem', color: slugStatus.available ? '#16a34a' : '#dc2626', marginTop: '0.3rem', fontWeight: 600, overflowWrap: 'anywhere' }}>
                           {slugStatus.message}
                         </div>
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.35rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.35rem', width: '100%', boxSizing: 'border-box' }}>
                       <button
                         type="button"
                         style={{
-                          padding: '0.75rem 1rem',
-                          fontSize: '0.8rem',
+                          flexShrink: 0,
+                          minHeight: '44px',
+                          padding: '0.65rem 0.9rem',
+                          fontSize: '0.82rem',
                           backgroundColor: '#ffffff',
                           border: '1.5px solid #cbd5e1',
                           color: '#475569',
@@ -17437,19 +17459,24 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           borderRadius: '0.75rem',
                           display: 'flex',
                           alignItems: 'center',
+                          justifyContent: 'center',
                           gap: '0.35rem',
+                          whiteSpace: 'nowrap',
+                          boxSizing: 'border-box',
                           cursor: 'pointer'
                         }}
                         onClick={() => goToRegisterStep(1)}
                       >
-                        <ChevronLeft size={15} />
+                        <ChevronLeft size={15} style={{ flexShrink: 0 }} />
                         <span>Kembali</span>
                       </button>
                       <button
                         type="submit"
                         style={{
                           flex: 1,
-                          padding: '0.8rem',
+                          minWidth: 0,
+                          minHeight: '44px',
+                          padding: '0.65rem 0.95rem',
                           justifyContent: 'center',
                           fontSize: '0.84rem',
                           backgroundColor: '#2563eb',
@@ -17459,14 +17486,16 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           borderRadius: '0.75rem',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.45rem',
+                          gap: '0.4rem',
+                          whiteSpace: 'nowrap',
+                          boxSizing: 'border-box',
                           cursor: registerLoading ? 'not-allowed' : 'pointer',
                           boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
                         }}
                         disabled={registerLoading}
                       >
-                        <span>{registerLoading ? 'Memeriksa...' : 'Lanjut ke Pilih Paket'}</span>
-                        <ChevronRight size={15} />
+                        <span>{registerLoading ? 'Memeriksa...' : 'Pilih Paket'}</span>
+                        <ChevronRight size={15} style={{ flexShrink: 0 }} />
                       </button>
                     </div>
                   </form>
@@ -17505,17 +17534,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           backgroundColor: registerPlan === 'free' ? '#f0fdf4' : '#ffffff',
                           cursor: 'pointer',
                           transition: 'all 0.15s ease',
-                          boxShadow: registerPlan === 'free' ? '0 4px 15px rgba(22, 163, 74, 0.08)' : 'none'
+                          boxShadow: registerPlan === 'free' ? '0 4px 15px rgba(22, 163, 74, 0.08)' : 'none',
+                          boxSizing: 'border-box'
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: registerPlan === 'free' ? '5px solid #16a34a' : '2px solid #94a3b8', backgroundColor: '#ffffff' }} />
+                            <div style={{ width: '16px', height: '16px', flexShrink: 0, borderRadius: '50%', border: registerPlan === 'free' ? '5px solid #16a34a' : '2px solid #94a3b8', backgroundColor: '#ffffff' }} />
                             <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'free' ? '#16a34a' : '#0f172a' }}>Gratis (Free)</span>
                           </div>
-                          <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>Rp 0 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>/selamanya</small></span>
+                          <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>Rp 0 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>/selamanya</small></span>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 0.5rem', paddingLeft: '1.45rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', gap: '0.25rem 0.5rem', paddingLeft: '1.25rem' }}>
                           <div style={{ fontSize: '0.72rem', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             <Check size={13} style={{ color: '#16a34a', flexShrink: 0 }} /> 15 item produk
                           </div>
@@ -17542,7 +17572,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           cursor: 'pointer',
                           position: 'relative',
                           transition: 'all 0.15s ease',
-                          boxShadow: registerPlan === 'pro_starter' ? '0 4px 15px rgba(2, 132, 199, 0.08)' : 'none'
+                          boxShadow: registerPlan === 'pro_starter' ? '0 4px 15px rgba(2, 132, 199, 0.08)' : 'none',
+                          boxSizing: 'border-box'
                         }}
                       >
                         <div style={{ position: 'absolute', top: '-9px', right: '12px' }}>
@@ -17550,16 +17581,16 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             <Zap size={10} /> POPULER
                           </span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: registerPlan === 'pro_starter' ? '5px solid #0284c7' : '2px solid #94a3b8', backgroundColor: '#ffffff' }} />
+                            <div style={{ width: '16px', height: '16px', flexShrink: 0, borderRadius: '50%', border: registerPlan === 'pro_starter' ? '5px solid #0284c7' : '2px solid #94a3b8', backgroundColor: '#ffffff' }} />
                             <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'pro_starter' ? '#0284c7' : '#0f172a' }}>Pro Starter</span>
                           </div>
-                          <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>
+                          <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
                             Rp 30.000 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>/bln</small>
                           </span>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 0.5rem', paddingLeft: '1.45rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', gap: '0.25rem 0.5rem', paddingLeft: '1.25rem' }}>
                           <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             <Check size={13} style={{ color: '#0284c7', flexShrink: 0 }} /> 150 item produk
                           </div>
@@ -17586,7 +17617,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           cursor: 'pointer',
                           position: 'relative',
                           transition: 'all 0.15s ease',
-                          boxShadow: registerPlan === 'pro_business' ? '0 4px 15px rgba(217, 119, 6, 0.08)' : 'none'
+                          boxShadow: registerPlan === 'pro_business' ? '0 4px 15px rgba(217, 119, 6, 0.08)' : 'none',
+                          boxSizing: 'border-box'
                         }}
                       >
                         <div style={{ position: 'absolute', top: '-9px', right: '12px' }}>
@@ -17594,16 +17626,16 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             <Crown size={10} /> PRO BISNIS
                           </span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: registerPlan === 'pro_business' ? '5px solid #d97706' : '2px solid #94a3b8', backgroundColor: '#ffffff' }} />
+                            <div style={{ width: '16px', height: '16px', flexShrink: 0, borderRadius: '50%', border: registerPlan === 'pro_business' ? '5px solid #d97706' : '2px solid #94a3b8', backgroundColor: '#ffffff' }} />
                             <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'pro_business' ? '#d97706' : '#0f172a' }}>Pro Bisnis</span>
                           </div>
-                          <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>
+                          <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
                             Rp 129.000 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>/bln</small>
                           </span>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem 0.5rem', paddingLeft: '1.45rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', gap: '0.25rem 0.5rem', paddingLeft: '1.25rem' }}>
                           <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             <Check size={13} style={{ color: '#d97706', flexShrink: 0 }} /> Unlimited Item
                           </div>
@@ -17665,12 +17697,14 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.65rem', marginTop: '0.35rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.35rem', width: '100%', boxSizing: 'border-box' }}>
                       <button
                         type="button"
                         style={{
-                          padding: '0.75rem 1rem',
-                          fontSize: '0.8rem',
+                          flexShrink: 0,
+                          minHeight: '44px',
+                          padding: '0.65rem 0.9rem',
+                          fontSize: '0.82rem',
                           backgroundColor: '#ffffff',
                           border: '1.5px solid #cbd5e1',
                           color: '#475569',
@@ -17678,19 +17712,24 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           borderRadius: '0.75rem',
                           display: 'flex',
                           alignItems: 'center',
+                          justifyContent: 'center',
                           gap: '0.35rem',
+                          whiteSpace: 'nowrap',
+                          boxSizing: 'border-box',
                           cursor: 'pointer'
                         }}
                         onClick={() => goToRegisterStep(2)}
                       >
-                        <ChevronLeft size={15} />
+                        <ChevronLeft size={15} style={{ flexShrink: 0 }} />
                         <span>Kembali</span>
                       </button>
                       <button
                         type="submit"
                         style={{
                           flex: 1,
-                          padding: '0.8rem',
+                          minWidth: 0,
+                          minHeight: '44px',
+                          padding: '0.65rem 0.95rem',
                           justifyContent: 'center',
                           fontSize: '0.84rem',
                           backgroundColor: '#2563eb',
@@ -17700,7 +17739,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           borderRadius: '0.75rem',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.45rem',
+                          gap: '0.4rem',
+                          whiteSpace: 'nowrap',
+                          boxSizing: 'border-box',
                           cursor: registerLoading ? 'not-allowed' : 'pointer',
                           boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)'
                         }}
@@ -17708,10 +17749,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       >
                         <span>
                           {registerLoading
-                            ? 'Mendaftarkan...'
-                            : (registerPlan === 'free' ? 'Selesaikan & Buka Katalog' : 'Lanjut ke Pembayaran')}
+                            ? 'Memproses...'
+                            : (registerPlan === 'free' ? 'Buat Katalog' : 'Lanjut Bayar')}
                         </span>
-                        <CheckCircle size={15} />
+                        <CheckCircle size={15} style={{ flexShrink: 0 }} />
                       </button>
                     </div>
                   </form>
@@ -17726,9 +17767,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
           {/* CHECKOUT TAB VIEW MOBILE - CLEAN MODERN COMMERCE */}
           {portalTab === 'checkout' && (
-            <div style={{ padding: '1.25rem 1rem 3rem 1rem', maxWidth: '460px', margin: '0 auto', animation: 'fadeIn 0.3s ease-in-out' }}>
+            <div style={{ width: '100%', padding: '1.25rem clamp(0.75rem, 3.5vw, 1rem) 3rem clamp(0.75rem, 3.5vw, 1rem)', maxWidth: '460px', margin: '0 auto', boxSizing: 'border-box', animation: 'fadeIn 0.3s ease-in-out' }}>
               {/* Top Navigation & Smart Back Bar */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.85rem' }}>
                 <button
                   type="button"
                   onClick={handleBackToPlanSelect}
@@ -17739,15 +17780,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     background: '#ffffff',
                     border: '1px solid #cbd5e1',
                     borderRadius: '0.5rem',
-                    padding: '0.4rem 0.75rem',
+                    minHeight: '44px',
+                    padding: '0.45rem 0.8rem',
                     fontSize: '0.78rem',
                     fontWeight: 700,
                     color: '#334155',
+                    whiteSpace: 'nowrap',
+                    boxSizing: 'border-box',
                     cursor: 'pointer'
                   }}
                 >
-                  <ArrowLeft size={14} />
-                  <span>Ubah Paket / Data</span>
+                  <ArrowLeft size={14} style={{ flexShrink: 0 }} />
+                  <span>Ubah Paket</span>
                 </button>
 
                 <button
@@ -17838,7 +17882,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         {/* Input Box Kode Kupon / Voucher Mobile */}
                         <div style={{ marginTop: '0.25rem', paddingTop: '0.65rem', borderTop: '1px dashed #cbd5e1' }}>
                           <label style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem', display: 'block' }}>Punya Kode Kupon / Voucher?</label>
-                          <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.4rem', width: '100%', boxSizing: 'border-box' }}>
                             <input
                               type="text"
                               className="form-input"
@@ -17848,7 +17892,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 setCouponInput(e.target.value.toUpperCase());
                                 if (couponMsg) setCouponMsg(null);
                               }}
-                              style={{ flex: 1, padding: '0.55rem 0.65rem', fontSize: '0.78rem', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '0.5rem', color: '#0f172a', textTransform: 'uppercase' }}
+                              style={{ flex: 1, minWidth: 0, width: '100%', boxSizing: 'border-box', minHeight: '44px', padding: '0.55rem 0.65rem', fontSize: '0.78rem', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '0.5rem', color: '#0f172a', textTransform: 'uppercase' }}
                             />
                             <button
                               type="button"
@@ -17883,7 +17927,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   setCouponValidating(false);
                                 }
                               }}
-                              style={{ padding: '0.55rem 0.85rem', borderRadius: '0.5rem', backgroundColor: couponValidating ? '#94a3b8' : '#eff6ff', border: '1px solid #bfdbfe', color: couponValidating ? '#ffffff' : '#1d4ed8', fontSize: '0.78rem', fontWeight: 800, cursor: couponValidating ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                              style={{ flexShrink: 0, minHeight: '44px', padding: '0.55rem 0.85rem', borderRadius: '0.5rem', backgroundColor: couponValidating ? '#94a3b8' : '#eff6ff', border: '1px solid #bfdbfe', color: couponValidating ? '#ffffff' : '#1d4ed8', fontSize: '0.78rem', fontWeight: 800, cursor: couponValidating ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
                             >
                               {couponValidating ? '...' : 'Terapkan'}
                             </button>
@@ -17927,26 +17971,26 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             type="button"
                             className="btn-portal-primary"
                             onClick={() => processCheckoutSubmission(true)}
-                            style={{ width: '100%', padding: '0.75rem', justifyContent: 'center', fontSize: '0.85rem', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', border: 'none' }}
+                            style={{ width: '100%', minHeight: '44px', padding: '0.7rem 1rem', justifyContent: 'center', fontSize: '0.85rem', whiteSpace: 'nowrap', boxSizing: 'border-box', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', border: 'none' }}
                             disabled={registerLoading}
                           >
-                            <Sparkles size={16} />
-                            <span>{registerLoading ? 'Mengaktifkan...' : 'Aktifkan Paket Sekarang (Gratis)'}</span>
+                            <Sparkles size={16} style={{ flexShrink: 0 }} />
+                            <span>{registerLoading ? 'Mengaktifkan...' : 'Aktifkan Paket Gratis'}</span>
                           </button>
-                          <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
                             <button
                               type="button"
                               className="btn-portal-secondary"
-                              style={{ flex: 1, padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
+                              style={{ flex: 1, minWidth: 0, minHeight: '44px', padding: '0.65rem 0.85rem', justifyContent: 'center', fontSize: '0.78rem', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
                               onClick={handleBackToPlanSelect}
                             >
-                              <ArrowLeft size={14} />
-                              <span>Ubah Paket / Data</span>
+                              <ArrowLeft size={14} style={{ flexShrink: 0 }} />
+                              <span>Ubah Paket</span>
                             </button>
                             <button
                               type="button"
                               className="btn-portal-secondary"
-                              style={{ padding: '0.65rem 0.85rem', justifyContent: 'center', fontSize: '0.75rem', color: '#64748b' }}
+                              style={{ flexShrink: 0, minHeight: '44px', padding: '0.65rem 0.9rem', justifyContent: 'center', fontSize: '0.78rem', color: '#64748b', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
                               onClick={handleCancelRegistration}
                               title="Hapus draf pendaftaran dan kembali ke Beranda"
                             >
@@ -18318,36 +18362,39 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 className="btn-portal-primary"
                                 style={{
                                   width: '100%',
-                                  padding: '0.8rem',
+                                  minHeight: '44px',
+                                  padding: '0.7rem 1rem',
                                   justifyContent: 'center',
                                   fontSize: '0.85rem',
                                   fontWeight: 800,
                                   background: '#2563eb',
                                   boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
                                   border: 'none',
+                                  whiteSpace: 'nowrap',
+                                  boxSizing: 'border-box',
                                   cursor: registerLoading ? 'not-allowed' : 'pointer'
                                 }}
                                 onClick={() => processCheckoutSubmission(false)}
                                 disabled={registerLoading}
                               >
-                                {registerLoading ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
-                                <span>{registerLoading ? 'Memproses Pendaftaran...' : 'Lanjutkan ke Pembayaran Aman'}</span>
+                                {registerLoading ? <Loader2 size={16} className="animate-spin" style={{ flexShrink: 0 }} /> : <Zap size={16} style={{ flexShrink: 0 }} />}
+                                <span>{registerLoading ? 'Memproses...' : 'Lanjut Pembayaran'}</span>
                               </button>
 
-                              <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                              <div style={{ display: 'flex', gap: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
                                 <button
                                   type="button"
                                   className="btn-portal-secondary"
-                                  style={{ flex: 1, padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
+                                  style={{ flex: 1, minWidth: 0, minHeight: '44px', padding: '0.65rem 0.85rem', justifyContent: 'center', fontSize: '0.78rem', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
                                   onClick={handleBackToPlanSelect}
                                 >
-                                  <ArrowLeft size={14} />
-                                  <span>Ubah Paket / Data</span>
+                                  <ArrowLeft size={14} style={{ flexShrink: 0 }} />
+                                  <span>Ubah Paket</span>
                                 </button>
                                 <button
                                   type="button"
                                   className="btn-portal-secondary"
-                                  style={{ padding: '0.65rem 0.85rem', justifyContent: 'center', fontSize: '0.75rem', color: '#64748b' }}
+                                  style={{ flexShrink: 0, minHeight: '44px', padding: '0.65rem 0.9rem', justifyContent: 'center', fontSize: '0.78rem', color: '#64748b', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
                                   onClick={handleCancelRegistration}
                                   title="Hapus draf pendaftaran dan kembali ke Beranda"
                                 >
@@ -18594,9 +18641,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 className="btn-portal-primary"
                                 style={{
                                   width: '100%',
-                                  padding: '0.75rem',
+                                  minHeight: '44px',
+                                  padding: '0.7rem 1rem',
                                   justifyContent: 'center',
-                                  fontSize: '0.85rem',
+                                  fontSize: '0.84rem',
+                                  whiteSpace: 'nowrap',
+                                  boxSizing: 'border-box',
                                   background: !paymentProofPreview ? '#94a3b8' : '#2563eb',
                                   cursor: !paymentProofPreview ? 'not-allowed' : (registerLoading ? 'wait' : 'pointer')
                                 }}
@@ -18604,36 +18654,36 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               >
                                 {registerLoading ? (
                                   <>
-                                    <Loader2 size={15} className="animate-spin" />
+                                    <Loader2 size={15} className="animate-spin" style={{ flexShrink: 0 }} />
                                     <span>Memproses...</span>
                                   </>
                                 ) : !paymentProofPreview ? (
                                   <>
-                                    <Upload size={15} />
-                                    <span>Unggah Bukti Pembayaran</span>
+                                    <Upload size={15} style={{ flexShrink: 0 }} />
+                                    <span>Unggah Bukti Bayar</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Send size={15} />
-                                    <span>Kirim Konfirmasi Pembayaran</span>
+                                    <Send size={15} style={{ flexShrink: 0 }} />
+                                    <span>Kirim Konfirmasi</span>
                                   </>
                                 )}
                               </button>
 
-                              <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                              <div style={{ display: 'flex', gap: '0.5rem', width: '100%', boxSizing: 'border-box' }}>
                                 <button
                                   type="button"
                                   className="btn-portal-secondary"
-                                  style={{ flex: 1, padding: '0.65rem', justifyContent: 'center', fontSize: '0.78rem' }}
+                                  style={{ flex: 1, minWidth: 0, minHeight: '44px', padding: '0.65rem 0.85rem', justifyContent: 'center', fontSize: '0.78rem', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
                                   onClick={handleBackToPlanSelect}
                                 >
-                                  <ArrowLeft size={14} />
-                                  <span>Ubah Paket / Data</span>
+                                  <ArrowLeft size={14} style={{ flexShrink: 0 }} />
+                                  <span>Ubah Paket</span>
                                 </button>
                                 <button
                                   type="button"
                                   className="btn-portal-secondary"
-                                  style={{ padding: '0.65rem 0.85rem', justifyContent: 'center', fontSize: '0.75rem', color: '#64748b' }}
+                                  style={{ flexShrink: 0, minHeight: '44px', padding: '0.65rem 0.9rem', justifyContent: 'center', fontSize: '0.78rem', color: '#64748b', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
                                   onClick={handleCancelRegistration}
                                   title="Hapus draf pendaftaran dan kembali ke Beranda"
                                 >
@@ -28239,8 +28289,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                     )}
                                                   </div>
                                                 </div>
-                                                <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                                                <div style={{ display: 'flex', alignItems: 'stretch', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden', borderRadius: '0.5rem' }}>
                                                   <span style={{
+                                                    flexShrink: 0,
+                                                    whiteSpace: 'nowrap',
                                                     padding: '0.5rem 0.65rem',
                                                     background: 'rgba(255,255,255,0.05)',
                                                     border: '1px solid var(--border-light)',
@@ -28266,6 +28318,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                       setSettingsSlug(val);
                                                     }}
                                                     style={{
+                                                      flex: 1,
+                                                      minWidth: 0,
+                                                      width: '100%',
+                                                      boxSizing: 'border-box',
                                                       borderRadius: '0 0.5rem 0.5rem 0',
                                                       fontFamily: 'monospace',
                                                       fontSize: '0.82rem',
