@@ -105,7 +105,16 @@ import {
   Server
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
-import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
+import {
+  type UserRBACInfo,
+  hasPermission,
+  isSuperAdmin,
+  getRoleBadge,
+  derivePortalCapabilities,
+  isViewPermitted,
+  getDefaultViewForCapabilities,
+} from '../utils/rbac';
+import { AccessDeniedPanel } from '../../../shared/rbac/AccessDeniedPanel';
 import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { AdminStoresManagement } from './AdminStoresManagement';
@@ -273,10 +282,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   onOpenRBAC,
   onLogout
 }) => {
-  // Centralized authenticated fetch with automatic 401/403 session eviction
+  // Centralized authenticated fetch with automatic 401 session eviction (never logout on 403 RBAC deny)
   const fetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const res = await window.fetch(input, init);
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401) {
       if (onLogout) {
         onLogout();
       }
@@ -325,25 +334,32 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const roleSlug = currentUser?.platform_role || (currentUser?.is_superadmin ? 'superadmin' : 'merchant');
   const roleBadge = getRoleBadge(roleSlug);
 
-  // Granular Permission Checks
-  const canAccessRBAC = isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:admins:manage');
-  const canAccessCompliance = hasPermission(currentUser, 'compliance:reports:manage') || hasPermission(currentUser, 'compliance:dormancy:manage') || isSuperAdmin(currentUser);
-  const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
-  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || hasPermission(currentUser, 'finance:orders:manage') || hasPermission(currentUser, 'finance:settings:manage') || isSuperAdmin(currentUser);
-  const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
-  const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
-  const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
-  const canAccessAudit = isSuperAdmin(currentUser) || hasPermission(currentUser, 'audit:logs:read');
-  const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
-  const canAccessMarketIntel = isSuperAdmin(currentUser) || hasPermission(currentUser, 'market_intel:manage');
-
-  // Granular Sub-Action Level Permissions
-  const canReplySupport = hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
-  const canManageReports = hasPermission(currentUser, 'compliance:reports:manage') || isSuperAdmin(currentUser);
-  const canManageFinance = hasPermission(currentUser, 'finance:orders:manage') || isSuperAdmin(currentUser);
-  const canManagePaymentSettings = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:settings:manage') || hasPermission(currentUser, 'system:settings:manage');
-  const canManageCoupons = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:settings:manage') || hasPermission(currentUser, 'system:settings:manage') || hasPermission(currentUser, 'finance:orders:manage');
-  const canSendBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
+  // Granular Permission Checks (SSOT from shared rbac/model.ts)
+  const caps = derivePortalCapabilities(currentUser);
+  const {
+    canAccessRBAC,
+    canAccessCompliance,
+    canSuspendStores,
+    canAccessSupport,
+    canManageSupportTemplates,
+    canAccessFinance,
+    canReadOrders,
+    canReadRevenue,
+    canAccessMonetization,
+    canAccessBroadcast,
+    canAccessAutomation,
+    canAccessAudit,
+    canManageSystemSettings,
+    canAccessMasterData,
+    canAccessSettingsRead,
+    canAccessMarketIntel,
+    canReplySupport,
+    canManageOrders: canManageFinance,
+    canManagePaymentSettings,
+    canManageCoupons,
+  } = caps;
+  const canManageReports = caps.isSuperAdmin || hasPermission(currentUser, 'compliance:reports:manage');
+  const canSendBroadcast = canAccessBroadcast;
   // Helper to synchronize URL query parameters cleanly and safely for Mobile Admin
   const updatePlatformUrl = (
     view: string, 
@@ -433,12 +449,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       // fallback
     }
 
-    if (isSuperAdmin(currentUser)) return 'dashboard';
-    if (roleSlug === 'compliance' && canAccessCompliance) return 'reports';
-    if (roleSlug === 'support' && canAccessSupport) return 'support';
-    if (roleSlug === 'finance' && canAccessFinance) return 'finance';
-    if (roleSlug === 'content' && canAccessBroadcast) return 'broadcast';
-    return 'dashboard';
+    return getDefaultViewForCapabilities(caps, roleSlug) as ActiveView;
   };
 
   const [activeView, setActiveView] = useState<ActiveView>(getDefaultView());
@@ -1498,8 +1509,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     return () => clearTimeout(timer);
   }, [reportsFilter, reportsTargetFilter, reportsSearchQuery, token, canAccessCompliance]);
 
-  const [financeSubTab, setFinanceSubTab] = useFinanceSection(activeView === 'finance', canManagePaymentSettings, canManageCoupons);
-  const orderPage = useFinancePage('orders', activeView === 'finance' && financeSubTab === 'orders' && canAccessFinance, token);
+  const [financeSubTab, setFinanceSubTab] = useFinanceSection(activeView === 'finance', canManagePaymentSettings, canManageCoupons, canReadOrders);
+  const orderPage = useFinancePage('orders', activeView === 'finance' && financeSubTab === 'orders' && canReadOrders, token);
   const couponPage = useFinancePage('coupons', activeView === 'finance' && financeSubTab === 'coupons' && canManageCoupons, token);
   const { data: orders, status: ordersFilter, setStatus: setOrdersFilter, input: ordersSearchQuery, setKeyword: setOrdersSearchQuery } = orderPage;
   const { data: coupons, loading: loadingCoupons, input: couponSearchFilter, setKeyword: setCouponSearchFilter, refresh: fetchCoupons } = couponPage;
@@ -2543,10 +2554,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       }
       if (canAccessFinance) {
         if (refreshLists && activeView === 'finance') {
-          if (financeSubTab === 'orders') orderPage.refresh();
-          if (financeSubTab === 'coupons') couponPage.refresh();
+          if (financeSubTab === 'orders' && canReadOrders) orderPage.refresh();
+          if (financeSubTab === 'coupons' && canManageCoupons) couponPage.refresh();
         }
-        if (!orderPageProvidesTotals) {
+        if (canReadOrders && !orderPageProvidesTotals) {
           const res = await fetch('/api/admin/subscription/orders?summary=1', { headers: { Authorization: `Bearer ${token}` } });
           if (res.ok) {
             const data = await res.json();
@@ -2566,10 +2577,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       // di blok header ber-`&& false` (dead code), sedangkan kartu dashboard
       // siaran memakai subtitle statis 'Notifikasi Massal Pengguna'. Halaman
       // siaran sudah mengambil daftarnya sendiri saat activeView === 'broadcast'.
-      if (canAccessMonetization || canAccessMasterData || canAccessFinance) {
+      if (canAccessSettingsRead) {
         const setRes = await fetch('/api/admin/settings?exclude=master_coupons', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        }).catch(() => fetch('/api/settings'));
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include',
+        });
         if (setRes.ok) {
           const setData = await setRes.json();
           if (setData.data) {
@@ -3583,24 +3595,39 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
-  // Save Google AdSense & Analytics Settings
+  // Save Google AdSense & Analytics Settings (Domain-scoped payload via /api/admin/settings)
   const handleSaveGoogleSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingSettings(true);
     try {
-      const res = await fetch('/api/settings', {
+      const payload = {
+        ads_enabled: googleSettings.ads_enabled ?? '0',
+        ads_client_id: googleSettings.ads_client_id ?? '',
+        ads_auto_enabled: googleSettings.ads_auto_enabled ?? '1',
+        ads_slot_header: googleSettings.ads_slot_header ?? '',
+        ads_slot_infeed: googleSettings.ads_slot_infeed ?? '',
+        ads_slot_product_detail: googleSettings.ads_slot_product_detail ?? '',
+        ads_slot_bottom: googleSettings.ads_slot_bottom ?? '',
+        ads_test_mode: googleSettings.ads_test_mode ?? '1',
+        ads_txt_content: googleSettings.ads_txt_content ?? '',
+        ga_enabled: googleSettings.ga_enabled ?? '0',
+        ga_measurement_id: googleSettings.ga_measurement_id ?? '',
+      };
+      const res = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(googleSettings),
+        credentials: 'include',
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         showToast('Pengaturan Google AdSense & Analytics berhasil disimpan!', 'success');
         loadData();
       } else {
-        showToast('Gagal menyimpan pengaturan Google', 'error');
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.message || 'Gagal menyimpan pengaturan Google', 'error');
       }
     } catch {
       showToast('Kesalahan jaringan saat menyimpan', 'error');
@@ -4143,7 +4170,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       bg: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
       border: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)',
       badge: 0,
-      visible: canAccessMasterData
+      visible: canManageSystemSettings
     },
     {
       id: 'master_data' as ActiveView,
@@ -5594,30 +5621,40 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {activeView === 'dashboard' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Quick Metrics Strip */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-            gap: '0.45rem',
-            width: '100%',
-            boxSizing: 'border-box'
-          }}>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Toko</span>
-              <strong style={{ fontSize: '1.1rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900, display: 'block' }}>{dormancyMetrics?.active_stores || 1}</strong>
+          {(canAccessCompliance || canAccessFinance || canAccessSupport) && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(75px, 1fr))',
+              gap: '0.45rem',
+              width: '100%',
+              boxSizing: 'border-box'
+            }}>
+              {canAccessCompliance && (
+                <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
+                  <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Toko</span>
+                  <strong style={{ fontSize: '1.1rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900, display: 'block' }}>{dormancyMetrics?.active_stores ?? 0}</strong>
+                </div>
+              )}
+              {canAccessFinance && (
+                <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
+                  <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Order</span>
+                  <strong style={{ fontSize: '1.1rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900, display: 'block' }}>{financeSummary.total}</strong>
+                </div>
+              )}
+              {canAccessCompliance && (
+                <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
+                  <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Laporan</span>
+                  <strong style={{ fontSize: '1.1rem', color: pendingReportsCount > 0 ? '#f43f5e' : (isDark ? '#fbbf24' : '#d97706'), fontWeight: 900, display: 'block' }}>{reports.length}</strong>
+                </div>
+              )}
+              {canAccessSupport && (
+                <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
+                  <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Tiket</span>
+                  <strong style={{ fontSize: '1.1rem', color: openTicketsCount > 0 ? '#06b6d4' : theme.textPrimary, fontWeight: 900, display: 'block' }}>{tickets.length}</strong>
+                </div>
+              )}
             </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Order</span>
-              <strong style={{ fontSize: '1.1rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900, display: 'block' }}>{financeSummary.total}</strong>
-            </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Laporan</span>
-              <strong style={{ fontSize: '1.1rem', color: pendingReportsCount > 0 ? '#f43f5e' : (isDark ? '#fbbf24' : '#d97706'), fontWeight: 900, display: 'block' }}>{reports.length}</strong>
-            </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.2rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow, minWidth: 0, boxSizing: 'border-box' }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Tiket</span>
-              <strong style={{ fontSize: '1.1rem', color: openTicketsCount > 0 ? '#06b6d4' : theme.textPrimary, fontWeight: 900, display: 'block' }}>{tickets.length}</strong>
-            </div>
-          </div>
+          )}
 
           {/* Executive Operational Action Center / Perlu Tindakan Administrator */}
           <div style={{
@@ -5664,7 +5701,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
               </div>
 
-              {(pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount) > 0 ? (
+              {(canAccessCompliance ? pendingReportsCount : 0) + (canAccessSupport ? (actionRequiredTicketsCount || openTicketsCount) : 0) + (canAccessFinance ? pendingOrdersCount : 0) > 0 ? (
                 <span style={{
                   padding: '0.2rem 0.55rem',
                   borderRadius: '999px',
@@ -5674,7 +5711,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   fontWeight: 900,
                   boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
                 }}>
-                  {pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount} Prioritas
+                  {(canAccessCompliance ? pendingReportsCount : 0) + (canAccessSupport ? (actionRequiredTicketsCount || openTicketsCount) : 0) + (canAccessFinance ? pendingOrdersCount : 0)} Prioritas
                 </span>
               ) : (
                 <span style={{
@@ -5693,7 +5730,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
             {/* Action Items List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {(actionRequiredTicketsCount > 0 || openTicketsCount > 0) && (
+              {canAccessSupport && (actionRequiredTicketsCount > 0 || openTicketsCount > 0) && (
                 <div
                   onClick={() => handleSwitchView('support')}
                   style={{
@@ -5738,7 +5775,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
               )}
 
-              {pendingReportsCount > 0 && (
+              {canAccessCompliance && pendingReportsCount > 0 && (
                 <div
                   onClick={() => handleSwitchView('reports')}
                   style={{
@@ -5783,7 +5820,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
               )}
 
-              {pendingOrdersCount > 0 && (
+              {canAccessFinance && pendingOrdersCount > 0 && (
                 <div
                   onClick={() => handleSwitchView('finance')}
                   style={{
@@ -5969,15 +6006,30 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       )}
 
+      {/* ACCESS DENIED PANEL ON DIRECT URL BYPASS TO RESTRICTED VIEW */}
+      {!isViewPermitted(activeView, caps) && (
+        <AccessDeniedPanel
+          moduleName={headerConfig?.title || activeView}
+          roleSlug={roleSlug}
+          isDark={isDark}
+          onBack={() => handleSwitchView(getDefaultViewForCapabilities(caps, roleSlug) as ActiveView)}
+        />
+      )}
+
       {/* ========================================================================= */}
       {/* 4. MODULE 1: STAF & RBAC MANAGEMENT                                       */}
       {/* ========================================================================= */}
       {activeView === 'rbac' && canAccessRBAC && (
-        <AdminRBACManagement
-          token={token}
-          currentUserEmail={currentUser?.email}
-          themeMode={themeMode}
-        />
+        <ErrorBoundary sectionName="Manajemen Staf & Role RBAC">
+          <AdminRBACManagement
+            token={token}
+            currentUserEmail={currentUser?.email}
+            currentUserId={currentUser?.id}
+            canMutate={caps.isSuperAdmin}
+            themeMode={themeMode}
+            hideHeader={true}
+          />
+        </ErrorBoundary>
       )}
 
       {/* ========================================================================= */}
@@ -6562,11 +6614,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               desc: 'Memulihkan item agar dapat kembali dilihat dan diakses publik secara normal'
                             }
                           ] : []),
-                          {
-                            value: 'catalog_suspended',
-                            label: 'Bekukan / Suspend Profil Katalog',
-                            desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time'
-                          },
+                          ...(canSuspendStores ? [
+                            {
+                              value: 'catalog_suspended',
+                              label: 'Bekukan / Suspend Profil Katalog',
+                              desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time'
+                            },
+                          ] : []),
                           {
                             value: 'catalog_banned',
                             label: 'Blokir / Banned Permanen Profil Katalog',
@@ -8782,42 +8836,68 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {activeView === 'finance' && canAccessFinance && (
         <div className="finance-workspace" style={{ ...financeColors(isDark, theme), display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
           <FinanceNav section={financeSubTab} select={setFinanceSubTab} settings={canManagePaymentSettings}
-            coupons={canManageCoupons} pending={pendingOrdersCount}/>
+            coupons={canManageCoupons} pending={pendingOrdersCount} orders={canReadOrders}/>
 
           {financeSubTab === 'orders' && (
             <>
               {/* Summary Metrics Bar */}
               {(() => {
-                const { total: totalCnt = 0, pending: pendingCnt = 0, paid: paidCnt = 0, rejected: rejectedCnt = 0 } = orderPage.summary;
+                const { total: totalCnt = 0, pending: pendingCnt = 0, paid: paidCnt = 0, rejected: rejectedCnt = 0, revenue = 0 } = orderPage.summary;
+                const totalVerifiedRevenue = Number(revenue ?? 0);
+                const revenueRedacted = !canReadRevenue || Boolean(orderPage.summary?.revenue_redacted);
                 return (
-                  <div className="finance-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                    {[
-                      { key: 'all', label: 'Total Transaksi', count: totalCnt, color: '#10b981' },
-                      { key: 'pending', label: 'Perlu Verifikasi', count: pendingCnt, color: '#f59e0b' },
-                      { key: 'paid', label: 'Lunas & Aktif', count: paidCnt, color: '#0284c7' },
-                      { key: 'rejected', label: 'Ditolak / Batal', count: rejectedCnt, color: '#ef4444' }
-                    ].map(stat => (
-                      <button type="button" aria-pressed={ordersFilter === stat.key}
-                        key={stat.key}
-                        onClick={() => setOrdersFilter(stat.key as any)}
-                        style={{
-                          minHeight: '44px', textAlign: 'left', font: 'inherit', padding: '0.7rem 0.85rem',
-                          borderRadius: '0.85rem',
-                          backgroundColor: ordersFilter === stat.key ? `${stat.color}14` : theme.surface,
-                          border: `1px solid ${ordersFilter === stat.key ? stat.color : theme.border}`,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontSize: '0.68rem', color: theme.textSecondary, fontWeight: 700 }}>{stat.label}</div>
-                          <div style={{ fontSize: '1.15rem', fontWeight: 900, color: stat.color, marginTop: '0.1rem' }}>{stat.count}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div className="finance-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                      {[
+                        { key: 'all', label: 'Total Transaksi', count: totalCnt, color: '#10b981' },
+                        { key: 'pending', label: 'Perlu Verifikasi', count: pendingCnt, color: '#f59e0b' },
+                        { key: 'paid', label: 'Lunas & Aktif', count: paidCnt, color: '#0284c7' },
+                        { key: 'rejected', label: 'Ditolak / Batal', count: rejectedCnt, color: '#ef4444' }
+                      ].map(stat => (
+                        <button type="button" aria-pressed={ordersFilter === stat.key}
+                          key={stat.key}
+                          onClick={() => setOrdersFilter(stat.key as any)}
+                          style={{
+                            minHeight: '44px', textAlign: 'left', font: 'inherit', padding: '0.7rem 0.85rem',
+                            borderRadius: '0.85rem',
+                            backgroundColor: ordersFilter === stat.key ? `${stat.color}14` : theme.surface,
+                            border: `1px solid ${ordersFilter === stat.key ? stat.color : theme.border}`,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: '0.68rem', color: theme.textSecondary, fontWeight: 700 }}>{stat.label}</div>
+                            <div style={{ fontSize: '1.15rem', fontWeight: 900, color: stat.color, marginTop: '0.1rem' }}>{stat.count}</div>
+                          </div>
+                          <CreditCard size={18} color={stat.color} style={{ opacity: 0.8 }} />
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{
+                      padding: '0.75rem 0.9rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: theme.surface,
+                      border: `1px solid ${theme.border}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.5rem'
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: theme.textSecondary, fontWeight: 700, textTransform: 'uppercase' }}>
+                          Omzet Terverifikasi
                         </div>
-                        <CreditCard size={18} color={stat.color} style={{ opacity: 0.8 }} />
-                      </button>
-                    ))}
+                        <div style={{ fontSize: '1.05rem', fontWeight: 900, color: revenueRedacted ? theme.textMuted : '#10b981', marginTop: '0.1rem' }}>
+                          {revenueRedacted ? 'Akses Omzet Dibatasi' : `Rp ${totalVerifiedRevenue.toLocaleString('id-ID')}`}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.68rem', color: theme.textSecondary, textAlign: 'right' }}>
+                        {revenueRedacted ? 'Perlu izin finance:revenue:read' : 'Transaksi aktif'}
+                      </span>
+                    </div>
                   </div>
                 );
               })()}
@@ -10918,6 +10998,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
               {/* Submit Save Button */}
               <button
+                type="submit"
+                disabled={savingSettings}
+                style={{
+                  minHeight: '44px',
+                  padding: '0.85rem',
+                  borderRadius: '0.85rem',
+                  backgroundColor: '#eab308',
+                  color: '#000000',
+                  border: 'none',
+                  fontSize: '0.82rem',
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
@@ -13749,6 +13839,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 gap: '0.75rem'
               }}>
                 {/* Master Option 1: Master Domain Aman */}
+                {canManageSystemSettings && (
                 <div
                   role="button"
                   tabIndex={0}
@@ -13861,8 +13952,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Master Option 2: Template Pesan Cepat CS */}
+                {canManageSupportTemplates && (
                 <div
                   role="button"
                   tabIndex={0}
@@ -13977,8 +14070,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Master Option 3: Mitra Rekber Syariah (rekbersyariah.com) */}
+                {canManageSystemSettings && (
                 <div
                   role="button"
                   tabIndex={0}
@@ -14083,8 +14178,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Master Option 4: Kontak Resmi Platform (WhatsApp & Email Bantuan) */}
+                {canManageSystemSettings && (
                 <div
                   role="button"
                   tabIndex={0}
@@ -14187,8 +14284,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* 5. Kebijakan & Legalitas Platform Card */}
+                {canManageSystemSettings && (
                 <div
                   role="button"
                   tabIndex={0}
@@ -14291,6 +14390,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Extensibility & Scalability Information Card */}
@@ -14312,8 +14412,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
           )}
 
+          {!canManageSystemSettings && masterSubView !== 'menu' && masterSubView !== 'templates' && (
+            <AccessDeniedPanel
+              moduleName="Pengaturan Master Sistem"
+              roleSlug={roleSlug}
+              isDark={isDark}
+              onBack={() => {
+                setMasterSubView('menu');
+                updatePlatformUrl('master_data', null, null);
+              }}
+              backLabel="Kembali ke Data Master"
+            />
+          )}
+
           {/* SUB-VIEW 1: DOMAIN WHITELIST */}
-          {masterSubView === 'domains' && (
+          {canManageSystemSettings && masterSubView === 'domains' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               <AdminSafeDomainsManagement
                 token={token}
@@ -14327,7 +14440,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           )}
 
           {/* SUB-VIEW 2: MASTER CANNED RESPONSES (TEMPLATE CS) */}
-          {masterSubView === 'templates' && (
+          {canManageSupportTemplates && masterSubView === 'templates' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               {/* Search Bar & Action Buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
@@ -14693,7 +14806,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           )}
 
           {/* SUB-VIEW 3: MASTER REKBER SYARIAH (INTEGRASI ESCROW RESMI) */}
-          {masterSubView === 'rekber' && (
+          {canManageSystemSettings && masterSubView === 'rekber' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               {/* Security Advisory Callout */}
               <div style={{
@@ -15403,7 +15516,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           )}
 
           {/* SUB-VIEW 4: MASTER KONTAK RESMI PLATFORM */}
-          {masterSubView === 'contact' && (
+          {canManageSystemSettings && masterSubView === 'contact' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               {/* Back to Master Menu Bar */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -15603,7 +15716,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           )}
 
           {/* SUB-VIEW 5: MASTER KEBIJAKAN & LEGALITAS PLATFORM */}
-          {masterSubView === 'policies' && (
+          {canManageSystemSettings && masterSubView === 'policies' && (
             <ErrorBoundary sectionName="Manajemen Kebijakan Platform">
               <MobilePolicyManager
                 token={token || localStorage.getItem('catavor_token') || ''}
@@ -15624,7 +15737,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       )}
 
       {/* DIRECT TOP-LEVEL VIEW: KEBIJAKAN & LEGALITAS PLATFORM */}
-      {activeView === 'policies' && canAccessMasterData && (
+      {activeView === 'policies' && canManageSystemSettings && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           <ErrorBoundary sectionName="Manajemen Kebijakan Platform">
             <MobilePolicyManager

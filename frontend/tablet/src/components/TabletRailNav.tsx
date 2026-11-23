@@ -21,7 +21,7 @@ import {
   ChevronLeft
 } from 'lucide-react';
 
-import { hasPermission, isSuperAdmin } from '../utils/rbac';
+import { derivePortalCapabilities } from '../utils/rbac';
 
 export interface TabletRailNavProps {
   activeView: string;
@@ -50,16 +50,20 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const canAccessRBAC = isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:admins:manage');
-  const canAccessCompliance = hasPermission(currentUser, 'compliance:reports:manage') || hasPermission(currentUser, 'compliance:dormancy:manage') || isSuperAdmin(currentUser);
-  const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
-  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || hasPermission(currentUser, 'finance:orders:manage') || isSuperAdmin(currentUser);
-  const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
-  const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
-  const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
-  const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
-  const canAccessAudit = hasPermission(currentUser, 'audit:logs:read') || isSuperAdmin(currentUser);
-  const canAccessMarketIntel = isSuperAdmin(currentUser) || hasPermission(currentUser, 'market_intel:manage');
+  const caps = derivePortalCapabilities(currentUser);
+  const {
+    canAccessRBAC,
+    canAccessCompliance,
+    canAccessSupport,
+    canAccessFinance,
+    canAccessBroadcast,
+    canAccessAutomation,
+    canAccessMonetization,
+    canManageSystemSettings,
+    canAccessMasterData,
+    canAccessAudit,
+    canAccessMarketIntel,
+  } = caps;
 
   const navItems = [
     { key: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard, visible: true },
@@ -86,7 +90,7 @@ export const TabletRailNav: React.FC<TabletRailNavProps> = ({
     { key: 'automation', label: 'Mesin Otomatisasi', icon: Cpu, visible: canAccessAutomation },
     { key: 'market_intel', label: 'Riset Pasar B2B', icon: TrendingUp, visible: canAccessMarketIntel },
     { key: 'monetization', label: 'Monetisasi & Iklan', icon: DollarSign, visible: canAccessMonetization },
-    { key: 'policies', label: 'Kebijakan & Legalitas', icon: Scale, visible: canAccessMasterData },
+    { key: 'policies', label: 'Kebijakan & Legalitas', icon: Scale, visible: canManageSystemSettings },
     { key: 'master-data', label: 'Master Data', icon: Layers, visible: canAccessMasterData },
     { key: 'audit', label: 'Audit Trail', icon: History, visible: canAccessAudit },
   ];

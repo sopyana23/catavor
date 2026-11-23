@@ -11607,7 +11607,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
             if (data.user) {
               setAdminUser(prev => {
-                if (prev && prev.id === data.user.id && prev.email === data.user.email && prev.platform_role === data.user.platform_role && prev.store_slug === data.user.store_slug && prev.is_password_changed === data.user.is_password_changed) {
+                const prevPerms = Array.isArray(prev?.permissions) ? [...prev.permissions].sort().join(',') : '';
+                const nextPerms = Array.isArray(data.user.permissions) ? [...data.user.permissions].sort().join(',') : '';
+                if (
+                  prev &&
+                  prev.id === data.user.id &&
+                  prev.email === data.user.email &&
+                  prev.platform_role === data.user.platform_role &&
+                  Boolean(prev.is_admin) === Boolean(data.user.is_admin) &&
+                  Boolean(prev.is_superadmin) === Boolean(data.user.is_superadmin) &&
+                  prevPerms === nextPerms &&
+                  prev.store_slug === data.user.store_slug &&
+                  prev.is_password_changed === data.user.is_password_changed
+                ) {
                   return prev;
                 }
                 return data.user;

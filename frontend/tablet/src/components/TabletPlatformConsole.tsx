@@ -111,7 +111,16 @@ import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
 import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
 import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
-import { type UserRBACInfo, getRoleBadge, isSuperAdmin, hasPermission } from '../utils/rbac';
+import {
+  type UserRBACInfo,
+  getRoleBadge,
+  isSuperAdmin,
+  hasPermission,
+  derivePortalCapabilities,
+  isViewPermitted,
+  getDefaultViewForCapabilities,
+} from '../utils/rbac';
+import { AccessDeniedPanel } from '../../../shared/rbac/AccessDeniedPanel';
 import { smartBack, useModalBackHandler } from '../utils/navigation';
 import { broadcastAuthEvent } from '../utils/authSync';
 
@@ -316,6 +325,32 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     return 'dashboard';
   }, []);
 
+  const caps = derivePortalCapabilities(currentUser);
+  const {
+    canAccessRBAC,
+    canAccessCompliance,
+    canSuspendStores,
+    canAccessSupport,
+    canManageSupportTemplates,
+    canAccessFinance,
+    canReadOrders,
+    canReadRevenue,
+    canAccessBroadcast,
+    canAccessAutomation,
+    canAccessMonetization,
+    canManageSystemSettings,
+    canAccessMasterData,
+    canAccessSettingsRead,
+    canAccessAudit,
+    canAccessMarketIntel,
+    canReplySupport,
+    canManageOrders: canManageFinance,
+    canManagePaymentSettings,
+    canManageCoupons,
+  } = caps;
+  const canManageReports = canAccessCompliance && (caps.isSuperAdmin || hasPermission(currentUser, 'compliance:reports:manage'));
+  const canSendBroadcast = canAccessBroadcast;
+
   const [activeView, setActiveView] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -324,7 +359,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       const tab = params.get('tab') || params.get('view') || params.get('division');
       if (tab) return normalizeTabletTab(tab);
     }
-    return 'dashboard';
+    return normalizeTabletTab(getDefaultViewForCapabilities(caps, currentUser?.platform_role));
   });
 
   // Synchronize on browser history popstate (Back/Forward navigation)
@@ -373,26 +408,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   };
 
-  // =========================================================================
-  // RBAC PERMISSION GATES (Aligned with Desktop & Mobile)
-  // =========================================================================
-  const canAccessRBAC = isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:admins:manage');
-  const canAccessCompliance = hasPermission(currentUser, 'compliance:reports:manage') || hasPermission(currentUser, 'compliance:dormancy:manage') || isSuperAdmin(currentUser);
-  const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
-  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || hasPermission(currentUser, 'finance:orders:manage') || isSuperAdmin(currentUser);
-  const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
-  const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
-  const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
-  const canAccessAudit = hasPermission(currentUser, 'audit:logs:read') || isSuperAdmin(currentUser);
-  const canAccessMarketIntel = isSuperAdmin(currentUser) || hasPermission(currentUser, 'market_intel:manage');
-
-  // Granular Sub-Action Permission Checks
-  const canReplySupport = isSuperAdmin(currentUser) || hasPermission(currentUser, 'support:tickets:reply');
-  const canManageReports = isSuperAdmin(currentUser) || hasPermission(currentUser, 'compliance:reports:manage');
-  const canManageFinance = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:orders:manage');
-  const canManagePaymentSettings = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:orders:manage') || hasPermission(currentUser, 'system:settings:manage');
-  const canManageCoupons = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:orders:manage') || hasPermission(currentUser, 'system:settings:manage');
-  const canSendBroadcast = isSuperAdmin(currentUser) || hasPermission(currentUser, 'content:broadcast:send');
+  // RBAC gates derived above via derivePortalCapabilities(currentUser)
 
   // Header Title metadata
   const viewMetadata = useMemo(() => {
@@ -520,8 +536,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         }
       }
 
-      // 4. Pending billing orders (only if user has finance permission)
-      if (canAccessFinance && !orderPageProvidesTotals.current) {
+      // 4. Pending billing orders (only if user has order-read permission)
+      if (canReadOrders && !orderPageProvidesTotals.current) {
         try {
           const ordRes = await fetch('/api/admin/subscription/orders?summary=1', {
             headers: { Authorization: `Bearer ${token}` }
@@ -532,7 +548,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             setPendingOrdersCount(pending);
             setMetrics(prev => ({
               ...prev,
-              total_revenue: revenue,
+              total_revenue: revenue ?? 0,
               pro_stores: paid
             }));
           }
@@ -543,7 +559,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     } catch {
       // Fail gracefully
     }
-  }, [token, canAccessCompliance, canAccessSupport, canAccessFinance]);
+  }, [token, canAccessCompliance, canAccessSupport, canReadOrders]);
 
   useEffect(() => {
     loadPlatformStats();
@@ -1450,11 +1466,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   };
 
   const fetchSettings = useCallback(async () => {
+    if (!token || !canAccessSettingsRead) return;
     if (!canAccessMonetization && activeView === 'monetization') return;
     if (!canAccessMasterData && activeView === 'master-data') return;
     if (!canAccessFinance && activeView === 'finance') return;
     try {
-      const res = await fetch('/api/settings');
+      const res = await authFetch('/api/admin/settings?exclude=master_coupons', {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+      });
       if (res.ok) {
         const j = await res.json();
         if (j.data) {
@@ -1477,7 +1497,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     } catch {
       // Fail silently
     }
-  }, [canAccessMonetization, canAccessMasterData, canAccessFinance, activeView]);
+  }, [token, authFetch, canAccessSettingsRead, canAccessMonetization, canAccessMasterData, canAccessFinance, activeView]);
 
   // =========================================================================
   // SUB-VIEW: FINANCE (Keuangan & Billing)
@@ -1487,14 +1507,14 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const setSelectedOrderId = (id: number | null) => setInspectedOrder(orders.find(o => o.id === id) || null);
   const [syncingOrderId, setSyncingOrderId] = useState<number | null>(null);
   const [actionLoadingOrder, setActionLoadingOrder] = useState<boolean>(false);
-  const [financeSubTab, setFinanceSubTab] = useFinanceSection(activeView === 'finance', canManagePaymentSettings, canManageCoupons);
-  const orderPage = useFinancePage('orders', activeView === 'finance' && financeSubTab === 'orders' && canAccessFinance, token);
+  const [financeSubTab, setFinanceSubTab] = useFinanceSection(activeView === 'finance', canManagePaymentSettings, canManageCoupons, canReadOrders);
+  const orderPage = useFinancePage('orders', activeView === 'finance' && financeSubTab === 'orders' && canReadOrders, token);
   orderPageProvidesTotals.current = activeView === 'finance' && financeSubTab === 'orders' && !orderPage.keyword;
   useEffect(() => {
     if (orderPageProvidesTotals.current && orderPage.ready) {
       const { pending = 0, paid = 0, revenue = 0 } = orderPage.summary;
       setPendingOrdersCount(pending);
-      setMetrics(prev => ({ ...prev, total_revenue: revenue, pro_stores: paid }));
+      setMetrics(prev => ({ ...prev, total_revenue: revenue ?? 0, pro_stores: paid }));
     }
   }, [orderPage.ready, orderPage.summary]);
   const couponPage = useFinancePage('coupons', activeView === 'finance' && financeSubTab === 'coupons' && canManageCoupons, token);
@@ -2690,46 +2710,51 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   // =========================================================================
   // SUB-VIEW: AUTOMATION & BOT SENTINEL (KATALOG)
   // =========================================================================
-  const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
   const [automationRevision, setAutomationRevision] = useState(0);
   // SUB-VIEW: MONETIZATION (AdSense & GA4)
   // =========================================================================
   const [monetizationSubTab, setMonetizationSubTab] = useState<'adsense' | 'analytics'>('adsense');
 
   useEffect(() => {
-    if ((activeView === 'monetization' && canAccessMonetization) || (activeView === 'master-data' && canAccessMasterData)) {
+    if ((activeView === 'monetization' && canAccessMonetization) || (activeView === 'master-data' && canAccessMasterData && canManageSystemSettings)) {
       fetchSettings();
     }
-  }, [activeView, canAccessMonetization, canAccessMasterData, fetchSettings]);
+  }, [activeView, canAccessMonetization, canAccessMasterData, canManageSystemSettings, fetchSettings]);
 
   const handleSaveGoogleSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!token || !canAccessMonetization) return;
     setIsSavingSettings(true);
     try {
-      let res = await fetch('/api/settings', {
+      const payload = {
+        ads_enabled: googleSettings.ads_enabled ?? '0',
+        ads_client_id: googleSettings.ads_client_id ?? '',
+        ads_auto_enabled: googleSettings.ads_auto_enabled ?? '1',
+        ads_slot_header: googleSettings.ads_slot_header ?? '',
+        ads_slot_infeed: googleSettings.ads_slot_infeed ?? '',
+        ads_slot_product_detail: googleSettings.ads_slot_product_detail ?? '',
+        ads_slot_bottom: googleSettings.ads_slot_bottom ?? '',
+        ads_slot_dashboard: googleSettings.ads_slot_dashboard ?? '',
+        ads_test_mode: googleSettings.ads_test_mode ?? '1',
+        ads_txt_content: googleSettings.ads_txt_content ?? '',
+        ga_enabled: googleSettings.ga_enabled ?? '0',
+        ga_measurement_id: googleSettings.ga_measurement_id ?? '',
+      };
+      const res = await authFetch('/api/admin/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(googleSettings)
+        credentials: 'include',
+        body: JSON.stringify(payload)
       });
-      if (!res.ok) {
-        res = await fetch('/api/admin/settings', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify(googleSettings)
-        });
-      }
       if (res.ok) {
         showToast('Pengaturan Google AdSense & Analytics berhasil disimpan!', 'success');
         fetchSettings();
       } else {
-        showToast('Gagal menyimpan pengaturan Google', 'error');
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.message || 'Gagal menyimpan pengaturan Google', 'error');
       }
     } catch {
       showToast('Terjadi kesalahan jaringan saat menyimpan', 'error');
@@ -2746,10 +2771,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       const params = new URLSearchParams(window.location.search);
       const sub = (params.get('sub') || '').toLowerCase();
       const tab = (params.get('tab') || params.get('view') || '').toLowerCase();
-      if (['policies', 'policy', 'kebijakan', 'legal'].includes(sub) || ['policies', 'policy', 'kebijakan', 'legal'].includes(tab)) return 'policies';
-      if (sub === 'domains' || sub === 'templates' || sub === 'rekber' || sub === 'contact') return sub;
+      if (canManageSystemSettings && (['policies', 'policy', 'kebijakan', 'legal'].includes(sub) || ['policies', 'policy', 'kebijakan', 'legal'].includes(tab))) return 'policies';
+      if (sub === 'templates' && canManageSupportTemplates) return 'templates';
+      if (canManageSystemSettings && (sub === 'domains' || sub === 'rekber' || sub === 'contact')) return sub;
     }
-    return 'rekber';
+    return canManageSystemSettings ? 'rekber' : 'templates';
   });
 
   const handleSwitchMasterSubTab = (sub: 'rekber' | 'domains' | 'templates' | 'contact' | 'policies') => {
@@ -2767,12 +2793,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     if (!token || !canAccessMasterData) return;
     setIsSavingSettings(true);
     try {
-      let res = await fetch('/api/admin/settings', {
+      let res = await authFetch('/api/admin/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
+        credentials: 'include',
         body: JSON.stringify({
           platform_official_whatsapp: (googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '').trim(),
           platform_official_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
@@ -2780,26 +2807,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           contact_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
         })
       });
-      if (!res.ok) {
-        res = await fetch('/api/settings', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            platform_official_whatsapp: (googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '').trim(),
-            platform_official_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
-            contact_whatsapp: (googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '').trim(),
-            contact_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
-          })
-        });
-      }
       if (res.ok) {
         showToast('Kontak resmi platform berhasil disimpan!', 'success');
         fetchSettings();
       } else {
-        showToast('Gagal menyimpan kontak resmi platform', 'error');
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.message || 'Gagal menyimpan kontak resmi platform', 'error');
       }
     } catch {
       showToast('Terjadi kesalahan jaringan saat menyimpan', 'error');
@@ -4136,28 +4149,31 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-            <button
-              type="button"
-              onClick={() => handleSwitchView('stores')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                padding: '0.45rem 0.85rem',
-                borderRadius: '0.6rem',
-                border: '1px solid var(--border-light)',
-                backgroundColor: activeView === 'stores' ? 'var(--primary)' : 'var(--bg-deep)',
-                color: activeView === 'stores' ? '#ffffff' : 'var(--text-secondary)',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-              title="Pusat Pengelolaan Katalog Toko Platform"
-            >
-              <StoreIcon size={14} />
-              <span>Kelola Toko</span>
-            </button>
+            {canAccessCompliance && (
+              <button
+                type="button"
+                onClick={() => handleSwitchView('stores')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  minHeight: '44px',
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '0.6rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: activeView === 'stores' ? 'var(--primary)' : 'var(--bg-deep)',
+                  color: activeView === 'stores' ? '#ffffff' : 'var(--text-secondary)',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Pusat Pengelolaan Katalog Toko Platform"
+              >
+                <StoreIcon size={14} />
+                <span>Kelola Toko</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -4212,7 +4228,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
                 {/* Executive Action Center: Perlu Tindakan Administrator */}
-                {(pendingReportsCount > 0 || urgentTicketsCount > 0 || pendingOrdersCount > 0) ? (
+                {((canAccessCompliance && pendingReportsCount > 0) || (canAccessSupport && urgentTicketsCount > 0) || (canAccessFinance && pendingOrdersCount > 0)) ? (
                   <div style={{
                     padding: '1.25rem 1.5rem',
                     borderRadius: '1.25rem',
@@ -4236,7 +4252,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.85rem' }}>
-                      {pendingReportsCount > 0 && (
+                      {canAccessCompliance && pendingReportsCount > 0 && (
                         <div style={{
                           padding: '1rem',
                           borderRadius: '0.85rem',
@@ -4276,7 +4292,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         </div>
                       )}
 
-                      {urgentTicketsCount > 0 && (
+                      {canAccessSupport && urgentTicketsCount > 0 && (
                         <div style={{
                           padding: '1rem',
                           borderRadius: '0.85rem',
@@ -4316,7 +4332,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         </div>
                       )}
 
-                      {pendingOrdersCount > 0 && (
+                      {canAccessFinance && pendingOrdersCount > 0 && (
                         <div style={{
                           padding: '1rem',
                           borderRadius: '0.85rem',
@@ -4380,109 +4396,113 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
                   gap: '1rem'
                 }}>
-                  {/* Card 1: Direktori Merchant */}
-                  <div
-                    onClick={() => handleSwitchView('stores')}
-                    style={{
-                      padding: '1.25rem',
-                      borderRadius: '1rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Direktori Merchant</span>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '0.6rem', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <StoreIcon size={18} />
+                  {canAccessCompliance && (
+                    <div
+                      onClick={() => handleSwitchView('stores')}
+                      style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Direktori Merchant</span>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '0.6rem', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <StoreIcon size={18} />
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '1.85rem', fontWeight: 900, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                        {metrics.active_stores || metrics.total_stores || 0}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>
+                        &bull; {metrics.dormant_stores || 0} Merchant Terindikasi Dormansi
                       </div>
                     </div>
-                    <div style={{ fontSize: '1.85rem', fontWeight: 900, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-                      {metrics.active_stores || metrics.total_stores || 1}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>
-                      &bull; {metrics.dormant_stores || 0} Merchant Terindikasi Dormansi
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Card 2: Laporan Kepatuhan */}
-                  <div
-                    onClick={() => handleSwitchView('reports')}
-                    style={{
-                      padding: '1.25rem',
-                      borderRadius: '1rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Laporan Kepatuhan</span>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '0.6rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <AlertOctagon size={18} />
+                  {canAccessCompliance && (
+                    <div
+                      onClick={() => handleSwitchView('reports')}
+                      style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Laporan Kepatuhan</span>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '0.6rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <AlertOctagon size={18} />
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '1.85rem', fontWeight: 900, color: pendingReportsCount > 0 ? '#ef4444' : 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                        {pendingReportsCount}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: pendingReportsCount > 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: 600 }}>
+                        {pendingReportsCount > 0 ? 'Perlu Investigasi Staf' : 'Semua laporan tertangani'}
                       </div>
                     </div>
-                    <div style={{ fontSize: '1.85rem', fontWeight: 900, color: pendingReportsCount > 0 ? '#ef4444' : 'var(--text-primary)', marginBottom: '0.25rem' }}>
-                      {pendingReportsCount}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: pendingReportsCount > 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: 600 }}>
-                      {pendingReportsCount > 0 ? 'Perlu Investigasi Staf' : 'Semua laporan tertangani'}
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Card 3: Tiket Helpdesk CS */}
-                  <div
-                    onClick={() => handleSwitchView('support')}
-                    style={{
-                      padding: '1.25rem',
-                      borderRadius: '1rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Bantuan CS</span>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '0.6rem', backgroundColor: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <LifeBuoy size={18} />
+                  {canAccessSupport && (
+                    <div
+                      onClick={() => handleSwitchView('support')}
+                      style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Bantuan CS</span>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '0.6rem', backgroundColor: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <LifeBuoy size={18} />
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '1.85rem', fontWeight: 900, color: urgentTicketsCount > 0 ? '#f59e0b' : 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                        {actionRequiredTicketsCount}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: urgentTicketsCount > 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: 600 }}>
+                        {urgentTicketsCount > 0 ? `${urgentTicketsCount} Tiket Prioritas Mendesak` : 'Antrean bantuan normal'}
                       </div>
                     </div>
-                    <div style={{ fontSize: '1.85rem', fontWeight: 900, color: urgentTicketsCount > 0 ? '#f59e0b' : 'var(--text-primary)', marginBottom: '0.25rem' }}>
-                      {actionRequiredTicketsCount}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: urgentTicketsCount > 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: 600 }}>
-                      {urgentTicketsCount > 0 ? `${urgentTicketsCount} Tiket Prioritas Mendesak` : 'Antrean bantuan normal'}
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Card 4: Billing Langganan */}
-                  <div
-                    onClick={() => handleSwitchView('finance')}
-                    style={{
-                      padding: '1.25rem',
-                      borderRadius: '1rem',
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-light)',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Order Billing</span>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '0.6rem', backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <CreditCard size={18} />
+                  {canReadOrders && (
+                    <div
+                      onClick={() => handleSwitchView('finance')}
+                      style={{
+                        padding: '1.25rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)' }}>Order Billing</span>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '0.6rem', backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <CreditCard size={18} />
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '1.85rem', fontWeight: 900, color: pendingOrdersCount > 0 ? '#10b981' : 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                        {pendingOrdersCount}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: pendingOrdersCount > 0 ? '#f59e0b' : 'var(--text-muted)', fontWeight: 600 }}>
+                        {pendingOrdersCount > 0 ? 'Menunggu Konfirmasi Aktivasi' : 'Tidak ada antrean tertunda'}
                       </div>
                     </div>
-                    <div style={{ fontSize: '1.85rem', fontWeight: 900, color: pendingOrdersCount > 0 ? '#10b981' : 'var(--text-primary)', marginBottom: '0.25rem' }}>
-                      {pendingOrdersCount}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: pendingOrdersCount > 0 ? '#f59e0b' : 'var(--text-muted)', fontWeight: 600 }}>
-                      {pendingOrdersCount > 0 ? 'Menunggu Konfirmasi Aktivasi' : 'Tidak ada antrean tertunda'}
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Telemetry Vitals Row */}
@@ -4499,7 +4519,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Status Daemon 24/7</div>
                     <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <Cpu size={14} />
-                      <span>Katalog pekerjaan</span>
+                      <span>Sistem Terhubung</span>
                     </div>
                   </div>
                   <div>
@@ -4509,18 +4529,22 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       <span>SSE Gateway Siaga</span>
                     </div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Merchant Berlangganan Pro</div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
-                      {metrics.pro_stores} Merchant Aktif
+                  {(canReadOrders || canAccessCompliance) && (
+                    <div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Merchant Berlangganan Pro</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.2rem' }}>
+                        {metrics.pro_stores ?? 0} Merchant Aktif
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Omset Langganan</div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem' }}>
-                      Rp {metrics.total_revenue.toLocaleString('id-ID')}
+                  )}
+                  {canReadRevenue && (
+                    <div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Total Omset Langganan</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem' }}>
+                        {`Rp ${(metrics.total_revenue ?? 0).toLocaleString('id-ID')}`}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Quick Nav Module Launcher Grid */}
@@ -4548,7 +4572,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       { key: 'automation', label: 'Mesin Otomatisasi', desc: 'Status bot & scheduler', icon: Cpu, color: '#f97316', visible: canAccessAutomation },
                       { key: 'market_intel', label: 'Riset Pasar B2B', desc: 'Tren Hype & Demand Gap', icon: TrendingUp, color: '#10b981', visible: canAccessMarketIntel },
                       { key: 'monetization', label: 'Monetisasi & Iklan', desc: 'Google AdSense & GA4', icon: DollarSign, color: '#eab308', visible: canAccessMonetization },
-                      { key: 'policies', label: 'Kebijakan & Legalitas', desc: '6 pilar regulasi & banner legal', icon: Scale, color: '#10b981', visible: canAccessMasterData },
+                      { key: 'policies', label: 'Kebijakan & Legalitas', desc: '6 pilar regulasi & banner legal', icon: Scale, color: '#10b981', visible: canManageSystemSettings },
                       { key: 'master-data', label: 'Master Data', desc: 'Whitelist domain aman, template CS, dan proteksi rekber', icon: Layers, color: '#10b981', visible: canAccessMasterData },
                       { key: 'audit', label: 'Audit Trail', desc: 'Log aktivitas forensik sistem', icon: History, color: '#64748b', visible: canAccessAudit }
                     ].filter(mod => (mod as any).visible !== false).map(mod => {
@@ -4964,7 +4988,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     { value: 'item_locked', label: 'Nonaktifkan & Kunci: Pelanggaran Kebijakan Keras', description: 'Sembunyikan & kunci edit (read-only) karena indikasi pelanggaran berat', badge: 'TERKUNCI', badgeColor: '#ef4444' },
                     { value: 'item_banned', label: 'Blokir atau Hapus Item (Banned Permanen)', description: 'Hapus permanen dari etalase & pulihkan kuota pengelola seketika', badge: 'BANNED ITEM', badgeColor: '#ef4444' },
                     { value: 'item_restored', label: 'Pulihkan / Aktifkan Item', description: 'Item dipulihkan dan dapat kembali diakses publik', badge: 'AKTIF', badgeColor: '#10b981' },
-                    { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog', description: 'Seluruh etalase profil katalog dibekukan sementara', badge: 'SUSPEND', badgeColor: '#dc2626' },
+                    ...(canSuspendStores ? [
+                      { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog', description: 'Seluruh etalase profil katalog dibekukan sementara', badge: 'SUSPEND', badgeColor: '#dc2626' },
+                    ] : []),
                     { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
                     { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' }
                   ];
@@ -4972,7 +4998,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   const catalogOptions: TabletSelectOption[] = [
                     { value: 'none', label: 'Tanpa Sanksi Otomatis', description: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis', badge: 'CATATAN', badgeColor: '#64748b' },
                     { value: 'warning_issued', label: 'Terbitkan Peringatan Resmi', description: 'Kirim surat peringatan resmi kepatuhan ke pengelola', badge: 'PERINGATAN', badgeColor: '#f59e0b' },
-                    { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog', description: 'Seluruh etalase profil katalog dibekukan sementara dari publik', badge: 'SUSPEND', badgeColor: '#dc2626' },
+                    ...(canSuspendStores ? [
+                      { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog', description: 'Seluruh etalase profil katalog dibekukan sementara dari publik', badge: 'SUSPEND', badgeColor: '#dc2626' },
+                    ] : []),
                     { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
                     { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' }
                   ];
@@ -7043,7 +7071,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             <div className="finance-workspace" style={{ ...financeColors(isDark, theme), display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
               <div className="finance-toolbar">
                 <FinanceNav section={financeSubTab} select={setFinanceSubTab} settings={canManagePaymentSettings}
-                  coupons={canManageCoupons} pending={pendingOrdersCount}/>
+                  coupons={canManageCoupons} pending={pendingOrdersCount} orders={canReadOrders}/>
 
                 {financeSubTab === 'settings' && canManagePaymentSettings && (
                   <button
@@ -7101,7 +7129,37 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               </div>
 
               {financeSubTab === 'orders' ? (
-                <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {(() => {
+                    const totalVerifiedRevenue = Number(orderPage.summary?.revenue ?? 0);
+                    const revenueRedacted = !canReadRevenue || Boolean(orderPage.summary?.revenue_redacted);
+                    return (
+                      <div style={{
+                        padding: '0.75rem 1rem',
+                        borderRadius: '0.85rem',
+                        backgroundColor: theme.card,
+                        border: `1px solid ${theme.border}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.75rem',
+                        flexWrap: 'wrap'
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Omzet Terverifikasi
+                          </span>
+                          <span style={{ fontSize: '1.15rem', fontWeight: 900, color: revenueRedacted ? theme.textMuted : '#10b981' }}>
+                            {revenueRedacted ? 'Akses Omzet Dibatasi' : `Rp ${totalVerifiedRevenue.toLocaleString('id-ID')}`}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
+                          {revenueRedacted ? 'Perlu izin finance:revenue:read' : 'Akumulasi transaksi aktif'}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                  <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                   <TabletMasterDetailView
                     title="Billing Langganan Pro"
                     subtitle={`${orderPage.total} transaksi`}
@@ -7879,6 +7937,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       })() : null
                     }
                   />
+                  </div>
                 </div>
               ) : financeSubTab === 'settings' ? (
                 /* VIEW 2: KONFIGURASI SISTEM PEMBAYARAN PLATFORM */
@@ -9271,11 +9330,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           {/* TAB 6: STAFF & RBAC */}
           {(activeView === 'staff' || activeView === 'rbac') && canAccessRBAC && (
             <div style={{ height: '100%', overflowY: 'auto' }}>
-              <AdminRBACManagement
-                token={token}
-                currentUserEmail={currentUser?.email}
-                themeMode={themeMode}
-              />
+              <ErrorBoundary sectionName="Manajemen Staf & Role RBAC">
+                <AdminRBACManagement
+                  token={token}
+                  currentUserEmail={currentUser?.email}
+                  currentUserId={currentUser?.id}
+                  canMutate={caps.isSuperAdmin}
+                  themeMode={themeMode}
+                  hideHeader={true}
+                />
+              </ErrorBoundary>
             </div>
           )}
 
@@ -11658,156 +11722,175 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 backgroundColor: 'var(--bg-deep)',
                 flexWrap: 'wrap'
               }}>
-                <button
-                  type="button"
-                  onClick={() => handleSwitchMasterSubTab('rekber')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '0.75rem',
-                    border: `1.5px solid ${masterSubTab === 'rekber' ? '#10b981' : 'var(--border-light)'}`,
-                    backgroundColor: masterSubTab === 'rekber' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
-                    color: masterSubTab === 'rekber' ? '#10b981' : 'var(--text-muted)',
-                    fontSize: '0.82rem',
-                    fontWeight: masterSubTab === 'rekber' ? 800 : 600,
-                    cursor: 'pointer',
-                    minHeight: '44px',
-                    transition: 'all 0.18s ease'
-                  }}
-                >
-                  <ShieldCheck size={17} />
-                  <span>Proteksi Rekber Syariah</span>
-                  <span style={{
-                    fontSize: '0.65rem',
-                    padding: '0.1rem 0.45rem',
-                    borderRadius: '999px',
-                    fontWeight: 700,
-                    backgroundColor: googleSettings.rekber_enabled !== '0' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                    color: googleSettings.rekber_enabled !== '0' ? '#10b981' : '#ef4444'
-                  }}>
-                    {googleSettings.rekber_enabled !== '0' ? 'Aktif' : 'Nonaktif'}
-                  </span>
-                </button>
+                {canManageSystemSettings && (
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchMasterSubTab('rekber')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.55rem 1.15rem',
+                      borderRadius: '0.75rem',
+                      border: `1.5px solid ${masterSubTab === 'rekber' ? '#10b981' : 'var(--border-light)'}`,
+                      backgroundColor: masterSubTab === 'rekber' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                      color: masterSubTab === 'rekber' ? '#10b981' : 'var(--text-muted)',
+                      fontSize: '0.82rem',
+                      fontWeight: masterSubTab === 'rekber' ? 800 : 600,
+                      cursor: 'pointer',
+                      minHeight: '44px',
+                      transition: 'all 0.18s ease'
+                    }}
+                  >
+                    <ShieldCheck size={17} />
+                    <span>Proteksi Rekber Syariah</span>
+                    <span style={{
+                      fontSize: '0.65rem',
+                      padding: '0.1rem 0.45rem',
+                      borderRadius: '999px',
+                      fontWeight: 700,
+                      backgroundColor: googleSettings.rekber_enabled !== '0' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                      color: googleSettings.rekber_enabled !== '0' ? '#10b981' : '#ef4444'
+                    }}>
+                      {googleSettings.rekber_enabled !== '0' ? 'Aktif' : 'Nonaktif'}
+                    </span>
+                  </button>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => handleSwitchMasterSubTab('domains')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '0.75rem',
-                    border: `1.5px solid ${masterSubTab === 'domains' ? 'var(--primary)' : 'var(--border-light)'}`,
-                    backgroundColor: masterSubTab === 'domains' ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-card)',
-                    color: masterSubTab === 'domains' ? 'var(--primary)' : 'var(--text-muted)',
-                    fontSize: '0.82rem',
-                    fontWeight: masterSubTab === 'domains' ? 800 : 600,
-                    cursor: 'pointer',
-                    minHeight: '44px',
-                    transition: 'all 0.18s ease'
-                  }}
-                >
-                  <Globe size={17} />
-                  <span>Whitelist Domain Aman</span>
-                </button>
+                {canManageSystemSettings && (
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchMasterSubTab('domains')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.55rem 1.15rem',
+                      borderRadius: '0.75rem',
+                      border: `1.5px solid ${masterSubTab === 'domains' ? 'var(--primary)' : 'var(--border-light)'}`,
+                      backgroundColor: masterSubTab === 'domains' ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-card)',
+                      color: masterSubTab === 'domains' ? 'var(--primary)' : 'var(--text-muted)',
+                      fontSize: '0.82rem',
+                      fontWeight: masterSubTab === 'domains' ? 800 : 600,
+                      cursor: 'pointer',
+                      minHeight: '44px',
+                      transition: 'all 0.18s ease'
+                    }}
+                  >
+                    <Globe size={17} />
+                    <span>Whitelist Domain Aman</span>
+                  </button>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => handleSwitchMasterSubTab('templates')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '0.75rem',
-                    border: `1.5px solid ${masterSubTab === 'templates' ? '#8b5cf6' : 'var(--border-light)'}`,
-                    backgroundColor: masterSubTab === 'templates' ? 'rgba(139, 92, 246, 0.15)' : 'var(--bg-card)',
-                    color: masterSubTab === 'templates' ? '#8b5cf6' : 'var(--text-muted)',
-                    fontSize: '0.82rem',
-                    fontWeight: masterSubTab === 'templates' ? 800 : 600,
-                    cursor: 'pointer',
-                    minHeight: '44px',
-                    transition: 'all 0.18s ease'
-                  }}
-                >
-                  <Zap size={17} />
-                  <span>Template Balasan CS</span>
-                  <span style={{
-                    fontSize: '0.65rem',
-                    padding: '0.1rem 0.45rem',
-                    borderRadius: '999px',
-                    fontWeight: 700,
-                    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-                    color: '#8b5cf6'
-                  }}>
-                    {templatePagination.total || cannedTemplates.length}
-                  </span>
-                </button>
+                {canManageSupportTemplates && (
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchMasterSubTab('templates')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.55rem 1.15rem',
+                      borderRadius: '0.75rem',
+                      border: `1.5px solid ${masterSubTab === 'templates' ? '#8b5cf6' : 'var(--border-light)'}`,
+                      backgroundColor: masterSubTab === 'templates' ? 'rgba(139, 92, 246, 0.15)' : 'var(--bg-card)',
+                      color: masterSubTab === 'templates' ? '#8b5cf6' : 'var(--text-muted)',
+                      fontSize: '0.82rem',
+                      fontWeight: masterSubTab === 'templates' ? 800 : 600,
+                      cursor: 'pointer',
+                      minHeight: '44px',
+                      transition: 'all 0.18s ease'
+                    }}
+                  >
+                    <Zap size={17} />
+                    <span>Template Balasan CS</span>
+                    <span style={{
+                      fontSize: '0.65rem',
+                      padding: '0.1rem 0.45rem',
+                      borderRadius: '999px',
+                      fontWeight: 700,
+                      backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                      color: '#8b5cf6'
+                    }}>
+                      {templatePagination.total || cannedTemplates.length}
+                    </span>
+                  </button>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => handleSwitchMasterSubTab('contact')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '0.75rem',
-                    border: `1.5px solid ${masterSubTab === 'contact' ? '#2563eb' : 'var(--border-light)'}`,
-                    backgroundColor: masterSubTab === 'contact' ? 'rgba(37, 99, 235, 0.15)' : 'var(--bg-card)',
-                    color: masterSubTab === 'contact' ? '#2563eb' : 'var(--text-muted)',
-                    fontSize: '0.82rem',
-                    fontWeight: masterSubTab === 'contact' ? 800 : 600,
-                    cursor: 'pointer',
-                    minHeight: '44px',
-                    transition: 'all 0.18s ease'
-                  }}
-                >
-                  <Phone size={17} />
-                  <span>Kontak Resmi Platform</span>
-                </button>
+                {canManageSystemSettings && (
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchMasterSubTab('contact')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.55rem 1.15rem',
+                      borderRadius: '0.75rem',
+                      border: `1.5px solid ${masterSubTab === 'contact' ? '#2563eb' : 'var(--border-light)'}`,
+                      backgroundColor: masterSubTab === 'contact' ? 'rgba(37, 99, 235, 0.15)' : 'var(--bg-card)',
+                      color: masterSubTab === 'contact' ? '#2563eb' : 'var(--text-muted)',
+                      fontSize: '0.82rem',
+                      fontWeight: masterSubTab === 'contact' ? 800 : 600,
+                      cursor: 'pointer',
+                      minHeight: '44px',
+                      transition: 'all 0.18s ease'
+                    }}
+                  >
+                    <Phone size={17} />
+                    <span>Kontak Resmi Platform</span>
+                  </button>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => handleSwitchMasterSubTab('policies')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.55rem 1.15rem',
-                    borderRadius: '0.75rem',
-                    border: `1.5px solid ${masterSubTab === 'policies' ? '#10b981' : 'var(--border-light)'}`,
-                    backgroundColor: masterSubTab === 'policies' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
-                    color: masterSubTab === 'policies' ? '#10b981' : 'var(--text-muted)',
-                    fontSize: '0.82rem',
-                    fontWeight: masterSubTab === 'policies' ? 800 : 600,
-                    cursor: 'pointer',
-                    minHeight: '44px',
-                    transition: 'all 0.18s ease'
-                  }}
-                >
-                  <Scale size={17} />
-                  <span>Kebijakan &amp; Legalitas</span>
-                  <span style={{
-                    fontSize: '0.65rem',
-                    padding: '0.1rem 0.45rem',
-                    borderRadius: '999px',
-                    fontWeight: 700,
-                    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                    color: '#10b981'
-                  }}>
-                    6 Dokumen
-                  </span>
-                </button>
+                {canManageSystemSettings && (
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchMasterSubTab('policies')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.55rem 1.15rem',
+                      borderRadius: '0.75rem',
+                      border: `1.5px solid ${masterSubTab === 'policies' ? '#10b981' : 'var(--border-light)'}`,
+                      backgroundColor: masterSubTab === 'policies' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                      color: masterSubTab === 'policies' ? '#10b981' : 'var(--text-muted)',
+                      fontSize: '0.82rem',
+                      fontWeight: masterSubTab === 'policies' ? 800 : 600,
+                      cursor: 'pointer',
+                      minHeight: '44px',
+                      transition: 'all 0.18s ease'
+                    }}
+                  >
+                    <Scale size={17} />
+                    <span>Kebijakan &amp; Legalitas</span>
+                    <span style={{
+                      fontSize: '0.65rem',
+                      padding: '0.1rem 0.45rem',
+                      borderRadius: '999px',
+                      fontWeight: 700,
+                      backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                      color: '#10b981'
+                    }}>
+                      6 Dokumen
+                    </span>
+                  </button>
+                )}
               </div>
 
               {/* Subtab Content Area */}
               <div style={{ flex: 1, overflowY: 'auto' }}>
+                {!canManageSystemSettings && masterSubTab !== 'templates' && (
+                  <AccessDeniedPanel
+                    moduleName="Konfigurasi Master Sistem"
+                    roleSlug={currentUser?.platform_role}
+                    isDark={isDark}
+                    onBack={canManageSupportTemplates ? () => handleSwitchMasterSubTab('templates') : undefined}
+                    backLabel="Buka Template Balasan CS"
+                  />
+                )}
                 {/* SUBTAB 1: REKBER SYARIAH ESCROW */}
-                {masterSubTab === 'rekber' && (
+                {canManageSystemSettings && masterSubTab === 'rekber' && (
                   <div style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
                     <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                       {/* Security Advisory Callout */}
@@ -12416,7 +12499,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 )}
 
                 {/* SUBTAB 2: SAFE DOMAINS WHITELIST */}
-                {masterSubTab === 'domains' && (
+                {canManageSystemSettings && masterSubTab === 'domains' && (
                   <div style={{ padding: '1rem', boxSizing: 'border-box' }}>
                     <AdminSafeDomainsManagement
                       token={token}
@@ -12426,7 +12509,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 )}
 
                 {/* SUBTAB 3: CANNED RESPONSES / TEMPLATE CS */}
-                {masterSubTab === 'templates' && (
+                {canManageSupportTemplates && masterSubTab === 'templates' && (
                   <div style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
                     <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                       {/* Top Action & Filter Bar */}
@@ -12881,7 +12964,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 )}
 
                 {/* SUBTAB 4: KONTAK RESMI PLATFORM */}
-                {masterSubTab === 'contact' && (
+                {canManageSystemSettings && masterSubTab === 'contact' && (
                   <div style={{ padding: '1.5rem', boxSizing: 'border-box' }}>
                     <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                       {/* Top Header Card */}
@@ -13062,7 +13145,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 )}
 
                 {/* SUBTAB 5: KEBIJAKAN & LEGALITAS PLATFORM */}
-                {masterSubTab === 'policies' && (
+                {canManageSystemSettings && masterSubTab === 'policies' && (
                   <ErrorBoundary sectionName="Manajemen Kebijakan Platform">
                     <TabletPolicyManager
                       token={token || localStorage.getItem('catavor_token') || ''}
@@ -13079,7 +13162,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
           )}
 
           {/* TAB: DIRECT KEBIJAKAN & LEGALITAS PLATFORM */}
-          {activeView === 'policies' && canAccessMasterData && (
+          {activeView === 'policies' && canManageSystemSettings && (
             <div style={{
               height: '100%',
               overflowY: 'auto',
@@ -14128,6 +14211,17 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          {/* ACCESS DENIED PANEL FOR RESTRICTED DIRECT URL */}
+          {!isViewPermitted(activeView, caps) && (
+            <div style={{ padding: '2rem', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+              <AccessDeniedPanel
+                moduleName={viewMetadata.title}
+                roleSlug={currentUser?.platform_role}
+                isDark={isDark}
+                onBack={() => handleSwitchView(getDefaultViewForCapabilities(caps, currentUser?.platform_role))}
+              />
             </div>
           )}
         </div>
