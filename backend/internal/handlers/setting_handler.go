@@ -222,8 +222,11 @@ func (h *SettingHandler) applyFallbacks(res map[string]string) {
 	if _, ok := res["ads_test_mode"]; !ok {
 		res["ads_test_mode"] = "1"
 	}
-	if _, ok := res["ads_txt_content"]; !ok {
-		res["ads_txt_content"] = "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0"
+	if val, ok := res["ads_client_id"]; ok && isDummyAdSenseRef(val) {
+		res["ads_client_id"] = ""
+	}
+	if val, ok := res["ads_txt_content"]; !ok || isDummyAdSenseRef(val) {
+		res["ads_txt_content"] = ""
 	}
 	if _, ok := res["ga_enabled"]; !ok {
 		res["ga_enabled"] = "0"
@@ -367,6 +370,72 @@ func (h *SettingHandler) applyFallbacks(res map[string]string) {
 }
 
 // GetAdsTxt serves public /ads.txt for Google AdSense site verification
+var (
+	adsClientIDRegex = regexp.MustCompile(`^(?:ca-)?pub-(\d{16})$`)
+	adsSlotIDRegex   = regexp.MustCompile(`^\d{8,12}$`)
+	gaMeasureIDRegex = regexp.MustCompile(`^G-[A-Z0-9]{6,16}$`)
+)
+
+func isDummyAdSenseRef(raw string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(raw)), "pub-0000000000000000")
+}
+
+func normalizeAdSenseClientID(raw string) (string, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(raw))
+	if trimmed == "" {
+		return "", nil
+	}
+	matches := adsClientIDRegex.FindStringSubmatch(trimmed)
+	if len(matches) != 2 {
+		return "", fmt.Errorf("format Publisher ID Google AdSense tidak valid (wajib ca-pub-XXXXXXXXXXXXXXXX dengan 16 digit)")
+	}
+	if matches[1] == "0000000000000000" {
+		return "", fmt.Errorf("Publisher ID Google AdSense tidak boleh menggunakan ID placeholder pub-0000000000000000")
+	}
+	return "ca-pub-" + matches[1], nil
+}
+
+func validateAdSenseSlotID(raw, label string) error {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+	if !adsSlotIDRegex.MatchString(trimmed) {
+		return fmt.Errorf("format %s tidak valid (harus 8-12 digit angka)", label)
+	}
+	return nil
+}
+
+func normalizeGAMeasurementID(raw string) (string, error) {
+	trimmed := strings.ToUpper(strings.TrimSpace(raw))
+	if trimmed == "" {
+		return "", nil
+	}
+	if !gaMeasureIDRegex.MatchString(trimmed) {
+		return "", fmt.Errorf("format GA4 Measurement ID tidak valid (wajib G-XXXXXXXXXX)")
+	}
+	return trimmed, nil
+}
+
+func normalizeBoolSettingValue(raw string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true":
+		return "1", nil
+	case "0", "false", "":
+		return "0", nil
+	default:
+		return "", fmt.Errorf("nilai pengaturan boolean harus '1' atau '0'")
+	}
+}
+
+func defaultAdsTxtLine(clientID string) string {
+	norm, err := normalizeAdSenseClientID(clientID)
+	if err != nil || norm == "" {
+		return ""
+	}
+	return "google.com, " + strings.TrimPrefix(norm, "ca-") + ", DIRECT, f08c47fec0942fa0"
+}
+
 func (h *SettingHandler) GetAdsTxt(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -374,18 +443,27 @@ func (h *SettingHandler) GetAdsTxt(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
+	var content string
 	var s models.Setting
-	content := "google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0"
-	if err := h.db.Where("key = ?", "ads_txt_content").First(&s).Error; err == nil && s.Value != "" {
-		content = s.Value
-	} else if err := h.db.Where("key = ?", "ads_client_id").First(&s).Error; err == nil && s.Value != "" {
-		pubId := s.Value
-		if len(pubId) > 3 && pubId[:3] == "ca-" {
-			pubId = pubId[3:]
+	if err := h.db.Where("key = ?", "ads_txt_content").First(&s).Error; err == nil {
+		trimmed := strings.TrimSpace(s.Value)
+		if trimmed != "" && !isDummyAdSenseRef(trimmed) {
+			content = security.SanitizePlainText(trimmed, 10000)
 		}
-		content = "google.com, " + pubId + ", DIRECT, f08c47fec0942fa0"
+	}
+	if content == "" {
+		var clientSetting models.Setting
+		if err := h.db.Where("key = ?", "ads_client_id").First(&clientSetting).Error; err == nil {
+			content = defaultAdsTxtLine(clientSetting.Value)
+		}
 	}
 	c.Set("Content-Type", "text/plain; charset=utf-8")
+	c.Set("X-Content-Type-Options", "nosniff")
+	if content == "" {
+		c.Set("Cache-Control", "no-store")
+		return c.Status(fiber.StatusNotFound).SendString("ads.txt is not configured")
+	}
+	c.Set("Cache-Control", "public, max-age=300")
 	return c.SendString(content)
 }
 
@@ -449,7 +527,150 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 		payload["aulaa_base_url"] = validURL
 	}
 
+	if err := validateAndPrepareMonetizationSettings(h.db, payload); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	return h.persistPlatformSettings(c, payload, "Pengaturan platform berhasil disimpan.")
+}
+
+var monetizationSettingKeys = []string{
+	"ads_enabled",
+	"ads_client_id",
+	"ads_auto_enabled",
+	"ads_test_mode",
+	"ads_slot_header",
+	"ads_slot_infeed",
+	"ads_slot_product_detail",
+	"ads_slot_bottom",
+	"ads_slot_dashboard",
+	"ads_txt_content",
+	"ga_enabled",
+	"ga_measurement_id",
+}
+
+func isMonetizationKey(key string) bool {
+	for _, k := range monetizationSettingKeys {
+		if k == key {
+			return true
+		}
+	}
+	return false
+}
+
+func validateAndPrepareMonetizationSettings(db *gorm.DB, payload map[string]string) error {
+	if len(payload) == 0 {
+		return nil
+	}
+
+	var touchedMonetization bool
+	for rawKey := range payload {
+		k := security.SanitizePlainText(rawKey, 100)
+		if isMonetizationKey(k) {
+			touchedMonetization = true
+			break
+		}
+	}
+	if !touchedMonetization {
+		return nil
+	}
+
+	// Validasi & normalisasi seluruh field monetisasi & GA4
+	for _, boolKey := range []string{"ads_enabled", "ads_auto_enabled", "ads_test_mode", "ga_enabled"} {
+		if raw, exists := payload[boolKey]; exists {
+			norm, err := normalizeBoolSettingValue(raw)
+			if err != nil {
+				return fmt.Errorf("%s: %w", boolKey, err)
+			}
+			payload[boolKey] = norm
+		}
+	}
+
+	if rawClient, exists := payload["ads_client_id"]; exists {
+		normClient, err := normalizeAdSenseClientID(rawClient)
+		if err != nil {
+			return err
+		}
+		payload["ads_client_id"] = normClient
+	}
+
+	slotLabels := map[string]string{
+		"ads_slot_header":         "Slot ID Header Katalog",
+		"ads_slot_infeed":         "Slot ID In-Feed Katalog",
+		"ads_slot_product_detail": "Slot ID Detail Produk",
+		"ads_slot_bottom":         "Slot ID Footer Katalog",
+		"ads_slot_dashboard":      "Slot ID Dashboard",
+	}
+	for slotKey, label := range slotLabels {
+		if rawSlot, exists := payload[slotKey]; exists {
+			trimmed := strings.TrimSpace(rawSlot)
+			if err := validateAdSenseSlotID(trimmed, label); err != nil {
+				return err
+			}
+			payload[slotKey] = trimmed
+		}
+	}
+
+	if rawGA, exists := payload["ga_measurement_id"]; exists {
+		normGA, err := normalizeGAMeasurementID(rawGA)
+		if err != nil {
+			return err
+		}
+		payload["ga_measurement_id"] = normGA
+	}
+
+	if rawTxt, exists := payload["ads_txt_content"]; exists {
+		cleanedTxt := security.SanitizePlainText(strings.ReplaceAll(rawTxt, "\r\n", "\n"), 10000)
+		if isDummyAdSenseRef(cleanedTxt) {
+			return fmt.Errorf("isi ads.txt tidak boleh menggunakan ID placeholder pub-0000000000000000")
+		}
+		payload["ads_txt_content"] = cleanedTxt
+	}
+
+	// Muat nilai efektif dari DB untuk validasi lintas-field & auto-sync ads.txt
+	existing := map[string]string{}
+	if db != nil {
+		var rows []models.Setting
+		_ = db.Where("key IN ?", []string{"ads_enabled", "ads_client_id", "ads_txt_content", "ga_enabled", "ga_measurement_id"}).Find(&rows).Error
+		for _, r := range rows {
+			existing[r.Key] = r.Value
+		}
+	}
+
+	effectiveVal := func(k string) string {
+		if v, ok := payload[k]; ok {
+			return v
+		}
+		return existing[k]
+	}
+
+	effectiveClientID := strings.TrimSpace(effectiveVal("ads_client_id"))
+	if _, clientSubmitted := payload["ads_client_id"]; clientSubmitted && effectiveClientID != "" {
+		submittedTxt, txtSubmitted := payload["ads_txt_content"]
+		if (!txtSubmitted && (strings.TrimSpace(existing["ads_txt_content"]) == "" || isDummyAdSenseRef(existing["ads_txt_content"]))) ||
+			(txtSubmitted && strings.TrimSpace(submittedTxt) == "") {
+			if line := defaultAdsTxtLine(effectiveClientID); line != "" {
+				payload["ads_txt_content"] = line
+			}
+		}
+	}
+
+	if effectiveVal("ads_enabled") == "1" && (effectiveClientID == "" || isDummyAdSenseRef(effectiveClientID)) {
+		return fmt.Errorf("Publisher ID Google AdSense (ca-pub-XXXXXXXXXXXXXXXX) wajib diisi sebelum mengaktifkan iklan")
+	}
+	if effectiveVal("ga_enabled") == "1" && strings.TrimSpace(effectiveVal("ga_measurement_id")) == "" {
+		return fmt.Errorf("GA4 Measurement ID (G-XXXXXXXXXX) wajib diisi sebelum mengaktifkan Google Analytics 4")
+	}
+
+	return nil
+}
+
+func (h *SettingHandler) persistPlatformSettings(c *fiber.Ctx, payload map[string]string, successMsg string) error {
 	var filesToDelete []string
+	monetizationChanges := make(map[string]string)
 
 	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
 	txErr := h.db.Transaction(func(tx *gorm.DB) error {
@@ -462,7 +683,16 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 			if secretPlatformKeys[sanitizedKey] && strings.HasPrefix(strings.TrimSpace(v), "****") {
 				continue
 			}
-			sanitizedVal := security.SanitizeRichText(v, 10000)
+			var sanitizedVal string
+			if sanitizedKey == "ads_txt_content" {
+				sanitizedVal = security.SanitizePlainText(strings.ReplaceAll(v, "\r\n", "\n"), 10000)
+			} else {
+				sanitizedVal = security.SanitizeRichText(v, 10000)
+			}
+
+			if isMonetizationKey(sanitizedKey) {
+				monetizationChanges[sanitizedKey] = sanitizedVal
+			}
 
 			var s models.Setting
 			if err := tx.Where("key = ?", sanitizedKey).First(&s).Error; err != nil {
@@ -495,6 +725,40 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 		})
 	}
 
+	// Catat audit trail jika ada perubahan pengaturan monetisasi / GA4
+	if len(monetizationChanges) > 0 {
+		var actorID *uint
+		var actorName, actorEmail, actorRole string
+		if u, ok := c.Locals("user").(*models.User); ok && u != nil {
+			uid := u.ID
+			actorID = &uid
+			actorName = u.Name
+			actorEmail = u.Email
+			actorRole = u.PlatformRole
+			if actorRole == "" && u.IsSuperadmin() {
+				actorRole = "superadmin"
+			}
+		}
+		if actorRole == "" {
+			actorRole = "superadmin"
+		}
+		services.RecordActivity(services.RecordActivityParams{
+			DB:          h.db,
+			UserID:      actorID,
+			ActorRole:   actorRole,
+			ActorName:   actorName,
+			ActorEmail:  actorEmail,
+			Action:      "admin.monetization_settings_updated",
+			Category:    "superadmin",
+			EntityType:  "setting",
+			EntityTitle: "Google AdSense & GA4",
+			Description: fmt.Sprintf("Memperbarui %d konfigurasi monetisasi & analitik platform.", len(monetizationChanges)),
+			Changes:     map[string]interface{}{"updated": monetizationChanges},
+			IPAddress:   c.IP(),
+			UserAgent:   security.SanitizePlainText(c.Get("User-Agent"), 500),
+		})
+	}
+
 	// Multi-Layer Rollback (AGENTS.md Rule 10): Hapus berkas fisik lama dari Cloudflare R2 / storage
 	// HANYA setelah transaksi database berhasil di-commit.
 	if len(filesToDelete) > 0 && h.storage != nil {
@@ -507,7 +771,7 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Pengaturan platform berhasil disimpan.",
+		"message": successMsg,
 	})
 }
 
@@ -1155,4 +1419,72 @@ func (h *SettingHandler) RecordAgreement(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"success": true})
+}
+
+// GetMonetizationSettings returns ONLY Google AdSense & GA4 platform settings (safe for monetization:google:manage RBAC role).
+func (h *SettingHandler) GetMonetizationSettings(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	var rows []models.Setting
+	if err := h.db.Where("key IN ?", monetizationSettingKeys).Find(&rows).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memuat pengaturan monetisasi platform.",
+		})
+	}
+	res := make(map[string]string, len(monetizationSettingKeys))
+	for _, r := range rows {
+		res[r.Key] = r.Value
+	}
+	h.applyFallbacks(res)
+	filtered := make(map[string]string, len(monetizationSettingKeys))
+	for _, k := range monetizationSettingKeys {
+		filtered[k] = res[k]
+	}
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data":    filtered,
+	})
+}
+
+// StoreMonetization saves Google AdSense & GA4 platform settings with strict key allowlisting and audit logging.
+func (h *SettingHandler) StoreMonetization(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	var rawPayload map[string]string
+	if err := c.BodyParser(&rawPayload); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format data pengaturan monetisasi tidak valid.",
+		})
+	}
+	filtered := make(map[string]string, len(rawPayload))
+	for k, v := range rawPayload {
+		cleanKey := security.SanitizePlainText(k, 100)
+		if cleanKey == "" {
+			continue
+		}
+		if !isMonetizationKey(cleanKey) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Kunci pengaturan '%s' tidak termasuk modul monetisasi & analitik.", cleanKey),
+			})
+		}
+		filtered[cleanKey] = v
+	}
+	if err := validateAndPrepareMonetizationSettings(h.db, filtered); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+	return h.persistPlatformSettings(c, filtered, "Pengaturan monetisasi & analitik Google berhasil disimpan.")
 }

@@ -42,10 +42,12 @@ type telemetryCounters struct {
 
 // AdTelemetryService adalah singleton pengelola telemetri iklan berkecepatan tinggi.
 type AdTelemetryService struct {
-	mu           sync.RWMutex
-	buffer       map[telemetryKey]*telemetryCounters
-	clickTracker map[string]int64 // Key: "ip:campaign_id" -> Timestamp klik terakhir (Unix)
-	trackerMu    sync.RWMutex
+	mu                sync.RWMutex
+	buffer            map[telemetryKey]*telemetryCounters
+	clickTracker      map[string]int64 // Key: "ip:campaign_id" -> Timestamp klik terakhir (Unix)
+	trackerMu         sync.RWMutex
+	impressionTracker map[string]int64 // Key: "viewer:slot_id:campaign_id" -> Timestamp impresi terakhir (Unix)
+	impMu             sync.RWMutex
 }
 
 var (
@@ -57,8 +59,9 @@ var (
 func GetAdTelemetryService() *AdTelemetryService {
 	adTelemetryOnce.Do(func() {
 		globalAdTelemetry = &AdTelemetryService{
-			buffer:       make(map[telemetryKey]*telemetryCounters),
-			clickTracker: make(map[string]int64),
+			buffer:            make(map[telemetryKey]*telemetryCounters),
+			clickTracker:      make(map[string]int64),
+			impressionTracker: make(map[string]int64),
 		}
 	})
 	return globalAdTelemetry
@@ -89,8 +92,55 @@ func (s *AdTelemetryService) RecordImpression(campaignID, adSlotID uint64, store
 	entry.Impressions++
 }
 
-// RecordClick mencatat klik iklan dengan perlindungan Anti-Click-Fraud (Token Bucket per IP).
-// Mengembalikan isChargeable = true jika klik sah, atau false jika klik berulang dalam 30 menit.
+// RecordImpressionWithDedup mencatat impresi dari endpoint publik dengan jendela deduplikasi 60 detik
+// per (viewerKey, adSlotID, campaignID) untuk mencegah serangan amplifikasi impresi.
+func (s *AdTelemetryService) RecordImpressionWithDedup(campaignID, adSlotID uint64, storeID uint, viewerKey string) bool {
+	if campaignID == 0 || adSlotID == 0 || storeID == 0 {
+		return false
+	}
+	cleanViewer := strings.TrimSpace(viewerKey)
+	if cleanViewer != "" {
+		now := time.Now().UTC().Unix()
+		impKey := fmt.Sprintf("%s:%d:%d", cleanViewer, adSlotID, campaignID)
+		s.impMu.Lock()
+		lastSeen, seen := s.impressionTracker[impKey]
+		if seen && now-lastSeen <= 60 {
+			s.impMu.Unlock()
+			return false
+		}
+		s.impressionTracker[impKey] = now
+		if len(s.impressionTracker) > 100000 {
+			for k, ts := range s.impressionTracker {
+				if now-ts > 120 {
+					delete(s.impressionTracker, k)
+				}
+			}
+		}
+		s.impMu.Unlock()
+	}
+	s.RecordImpression(campaignID, adSlotID, storeID)
+	return true
+}
+
+// GetBufferedImpressionsToday mengembalikan jumlah impresi hari ini (UTC) yang masih berada di buffer memori.
+func (s *AdTelemetryService) GetBufferedImpressionsToday(campaignID uint64) uint64 {
+	if campaignID == 0 {
+		return 0
+	}
+	today := time.Now().UTC().Format("2006-01-02")
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var total uint64
+	for k, c := range s.buffer {
+		if k.CampaignID == campaignID && k.Date == today && c != nil && c.Impressions > 0 {
+			total += uint64(c.Impressions)
+		}
+	}
+	return total
+}
+
+// RecordClick mencatat klik iklan dengan perlindungan Anti-Click-Fraud (Token Bucket per IP/Sesi).
+// Mengembalikan isChargeable = true jika klik sah, atau false jika klik berulang dalam 30 menit (tidak menambah counter).
 func (s *AdTelemetryService) RecordClick(campaignID, adSlotID uint64, storeID uint, clientIP, sessionID string, isWAClick bool) bool {
 	if campaignID == 0 || adSlotID == 0 || storeID == 0 {
 		return false
@@ -98,26 +148,27 @@ func (s *AdTelemetryService) RecordClick(campaignID, adSlotID uint64, storeID ui
 	now := time.Now().UTC().Unix()
 	trackerKey := fmt.Sprintf("%s:%d", strings.TrimSpace(clientIP), campaignID)
 	if sessionID != "" {
-		trackerKey = fmt.Sprintf("%s:%s:%d", clientIP, sessionID, campaignID)
+		trackerKey = fmt.Sprintf("%s:%s:%d", strings.TrimSpace(clientIP), strings.TrimSpace(sessionID), campaignID)
 	}
 
 	// 1. Periksa batas waktu klik (Anti-Click-Fraud: Maksimal 1 klik sah per 30 menit per IP/Sesi)
 	s.trackerMu.Lock()
 	lastClick, seen := s.clickTracker[trackerKey]
+	if seen && now-lastClick <= 1800 {
+		s.trackerMu.Unlock()
+		return false
+	}
 	s.clickTracker[trackerKey] = now
-	// Bersihkan cache tracker jika terlalu besar (> 100.000 entri)
 	if len(s.clickTracker) > 100000 {
 		for k, ts := range s.clickTracker {
-			if now-ts > 3600 {
+			if now-ts > 1800 {
 				delete(s.clickTracker, k)
 			}
 		}
 	}
 	s.trackerMu.Unlock()
 
-	isChargeable := !seen || (now-lastClick > 1800) // 1800 detik = 30 menit
-
-	// 2. Akumulasi ke buffer telemetri
+	// 2. Akumulasi ke buffer telemetri hanya untuk klik sah
 	today := time.Now().UTC().Format("2006-01-02")
 	k := telemetryKey{
 		CampaignID: campaignID,
@@ -139,7 +190,7 @@ func (s *AdTelemetryService) RecordClick(campaignID, adSlotID uint64, storeID ui
 		entry.WaClicks++
 	}
 
-	return isChargeable
+	return true
 }
 
 // FlushToDatabase memindahkan data akumulasi dari memori ke PostgreSQL menggunakan BATCH UPSERT.
@@ -204,8 +255,8 @@ func (s *AdTelemetryService) FlushToDatabase(db *gorm.DB) (cycleErr error) {
 	return flushErr
 }
 
-// GenerateSignedClickURL membuat URL redirect iklan terenkripsi HMAC-SHA256 dengan masa kedaluwarsa 60 detik.
-// URL ini mencegah manipulasi ID kampanye dan replay attack oleh bot.
+// GenerateSignedClickURL membuat URL redirect iklan terenkripsi HMAC-SHA256 dengan masa kedaluwarsa 900 detik (15 menit).
+// URL ini mencegah manipulasi ID kampanye dan replay attack oleh bot sekaligus memberi ruang cache 60 detik di edge.
 func GenerateSignedClickURL(campaignCode, targetURL, secret string) string {
 	ts := time.Now().UTC().Unix()
 	payload := fmt.Sprintf("%s|%s|%d", campaignCode, targetURL, ts)
@@ -217,15 +268,15 @@ func GenerateSignedClickURL(campaignCode, targetURL, secret string) string {
 }
 
 // VerifyClickSignature memvalidasi integritas dan masa berlaku URL redirect iklan.
-// Mengembalikan true jika tanda tangan valid dan usia request <= 60 detik.
+// Mengembalikan true jika tanda tangan valid dan usia request <= 900 detik.
 func VerifyClickSignature(campaignCode, targetURL, tsStr, signature, secret string) bool {
 	ts, err := strconv.ParseInt(tsStr, 10, 64)
 	if err != nil {
 		return false
 	}
 	now := time.Now().UTC().Unix()
-	// Tolak jika token kedaluwarsa (> 60 detik) atau berasal dari masa depan (> 10 detik toleransi drift)
-	if now-ts > 60 || ts-now > 10 {
+	// Tolak jika token kedaluwarsa (> 900 detik / 15 menit) atau berasal dari masa depan (> 10 detik toleransi drift)
+	if now-ts > 900 || ts-now > 10 {
 		return false
 	}
 

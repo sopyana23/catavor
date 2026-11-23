@@ -2,17 +2,22 @@ package handlers
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"catavor-backend/internal/config"
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
 	"catavor-backend/internal/storage"
 
@@ -159,7 +164,7 @@ func (h *AdHandler) GetSectorShowcase(c *fiber.Ctx) error {
 	})
 }
 
-// HandleAdClick memproses klik iklan dengan verifikasi tanda tangan HMAC-SHA256 (60 detik)
+// HandleAdClick memproses klik iklan dengan verifikasi tanda tangan HMAC-SHA256 (900 detik)
 // dan mencatat telemetri dengan proteksi anti-click-fraud sebelum redirect 302.
 func (h *AdHandler) HandleAdClick(c *fiber.Ctx) error {
 	campaignCode := strings.TrimSpace(c.Query("c"))
@@ -175,6 +180,9 @@ func (h *AdHandler) HandleAdClick(c *fiber.Ctx) error {
 	var camp models.AdCampaign
 	if err := h.db.Preload("Store").Preload("TargetProduct").
 		Where("campaign_code = ?", campaignCode).First(&camp).Error; err != nil {
+		return c.Redirect("/", fiber.StatusTemporaryRedirect)
+	}
+	if camp.Store == nil || strings.TrimSpace(camp.Store.Slug) == "" {
 		return c.Redirect("/", fiber.StatusTemporaryRedirect)
 	}
 
@@ -207,6 +215,12 @@ func (h *AdHandler) HandleAdClick(c *fiber.Ctx) error {
 // SECURITY (N-44): membatasi ukuran batch maksimum (50 item) dan melakukan deduplikasi per pasangan
 // (campaign_id, ad_slot_id) dalam satu request untuk mencegah serangan amplifikasi impresi.
 func (h *AdHandler) RecordImpressionBatch(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
 	type ImpressionPayload struct {
 		CampaignID uint64 `json:"campaign_id"`
 		AdSlotID   uint64 `json:"ad_slot_id"`
@@ -228,21 +242,53 @@ func (h *AdHandler) RecordImpressionBatch(c *fiber.Ctx) error {
 			"message": "Ukuran batch impresi melebihi batas maksimum (50 item).",
 		})
 	}
+	if len(payload) == 0 {
+		return c.JSON(fiber.Map{"success": true, "recorded": 0})
+	}
+
+	campaignIDSet := make(map[uint64]struct{}, len(payload))
+	campaignIDs := make([]uint64, 0, len(payload))
+	for _, item := range payload {
+		if item.CampaignID == 0 || item.AdSlotID == 0 || item.StoreID == 0 {
+			continue
+		}
+		if _, exists := campaignIDSet[item.CampaignID]; !exists {
+			campaignIDSet[item.CampaignID] = struct{}{}
+			campaignIDs = append(campaignIDs, item.CampaignID)
+		}
+	}
+	if len(campaignIDs) == 0 {
+		return c.JSON(fiber.Map{"success": true, "recorded": 0})
+	}
+
+	now := time.Now().UTC()
+	var activeCampaigns []models.AdCampaign
+	_ = h.db.Where("id IN ? AND status = 'active' AND start_at <= ? AND end_at >= ?", campaignIDs, now, now).Find(&activeCampaigns).Error
+	validCampaigns := make(map[uint64]models.AdCampaign, len(activeCampaigns))
+	for _, camp := range activeCampaigns {
+		validCampaigns[camp.ID] = camp
+	}
 
 	telemetry := services.GetAdTelemetryService()
+	viewerKey := strings.TrimSpace(c.IP())
 	seen := make(map[string]struct{}, len(payload))
 	recorded := 0
 	for _, item := range payload {
 		if item.CampaignID == 0 || item.AdSlotID == 0 || item.StoreID == 0 {
 			continue
 		}
-		dedupKey := fmt.Sprintf("%d:%d", item.CampaignID, item.AdSlotID)
+		camp, ok := validCampaigns[item.CampaignID]
+		if !ok || camp.AdSlotID != item.AdSlotID || camp.StoreID != item.StoreID {
+			continue
+		}
+		dedupKey := fmt.Sprintf("%d:%d", camp.ID, camp.AdSlotID)
 		if _, exists := seen[dedupKey]; exists {
 			continue
 		}
 		seen[dedupKey] = struct{}{}
-		telemetry.RecordImpression(item.CampaignID, item.AdSlotID, item.StoreID)
-		recorded++
+		if telemetry.RecordImpressionWithDedup(camp.ID, camp.AdSlotID, camp.StoreID, viewerKey) {
+			recorded++
+		}
 	}
 
 	return c.JSON(fiber.Map{
@@ -372,12 +418,52 @@ func (h *AdHandler) CreateCampaign(c *fiber.Ctx) error {
 		req.CampaignName = fmt.Sprintf("Promosi %s (%d Hari)", store.StoreTitle, req.DurationDays)
 	}
 
-	// 1. Ambil data master slot
+	// 1. Ambil data master slot & validasi aturan sewa
+	req.TargetType = strings.ToLower(strings.TrimSpace(req.TargetType))
+	if req.TargetType != "store" && req.TargetType != "product" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Tipe target kampanye harus 'store' atau 'product'.",
+		})
+	}
+	req.CampaignName = security.SanitizePlainText(req.CampaignName, 120)
+	if req.CampaignName == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Nama kampanye iklan wajib diisi.",
+		})
+	}
+
 	var slot models.AdSlot
 	if err := h.db.Where("slot_code = ? AND is_active = true", req.SlotCode).First(&slot).Error; err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": "Slot iklan yang dipilih tidak tersedia.",
+		})
+	}
+
+	slotEntity := strings.ToLower(strings.TrimSpace(slot.TargetEntity))
+	if slotEntity == "store" && req.TargetType != "store" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Slot iklan ini khusus untuk promosi Profil Toko.",
+		})
+	}
+	if slotEntity == "product" && req.TargetType != "product" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Slot iklan ini khusus untuk promosi Produk Katalog.",
+		})
+	}
+
+	minDays := slot.MinDurationDays
+	if minDays < 1 {
+		minDays = 1
+	}
+	if req.DurationDays < minDays || req.DurationDays > 90 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": fmt.Sprintf("Durasi sewa slot harus antara %d hingga 90 hari.", minDays),
 		})
 	}
 
@@ -412,8 +498,26 @@ func (h *AdHandler) CreateCampaign(c *fiber.Ctx) error {
 		targetProductType = store.PrimaryProductType
 	}
 
+	allowedTypes := strings.ToLower(strings.TrimSpace(slot.AllowedProductTypes))
+	if allowedTypes != "" && allowedTypes != "all" {
+		normalizedTargetType := strings.ToLower(strings.TrimSpace(targetProductType))
+		typeAllowed := false
+		for _, candidate := range strings.Split(allowedTypes, ",") {
+			if strings.TrimSpace(candidate) == normalizedTargetType && normalizedTargetType != "" {
+				typeAllowed = true
+				break
+			}
+		}
+		if !typeAllowed {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": fmt.Sprintf("Slot ini hanya menerima kategori katalog: %s.", slot.AllowedProductTypes),
+			})
+		}
+	}
+
 	// 3. Kalkulasi Finansial 100% Server-Side (Haram mempercayai input uang dari client)
-	originalAmount := slot.DefaultRatePerDay * float64(req.DurationDays)
+	originalAmount := math.Round(slot.DefaultRatePerDay * float64(req.DurationDays))
 	discountAmount := 0.0
 
 	// Generate 3-digit kode unik verifikasi transfer manual
@@ -422,15 +526,23 @@ func (h *AdHandler) CreateCampaign(c *fiber.Ctx) error {
 		rNum, _ := rand.Int(rand.Reader, big.NewInt(900))
 		uniqueCode = int(rNum.Int64()) + 100
 	}
-	finalAmount := originalAmount - discountAmount + float64(uniqueCode)
+	finalAmount := math.Round(originalAmount - discountAmount + float64(uniqueCode))
 
 	now := time.Now().UTC()
 	startAt := now
 	endAt := now.AddDate(0, 0, req.DurationDays)
 
-	// Format kode kampanye dan nomor invoice unik
-	campaignCode := fmt.Sprintf("CMP-%s-%04d", now.Format("20060102"), time.Now().Unix()%10000)
-	orderNumber := fmt.Sprintf("INV-AD-%s-%04d", now.Format("20060102"), time.Now().Unix()%10000)
+	// Format kode kampanye dan nomor invoice unik dengan CSPRNG (anti tabrakan per detik)
+	randBytes := make([]byte, 3)
+	if _, err := rand.Read(randBytes); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menghasilkan kode kampanye unik.",
+		})
+	}
+	randSuffix := strings.ToUpper(hex.EncodeToString(randBytes))
+	campaignCode := fmt.Sprintf("CMP-%s-%s", now.Format("20060102"), randSuffix)
+	orderNumber := fmt.Sprintf("INV-AD-%s-%s", now.Format("20060102"), randSuffix)
 	var paymentURL string
 
 	// 4. Eksekusi Penyimpanan Atomik Transaksi Database
@@ -740,10 +852,24 @@ func (h *AdHandler) VerifyAdPayment(c *fiber.Ctx) error {
 		RejectionReason string `json:"rejection_reason"`
 	}
 	var req VerifyActionRequest
-	_ = c.BodyParser(&req)
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format permintaan verifikasi tidak valid.",
+		})
+	}
 	req.Action = strings.ToLower(strings.TrimSpace(req.Action))
+	if req.Action != "approve" && req.Action != "reject" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Aksi verifikasi harus 'approve' atau 'reject'.",
+		})
+	}
+	req.RejectionReason = security.SanitizePlainText(req.RejectionReason, 1000)
 
 	now := time.Now().UTC()
+	var verifiedCampaignName string
+	var verifiedStoreID uint
 
 	// Eksekusi Transaksi Atomik dengan Penguncian Baris (SELECT FOR UPDATE)
 	err = h.db.Transaction(func(tx *gorm.DB) error {
@@ -763,6 +889,9 @@ func (h *AdHandler) VerifyAdPayment(c *fiber.Ctx) error {
 			return fmt.Errorf("kampanye terkait tidak ditemukan: %w", err)
 		}
 
+		verifiedCampaignName = campaign.CampaignName
+		verifiedStoreID = order.StoreID
+
 		if req.Action == "approve" {
 			order.PaymentStatus = "paid"
 			order.PaidAt = &now
@@ -779,18 +908,21 @@ func (h *AdHandler) VerifyAdPayment(c *fiber.Ctx) error {
 				return err
 			}
 			return tx.Save(&campaign).Error
-		} else {
-			// Tolak pembayaran
-			order.PaymentStatus = "rejected"
-			order.RejectionReason = req.RejectionReason
-			campaign.Status = "rejected"
-			campaign.RejectionReason = req.RejectionReason
-
-			if err := tx.Save(&order).Error; err != nil {
-				return err
-			}
-			return tx.Save(&campaign).Error
 		}
+
+		// Tolak pembayaran
+		if req.RejectionReason == "" {
+			req.RejectionReason = "Bukti transfer tidak sesuai atau belum masuk mutasi."
+		}
+		order.PaymentStatus = "rejected"
+		order.RejectionReason = req.RejectionReason
+		campaign.Status = "rejected"
+		campaign.RejectionReason = req.RejectionReason
+
+		if err := tx.Save(&order).Error; err != nil {
+			return err
+		}
+		return tx.Save(&campaign).Error
 	})
 
 	if err != nil {
@@ -801,9 +933,549 @@ func (h *AdHandler) VerifyAdPayment(c *fiber.Ctx) error {
 		})
 	}
 
+	actorID := user.ID
+	var storePtr *uint
+	if verifiedStoreID > 0 {
+		sID := verifiedStoreID
+		storePtr = &sID
+	}
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		StoreID:     storePtr,
+		UserID:      &actorID,
+		ActorRole:   user.PlatformRole,
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      "admin.ad_payment_" + req.Action,
+		Category:    "billing",
+		EntityType:  "ad_order",
+		EntityTitle: verifiedCampaignName,
+		Description: fmt.Sprintf("Verifikasi pembayaran iklan #%d: %s.", orderID, req.Action),
+		Changes: map[string]interface{}{
+			"order_id":         orderID,
+			"action":           req.Action,
+			"rejection_reason": req.RejectionReason,
+		},
+		IPAddress: c.IP(),
+		UserAgent: security.SanitizePlainText(c.Get("User-Agent"), 500),
+	})
+
 	return c.JSON(fiber.Map{
 		"success": true,
 		"message": map[bool]string{true: "Pembayaran iklan berhasil disetujui & kampanye aktif!", false: "Pesanan iklan telah ditolak."}[req.Action == "approve"],
+	})
+}
+
+// -----------------------------------------------------------------------------------------
+// 4. ADMIN OPS CONSOLE: OVERVIEW, SLOT PRICING, CAMPAIGN MODERATION, & PAYMENT PROOF
+// -----------------------------------------------------------------------------------------
+
+// AdminGetOverview menyajikan ringkasan performa iklan internal, daftar slot, dan daftar kampanye terpaginasi.
+func (h *AdHandler) AdminGetOverview(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || !user.IsPlatformStaff() {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses khusus staf pengelola platform.",
+		})
+	}
+
+	var activeCount, pendingCount, pausedCount, totalCount int64
+	_ = h.db.Model(&models.AdCampaign{}).Count(&totalCount).Error
+	_ = h.db.Model(&models.AdCampaign{}).Where("status = 'active'").Count(&activeCount).Error
+	_ = h.db.Model(&models.AdCampaign{}).Where("status = 'paused'").Count(&pausedCount).Error
+	_ = h.db.Model(&models.AdOrder{}).Where("payment_status IN ?", []string{"pending", "pending_verification"}).Count(&pendingCount).Error
+
+	var totalRevenuePaid float64
+	_ = h.db.Model(&models.AdOrder{}).
+		Select("COALESCE(SUM(final_amount), 0)").
+		Where("payment_status = 'paid'").
+		Scan(&totalRevenuePaid).Error
+
+	since30d := time.Now().UTC().AddDate(0, 0, -30).Format("2006-01-02")
+	type aggMetrics struct {
+		Impressions uint64
+		Clicks      uint64
+		WaClicks    uint64
+	}
+	var m30 aggMetrics
+	_ = h.db.Table("ad_daily_metrics").
+		Select("COALESCE(SUM(impressions_count), 0) AS impressions, COALESCE(SUM(clicks_count), 0) AS clicks, COALESCE(SUM(wa_clicks_count), 0) AS wa_clicks").
+		Where("date >= ?", since30d).
+		Scan(&m30).Error
+
+	var slots []models.AdSlot
+	_ = h.db.Order("id ASC").Find(&slots).Error
+
+	page := 1
+	if p, err := strconv.Atoi(strings.TrimSpace(c.Query("page", "1"))); err == nil && p > 0 {
+		page = p
+	}
+	perPage := 20
+	if lp, err := strconv.Atoi(strings.TrimSpace(c.Query("per_page", "20"))); err == nil && lp > 0 {
+		if lp > 100 {
+			lp = 100
+		}
+		perPage = lp
+	}
+
+	campQuery := h.db.Model(&models.AdCampaign{})
+	statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status")))
+	if statusFilter != "" && statusFilter != "all" {
+		campQuery = campQuery.Where("status = ?", statusFilter)
+	}
+	if slotIDStr := strings.TrimSpace(c.Query("slot_id")); slotIDStr != "" {
+		if slotID, err := strconv.ParseUint(slotIDStr, 10, 64); err == nil && slotID > 0 {
+			campQuery = campQuery.Where("ad_slot_id = ?", slotID)
+		}
+	}
+	if searchQ := strings.ToLower(security.SanitizePlainText(c.Query("q"), 100)); searchQ != "" {
+		likePattern := "%" + searchQ + "%"
+		campQuery = campQuery.Where(
+			"LOWER(campaign_name) LIKE ? OR LOWER(campaign_code) LIKE ? OR store_id IN (SELECT id FROM stores WHERE LOWER(store_title) LIKE ? OR LOWER(slug) LIKE ?)",
+			likePattern, likePattern, likePattern, likePattern,
+		)
+	}
+
+	var filteredTotal int64
+	_ = campQuery.Count(&filteredTotal).Error
+	totalPages := int((filteredTotal + int64(perPage) - 1) / int64(perPage))
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	offset := (page - 1) * perPage
+
+	var campaigns []models.AdCampaign
+	_ = campQuery.Preload("Store").Preload("AdSlot").Preload("TargetProduct").Preload("Orders").
+		Order("created_at DESC").Offset(offset).Limit(perPage).Find(&campaigns).Error
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"data": fiber.Map{
+			"summary": fiber.Map{
+				"active_campaigns":      activeCount,
+				"pending_verifications": pendingCount,
+				"paused_campaigns":      pausedCount,
+				"total_campaigns":       totalCount,
+				"total_revenue_paid":    totalRevenuePaid,
+				"impressions_30d":       m30.Impressions,
+				"clicks_30d":            m30.Clicks,
+				"wa_clicks_30d":         m30.WaClicks,
+			},
+			"slots":     slots,
+			"campaigns": campaigns,
+			"pagination": fiber.Map{
+				"total":       filteredTotal,
+				"page":        page,
+				"per_page":    perPage,
+				"total_pages": totalPages,
+			},
+		},
+	})
+}
+
+// AdminUpdateSlot memperbarui konfigurasi slot iklan internal (tarif harian, durasi minimum, batas tampil, status aktif).
+func (h *AdHandler) AdminUpdateSlot(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || !user.IsPlatformStaff() {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses khusus staf pengelola platform.",
+		})
+	}
+	slotID, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil || slotID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID slot iklan tidak valid.",
+		})
+	}
+
+	var req struct {
+		Name                *string  `json:"name"`
+		Description         *string  `json:"description"`
+		DefaultRatePerDay   *float64 `json:"default_rate_per_day"`
+		MinDurationDays     *int     `json:"min_duration_days"`
+		MaxItemsDisplayed   *int     `json:"max_items_displayed"`
+		IsActive            *bool    `json:"is_active"`
+		AllowedProductTypes *string  `json:"allowed_product_types"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format pembaruan slot iklan tidak valid.",
+		})
+	}
+
+	var slot models.AdSlot
+	if err := h.db.Where("id = ?", slotID).First(&slot).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Slot iklan tidak ditemukan.",
+		})
+	}
+
+	if req.Name != nil {
+		cleanName := security.SanitizePlainText(*req.Name, 150)
+		if cleanName == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "Nama slot tidak boleh kosong."})
+		}
+		slot.Name = cleanName
+	}
+	if req.Description != nil {
+		slot.Description = security.SanitizePlainText(*req.Description, 1000)
+	}
+	if req.DefaultRatePerDay != nil {
+		if math.IsNaN(*req.DefaultRatePerDay) || math.IsInf(*req.DefaultRatePerDay, 0) || *req.DefaultRatePerDay < 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "Tarif harian slot tidak boleh negatif."})
+		}
+		slot.DefaultRatePerDay = math.Round(*req.DefaultRatePerDay)
+	}
+	if req.MinDurationDays != nil {
+		if *req.MinDurationDays < 1 || *req.MinDurationDays > 90 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "Durasi minimum sewa harus antara 1 sampai 90 hari."})
+		}
+		slot.MinDurationDays = *req.MinDurationDays
+	}
+	if req.MaxItemsDisplayed != nil {
+		if *req.MaxItemsDisplayed < 1 || *req.MaxItemsDisplayed > 24 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "message": "Jumlah item tampil maksimal harus antara 1 sampai 24."})
+		}
+		slot.MaxItemsDisplayed = *req.MaxItemsDisplayed
+	}
+	if req.AllowedProductTypes != nil {
+		cleaned := security.SanitizePlainText(*req.AllowedProductTypes, 255)
+		if cleaned == "" {
+			cleaned = "all"
+		}
+		slot.AllowedProductTypes = cleaned
+	}
+	if req.IsActive != nil {
+		slot.IsActive = *req.IsActive
+	}
+
+	if err := h.db.Save(&slot).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menyimpan pembaruan slot iklan.",
+		})
+	}
+
+	actorID := user.ID
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      &actorID,
+		ActorRole:   user.PlatformRole,
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      "admin.ad_slot_updated",
+		Category:    "superadmin",
+		EntityType:  "ad_slot",
+		EntityTitle: slot.Name,
+		Description: fmt.Sprintf("Memperbarui konfigurasi slot iklan '%s' (Rp %.0f/hari).", slot.SlotCode, slot.DefaultRatePerDay),
+		Changes: map[string]interface{}{
+			"slot_id":              slot.ID,
+			"default_rate_per_day": slot.DefaultRatePerDay,
+			"min_duration_days":    slot.MinDurationDays,
+			"max_items_displayed":  slot.MaxItemsDisplayed,
+			"is_active":            slot.IsActive,
+		},
+		IPAddress: c.IP(),
+		UserAgent: security.SanitizePlainText(c.Get("User-Agent"), 500),
+	})
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Konfigurasi slot iklan berhasil diperbarui.",
+		"data":    slot,
+	})
+}
+
+// ModerateCampaign menghentikan sementara, mengaktifkan kembali, atau menghentikan kampanye iklan yang melanggar kebijakan.
+func (h *AdHandler) ModerateCampaign(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || !user.IsPlatformStaff() {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses khusus staf pengelola platform.",
+		})
+	}
+	campID, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil || campID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID kampanye iklan tidak valid.",
+		})
+	}
+
+	var req struct {
+		Action string `json:"action"` // pause | resume | reject | complete
+		Reason string `json:"reason"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format permintaan moderasi tidak valid.",
+		})
+	}
+	req.Action = strings.ToLower(strings.TrimSpace(req.Action))
+	req.Reason = security.SanitizePlainText(req.Reason, 1000)
+
+	var targetStatus string
+	switch req.Action {
+	case "pause":
+		targetStatus = "paused"
+	case "resume":
+		targetStatus = "active"
+	case "reject":
+		targetStatus = "rejected"
+	case "complete":
+		targetStatus = "completed"
+	default:
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Aksi moderasi harus berupa 'pause', 'resume', 'reject', atau 'complete'.",
+		})
+	}
+
+	var campStoreID uint
+	var campName string
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		var camp models.AdCampaign
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", campID).First(&camp).Error; err != nil {
+			return fmt.Errorf("kampanye tidak ditemukan: %w", err)
+		}
+		if req.Action == "resume" && camp.Status != "paused" {
+			return fmt.Errorf("hanya kampanye berstatus 'paused' yang dapat diaktifkan kembali")
+		}
+		if req.Action == "pause" && camp.Status != "active" {
+			return fmt.Errorf("hanya kampanye berstatus 'active' yang dapat dijeda")
+		}
+		camp.Status = targetStatus
+		if req.Reason != "" {
+			camp.RejectionReason = req.Reason
+		}
+		campStoreID = camp.StoreID
+		campName = camp.CampaignName
+		return tx.Save(&camp).Error
+	})
+
+	if txErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": safeErrMsg(txErr, "Gagal memoderasi status kampanye iklan."),
+		})
+	}
+
+	actorID := user.ID
+	var storePtr *uint
+	if campStoreID > 0 {
+		sID := campStoreID
+		storePtr = &sID
+	}
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		StoreID:     storePtr,
+		UserID:      &actorID,
+		ActorRole:   user.PlatformRole,
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      "admin.ad_campaign_" + req.Action,
+		Category:    "moderation",
+		EntityType:  "ad_campaign",
+		EntityTitle: campName,
+		Description: fmt.Sprintf("Moderasi kampanye #%d menjadi '%s'.", campID, targetStatus),
+		Changes:     map[string]interface{}{"campaign_id": campID, "action": req.Action, "status": targetStatus, "reason": req.Reason},
+		IPAddress:   c.IP(),
+		UserAgent:   security.SanitizePlainText(c.Get("User-Agent"), 500),
+	})
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": fmt.Sprintf("Status kampanye berhasil diubah menjadi '%s'.", targetStatus),
+	})
+}
+
+// AdminGetOrderProof menyajikan bukti transfer pesanan iklan secara privat dengan proteksi RBAC/kepemilikan & path confinement.
+func (h *AdHandler) AdminGetOrderProof(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	orderID, err := strconv.ParseUint(c.Params("order_id"), 10, 64)
+	if err != nil || orderID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID pesanan iklan tidak valid.",
+		})
+	}
+
+	var order models.AdOrder
+	if err := h.db.Where("id = ?", orderID).First(&order).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Pesanan iklan tidak ditemukan.",
+		})
+	}
+
+	user, _ := c.Locals("user").(*models.User)
+	if user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan untuk melihat bukti pembayaran.",
+		})
+	}
+
+	allowed := false
+	if user.IsPlatformStaff() {
+		rbac := services.GetRBACService()
+		allowed = user.IsSuperadmin() ||
+			rbac.HasPermission(user, "finance:orders:read") ||
+			rbac.HasPermission(user, "finance:orders:manage") ||
+			rbac.HasPermission(user, "monetization:google:manage") ||
+			rbac.HasPermission(user, "system:settings:manage")
+	}
+	if !allowed {
+		if store, ok := c.Locals("store").(*models.Store); ok && store != nil && store.ID == order.StoreID && store.UserID == user.ID {
+			allowed = true
+		} else if order.UserID == user.ID {
+			allowed = true
+		}
+	}
+	if !allowed {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Anda tidak memiliki izin mengakses bukti pembayaran iklan ini.",
+		})
+	}
+
+	proofURL := strings.TrimSpace(order.PaymentProofURL)
+	if proofURL == "" {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Bukti pembayaran belum diunggah.",
+		})
+	}
+	if strings.HasPrefix(proofURL, "http://") || strings.HasPrefix(proofURL, "https://") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Tautan eksternal bukti pembayaran tidak diizinkan.",
+		})
+	}
+
+	cleanKey := strings.TrimLeft(filepath.ToSlash(proofURL), "/")
+	cleanKey = strings.TrimPrefix(cleanKey, "storage/")
+	cleanKey = strings.TrimLeft(cleanKey, "/")
+	if cleanKey == "" || strings.Contains(cleanKey, "..") || filepath.IsAbs(cleanKey) || strings.Contains(cleanKey, ":") || strings.Contains(cleanKey, "\\") {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Format path bukti pembayaran tidak valid.",
+		})
+	}
+
+	lowerSubKey := strings.TrimPrefix(strings.ToLower(cleanKey), "private/")
+	expectedPrefix := fmt.Sprintf("ad_proofs/store_%d_order_%d_", order.StoreID, order.ID)
+	if !strings.HasPrefix(lowerSubKey, expectedPrefix) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Berkas bukti pembayaran tidak sesuai dengan pesanan toko.",
+		})
+	}
+
+	candidateKeys := []string{cleanKey}
+	if strings.HasPrefix(cleanKey, storage.PrivateKeyPrefix) {
+		candidateKeys = append(candidateKeys, strings.TrimPrefix(cleanKey, storage.PrivateKeyPrefix))
+	} else {
+		candidateKeys = append(candidateKeys, storage.PrivateKeyPrefix+cleanKey)
+	}
+
+	setProofHeaders := func(cType string, isAttachment bool) {
+		c.Set("Content-Type", cType)
+		c.Set("Cache-Control", "private, max-age=3600")
+		c.Set("X-Content-Type-Options", "nosniff")
+		c.Set("Content-Security-Policy", "sandbox; default-src 'none'")
+		if isAttachment {
+			c.Set("Content-Disposition", `attachment; filename="bukti-pembayaran-iklan"`)
+		} else {
+			c.Set("Content-Disposition", `inline; filename="bukti-pembayaran-iklan"`)
+		}
+	}
+
+	if h.storage != nil {
+		for _, key := range candidateKeys {
+			if strings.Contains(key, "..") || filepath.IsAbs(key) || strings.Contains(key, ":") {
+				continue
+			}
+			rc, cType, _, gErr := h.storage.Get(c.Context(), key)
+			if gErr == nil && rc != nil {
+				data, readErr := io.ReadAll(io.LimitReader(rc, 12*1024*1024))
+				_ = rc.Close()
+				if readErr == nil && len(data) > 0 {
+					safeType, forceAttachment := normalizeOrderProofContentType(cType, key, data)
+					setProofHeaders(safeType, forceAttachment)
+					return c.Send(data)
+				}
+			}
+		}
+	}
+
+	localRoots := make([]string, 0, 2)
+	if h.cfg != nil {
+		if h.cfg.StoragePrivateRoot != "" {
+			localRoots = append(localRoots, h.cfg.StoragePrivateRoot)
+		}
+		if h.cfg.StorageLocalRoot != "" {
+			localRoots = append(localRoots, h.cfg.StorageLocalRoot)
+		}
+	}
+	if len(localRoots) == 0 {
+		localRoots = append(localRoots, filepath.Join("storage", "private"), filepath.Join("public", "storage"))
+	}
+
+	for _, root := range localRoots {
+		for _, key := range candidateKeys {
+			relKey := strings.TrimPrefix(key, storage.PrivateKeyPrefix)
+			for _, candidateRel := range []string{relKey, key} {
+				if cand, ok := resolveInsideRoot(root, candidateRel); ok && isRegularFile(cand) {
+					if fi, sErr := os.Stat(cand); sErr == nil && fi.Size() > 0 && fi.Size() <= 12*1024*1024 {
+						if data, rErr := os.ReadFile(cand); rErr == nil && len(data) > 0 {
+							safeType, forceAttachment := normalizeOrderProofContentType("", cand, data)
+							setProofHeaders(safeType, forceAttachment)
+							return c.Send(data)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+		"success": false,
+		"message": "Berkas bukti pembayaran iklan tidak ditemukan di penyimpanan.",
 	})
 }
 

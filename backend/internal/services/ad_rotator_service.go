@@ -32,11 +32,13 @@ import (
 // ShowcaseItem represents a unified display card for either a Store Profile or a Product Item on the landing page.
 type ShowcaseItem struct {
 	// Metadata Penayangan
-	IsSponsored     bool    `json:"is_sponsored"`
-	BadgeText       string  `json:"badge_text"` // "Disponsori" atau "Populer Minggu Ini"
-	CampaignCode    string  `json:"campaign_code,omitempty"`
-	AdSlotCode      string  `json:"ad_slot_code,omitempty"`
-	RedirectURL     string  `json:"redirect_url"` // Endpoint redirect terlindung HMAC
+	IsSponsored  bool   `json:"is_sponsored"`
+	BadgeText    string `json:"badge_text"` // "Disponsori" atau "Populer Minggu Ini"
+	CampaignID   uint64 `json:"campaign_id,omitempty"`
+	AdSlotID     uint64 `json:"ad_slot_id,omitempty"`
+	CampaignCode string `json:"campaign_code,omitempty"`
+	AdSlotCode   string `json:"ad_slot_code,omitempty"`
+	RedirectURL  string `json:"redirect_url"` // Endpoint redirect terlindung HMAC
 
 	// Target Tipe: 'store' atau 'product'
 	ItemType string `json:"item_type"` // "store" | "product"
@@ -147,11 +149,25 @@ func GetRotatedShowcase(db *gorm.DB, slotCode, productType string, limit int, se
 			seedInt := int64(binary.BigEndian.Uint64(seedHash[:8]))
 			rng := rand.New(rand.NewSource(seedInt))
 
+			telemetry := GetAdTelemetryService()
+			todayUTC := time.Now().UTC().Format("2006-01-02")
+
 			candidates := make([]weightedCandidate, 0, len(activeCampaigns))
 			for _, camp := range activeCampaigns {
 				// Abaikan jika toko pemilik sedang disuspend atau dibanned
 				if camp.Store == nil || camp.Store.IsSuspended || camp.Store.IsBlacklisted {
 					continue
+				}
+				// Enforcement DailyImpressionCap (DB hari ini + buffer memori)
+				if camp.DailyImpressionCap > 0 {
+					var dbImpressionsToday uint64
+					_ = db.Table("ad_daily_metrics").
+						Select("COALESCE(impressions_count, 0)").
+						Where("campaign_id = ? AND date = ?", camp.ID, todayUTC).
+						Scan(&dbImpressionsToday).Error
+					if dbImpressionsToday+telemetry.GetBufferedImpressionsToday(camp.ID) >= uint64(camp.DailyImpressionCap) {
+						continue
+					}
 				}
 
 				// Bobot default minimal 1
@@ -199,6 +215,8 @@ func GetRotatedShowcase(db *gorm.DB, slotCode, productType string, limit int, se
 				item := ShowcaseItem{
 					IsSponsored:  true,
 					BadgeText:    camp.CustomBadgeText,
+					CampaignID:   camp.ID,
+					AdSlotID:     camp.AdSlotID,
 					CampaignCode: camp.CampaignCode,
 					AdSlotCode:   slotCode,
 					ItemType:     camp.TargetType,
@@ -220,7 +238,7 @@ func GetRotatedShowcase(db *gorm.DB, slotCode, productType string, limit int, se
 					}
 					// Catat telemetri impresi secara non-blocking
 					GetAdTelemetryService().RecordImpression(camp.ID, camp.AdSlotID, camp.StoreID)
-					item.RedirectURL = GenerateSignedClickURL(camp.CampaignCode, fmt.Sprintf("/u/%s", item.StoreSlug), jwtSecret)
+					item.RedirectURL = GenerateSignedClickURL(camp.CampaignCode, fmt.Sprintf("/u/%s?item=%d", item.StoreSlug, prod.ID), jwtSecret)
 				} else if camp.Store != nil {
 					// Target Profil Toko
 					item.StoreSlug = camp.Store.Slug
@@ -290,7 +308,7 @@ func GetRotatedShowcase(db *gorm.DB, slotCode, productType string, limit int, se
 				if p.Store != nil {
 					item.StoreSlug = p.Store.Slug
 					item.StoreTitle = p.Store.StoreTitle
-					item.RedirectURL = fmt.Sprintf("/u/%s", p.Store.Slug)
+					item.RedirectURL = fmt.Sprintf("/u/%s?item=%d", p.Store.Slug, p.ID)
 				}
 
 				usedStoreIDs[p.StoreID] = true

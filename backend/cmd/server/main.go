@@ -634,6 +634,7 @@ func main() {
 		guarded.Get("/ads/campaigns", adHandler.GetMyCampaigns)
 		guardedMutations.Post("/ads/campaigns", adHandler.CreateCampaign)
 		guardedMutations.Post("/ads/orders/:order_id/proof", adHandler.UploadPaymentProof)
+		guarded.Get("/ads/orders/:order_id/proof", adHandler.AdminGetOrderProof)
 		guarded.Get("/ads/campaigns/:id/analytics", adHandler.GetCampaignAnalytics)
 
 		// Merchant Analytics & Store Telemetry
@@ -757,6 +758,14 @@ func main() {
 		// kredensial partner) -> wajib izin khusus, bukan sekadar staf platform.
 		adminApi.Get("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Index)
 		adminApi.Post("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
+		adminApi.Get("/monetization/settings", middleware.RequireAnyPermission(cfg, "monetization:google:manage", "system:settings:manage"), settingHandler.GetMonetizationSettings)
+		adminApi.Post("/monetization/settings", middleware.RequireAnyPermission(cfg, "monetization:google:manage", "system:settings:manage"), settingHandler.StoreMonetization)
+		adminApi.Get("/ads/overview", middleware.RequireAnyPermission(cfg, "monetization:google:manage", "finance:orders:read", "system:settings:manage"), adHandler.AdminGetOverview)
+		adminApi.Get("/ads/campaigns/pending", middleware.RequireAnyPermission(cfg, "monetization:google:manage", "finance:orders:read", "finance:orders:manage", "system:settings:manage"), adHandler.GetPendingCampaigns)
+		adminApi.Put("/ads/slots/:id", middleware.RequireAnyPermission(cfg, "monetization:google:manage", "system:settings:manage"), adHandler.AdminUpdateSlot)
+		adminApi.Post("/ads/orders/:order_id/verify", middleware.RequireAnyPermission(cfg, "finance:orders:manage", "monetization:google:manage", "system:settings:manage"), adHandler.VerifyAdPayment)
+		adminApi.Get("/ads/orders/:order_id/proof", middleware.RequireAnyPermission(cfg, "finance:orders:read", "finance:orders:manage", "monetization:google:manage", "system:settings:manage"), adHandler.AdminGetOrderProof)
+		adminApi.Post("/ads/campaigns/:id/moderate", middleware.RequireAnyPermission(cfg, "monetization:google:manage", "compliance:reports:manage", "system:settings:manage"), adHandler.ModerateCampaign)
 		adminApi.Get("/settings/policies", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.GetPolicies)
 		adminApi.Post("/settings/policies", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.UpdatePolicy)
 		adminApi.Post("/settings/policies/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetDefaultPolicies)
