@@ -1,16 +1,20 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"sync"
 	"time"
 
+	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
+
+const redisNotificationPubSubChannel = "catavor:sse:notifications"
 
 // SSEClient represents an active Server-Sent Events subscriber connection.
 type SSEClient struct {
@@ -24,8 +28,10 @@ type SSEClient struct {
 
 // NotificationHub coordinates realtime notification broadcasts to connected clients.
 type NotificationHub struct {
-	clients map[*SSEClient]bool
-	mu      sync.RWMutex
+	clients    map[*SSEClient]bool
+	mu         sync.RWMutex
+	nodeID     string
+	bridgeOnce sync.Once
 }
 
 var Hub *NotificationHub
@@ -36,9 +42,30 @@ func GetNotificationHub() *NotificationHub {
 	hubOnce.Do(func() {
 		Hub = &NotificationHub{
 			clients: make(map[*SSEClient]bool),
+			nodeID:  uuid.NewString(),
 		}
 	})
 	return Hub
+}
+
+// PlanMatchesTarget membandingkan paket toko dengan target paket siaran secara case-insensitive
+// serta mendukung kompatibilitas target legacy 'pro' untuk 'pro_starter' dan 'pro_business'.
+func PlanMatchesTarget(clientPlan, targetPlanCode string) bool {
+	target := strings.ToLower(strings.TrimSpace(targetPlanCode))
+	if target == "" {
+		return false
+	}
+	client := strings.ToLower(strings.TrimSpace(clientPlan))
+	if client == "" {
+		client = "free"
+	}
+	if client == target {
+		return true
+	}
+	if target == "pro" && (client == "pro_starter" || client == "pro_business") {
+		return true
+	}
+	return false
 }
 
 // Register adds a new SSEClient to the hub with optional platformRole.
@@ -46,11 +73,16 @@ func (h *NotificationHub) Register(userID, storeID uint, storePlan, platformRole
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	normalizedPlan := strings.ToLower(strings.TrimSpace(storePlan))
+	if normalizedPlan == "" {
+		normalizedPlan = "free"
+	}
+
 	client := &SSEClient{
 		ID:           uuid.New().String(),
 		UserID:       userID,
 		StoreID:      storeID,
-		StorePlan:    storePlan,
+		StorePlan:    normalizedPlan,
 		PlatformRole: strings.ToLower(strings.TrimSpace(platformRole)),
 		Send:         make(chan []byte, 64),
 	}
@@ -60,7 +92,7 @@ func (h *NotificationHub) Register(userID, storeID uint, storePlan, platformRole
 		Str("client_id", client.ID).
 		Uint("user_id", userID).
 		Uint("store_id", storeID).
-		Str("plan", storePlan).
+		Str("plan", client.StorePlan).
 		Str("role", client.PlatformRole).
 		Int("active_clients", len(h.clients)).
 		Msg("SSE Notification client connected")
@@ -83,6 +115,29 @@ func (h *NotificationHub) Unregister(client *SSEClient) {
 	}
 }
 
+// UpdateStorePlan memperbarui StorePlan seluruh koneksi SSE aktif milik storeID saat paket toko berubah.
+func (h *NotificationHub) UpdateStorePlan(storeID uint, newPlan string) int {
+	if storeID == 0 {
+		return 0
+	}
+	normalized := strings.ToLower(strings.TrimSpace(newPlan))
+	if normalized == "" {
+		normalized = "free"
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	updated := 0
+	for client := range h.clients {
+		if client.StoreID == storeID {
+			client.StorePlan = normalized
+			updated++
+		}
+	}
+	return updated
+}
+
 // GetActiveClientsCount returns the number of currently connected SSE clients.
 func (h *NotificationHub) GetActiveClientsCount() int {
 	h.mu.RLock()
@@ -90,23 +145,107 @@ func (h *NotificationHub) GetActiveClientsCount() int {
 	return len(h.clients)
 }
 
-// Broadcast sends a general notification to all matching clients in real-time.
+type hubPubSubEnvelope struct {
+	OriginNode       string               `json:"origin_node"`
+	Kind             string               `json:"kind"` // "notification" | "notification_deleted"
+	NotificationID   string               `json:"notification_id,omitempty"`
+	Notification     *models.Notification `json:"notification,omitempty"`
+	TargetRecipients string               `json:"target_recipients,omitempty"`
+}
+
+// StartRedisPubSubBridge mendengarkan channel Redis Pub/Sub agar siaran/pencabutan SSE tetap tersampaikan
+// ke seluruh instance saat horizontal scaling.
+func (h *NotificationHub) StartRedisPubSubBridge(ctx context.Context) {
+	if !database.IsRedisAvailable() {
+		return
+	}
+	h.bridgeOnce.Do(func() {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Interface("panic", r).Msg("Recovered from panic in Redis SSE Pub/Sub bridge")
+				}
+			}()
+
+			msgCh, closeFn, err := database.SubscribeEvents(ctx, redisNotificationPubSubChannel)
+			if err != nil {
+				log.Warn().Err(err).Msg("Failed to start Redis SSE Pub/Sub bridge; continuing in local hub mode")
+				return
+			}
+			defer closeFn()
+
+			log.Info().Str("channel", redisNotificationPubSubChannel).Msg("SSE NotificationHub Redis Pub/Sub bridge started")
+			for raw := range msgCh {
+				var env hubPubSubEnvelope
+				if err := json.Unmarshal([]byte(raw), &env); err != nil {
+					continue
+				}
+				if env.OriginNode == h.nodeID {
+					continue
+				}
+				if env.Notification != nil && env.TargetRecipients != "" {
+					env.Notification.TargetRecipients = env.TargetRecipients
+				}
+				switch env.Kind {
+				case "notification":
+					if env.Notification != nil {
+						h.dispatchLocalBroadcast(env.Notification)
+					}
+				case "notification_deleted":
+					if env.NotificationID != "" {
+						h.dispatchLocalRemoval(env.NotificationID, env.Notification)
+					}
+				}
+			}
+		}()
+	})
+}
+
+// Broadcast sends a general notification to all matching clients in real-time (and publishes to Redis if active).
 func (h *NotificationHub) Broadcast(notif *models.Notification) {
+	if notif == nil {
+		return
+	}
+	sentCount := h.dispatchLocalBroadcast(notif)
+
+	if database.IsRedisAvailable() {
+		env := hubPubSubEnvelope{
+			OriginNode:       h.nodeID,
+			Kind:             "notification",
+			NotificationID:   notif.ID,
+			Notification:     notif,
+			TargetRecipients: notif.TargetRecipients,
+		}
+		if b, err := json.Marshal(env); err == nil {
+			_ = database.PublishEvent(context.Background(), redisNotificationPubSubChannel, string(b))
+		}
+	}
+
+	observeCycle("sse_hub", 0, int64(sentCount), nil)
+	log.Info().
+		Str("notif_id", notif.ID).
+		Str("target_type", notif.TargetType).
+		Str("target_plan", notif.TargetPlanCode).
+		Int("sent_count", sentCount).
+		Msg("Realtime notification broadcast delivered")
+}
+
+func (h *NotificationHub) dispatchLocalBroadcast(notif *models.Notification) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	if len(h.clients) == 0 {
-		return
+	if len(h.clients) == 0 || notif == nil {
+		return 0
 	}
 
 	payload, err := json.Marshal(map[string]interface{}{
 		"event":        "notification",
 		"notification": notif,
-		"timestamp":    time.Now().Format(time.RFC3339),
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to serialize notification SSE broadcast")
-		return
+		return 0
 	}
 
 	sentCount := 0
@@ -120,14 +259,69 @@ func (h *NotificationHub) Broadcast(notif *models.Notification) {
 			}
 		}
 	}
+	return sentCount
+}
 
-	observeCycle("sse_hub", 0, int64(sentCount), nil)
+// BroadcastRemoval mengirimkan event real-time notification_deleted saat admin mencabut atau menghapus siaran.
+func (h *NotificationHub) BroadcastRemoval(notifID string, notif *models.Notification) {
+	if strings.TrimSpace(notifID) == "" {
+		return
+	}
+	sentCount := h.dispatchLocalRemoval(notifID, notif)
+
+	if database.IsRedisAvailable() {
+		var recipients string
+		if notif != nil {
+			recipients = notif.TargetRecipients
+		}
+		env := hubPubSubEnvelope{
+			OriginNode:       h.nodeID,
+			Kind:             "notification_deleted",
+			NotificationID:   notifID,
+			Notification:     notif,
+			TargetRecipients: recipients,
+		}
+		if b, err := json.Marshal(env); err == nil {
+			_ = database.PublishEvent(context.Background(), redisNotificationPubSubChannel, string(b))
+		}
+	}
+
 	log.Info().
-		Str("notif_id", notif.ID).
-		Str("target_type", notif.TargetType).
-		Str("target_plan", notif.TargetPlanCode).
+		Str("notif_id", notifID).
 		Int("sent_count", sentCount).
-		Msg("Realtime notification broadcast delivered")
+		Msg("Realtime notification revocation delivered")
+}
+
+func (h *NotificationHub) dispatchLocalRemoval(notifID string, notif *models.Notification) int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if len(h.clients) == 0 {
+		return 0
+	}
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"event":           "notification_deleted",
+		"notification_id": notifID,
+		"timestamp":       time.Now().UTC().Format(time.RFC3339),
+	})
+	if err != nil {
+		return 0
+	}
+
+	sentCount := 0
+	for client := range h.clients {
+		if notif != nil && !h.isClientTargetMatch(client, notif) {
+			continue
+		}
+		select {
+		case client.Send <- payload:
+			sentCount++
+		default:
+			log.Warn().Str("client_id", client.ID).Msg("SSE client buffer full, skipping revocation frame")
+		}
+	}
+	return sentCount
 }
 
 // BroadcastTicketEvent sends a real-time ticket event (created, replied, status change)
@@ -307,11 +501,14 @@ func (h *NotificationHub) BroadcastQuotaEvent(targetStoreID uint, quotaData inte
 
 // isClientTargetMatch checks if a connected client satisfies the notification target constraints.
 func (h *NotificationHub) isClientTargetMatch(client *SSEClient, notif *models.Notification) bool {
-	switch notif.TargetType {
+	if client == nil || notif == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(notif.TargetType)) {
 	case "all":
 		return true
 	case "plan":
-		return notif.TargetPlanCode != "" && client.StorePlan == notif.TargetPlanCode
+		return PlanMatchesTarget(client.StorePlan, notif.TargetPlanCode)
 	case "single_store":
 		return notif.TargetID > 0 && client.StoreID == notif.TargetID
 	case "single_user":

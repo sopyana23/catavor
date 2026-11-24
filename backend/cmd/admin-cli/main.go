@@ -137,6 +137,12 @@ func executeMigrate(db *gorm.DB, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "[GAGAL] Penyelarasan skema N-60 MFA gagal: %v\n", err)
 		return 1
 	}
+	if db.Migrator().HasTable(&models.SubscriptionPlan{}) {
+		var planCount int64
+		if err := db.Model(&models.SubscriptionPlan{}).Count(&planCount).Error; err == nil && planCount == 0 {
+			_ = services.SeedSubscriptionPlans(db)
+		}
+	}
 	fmt.Fprintln(stdout, "[BERHASIL] Seluruh migrasi SQL tertanam dan skema fisik N-60 MFA berhasil diterapkan.")
 	return 0
 }

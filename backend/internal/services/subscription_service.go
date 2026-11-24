@@ -425,6 +425,7 @@ func UpgradeStorePlan(db *gorm.DB, storeID uint, targetPlanCode string, duration
 		Msg("Store subscription successfully updated")
 
 	database.InvalidateStoreQuotaCache(context.Background(), storeID)
+	GetNotificationHub().UpdateStorePlan(storeID, store.Plan)
 	freshQuota, qErr := GetStoreQuotaInfo(db, storeID)
 	if qErr == nil && freshQuota != nil {
 		GetNotificationHub().BroadcastQuotaEvent(storeID, freshQuota)
@@ -717,6 +718,7 @@ func ProcessSubscriptionLifecycle(db *gorm.DB) (cycleErr error) {
 		}
 
 		database.InvalidateStoreQuotaCache(context.Background(), store.ID)
+		GetNotificationHub().UpdateStorePlan(store.ID, targetPlanCode)
 		log.Info().
 			Uint("store_id", store.ID).
 			Str("old_plan", store.Plan).

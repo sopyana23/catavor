@@ -382,8 +382,8 @@ func TestNotificationMarkAllAsRead_HanyaMilikSendiri(t *testing.T) {
 		t.Fatalf("read receipt = %d, want 2 (hanya notifikasi toko sendiri)", len(reads))
 	}
 	for _, r := range reads {
-		if r.StoreID != s1.ID {
-			t.Errorf("read receipt dibuat untuk store %d, want %d", r.StoreID, s1.ID)
+		if r.StoreID == nil || *r.StoreID != s1.ID {
+			t.Errorf("read receipt dibuat untuk store %v, want %d", r.StoreID, s1.ID)
 		}
 	}
 }
@@ -393,8 +393,9 @@ func TestNotificationClearRead_TanpaIdentitas400(t *testing.T) {
 	app := notifApp(t, db)
 	_, s1, _, _ := notifUsers(t, db)
 
+	s1ID := s1.ID
 	mustCreate(t, db, &models.NotificationRead{
-		NotificationID: "n-x", StoreID: s1.ID, ReadAt: time.Now().UTC(),
+		NotificationID: "n-x", StoreID: &s1ID, ReadAt: time.Now().UTC(),
 	})
 
 	status, _, raw := notifCall(t, app, "DELETE", "/api/notifications/read/clear?slug="+s1.Slug, 0)
@@ -416,9 +417,10 @@ func TestNotificationClearRead_MenandaiTerbacaMilikSendiri(t *testing.T) {
 	u1, s1, _, s2 := notifUsers(t, db)
 	now := time.Now().UTC()
 
-	mustCreate(t, db, &models.NotificationRead{NotificationID: "n-1", StoreID: s1.ID, ReadAt: now})
-	mustCreate(t, db, &models.NotificationRead{NotificationID: "n-2", StoreID: s1.ID, ReadAt: now})
-	mustCreate(t, db, &models.NotificationRead{NotificationID: "n-3", StoreID: s2.ID, ReadAt: now})
+	s1ID, s2ID := s1.ID, s2.ID
+	mustCreate(t, db, &models.NotificationRead{NotificationID: "n-1", StoreID: &s1ID, ReadAt: now})
+	mustCreate(t, db, &models.NotificationRead{NotificationID: "n-2", StoreID: &s1ID, ReadAt: now})
+	mustCreate(t, db, &models.NotificationRead{NotificationID: "n-3", StoreID: &s2ID, ReadAt: now})
 
 	status, body, raw := notifCall(t, app, "DELETE", "/api/notifications/read/clear?slug="+s1.Slug, u1.ID)
 	if status != 200 {

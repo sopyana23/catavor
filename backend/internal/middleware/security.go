@@ -193,7 +193,7 @@ func SetupSecurityMiddlewares(app *fiber.App, cfg *config.Config) {
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     allowedOrigins,
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Store-Slug, X-Request-ID",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Store-Slug, X-Request-ID, Idempotency-Key",
 		AllowMethods:     "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
 		AllowCredentials: allowCredentials,
 		ExposeHeaders:    "X-Refreshed-Token",
@@ -405,6 +405,76 @@ func ExportRateLimiter() fiber.Handler {
 			})
 		},
 	})
+}
+
+// BroadcastRateLimiter membatasi pengiriman/penerbitan siaran broadcast admin agar terhindar dari spam & double-blast.
+func BroadcastRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Storage:    database.GetRateLimiterStorage(),
+		Max:        20,
+		Expiration: 1 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			ipKey := canonicalRateLimitIP(c.IP())
+			if u, ok := c.Locals("user").(*models.User); ok && u != nil && u.ID > 0 {
+				return fmt.Sprintf("broadcast:u:%d:%s", u.ID, ipKey)
+			}
+			if uid, ok := c.Locals("user_id").(uint); ok && uid > 0 {
+				return fmt.Sprintf("broadcast:u:%d:%s", uid, ipKey)
+			}
+			return "broadcast:ip:" + ipKey
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"code":    "RATE_LIMIT_EXCEEDED",
+				"error":   "Terlalu banyak pengiriman siaran dalam 1 menit. Harap tunggu sebentar sebelum mengirim ulang.",
+			})
+		},
+	})
+}
+
+// IsOriginAllowed memeriksa apakah header Origin termasuk dalam daftar origin yang diizinkan aplikasi.
+func IsOriginAllowed(origin string, cfg *config.Config) bool {
+	trimmed := strings.TrimRight(strings.TrimSpace(origin), "/")
+	if trimmed == "" {
+		return false
+	}
+
+	candidates := make([]string, 0, 12)
+	if cfg != nil {
+		if orig := strings.TrimRight(strings.TrimSpace(cfg.AppURL), "/"); orig != "" {
+			candidates = append(candidates, orig)
+		}
+		for _, raw := range cfg.AllowedOrigins {
+			if o := strings.TrimRight(strings.TrimSpace(raw), "/"); o != "" {
+				candidates = append(candidates, o)
+			}
+		}
+		if cfg.AppEnv == "" || cfg.AppEnv == "local" || cfg.AppEnv == "development" {
+			port := strings.TrimSpace(cfg.Port)
+			if port == "" {
+				port = "8000"
+			}
+			candidates = append(candidates,
+				"http://localhost:"+port,
+				"http://127.0.0.1:"+port,
+				"http://localhost:8000",
+				"http://127.0.0.1:8000",
+				"http://localhost:8001",
+				"http://127.0.0.1:8001",
+				"http://localhost:5173",
+				"http://localhost:3000",
+				"http://127.0.0.1:5173",
+			)
+		}
+	}
+
+	for _, c := range candidates {
+		if strings.EqualFold(trimmed, c) {
+			return true
+		}
+	}
+	return false
 }
 
 

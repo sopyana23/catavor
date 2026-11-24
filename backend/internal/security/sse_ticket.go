@@ -43,10 +43,25 @@ type SSETicketMeta struct {
 	TokenVersion int
 }
 
+// SSETicketStore menyediakan penyimpanan terdistribusi opsional (mis. Redis GETDEL)
+// agar tiket SSE sekali pakai bekerja konsisten lintas node di belakang load balancer.
+type SSETicketStore interface {
+	Save(ticket string, meta SSETicketMeta, ttl time.Duration) error
+	Consume(ticket string) (SSETicketMeta, bool)
+}
+
 var (
-	sseTicketMu sync.Mutex
-	sseTickets  = map[string]sseTicket{}
+	sseTicketMu    sync.Mutex
+	sseTickets     = map[string]sseTicket{}
+	sseTicketStore SSETicketStore
 )
+
+// SetSSETicketStore memasang backend penyimpanan eksternal (nil = in-memory lokal).
+func SetSSETicketStore(store SSETicketStore) {
+	sseTicketMu.Lock()
+	sseTicketStore = store
+	sseTicketMu.Unlock()
+}
 
 // IssueSSETicket membuat tiket acak 32 byte untuk user tertentu.
 func IssueSSETicket(userID uint) (string, time.Time, error) {
@@ -62,6 +77,21 @@ func IssueSSETicketWithMeta(userID uint, mfaVerified bool, tokenVersion int) (st
 	}
 	ticket := base64.RawURLEncoding.EncodeToString(buf)
 	exp := time.Now().Add(SSETicketTTL)
+	meta := SSETicketMeta{
+		UserID:       userID,
+		MFAVerified:  mfaVerified,
+		TokenVersion: tokenVersion,
+	}
+
+	sseTicketMu.Lock()
+	store := sseTicketStore
+	sseTicketMu.Unlock()
+
+	if store != nil {
+		if err := store.Save(ticket, meta, SSETicketTTL); err == nil {
+			return ticket, exp, nil
+		}
+	}
 
 	sseTicketMu.Lock()
 	defer sseTicketMu.Unlock()
@@ -119,6 +149,16 @@ func ConsumeSSETicketWithMeta(ticket string) (SSETicketMeta, bool) {
 	if ticket == "" {
 		return SSETicketMeta{}, false
 	}
+	sseTicketMu.Lock()
+	store := sseTicketStore
+	sseTicketMu.Unlock()
+
+	if store != nil {
+		if meta, ok := store.Consume(ticket); ok {
+			return meta, true
+		}
+	}
+
 	sseTicketMu.Lock()
 	t, ok := sseTickets[ticket]
 	if ok {

@@ -105,6 +105,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 		&models.EmailVerificationOTP{},
 		&models.Notification{},
 		&models.NotificationRead{},
+		&models.NotificationRecipient{},
 		&models.PlatformRole{},
 		&models.PlatformPermission{},
 		&models.PlatformRolePermission{},

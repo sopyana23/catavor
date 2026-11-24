@@ -56,6 +56,13 @@ func (h *SubscriptionHandler) GetPlans(c *fiber.Ctx) error {
 			"message": "Gagal memuat paket langganan.",
 		})
 	}
+	if len(plans) == 0 {
+		if seedErr := services.SeedSubscriptionPlans(h.db); seedErr == nil {
+			if seeded, qErr := services.GetSubscriptionPlans(h.db); qErr == nil {
+				plans = seeded
+			}
+		}
+	}
 
 	c.Set("Cache-Control", "public, max-age=600, stale-while-revalidate=86400")
 	return c.JSON(fiber.Map{

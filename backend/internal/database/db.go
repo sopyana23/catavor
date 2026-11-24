@@ -216,6 +216,7 @@ func BootstrapProductionSchema(db *gorm.DB) error {
 			&models.B2BAPIKey{},
 			&models.Notification{},
 			&models.NotificationRead{},
+			&models.NotificationRecipient{},
 			&models.MasterCategory{},
 			&models.MasterPreset{},
 			&models.ActivityLog{},
@@ -603,12 +604,19 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 		log.Info().Msg("Default Help Center articles seeded successfully")
 	}
 
-	// 9. Ensure Notification & NotificationRead Tables, Columns & Indexes
-	mustAutoMigrate(db, "notifications", &models.Notification{}, &models.NotificationRead{})
+	// 9. Ensure Notification, Recipient & NotificationRead Tables, Columns & Indexes
+	mustAutoMigrate(db, "notifications", &models.Notification{}, &models.NotificationRead{}, &models.NotificationRecipient{})
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_recipients TEXT;").Error
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_plan_code VARCHAR(64);").Error
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_name VARCHAR(255);").Error
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_broadcast BOOLEAN DEFAULT FALSE;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS status VARCHAR(24) DEFAULT 'published';").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS published_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS revoked_by BIGINT DEFAULT 0;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_audience_count BIGINT DEFAULT 0;").Error
+	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128);").Error
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS detail_content TEXT;").Error
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_enabled BOOLEAN DEFAULT FALSE;").Error
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_type VARCHAR(32) DEFAULT 'none';").Error
@@ -619,9 +627,11 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS retention_hours INT DEFAULT 720;").Error
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS created_by INT DEFAULT 0;").Error
 	_ = db.Exec("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("ALTER TABLE notification_reads ADD COLUMN IF NOT EXISTS clicked_at TIMESTAMP WITH TIME ZONE;").Error
+	_ = db.Exec("DROP INDEX IF EXISTS idx_notifications_expires;").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notifications_target ON notifications(target_type, target_plan_code, target_id);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notifications_broadcast ON notifications(is_broadcast, created_at DESC);").Error
-	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notifications_expires ON notifications(expires_at);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notifications_status_sched ON notifications(status, scheduled_at);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notif_read_store ON notification_reads(store_id, notification_id);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_notif_read_user ON notification_reads(user_id, notification_id);").Error
 	_ = db.Exec("UPDATE notifications SET action_type = 'detail', link_sub_tab = '' WHERE category = 'KEAMANAN' AND (link_sub_tab = 'help' OR action_type = 'navigate');").Error

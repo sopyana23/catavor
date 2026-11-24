@@ -544,3 +544,69 @@ func ResetLoginFailures(email string) {
 		_ = RedisClient.Del(ctx, "auth:fail:"+cleaned).Err()
 	}
 }
+
+// SetExpiringKey menyimpan nilai string dengan TTL di Redis.
+func SetExpiringKey(ctx context.Context, key, val string, ttl time.Duration) error {
+	if !IsRedisAvailable() || key == "" {
+		return fmt.Errorf("redis unavailable")
+	}
+	if ttl <= 0 {
+		ttl = 30 * time.Second
+	}
+	return RedisClient.Set(ctx, key, val, ttl).Err()
+}
+
+// GetAndDeleteKey membaca sekaligus menghapus key secara atomik (GETDEL) agar single-use lintas node.
+func GetAndDeleteKey(ctx context.Context, key string) (string, bool, error) {
+	if !IsRedisAvailable() || key == "" {
+		return "", false, nil
+	}
+	val, err := RedisClient.GetDel(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return val, true, nil
+}
+
+// PublishEvent mempublikasikan payload JSON ke channel Redis Pub/Sub untuk fan-out SSE multi-instance.
+func PublishEvent(ctx context.Context, channel, payload string) error {
+	if !IsRedisAvailable() || channel == "" || payload == "" {
+		return nil
+	}
+	return RedisClient.Publish(ctx, channel, payload).Err()
+}
+
+// SubscribeEvents membuka listener channel Redis Pub/Sub dan mengembalikan channel pesan + fungsi tutup.
+func SubscribeEvents(ctx context.Context, channel string) (<-chan string, func(), error) {
+	if !IsRedisAvailable() || channel == "" {
+		return nil, func() {}, fmt.Errorf("redis unavailable")
+	}
+	pubsub := RedisClient.Subscribe(ctx, channel)
+	if _, err := pubsub.Receive(ctx); err != nil {
+		_ = pubsub.Close()
+		return nil, func() {}, err
+	}
+	out := make(chan string, 128)
+	rawCh := pubsub.Channel()
+	go func() {
+		defer close(out)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg, ok := <-rawCh:
+				if !ok || msg == nil {
+					return
+				}
+				select {
+				case out <- msg.Payload:
+				default:
+				}
+			}
+		}
+	}()
+	return out, func() { _ = pubsub.Close() }, nil
+}

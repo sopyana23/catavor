@@ -23,6 +23,40 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// scopedRouter attaches middlewares per route instead of calling Router.Group("", ...)
+// which in GoFiber v2 mounts prefix middleware globally for subsequent groups like /api/admin.
+type scopedRouter struct {
+	parent      fiber.Router
+	middlewares []fiber.Handler
+}
+
+func (r scopedRouter) wrap(handlers []fiber.Handler) []fiber.Handler {
+	chain := make([]fiber.Handler, 0, len(r.middlewares)+len(handlers))
+	chain = append(chain, r.middlewares...)
+	chain = append(chain, handlers...)
+	return chain
+}
+
+func (r scopedRouter) Get(path string, handlers ...fiber.Handler) fiber.Router {
+	return r.parent.Get(path, r.wrap(handlers)...)
+}
+
+func (r scopedRouter) Post(path string, handlers ...fiber.Handler) fiber.Router {
+	return r.parent.Post(path, r.wrap(handlers)...)
+}
+
+func (r scopedRouter) Put(path string, handlers ...fiber.Handler) fiber.Router {
+	return r.parent.Put(path, r.wrap(handlers)...)
+}
+
+func (r scopedRouter) Patch(path string, handlers ...fiber.Handler) fiber.Router {
+	return r.parent.Patch(path, r.wrap(handlers)...)
+}
+
+func (r scopedRouter) Delete(path string, handlers ...fiber.Handler) fiber.Router {
+	return r.parent.Delete(path, r.wrap(handlers)...)
+}
+
 func main() {
 	// 1. Initialize Zerolog output
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
@@ -41,6 +75,8 @@ func main() {
 
 	// 3.0 Initialize Redis Connection (with Graceful Fallback)
 	database.InitRedis()
+	services.InitDistributedSSETicketStore()
+	services.GetNotificationHub().StartRedisPubSubBridge(context.Background())
 
 	// 3.1 Seed Default Subscription Plans
 	if cfg.DBAutoMigrate {
@@ -96,7 +132,7 @@ func main() {
 	supportHandler := handlers.NewSupportHandler(cfg, storageService, database.DB)
 	analyticsHandler := handlers.NewAnalyticsHandler(cfg, database.DB)
 	storageHandler := handlers.NewStorageHandler(cfg, storageService, database.DB)
-	notificationHandler := handlers.NewNotificationHandler(database.DB)
+	notificationHandler := handlers.NewNotificationHandler(database.DB, cfg)
 	activityLogHandler := handlers.NewActivityLogHandler(database.DB)
 	healthHandler := handlers.NewHealthHandler(database.DB)
 	rbacHandler := handlers.NewRBACHandler(database.DB)
@@ -120,8 +156,9 @@ func main() {
 	// Initialize OTP Service for Email Verification & Password Recovery
 	services.InitOTPService(database.DB)
 
-	// Start Background Notification Cleaner Worker (Purges expired and stale notifications every hour)
+	// Start Background Notification Cleaner Worker & Scheduled Broadcast Publisher
 	services.StartNotificationCleaner(context.Background(), database.DB, 1*time.Hour)
+	services.StartBroadcastScheduler(context.Background(), database.DB, 30*time.Second)
 
 	// Start Background Storage Sweeper Worker (Audits store disk storage and purges orphaned uploads every hour)
 	services.StartStorageSweeper(context.Background(), database.DB, 1*time.Hour)
@@ -515,7 +552,7 @@ func main() {
 	api.Get("/auth/check-slug", storeHandler.CheckSlug)
 
 	// User Auth-Guarded Endpoints (Requires valid JWT Token)
-	authOnly := api.Group("", middleware.AuthRequired(cfg))
+	authOnly := scopedRouter{parent: api, middlewares: []fiber.Handler{middleware.AuthRequired(cfg)}}
 	{
 		authOnly.Get("/auth/verify", authHandler.VerifyToken)
 		authOnly.Get("/auth/me", authHandler.VerifyToken)
@@ -549,21 +586,27 @@ func main() {
 		authOnly.Get("/notifications", notificationHandler.GetNotifications)
 		authOnly.Post("/notifications/read-all", notificationHandler.MarkAllAsRead)
 		authOnly.Post("/notifications/clear-read", notificationHandler.ClearReadNotifications)
-		authOnly.Post("/notifications/:id/read", notificationHandler.MarkAsRead)
-		authOnly.Post("/notifications/:id/dismiss", notificationHandler.Dismiss)
-		// SECURITY (M1/SSE): tukar sesi cookie dengan tiket sekali pakai,
-		// supaya JWT tidak perlu muncul di URL stream.
 		authOnly.Post("/notifications/ticket", notificationHandler.IssueStreamTicket)
 		authOnly.Post("/v1/notifications/ticket", notificationHandler.IssueStreamTicket)
 		authOnly.Get("/notifications/stream", notificationHandler.Stream)
 		authOnly.Get("/v1/notifications/stream", notificationHandler.Stream)
 		authOnly.Get("/v1/notifications", notificationHandler.GetNotifications)
+		authOnly.Post("/notifications/:id/read", notificationHandler.MarkAsRead)
+		authOnly.Post("/notifications/:id/click", notificationHandler.TrackClick)
+		authOnly.Post("/notifications/:id/dismiss", notificationHandler.Dismiss)
+		authOnly.Get("/notifications/:id", notificationHandler.GetNotificationByID)
 	}
 
 	// Guarded Admin & Merchant Endpoints (Requires JWT Token & Store Ownership)
-	guarded := api.Group("", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired())
+	guarded := scopedRouter{
+		parent:      api,
+		middlewares: []fiber.Handler{middleware.AuthRequired(cfg), middleware.StoreOwnerRequired()},
+	}
 	// Guarded Mutation Endpoints (Requires Active/Operational Store - Blocks Banned/Suspended Stores)
-	guardedMutations := api.Group("", middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), middleware.OperationalStoreRequired())
+	guardedMutations := scopedRouter{
+		parent:      api,
+		middlewares: []fiber.Handler{middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), middleware.OperationalStoreRequired()},
+	}
 	{
 		// Storage & Cloud Object Endpoints (S3 / MinIO / Local)
 		guardedMutations.Post("/storage/upload", storageHandler.Upload)
@@ -742,7 +785,10 @@ func main() {
 		// Content & Broadcast
 		adminApi.Get("/notifications", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminIndex)
 		adminApi.Get("/notifications/:id", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminGetOne)
-		adminApi.Post("/notifications/broadcast", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminBroadcast)
+		adminApi.Post("/notifications/broadcast", middleware.RequirePermission(cfg, "content:broadcast:send"), middleware.BroadcastRateLimiter(), notificationHandler.SuperadminBroadcast)
+		adminApi.Put("/notifications/:id", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminUpdate)
+		adminApi.Post("/notifications/:id/publish", middleware.RequirePermission(cfg, "content:broadcast:send"), middleware.BroadcastRateLimiter(), notificationHandler.SuperadminPublish)
+		adminApi.Post("/notifications/:id/revoke", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminRevoke)
 		adminApi.Delete("/notifications/:id", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminDelete)
 		adminApi.Get("/stores/search", middleware.RequireAnyPermission(cfg, "content:broadcast:send", "support:tickets:read", "finance:orders:read", "compliance:reports:manage", "system:admins:manage"), notificationHandler.SearchStores)
 		adminApi.Get("/users/search", middleware.RequireAnyPermission(cfg, "content:broadcast:send", "support:tickets:read", "finance:orders:read", "compliance:reports:manage", "system:admins:manage"), notificationHandler.SearchUsers)
