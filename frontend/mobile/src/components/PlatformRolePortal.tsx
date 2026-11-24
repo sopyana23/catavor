@@ -6098,17 +6098,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                 label: 'Bekukan / Suspend Profil Katalog',
                                 desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time'
                               },
-                            ] : []),
-                            {
-                              value: 'catalog_banned',
-                              label: 'Blokir / Banned Permanen Profil Katalog',
-                              desc: 'Nonaktifkan akses publik profil katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding'
-                            },
-                            {
-                              value: 'catalog_reactivated',
-                              label: 'Pulihkan / Aktifkan Profil Katalog',
-                              desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase profil katalog'
-                            }
+                              {
+                                value: 'catalog_banned',
+                                label: 'Blokir / Banned Permanen Profil Katalog',
+                                desc: 'Nonaktifkan akses publik profil katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding'
+                              },
+                              {
+                                value: 'catalog_reactivated',
+                                label: 'Pulihkan / Aktifkan Profil Katalog',
+                                desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase profil katalog'
+                              },
+                            ] : [])
                           ];
 
                         setCrudDropdownPicker({

@@ -6036,19 +6036,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time',
                               info: 'Seketika mengubah status dormansi profil katalog menjadi Suspended. Seluruh etalase katalog dan itemnya dinonaktifkan sementara dari akses publik secara real-time.'
                             },
-                          ] : []),
-                          {
-                            value: 'catalog_banned',
-                            label: 'Blokir / Banned Permanen Profil Katalog',
-                            desc: 'Nonaktifkan akses publik profil katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding',
-                            info: 'Seketika mengubah status dormansi profil katalog menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
-                          },
-                          {
-                            value: 'catalog_reactivated',
-                            label: 'Pulihkan / Aktifkan Profil Katalog',
-                            desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase profil katalog',
-                            info: 'Seketika memulihkan status dormansi profil katalog menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase profil katalog ke publik.'
-                          }
+                            {
+                              value: 'catalog_banned',
+                              label: 'Blokir / Banned Permanen Profil Katalog',
+                              desc: 'Nonaktifkan akses publik profil katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding',
+                              info: 'Seketika mengubah status dormansi profil katalog menjadi Banned permanen. Seluruh akses publik dan akun pemilik dinonaktifkan secara permanen.'
+                            },
+                            {
+                              value: 'catalog_reactivated',
+                              label: 'Pulihkan / Aktifkan Profil Katalog',
+                              desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase profil katalog',
+                              info: 'Seketika memulihkan status dormansi profil katalog menjadi Active. Mencabut status pembekuan dan membuka kembali seluruh etalase profil katalog ke publik.'
+                            },
+                          ] : [])
                         ];
 
                         setCrudDropdownPicker({

@@ -141,6 +141,7 @@ import {
   Menu
 } from 'lucide-react'
 import './App.css'
+import { getItemModerationMeta } from '../../shared/moderation/itemModerationBadge'
 import logoHeaderImg from './assets/logo-header.png'
 import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
@@ -23471,26 +23472,31 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     </div>
                                   </td>
                                   <td>
-                                    {(item as any).moderation_status === 'hidden' ? (
-                                      <span
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '0.3rem',
-                                          padding: '0.22rem 0.65rem',
-                                          borderRadius: '6px',
-                                          fontSize: '0.74rem',
-                                          fontWeight: 700,
-                                          backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                                          color: '#ef4444',
-                                          border: '1px solid rgba(239, 68, 68, 0.3)'
-                                        }}
-                                        title="Dinonaktifkan oleh tim moderasi platform"
-                                      >
-                                        <ShieldAlert size={12} strokeWidth={2.5} />
-                                        <span>Dinonaktifkan</span>
-                                      </span>
-                                    ) : (item as any).is_active !== false ? (
+                                    {(() => {
+                                      const modMeta = getItemModerationMeta((item as any).moderation_status);
+                                      if (modMeta) {
+                                        return (
+                                          <span
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '0.3rem',
+                                              padding: '0.22rem 0.65rem',
+                                              borderRadius: '6px',
+                                              fontSize: '0.74rem',
+                                              fontWeight: 700,
+                                              backgroundColor: modMeta.bg,
+                                              color: modMeta.color,
+                                              border: `1px solid ${modMeta.border}`
+                                            }}
+                                            title={modMeta.title}
+                                          >
+                                            <ShieldAlert size={12} strokeWidth={2.5} />
+                                            <span>{modMeta.label}</span>
+                                          </span>
+                                        );
+                                      }
+                                      return (item as any).is_active !== false ? (
                                       <span
                                         style={{
                                           display: 'inline-flex',
@@ -23528,7 +23534,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                         <Archive size={12} strokeWidth={2.5} />
                                         <span>Diarsipkan</span>
                                       </span>
-                                    )}
+                                    );
+                                    })()}
                                   </td>
                                   <td>
                                     <div className="action-buttons" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -34295,6 +34302,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             store_id: (settings as any).id || 0,
                             store_slug: storeSlug || '',
                             store_title: settings.store_title || 'Katalog Digital',
+                            product_id: reportModalData.type === 'item' ? reportModalData.item?.id : null,
                             fauna_id: reportModalData.type === 'item' ? reportModalData.item?.id : null,
                             item_name: reportModalData.type === 'item' ? reportModalData.item?.name : null,
                             reason_category: reportReason,
@@ -34308,7 +34316,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           setReportModalData(null);
                           setReportNotes('');
                           setReportEmail('');
-                          showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetTitle}" telah berhasil dikirim ke tim kepatuhan.`);
+                          if (data.duplicate) {
+                            showToast(data.message || `Laporan untuk "${targetTitle}" sudah tercatat dan sedang ditinjau tim kepatuhan.`, 'info');
+                          } else {
+                            showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetTitle}" telah berhasil dikirim ke tim kepatuhan.`);
+                          }
                         } else {
                           showToast(data.message || 'Gagal mengirim laporan. Silakan coba lagi.', 'error');
                         }

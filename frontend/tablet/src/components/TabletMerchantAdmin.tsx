@@ -148,6 +148,7 @@ import {
   type MultiTypeDraftBuffer
 } from '../utils/catalogDraftBuffer';
 import { VideoPreviewInput } from './VideoEmbed';
+import { getItemModerationMeta } from '../../../shared/moderation/itemModerationBadge';
 
 export type ItemCategoryType = 'physical' | 'food' | 'service' | 'digital' | 'fauna' | 'property' | 'plant';
 
@@ -3225,15 +3226,16 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
         eventSource.onerror = () => {
           if (!isMounted) return;
-          if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+          // Close immediately so browser does not replay consumed one-time ?ticket= on auto-reconnect
+          if (eventSource) {
             try { eventSource.close(); } catch {}
             eventSource = null;
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-            retryCount++;
-            reconnectTimer = setTimeout(() => {
-              if (isMounted) connectSSE();
-            }, delay);
           }
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+          retryCount++;
+          reconnectTimer = setTimeout(() => {
+            if (isMounted) connectSSE();
+          }, delay);
         };
       } catch (err) {
         console.warn('SSE notification stream error in tablet admin:', err);
@@ -5253,27 +5255,32 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
                           {/* Status */}
                           <td style={{ padding: '0.75rem 0.75rem', verticalAlign: 'middle', borderBottom: '1px solid var(--border-light)' }}>
-                            {(item as any).moderation_status === 'hidden' ? (
-                              <span
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.3rem',
-                                  padding: '0.2rem 0.55rem',
-                                  borderRadius: '6px',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                                  color: '#ef4444',
-                                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                                  whiteSpace: 'nowrap'
-                                }}
-                                title="Dinonaktifkan oleh tim moderasi"
-                              >
-                                <ShieldAlert size={12} strokeWidth={2.5} />
-                                <span>Dinonaktifkan</span>
-                              </span>
-                            ) : (item as any).is_active !== false ? (
+                            {(() => {
+                              const modMeta = getItemModerationMeta((item as any).moderation_status);
+                              if (modMeta) {
+                                return (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.3rem',
+                                      padding: '0.2rem 0.55rem',
+                                      borderRadius: '6px',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      backgroundColor: modMeta.bg,
+                                      color: modMeta.color,
+                                      border: `1px solid ${modMeta.border}`,
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                    title={modMeta.title}
+                                  >
+                                    <ShieldAlert size={12} strokeWidth={2.5} />
+                                    <span>{modMeta.label}</span>
+                                  </span>
+                                );
+                              }
+                              return (item as any).is_active !== false ? (
                               <span
                                 style={{
                                   display: 'inline-flex',
@@ -5313,7 +5320,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 <Archive size={12} strokeWidth={2.5} />
                                 <span>Diarsipkan</span>
                               </span>
-                            )}
+                            );
+                            })()}
                           </td>
 
                           {/* Aksi */}

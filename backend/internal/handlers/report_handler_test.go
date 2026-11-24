@@ -49,7 +49,6 @@ func setupReportTestApp(t *testing.T, db *gorm.DB, actor *models.User) *fiber.Ap
 	app.Get("/api/admin/reports", adminAuth, rh.Index)
 	app.Get("/api/admin/reports/:id", adminAuth, rh.Show)
 	app.Put("/api/admin/reports/:id", adminAuth, rh.UpdateStatus)
-	app.Post("/api/admin/reports/review-item", adminAuth, rh.ReviewRemediatedItem)
 
 	app.Get("/api/products", ph.Index)
 	app.Get("/api/u/:slug/products", ph.Index)
@@ -508,3 +507,103 @@ func TestProductVisibility_SuspendedAndBannedStoreBlocked(t *testing.T) {
 	// Ensure unused helper is exercised cleanly
 	_ = time.Now()
 }
+
+func TestReportIndexAndShow_BatchedActiveCountAndProductIDContext(t *testing.T) {
+	db := newReportTestDB(t)
+	admin, storeA, _, prodA, _ := seedReportFixtures(t, db)
+	app := setupReportTestApp(t, db, &admin)
+
+	now := time.Now().UTC()
+	itemRpt1 := models.Report{
+		ReportNumber:   "RPT-20261125-BATCH1",
+		TargetType:     "item",
+		StoreID:        storeA.ID,
+		ProductID:      &prodA.ID,
+		StoreSlug:      storeA.Slug,
+		StoreTitle:     storeA.StoreTitle,
+		ItemName:       prodA.Name,
+		ReasonCategory: "policy",
+		ReasonLabel:    "Aturan Produk",
+		Status:         "pending",
+		CreatedAt:      now,
+	}
+	itemRpt2 := models.Report{
+		ReportNumber:   "RPT-20261125-BATCH2",
+		TargetType:     "item",
+		StoreID:        storeA.ID,
+		ProductID:      &prodA.ID,
+		StoreSlug:      storeA.Slug,
+		StoreTitle:     storeA.StoreTitle,
+		ItemName:       prodA.Name,
+		ReasonCategory: "policy",
+		ReasonLabel:    "Aturan Produk",
+		Status:         "re_review",
+		CreatedAt:      now.Add(time.Second),
+	}
+	itemHist := models.Report{
+		ReportNumber:   "RPT-20261125-HIST1",
+		TargetType:     "item",
+		StoreID:        storeA.ID,
+		ProductID:      &prodA.ID,
+		StoreSlug:      storeA.Slug,
+		StoreTitle:     storeA.StoreTitle,
+		ItemName:       prodA.Name,
+		ReasonCategory: "policy",
+		ReasonLabel:    "Riwayat Lama",
+		Status:         "resolved",
+		ActionTaken:    "item_restored",
+		ReviewedAt:     &now,
+		CreatedAt:      now.Add(-time.Hour),
+	}
+	catRpt := models.Report{
+		ReportNumber:   "RPT-20261125-CAT1",
+		TargetType:     "catalog",
+		StoreID:        storeA.ID,
+		StoreSlug:      storeA.Slug,
+		StoreTitle:     storeA.StoreTitle,
+		ReasonCategory: "fraud",
+		ReasonLabel:    "Laporan Katalog",
+		Status:         "investigating",
+		CreatedAt:      now.Add(2 * time.Second),
+	}
+	for _, r := range []*models.Report{&itemRpt1, &itemRpt2, &itemHist, &catRpt} {
+		mustCreate(t, db, r)
+	}
+
+	idxRes := call(t, app, "GET", "/api/admin/reports", nil)
+	if idxRes.Status != http.StatusOK {
+		t.Fatalf("Index status=%d raw=%s", idxRes.Status, idxRes.Raw)
+	}
+	rows, _ := idxRes.Body["data"].([]any)
+	if len(rows) != 4 {
+		t.Fatalf("expected 4 rows, got %d", len(rows))
+	}
+
+	activeCounts := map[string]float64{}
+	for _, rawRow := range rows {
+		m, _ := rawRow.(map[string]any)
+		rn, _ := m["report_number"].(string)
+		cnt, _ := m["active_report_count"].(float64)
+		activeCounts[rn] = cnt
+	}
+	if activeCounts["RPT-20261125-BATCH1"] != 2 || activeCounts["RPT-20261125-BATCH2"] != 2 {
+		t.Fatalf("expected batched item active_report_count=2, got %v", activeCounts)
+	}
+	if activeCounts["RPT-20261125-CAT1"] != 1 {
+		t.Fatalf("expected catalog active_report_count=1, got %v", activeCounts)
+	}
+
+	shwRes := call(t, app, "GET", fmt.Sprintf("/api/admin/reports/%s", itemRpt1.ReportNumber), nil)
+	if shwRes.Status != http.StatusOK {
+		t.Fatalf("Show status=%d raw=%s", shwRes.Status, shwRes.Raw)
+	}
+	activeRel, _ := shwRes.Body["active_reports"].([]any)
+	historyRel, _ := shwRes.Body["history_reports"].([]any)
+	if len(activeRel) != 1 {
+		t.Fatalf("expected 1 related active report in Show, got %d (%s)", len(activeRel), shwRes.Raw)
+	}
+	if len(historyRel) != 1 {
+		t.Fatalf("expected 1 related history report in Show, got %d (%s)", len(historyRel), shwRes.Raw)
+	}
+}
+

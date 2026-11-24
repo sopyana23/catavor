@@ -500,10 +500,56 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 		})
 	}
 
-	// Attach active report count for each entity to power 🔥 Multi-Reporter badge
+	// Attach active report count for each entity in one batched aggregation query (MED-05: avoid N+1)
 	type ReportAggResult struct {
 		models.Report
 		ActiveReportCount int64 `json:"active_report_count"`
+	}
+
+	type activeCountRow struct {
+		StoreID    uint   `gorm:"column:store_id"`
+		TargetType string `gorm:"column:target_type"`
+		EffPID     uint   `gorm:"column:eff_pid"`
+		ItemName   string `gorm:"column:item_name"`
+		Cnt        int64  `gorm:"column:cnt"`
+	}
+
+	catalogActiveCounts := make(map[uint]int64)
+	itemIDActiveCounts := make(map[string]int64)
+	itemNameActiveCounts := make(map[string]int64)
+
+	if len(reports) > 0 {
+		storeIDSet := make(map[uint]struct{}, len(reports))
+		storeIDs := make([]uint, 0, len(reports))
+		for _, r := range reports {
+			if _, seen := storeIDSet[r.StoreID]; !seen {
+				storeIDSet[r.StoreID] = struct{}{}
+				storeIDs = append(storeIDs, r.StoreID)
+			}
+		}
+
+		var rows []activeCountRow
+		if err := h.db.Model(&models.Report{}).
+			Select("store_id, target_type, COALESCE(product_id, fauna_id, 0) AS eff_pid, COALESCE(item_name, '') AS item_name, COUNT(*) AS cnt").
+			Where("store_id IN ? AND status IN ('pending', 'investigating', 're_review')", storeIDs).
+			Group("store_id, target_type, COALESCE(product_id, fauna_id, 0), COALESCE(item_name, '')").
+			Scan(&rows).Error; err == nil {
+			for _, row := range rows {
+				if row.TargetType == "item" {
+					if row.EffPID > 0 {
+						key := fmt.Sprintf("%d:%d", row.StoreID, row.EffPID)
+						itemIDActiveCounts[key] += row.Cnt
+					} else if row.ItemName != "" {
+						key := fmt.Sprintf("%d:%s", row.StoreID, row.ItemName)
+						itemNameActiveCounts[key] += row.Cnt
+					} else {
+						catalogActiveCounts[row.StoreID] += row.Cnt
+					}
+				} else {
+					catalogActiveCounts[row.StoreID] += row.Cnt
+				}
+			}
+		}
 	}
 
 	results := make([]ReportAggResult, len(reports))
@@ -515,17 +561,14 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 			r.ItemType = r.Product.ProductType
 		}
 		var activeCount int64
-		subQ := h.db.Model(&models.Report{}).
-			Where("store_id = ? AND status IN ('pending', 'investigating', 're_review')", r.StoreID)
 		targetPID := r.GetTargetProductID()
 		if r.TargetType == "item" && targetPID != nil && *targetPID > 0 {
-			subQ = subQ.Where("target_type = 'item' AND (product_id = ? OR fauna_id = ?)", *targetPID, *targetPID)
+			activeCount = itemIDActiveCounts[fmt.Sprintf("%d:%d", r.StoreID, *targetPID)]
 		} else if r.TargetType == "item" && r.ItemName != "" {
-			subQ = subQ.Where("target_type = 'item' AND item_name = ?", r.ItemName)
+			activeCount = itemNameActiveCounts[fmt.Sprintf("%d:%s", r.StoreID, r.ItemName)]
 		} else {
-			subQ = subQ.Where("target_type = 'catalog'")
+			activeCount = catalogActiveCounts[r.StoreID]
 		}
-		subQ.Count(&activeCount)
 
 		results[i] = ReportAggResult{
 			Report:            r,
@@ -1777,156 +1820,4 @@ func purgeBannedStore(tx *gorm.DB, storeID uint, storeSlug, storeTitle, reportNu
 		Msg("Permanently banned store, locked slug in blacklisted_slugs, entered 90-day forensic evidence retention.")
 
 	return nil
-}
-
-type ReviewItemRequest struct {
-	ProductID  uint   `json:"product_id"`
-	Decision   string `json:"decision"` // "approve" or "reject"
-	AdminNotes string `json:"admin_notes"`
-}
-
-// ReviewRemediatedItem allows platform admin to approve or reject a product that was resubmitted by a merchant.
-func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
-	if h.db == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"success": false,
-			"message": "Database belum diinisialisasi.",
-		})
-	}
-	var req ReviewItemRequest
-	if err := c.BodyParser(&req); err != nil || req.ProductID == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"message": "Format permintaan tinjauan tidak valid.",
-		})
-	}
-
-	var product models.Product
-	if err := h.db.Preload("Store").Preload("Store.User").Where("id = ?", req.ProductID).First(&product).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"success": false,
-			"message": "Produk tidak ditemukan.",
-		})
-	}
-
-	now := time.Now().UTC()
-	storeTitle := "Katalog Digital"
-	storeSlug := ""
-	ownerEmail := ""
-	if product.Store != nil {
-		storeTitle = product.Store.StoreTitle
-		storeSlug = product.Store.Slug
-		if product.Store.User != nil {
-			ownerEmail = product.Store.User.Email
-		}
-	}
-
-	reportNum := fmt.Sprintf("REV-%d", product.ID)
-
-	if req.Decision == "approve" {
-		product.IsActive = true
-		product.ModerationStatus = "none"
-		product.ModerationReason = ""
-		product.ModeratedAt = nil
-		product.ResubmittedAt = nil
-		_ = h.db.Save(&product).Error
-		_ = applyModerationFaunasTableUpdate(h.db, product.ID, product.StoreID, map[string]interface{}{
-			"is_active":         true,
-			"moderation_status": "none",
-			"moderation_reason": "",
-			"moderated_at":      nil,
-			"resubmitted_at":    nil,
-		})
-
-		// Invalidate cache
-		InvalidateReportMetricsCache()
-
-		// Send email to merchant
-		if ownerEmail != "" {
-			sub, bHTML := services.BuildItemApprovedEmail(storeTitle, product.Name, reportNum, storeSlug)
-			_, _ = services.EnqueueEmail(ownerEmail, storeTitle, "Catavor Trust & Safety", sub, bHTML, "compliance_item_approved", reportNum)
-		}
-
-		// Create in-app notification
-		notif := models.Notification{
-			ID:            fmt.Sprintf("notif_appr_%d_%d", product.ID, now.UnixNano()),
-			TargetType:    "single_store",
-			TargetID:      product.StoreID,
-			TargetName:    storeTitle,
-			Title:         "Perbaikan Produk Telah Disetujui",
-			Category:      "PEMULIHAN",
-			Message:       fmt.Sprintf("Perbaikan untuk produk \"%s\" telah disetujui oleh Tim Kepatuhan. Produk kini telah aktif kembali secara publik.", product.Name),
-			Type:          "success",
-			ActionEnabled: true,
-			ActionType:    "detail",
-			LinkSubTab:    "items",
-			ActionLabel:   "Lihat Produk di Katalog →",
-			ActionURL:     fmt.Sprintf("/%s", storeSlug),
-			CreatedAt:     now,
-			UpdatedAt:     now,
-		}
-		_ = h.db.Create(&notif).Error
-		services.GetNotificationHub().Broadcast(&notif)
-		services.SyncStoreStorageUsed(h.db, product.StoreID)
-		database.InvalidateStoreQuotaCache(context.Background(), product.StoreID)
-		go services.BroadcastStoreQuotaSync(h.db, product.StoreID)
-
-		return c.JSON(fiber.Map{
-			"success": true,
-			"message": "Perbaikan produk berhasil disetujui. Produk telah aktif kembali di katalog publik.",
-			"data":    product,
-		})
-	}
-
-	// Decision == "reject" (needs further remediation)
-	notes := strings.TrimSpace(req.AdminNotes)
-	if notes == "" {
-		notes = "Perbaikan yang diajukan belum memenuhi standar kepatuhan komunitas. Silakan periksa kembali foto dan deskripsi produk."
-	}
-
-	product.IsActive = false
-	product.ModerationStatus = "needs_fix"
-	product.ModerationReason = notes
-	product.ModeratedAt = &now
-	_ = h.db.Save(&product).Error
-	_ = applyModerationFaunasTableUpdate(h.db, product.ID, product.StoreID, map[string]interface{}{
-		"is_active":         false,
-		"moderation_status": "needs_fix",
-		"moderation_reason": notes,
-		"moderated_at":      &now,
-	})
-
-	InvalidateReportMetricsCache()
-
-	itemTypeLabel := mapProductTypeLabel(product.ProductType)
-	if ownerEmail != "" {
-		sub, bHTML := services.BuildItemNeedsFixEmail(storeTitle, product.Name, itemTypeLabel, "Revisi Belum Sesuai", notes, reportNum, storeSlug)
-		_, _ = services.EnqueueEmail(ownerEmail, storeTitle, "Catavor Trust & Safety", sub, bHTML, "compliance_item_needs_fix", reportNum)
-	}
-
-	notif := models.Notification{
-		ID:            fmt.Sprintf("notif_revisi_%d_%d", product.ID, now.UnixNano()),
-		TargetType:    "single_store",
-		TargetID:      product.StoreID,
-		TargetName:    storeTitle,
-		Title:         "Perbaikan Item Memerlukan Revisi Lanjutan",
-		Category:      "PERBAIKAN",
-		Message:       fmt.Sprintf("Perbaikan untuk item \"%s\" belum disetujui: %s", product.Name, notes),
-		Type:          "warning",
-		ActionEnabled: true,
-		ActionType:    "detail",
-		LinkSubTab:    "items",
-		ActionLabel:   "Perbaiki Item Sekarang →",
-		ActionURL:     fmt.Sprintf("/%s/admin/items?edit=%d", storeSlug, product.ID),
-		CreatedAt:     now,
-		UpdatedAt:     now,
-	}
-	_ = h.db.Create(&notif).Error
-	services.GetNotificationHub().Broadcast(&notif)
-
-	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "Pengajuan ulang ditolak. Catatan revisi telah dikirimkan ke merchant.",
-		"data":    product,
-	})
 }

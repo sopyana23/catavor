@@ -32,8 +32,8 @@ type Report struct {
 
 	// Relations
 	Store   *Store   `gorm:"foreignKey:StoreID" json:"store,omitempty"`
-	Product *Product `gorm:"foreignKey:ProductID" json:"product,omitempty"`
-	Fauna   *Product `gorm:"foreignKey:FaunaID" json:"fauna,omitempty"`
+	Product *Product `gorm:"foreignKey:ProductID;constraint:OnDelete:SET NULL;" json:"product,omitempty"`
+	Fauna   *Product `gorm:"foreignKey:FaunaID;constraint:OnDelete:SET NULL;" json:"fauna,omitempty"`
 }
 
 // GetTargetProductID returns the effective target product ID regardless of which column is populated.

@@ -211,6 +211,7 @@ export const TabletReportModal: React.FC<TabletReportModalProps> = ({
           store_id: storeSettings?.id || 0,
           store_slug: storeSlug || '',
           store_title: storeSettings?.store_title || 'Katalog Digital',
+          product_id: reportData.type === 'item' ? reportData.item?.id : null,
           fauna_id: reportData.type === 'item' ? reportData.item?.id : null,
           item_name: reportData.type === 'item' ? reportData.item?.name : null,
           reason_category: reportReason,
@@ -224,7 +225,11 @@ export const TabletReportModal: React.FC<TabletReportModalProps> = ({
         onClose();
         setReportNotes('');
         setReportEmail('');
-        onToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetTitle}" telah berhasil dikirim ke tim kepatuhan.`, 'success');
+        if (data.duplicate) {
+          onToast(data.message || `Laporan untuk "${targetTitle}" sudah tercatat dan sedang ditinjau tim kepatuhan.`, 'info');
+        } else {
+          onToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetTitle}" telah berhasil dikirim ke tim kepatuhan.`, 'success');
+        }
       } else {
         onToast(data.message || 'Gagal mengirim laporan. Silakan coba lagi.', 'error');
       }

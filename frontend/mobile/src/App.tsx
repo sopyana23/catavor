@@ -138,6 +138,7 @@ import {
   LogIn
 } from 'lucide-react'
 import './App.css'
+import { getItemModerationMeta } from '../../shared/moderation/itemModerationBadge'
 import logoHeaderImg from './assets/logo-header.png'
 import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
@@ -14763,11 +14764,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       alert('Toko Anda sedang dibekukan sementara sehubungan dengan peninjauan kepatuhan platform. Pengeditan produk dinonaktifkan.');
       return;
     }
-    if ((item as any).moderation_status === 'hidden') {
-      showToast('Item ini dinonaktifkan oleh Tim Kepatuhan platform dan tidak dapat diaktifkan kembali secara mandiri. Silakan hubungi CS jika Anda membutuhkan klarifikasi.', 'error');
+    const itemModMeta = getItemModerationMeta((item as any).moderation_status);
+    if (itemModMeta && itemModMeta.isLocked) {
+      showToast(itemModMeta.bannerDescription, 'error');
       return;
     }
-    if ((item as any).is_active === false) {
+    if ((item as any).is_active === false && (item as any).moderation_status !== 'needs_fix') {
       const maxActive = storeQuota?.max_items ?? (settings.plan === 'free' ? 15 : -1);
       const currentActive = storeQuota?.active_items_count ?? faunas.filter(f => (f as any).is_active !== false).length;
       if (maxActive !== -1 && currentActive >= maxActive) {
@@ -20110,34 +20112,38 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
           {/* Scrollable Content */}
           <div style={{ flex: 1, paddingBottom: '90px', overflowY: 'auto' }}>
-            {/* Moderation Status Banner (if hidden by platform) */}
-            {(selectedFauna as any).moderation_status === 'hidden' && (
-              <div style={{
-                margin: '1.15rem 1rem 0.75rem 1rem',
-                padding: '1rem 1.1rem',
-                borderRadius: '0.75rem',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-                display: 'flex',
-                gap: '0.75rem',
-                alignItems: 'flex-start'
-              }}>
-                <ShieldAlert size={22} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ef4444', marginBottom: '0.25rem' }}>
-                    Item Dinonaktifkan oleh Tim Moderasi
-                  </div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                    Item ini dinonaktifkan sementara dari katalog publik karena terindikasi melanggar Pedoman Komunitas atau Ketentuan Layanan. Hubungi tim dukungan untuk mengajukan peninjauan kembali.
+            {/* Moderation Status Banner */}
+            {(() => {
+              const modMeta = getItemModerationMeta((selectedFauna as any).moderation_status);
+              if (!modMeta) return null;
+              return (
+                <div style={{
+                  margin: '1.15rem 1rem 0.75rem 1rem',
+                  padding: '1rem 1.1rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: modMeta.bg,
+                  border: `1px solid ${modMeta.border}`,
+                  display: 'flex',
+                  gap: '0.75rem',
+                  alignItems: 'flex-start'
+                }}>
+                  <ShieldAlert size={22} color={modMeta.color} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: modMeta.color, marginBottom: '0.25rem' }}>
+                      {modMeta.bannerTitle}
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                      {modMeta.bannerDescription}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
-            {/* Archived Status Banner (if archived) */}
-            {(selectedFauna as any).is_active === false && (
+            {/* Archived Status Banner (only if archived manually and not moderated) */}
+            {(selectedFauna as any).is_active === false && !getItemModerationMeta((selectedFauna as any).moderation_status) && (
               <div style={{
-                margin: (selectedFauna as any).moderation_status === 'hidden' ? '0 1rem 1.25rem 1rem' : '1.15rem 1rem 1.25rem 1rem',
+                margin: '1.15rem 1rem 1.25rem 1rem',
                 padding: '1rem 1.1rem',
                 borderRadius: '0.75rem',
                 backgroundColor: 'rgba(245, 158, 11, 0.08)',
@@ -20953,7 +20959,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       <span>Edit</span>
                     </button>
                   )}
-                  {(selectedFauna as any).moderation_status === 'hidden' ? (
+                  {getItemModerationMeta((selectedFauna as any).moderation_status) ? (
                     <button
                       type="button"
                       disabled
@@ -20963,9 +20969,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        color: '#ef4444',
+                        backgroundColor: getItemModerationMeta((selectedFauna as any).moderation_status)!.bg,
+                        border: `1px solid ${getItemModerationMeta((selectedFauna as any).moderation_status)!.border}`,
+                        color: getItemModerationMeta((selectedFauna as any).moderation_status)!.color,
                         fontSize: '0.82rem',
                         fontWeight: 700,
                         borderRadius: '0.6rem',
@@ -20974,7 +20980,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       }}
                     >
                       <ShieldAlert size={16} />
-                      <span>Item Dinonaktifkan Platform</span>
+                      <span>{getItemModerationMeta((selectedFauna as any).moderation_status)!.label}</span>
                     </button>
                   ) : (
                     <button
@@ -27781,23 +27787,28 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                   }}>
                                                     {item.name}
                                                   </h4>
-                                                  {(item as any).moderation_status === 'hidden' ? (
-                                                    <span style={{
-                                                      display: 'inline-flex',
-                                                      alignItems: 'center',
-                                                      gap: '0.2rem',
-                                                      fontSize: '0.58rem',
-                                                      fontWeight: 800,
-                                                      padding: '0.1rem 0.35rem',
-                                                      borderRadius: '3px',
-                                                      backgroundColor: 'rgba(239, 68, 68, 0.18)',
-                                                      color: '#ef4444',
-                                                      border: '1px solid rgba(239, 68, 68, 0.35)',
-                                                      flexShrink: 0
-                                                    }}>
-                                                      <ShieldAlert size={9} /> Dinonaktifkan
-                                                    </span>
-                                                  ) : (item as any).is_active === false && (
+                                                  {(() => {
+                                                    const modMeta = getItemModerationMeta((item as any).moderation_status);
+                                                    if (modMeta) {
+                                                      return (
+                                                        <span style={{
+                                                          display: 'inline-flex',
+                                                          alignItems: 'center',
+                                                          gap: '0.2rem',
+                                                          fontSize: '0.58rem',
+                                                          fontWeight: 800,
+                                                          padding: '0.1rem 0.35rem',
+                                                          borderRadius: '3px',
+                                                          backgroundColor: modMeta.bg,
+                                                          color: modMeta.color,
+                                                          border: `1px solid ${modMeta.border}`,
+                                                          flexShrink: 0
+                                                        }}>
+                                                          <ShieldAlert size={9} /> {modMeta.shortLabel}
+                                                        </span>
+                                                      );
+                                                    }
+                                                    return (item as any).is_active === false && (
                                                     <span style={{
                                                       display: 'inline-flex',
                                                       alignItems: 'center',
@@ -27813,7 +27824,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                     }}>
                                                       <Lock size={9} /> ARSIP
                                                     </span>
-                                                  )}
+                                                  );
+                                                  })()}
                                                 </div>
 
                                                 <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
@@ -35881,6 +35893,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         store_id: (settings as any).id || 0,
                         store_slug: storeSlug || '',
                         store_title: settings.store_title || 'Katalog Digital',
+                        product_id: reportModalData.type === 'item' ? reportModalData.item?.id : null,
                         fauna_id: reportModalData.type === 'item' ? reportModalData.item?.id : null,
                         item_name: reportModalData.type === 'item' ? reportModalData.item?.name : null,
                         reason_category: reportReason,
@@ -35894,7 +35907,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       setReportModalData(null);
                       setReportNotes('');
                       setReportEmail('');
-                      showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetName}" telah berhasil dikirim ke tim kepatuhan.`);
+                      if (data.duplicate) {
+                        showToast(data.message || `Laporan untuk "${targetName}" sudah tercatat dan sedang ditinjau tim kepatuhan.`, 'info');
+                      } else {
+                        showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetName}" telah berhasil dikirim ke tim kepatuhan.`);
+                      }
                     } else {
                       showToast(data.message || 'Gagal mengirim laporan. Silakan coba lagi.', 'error');
                     }

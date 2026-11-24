@@ -556,7 +556,9 @@ func SetExpiringKey(ctx context.Context, key, val string, ttl time.Duration) err
 	return RedisClient.Set(ctx, key, val, ttl).Err()
 }
 
-// GetAndDeleteKey membaca sekaligus menghapus key secara atomik (GETDEL) agar single-use lintas node.
+var luaGetAndDeleteScript = redis.NewScript(`local v = redis.call('GET', KEYS[1]); if v then redis.call('DEL', KEYS[1]); end; return v`)
+
+// GetAndDeleteKey membaca sekaligus menghapus key secara atomik (GETDEL atau Lua GET+DEL pada Redis < 6.2).
 func GetAndDeleteKey(ctx context.Context, key string) (string, bool, error) {
 	if !IsRedisAvailable() || key == "" {
 		return "", false, nil
@@ -565,6 +567,16 @@ func GetAndDeleteKey(ctx context.Context, key string) (string, bool, error) {
 	if err != nil {
 		if err == redis.Nil {
 			return "", false, nil
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "unknown command") {
+			luaVal, luaErr := luaGetAndDeleteScript.Run(ctx, RedisClient, []string{key}).Text()
+			if luaErr != nil {
+				if luaErr == redis.Nil {
+					return "", false, nil
+				}
+				return "", false, luaErr
+			}
+			return luaVal, true, nil
 		}
 		return "", false, err
 	}

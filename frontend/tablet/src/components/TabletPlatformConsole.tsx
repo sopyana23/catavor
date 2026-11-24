@@ -4311,9 +4311,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     { value: 'item_restored', label: 'Pulihkan / Aktifkan Item', description: 'Item dipulihkan dan dapat kembali diakses publik', badge: 'AKTIF', badgeColor: '#10b981' },
                     ...(canSuspendStores ? [
                       { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog', description: 'Seluruh etalase profil katalog dibekukan sementara', badge: 'SUSPEND', badgeColor: '#dc2626' },
-                    ] : []),
-                    { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
-                    { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' }
+                      { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
+                      { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' },
+                    ] : [])
                   ];
 
                   const catalogOptions: TabletSelectOption[] = [
@@ -4321,9 +4321,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     { value: 'warning_issued', label: 'Terbitkan Peringatan Resmi', description: 'Kirim surat peringatan resmi kepatuhan ke pengelola', badge: 'PERINGATAN', badgeColor: '#f59e0b' },
                     ...(canSuspendStores ? [
                       { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog', description: 'Seluruh etalase profil katalog dibekukan sementara dari publik', badge: 'SUSPEND', badgeColor: '#dc2626' },
-                    ] : []),
-                    { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
-                    { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' }
+                      { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
+                      { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' },
+                    ] : [])
                   ];
 
                   return (
@@ -4523,34 +4523,36 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           </div>
                         )}
 
-                        {/* Evidence Attachment Image Preview */}
-                        <div style={{ marginTop: '0.25rem' }}>
-                          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                            Lampiran Berkas / Foto Barang Bukti:
+                        {/* Evidence Attachment Image Preview (only rendered when evidence exists) */}
+                        {activeRep.evidence_image_url && (
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                              Lampiran Berkas / Foto Barang Bukti:
+                            </div>
+                            <div style={{ width: '120px', height: '120px', borderRadius: '0.65rem', overflow: 'hidden' }}>
+                              <SafeImage
+                                src={activeRep.evidence_image_url}
+                                alt="Bukti Laporan"
+                                emptyLabel="Tidak Ada Bukti"
+                                emptySubLabel="Foto belum dilampirkan"
+                                errorLabel="Foto Rusak"
+                                errorSubLabel="Tidak terbaca"
+                                showLabel={false}
+                                compact={false}
+                                objectFit="cover"
+                                onPreview={() => {
+                                  if (activeRep.evidence_image_url) {
+                                    openDocumentPreview({
+                                      file_url: activeRep.evidence_image_url,
+                                      file_name: `Bukti_Laporan_${activeRep.report_number || `#RPT-${activeRep.id}`}.jpg`
+                                    });
+                                  }
+                                }}
+                                title="Klik untuk melihat pratinjau bukti"
+                              />
+                            </div>
                           </div>
-                          <div style={{ width: '120px', height: '120px', borderRadius: '0.65rem', overflow: 'hidden' }}>
-                            <SafeImage
-                              src={activeRep.evidence_image_url}
-                              alt="Bukti Laporan"
-                              emptyLabel="Tidak Ada Bukti"
-                              emptySubLabel="Foto belum dilampirkan"
-                              errorLabel="Foto Rusak"
-                              errorSubLabel="Tidak terbaca"
-                              showLabel={false}
-                              compact={false}
-                              objectFit="cover"
-                              onPreview={() => {
-                                if (activeRep.evidence_image_url) {
-                                  openDocumentPreview({
-                                    file_url: activeRep.evidence_image_url,
-                                    file_name: `Bukti_Laporan_${activeRep.report_number || `#RPT-${activeRep.id}`}.jpg`
-                                  });
-                                }
-                              }}
-                              title={activeRep.evidence_image_url ? "Klik untuk melihat pratinjau bukti" : "Foto bukti belum dilampirkan"}
-                            />
-                          </div>
-                        </div>
+                        )}
 
                         {/* Multi-Reporter Active Evidence Timeline */}
                         {reportActiveEvidence && reportActiveEvidence.length > 0 && (
