@@ -500,11 +500,11 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
           setSelectedRoleSlug('support');
         }
       }
-      setConfirmDialog(null);
       await fetchRBACData();
     } catch (err) {
       showNotification(err instanceof RbacApiError ? err.message : 'Operasi RBAC gagal dijalankan.', false);
     } finally {
+      setConfirmDialog(null);
       setConfirmLoading(false);
     }
   };

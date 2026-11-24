@@ -106,6 +106,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
     btnSecondaryBg: isDark ? 'rgba(30, 41, 59, 0.85)' : '#ffffff',
     btnSecondaryBorder: isDark ? 'rgba(148, 163, 184, 0.32)' : '#cbd5e1',
     btnSecondaryText: isDark ? '#f1f5f9' : '#1e293b',
+    stickyHeaderBg: isDark ? '#162033' : '#f8fafc',
+    stickyCellBg: isDark ? '#0f172a' : '#ffffff',
+    stickyDomainBg: isDark ? '#1a2538' : '#f1f5f9',
+    stickyRightShadow: isDark ? '2px 0 8px -2px rgba(0, 0, 0, 0.5)' : '2px 0 8px -2px rgba(15, 23, 42, 0.12)',
   };
 
   const [activeTab, setActiveTab] = useState<'staff' | 'matrix' | 'create_role'>('staff');
@@ -133,7 +137,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
   useModalBackHandler({
     isOpen: showAssignModal,
-    onClose: () => setShowAssignModal(false)
+    onClose: () => { setShowAssignModal(false); setErrorMsg(''); }
   });
 
   // Create Staff Modal
@@ -147,7 +151,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
   useModalBackHandler({
     isOpen: showCreateStaffModal,
-    onClose: () => setShowCreateStaffModal(false)
+    onClose: () => { setShowCreateStaffModal(false); setErrorMsg(''); }
   });
 
   // Edit Custom Role Modal
@@ -156,7 +160,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
   useModalBackHandler({
     isOpen: editingRole !== null,
-    onClose: () => setEditingRole(null)
+    onClose: () => { setEditingRole(null); setErrorMsg(''); }
   });
 
   // Confirmation Dialog (replaces window.confirm for Revoke Staff & Delete Custom Role)
@@ -423,11 +427,11 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
         const message = await deleteRbacCustomRole(token, confirmDialog.slug);
         setSuccessMsg(message || `Custom role '${confirmDialog.name}' berhasil dihapus.`);
       }
-      setConfirmDialog(null);
       await fetchRBACData();
     } catch (err) {
       setErrorMsg(err instanceof RbacApiError ? err.message : 'Operasi RBAC gagal dijalankan.');
     } finally {
+      setConfirmDialog(null);
       setConfirmLoading(false);
     }
   };
@@ -448,6 +452,25 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
       (s.role_name && s.role_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (s.platform_role && s.platform_role.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const modalErrorAlert = errorMsg ? (
+    <div style={{
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      border: '1px solid rgba(239, 68, 68, 0.28)',
+      color: '#f87171',
+      padding: '0.75rem 1rem',
+      borderRadius: '0.75rem',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.55rem',
+      fontSize: '0.8rem',
+      fontWeight: 600,
+      marginBottom: '1rem'
+    }}>
+      <AlertCircle size={16} style={{ flexShrink: 0 }} />
+      <span>{errorMsg}</span>
+    </div>
+  ) : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', width: '100%', boxSizing: 'border-box' }}>
@@ -927,6 +950,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 disabled={!canMutate}
                 onClick={() => {
                   if (!canMutate) return;
+                  setErrorMsg('');
                   setSelectedStaffEmail('');
                   setSelectedRoleSlug('support');
                   setShowAssignModal(true);
@@ -957,6 +981,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 disabled={!canMutate}
                 onClick={() => {
                   if (!canMutate) return;
+                  setErrorMsg('');
                   setNewStaffName('');
                   setNewStaffEmail('');
                   setNewStaffPassword('');
@@ -983,7 +1008,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 }}
               >
                 <UserPlus size={16} />
-                <span>+ Tambah Petugas Baru</span>
+                <span>Tambah Petugas Baru</span>
               </button>
             </div>
           </div>
@@ -1150,6 +1175,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                               }
                               onClick={() => {
                                 if (!canMutate || isLockedSuperadmin) return;
+                                setErrorMsg('');
                                 setSelectedStaffEmail(staff.email);
                                 setSelectedRoleSlug(staff.platform_role);
                                 setShowAssignModal(true);
@@ -1269,7 +1295,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{
-                  backgroundColor: colors.tableHeaderBg,
+                  backgroundColor: colors.stickyHeaderBg,
                   borderBottom: `1px solid ${colors.border}`,
                   position: 'sticky',
                   top: 0,
@@ -1282,8 +1308,13 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                     color: colors.textMuted,
                     textTransform: 'uppercase',
                     letterSpacing: '0.06em',
-                    minWidth: '320px',
-                    backgroundColor: colors.tableHeaderBg
+                    minWidth: '300px',
+                    maxWidth: '340px',
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 20,
+                    backgroundColor: colors.stickyHeaderBg,
+                    boxShadow: colors.stickyRightShadow
                   }}>
                     Katalog Izin &amp; Domain Hak Akses
                   </th>
@@ -1298,7 +1329,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                           padding: '1rem 0.85rem',
                           textAlign: 'center',
                           minWidth: '150px',
-                          backgroundColor: colors.tableHeaderBg,
+                          backgroundColor: colors.stickyHeaderBg,
                           borderLeft: `1px solid ${colors.border}`
                         }}
                       >
@@ -1345,6 +1376,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => {
+                                      setErrorMsg('');
                                       setEditingRole({
                                         slug: r.slug,
                                         name: r.name,
@@ -1422,7 +1454,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                     <React.Fragment key={groupKey}>
                       {/* Domain Header Row */}
                       <tr style={{
-                        backgroundColor: isDark ? 'rgba(30, 41, 59, 0.35)' : '#f1f5f9',
+                        backgroundColor: colors.stickyDomainBg,
                         borderTop: `1px solid ${colors.border}`,
                         borderBottom: `1px solid ${colors.border}`
                       }}>
@@ -1434,10 +1466,11 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                             fontSize: '0.74rem',
                             textTransform: 'uppercase',
                             color: colors.accentBadgeColor,
-                            letterSpacing: '0.08em'
+                            letterSpacing: '0.08em',
+                            backgroundColor: colors.stickyDomainBg
                           }}
                         >
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <div style={{ position: 'sticky', left: '1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
                             <Layers size={14} />
                             <span>DOMAIN: {groupKey.toUpperCase()}</span>
                           </div>
@@ -1453,7 +1486,16 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                             transition: 'background-color 0.15s ease'
                           }}
                         >
-                          <td style={{ padding: '0.9rem 1.5rem' }}>
+                          <td style={{
+                            padding: '0.9rem 1.5rem',
+                            position: 'sticky',
+                            left: 0,
+                            zIndex: 5,
+                            backgroundColor: colors.stickyCellBg,
+                            boxShadow: colors.stickyRightShadow,
+                            minWidth: '300px',
+                            maxWidth: '340px'
+                          }}>
                             <div style={{ fontWeight: 800, fontSize: '0.84rem', color: colors.textPrimary }}>
                               {perm.name}
                             </div>
@@ -1860,7 +1902,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             padding: '1.5rem',
             boxSizing: 'border-box'
           }}
-          onClick={() => setShowAssignModal(false)}
+          onClick={() => { setShowAssignModal(false); setErrorMsg(''); }}
         >
           <div
             style={{
@@ -1901,12 +1943,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setShowAssignModal(false)}
+                onClick={() => { setShowAssignModal(false); setErrorMsg(''); }}
                 style={{ background: 'transparent', border: 'none', color: colors.textMuted, cursor: 'pointer', padding: '0.35rem' }}
               >
                 <X size={18} />
               </button>
             </div>
+
+            {modalErrorAlert}
 
             <form onSubmit={handleAssignRole} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div>
@@ -1960,7 +2004,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
                 <button
                   type="button"
-                  onClick={() => setShowAssignModal(false)}
+                  onClick={() => { setShowAssignModal(false); setErrorMsg(''); }}
                   className="btn-secondary"
                   style={{
                     padding: '0.6rem 1.25rem',
@@ -2009,6 +2053,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   type="button"
                   onClick={() => {
                     setShowAssignModal(false);
+                    setErrorMsg('');
                     setNewStaffName('');
                     setNewStaffEmail('');
                     setNewStaffPassword('');
@@ -2054,7 +2099,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             padding: '1.5rem',
             boxSizing: 'border-box'
           }}
-          onClick={() => setShowCreateStaffModal(false)}
+          onClick={() => { setShowCreateStaffModal(false); setErrorMsg(''); }}
         >
           <div
             style={{
@@ -2095,12 +2140,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setShowCreateStaffModal(false)}
+                onClick={() => { setShowCreateStaffModal(false); setErrorMsg(''); }}
                 style={{ background: 'transparent', border: 'none', color: colors.textMuted, cursor: 'pointer', padding: '0.35rem' }}
               >
                 <X size={18} />
               </button>
             </div>
+
+            {modalErrorAlert}
 
             <form onSubmit={handleCreateStaff} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               {/* Nama Lengkap */}
@@ -2236,7 +2283,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
                 <button
                   type="button"
-                  onClick={() => setShowCreateStaffModal(false)}
+                  onClick={() => { setShowCreateStaffModal(false); setErrorMsg(''); }}
                   className="btn-secondary"
                   style={{
                     padding: '0.6rem 1.25rem',
@@ -2305,7 +2352,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             padding: '1.5rem',
             boxSizing: 'border-box'
           }}
-          onClick={() => setEditingRole(null)}
+          onClick={() => { setEditingRole(null); setErrorMsg(''); }}
         >
           <div
             style={{
@@ -2333,12 +2380,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setEditingRole(null)}
+                onClick={() => { setEditingRole(null); setErrorMsg(''); }}
                 style={{ background: 'transparent', border: 'none', color: colors.textMuted, cursor: 'pointer', padding: '0.35rem' }}
               >
                 <X size={18} />
               </button>
             </div>
+
+            {modalErrorAlert}
 
             <form onSubmit={handleUpdateCustomRole} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
@@ -2435,7 +2484,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.4rem' }}>
                 <button
                   type="button"
-                  onClick={() => setEditingRole(null)}
+                  onClick={() => { setEditingRole(null); setErrorMsg(''); }}
                   className="btn-secondary"
                   style={{
                     padding: '0.6rem 1.25rem',

@@ -139,7 +139,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
   useModalBackHandler({
     isOpen: showAssignModal,
-    onClose: () => setShowAssignModal(false)
+    onClose: () => { setShowAssignModal(false); setErrorMsg(''); }
   });
 
   const [showCreateStaffModal, setShowCreateStaffModal] = useState(false);
@@ -152,7 +152,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
   useModalBackHandler({
     isOpen: showCreateStaffModal,
-    onClose: () => setShowCreateStaffModal(false)
+    onClose: () => { setShowCreateStaffModal(false); setErrorMsg(''); }
   });
 
   // Custom Role Form
@@ -168,7 +168,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
   useModalBackHandler({
     isOpen: editingRole !== null,
-    onClose: () => setEditingRole(null)
+    onClose: () => { setEditingRole(null); setErrorMsg(''); }
   });
 
   // Confirmation Dialog
@@ -409,6 +409,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
     const currentSet = new Set<string>(
       Array.from(matrixState[role.slug] || []).filter(isAssignablePermissionKey)
     );
+    setErrorMsg('');
     setEditingRole({
       slug: role.slug,
       name: role.name,
@@ -459,11 +460,11 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
           setSelectedRoleSlug('support');
         }
       }
-      setConfirmDialog(null);
       await fetchRBACData();
     } catch (err) {
       setErrorMsg(err instanceof RbacApiError ? err.message : 'Operasi RBAC gagal dijalankan.');
     } finally {
+      setConfirmDialog(null);
       setConfirmLoading(false);
     }
   };
@@ -488,6 +489,25 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   });
 
   const anyUnsaved = Object.values(hasUnsavedChanges).some(Boolean);
+
+  const modalErrorAlert = errorMsg ? (
+    <div style={{
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      border: '1px solid rgba(239, 68, 68, 0.28)',
+      color: '#f87171',
+      padding: '0.75rem 1rem',
+      borderRadius: '0.75rem',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.55rem',
+      fontSize: '0.8rem',
+      fontWeight: 600,
+      marginBottom: '1rem'
+    }}>
+      <AlertCircle size={16} style={{ flexShrink: 0 }} />
+      <span>{errorMsg}</span>
+    </div>
+  ) : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', boxSizing: 'border-box', padding: '1.25rem 1.5rem 3rem 1.5rem', maxWidth: '1240px', margin: '0 auto' }}>
@@ -894,6 +914,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             <button
               type="button"
               onClick={() => {
+                setErrorMsg('');
                 setTargetStaffEmail('');
                 setTargetRoleSlug('support');
                 setShowAssignModal(true);
@@ -927,6 +948,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               disabled={!canMutate}
               onClick={() => {
                 if (!canMutate) return;
+                setErrorMsg('');
                 setNewStaffName('');
                 setNewStaffEmail('');
                 setNewStaffPassword('');
@@ -1123,6 +1145,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                             disabled={!canMutate}
                             onClick={() => {
                               if (!canMutate) return;
+                              setErrorMsg('');
                               setTargetStaffEmail(staff.email);
                               setTargetRoleSlug(staff.platform_role || 'support');
                               setShowAssignModal(true);
@@ -1827,7 +1850,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             padding: '1.5rem',
             boxSizing: 'border-box'
           }}
-          onClick={() => setShowAssignModal(false)}
+          onClick={() => { setShowAssignModal(false); setErrorMsg(''); }}
         >
           <div
             style={{
@@ -1869,12 +1892,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setShowAssignModal(false)}
+                onClick={() => { setShowAssignModal(false); setErrorMsg(''); }}
                 style={{ background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: '0.35rem' }}
               >
                 <X size={18} />
               </button>
             </div>
+
+            {modalErrorAlert}
 
             <form onSubmit={handleAssignRole} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
               <div>
@@ -1925,7 +1950,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
                 <button
                   type="button"
-                  onClick={() => setShowAssignModal(false)}
+                  onClick={() => { setShowAssignModal(false); setErrorMsg(''); }}
                   className="btn-secondary"
                   style={{
                     minHeight: '44px',
@@ -1988,7 +2013,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             padding: '1.5rem',
             boxSizing: 'border-box'
           }}
-          onClick={() => setShowCreateStaffModal(false)}
+          onClick={() => { setShowCreateStaffModal(false); setErrorMsg(''); }}
         >
           <div
             style={{
@@ -2030,12 +2055,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setShowCreateStaffModal(false)}
+                onClick={() => { setShowCreateStaffModal(false); setErrorMsg(''); }}
                 style={{ background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: '0.35rem' }}
               >
                 <X size={18} />
               </button>
             </div>
+
+            {modalErrorAlert}
 
             <form onSubmit={handleCreateStaff} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
               <div>
@@ -2160,7 +2187,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
                 <button
                   type="button"
-                  onClick={() => setShowCreateStaffModal(false)}
+                  onClick={() => { setShowCreateStaffModal(false); setErrorMsg(''); }}
                   className="btn-secondary"
                   style={{
                     minHeight: '44px',
@@ -2232,7 +2259,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             padding: '1.25rem',
             boxSizing: 'border-box'
           }}
-          onClick={() => { if (!updatingRole) setEditingRole(null); }}
+          onClick={() => { if (!updatingRole) { setEditingRole(null); setErrorMsg(''); } }}
         >
           <div
             style={{
@@ -2260,12 +2287,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => { if (!updatingRole) setEditingRole(null); }}
+                onClick={() => { if (!updatingRole) { setEditingRole(null); setErrorMsg(''); } }}
                 style={{ minHeight: '44px', minWidth: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', color: theme.textMuted, cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
             </div>
+
+            {modalErrorAlert}
 
             <form onSubmit={handleUpdateCustomRole} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
@@ -2387,7 +2416,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 <button
                   type="button"
                   disabled={updatingRole}
-                  onClick={() => setEditingRole(null)}
+                  onClick={() => { setEditingRole(null); setErrorMsg(''); }}
                   className="btn-secondary"
                   style={{
                     minHeight: '44px',

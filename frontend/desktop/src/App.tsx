@@ -15345,8 +15345,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
           </form>
 
           <div style={{ marginTop: '1.75rem', textAlign: 'center', borderTop: '1px solid rgba(148, 163, 184, 0.12)', paddingTop: '1.15rem' }}>
-            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-              🔒 Akses terbatas khusus personel resmi Catavor.
+            <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Lock size={12} style={{ flexShrink: 0 }} />
+              <span>Akses terbatas khusus personel resmi Catavor.</span>
             </span>
           </div>
         </div>
