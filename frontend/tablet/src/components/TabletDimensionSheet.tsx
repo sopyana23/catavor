@@ -247,7 +247,7 @@ export const TabletDimensionSheet: React.FC<TabletDimensionSheetProps> = ({
                 type="button"
                 onClick={() => setSortBy(s.key as any)}
                 style={{
-                  minHeight: '40px',
+                  minHeight: '44px',
                   borderRadius: '0.5rem',
                   border: `1px solid ${sortBy === s.key ? accentColor : 'var(--border-light)'}`,
                   backgroundColor: sortBy === s.key ? 'var(--bg-card)' : 'transparent',

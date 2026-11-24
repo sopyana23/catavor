@@ -6,11 +6,15 @@ import './finance.css'
 const tabs = { orders: ['Transaksi', CreditCard], settings: ['Pengaturan', Settings2], coupons: ['Kupon', Ticket] } as const
 type Section = keyof typeof tabs
 
-export function useFinanceSection(active: boolean, settings: boolean, coupons: boolean) {
+export function useFinanceSection(active: boolean, settings: boolean, coupons: boolean, orders = true) {
   function read(): Section {
     const sub = new URLSearchParams(window.location.search).get('sub')
+    if (sub === 'orders' && orders) return 'orders'
     if (sub === 'settings' && settings) return sub
     if (sub === 'coupons' && coupons) return sub
+    if (orders) return 'orders'
+    if (settings) return 'settings'
+    if (coupons) return 'coupons'
     return 'orders'
   }
   const [section, setSection] = useState<Section>(read)
@@ -20,7 +24,7 @@ export function useFinanceSection(active: boolean, settings: boolean, coupons: b
     sync()
     window.addEventListener('popstate', sync)
     return () => window.removeEventListener('popstate', sync)
-  }, [active, settings, coupons])
+  }, [active, settings, coupons, orders])
   function select(next: Section) {
     if (section === next) return
     const url = new URL(window.location.href)
@@ -34,11 +38,11 @@ export function useFinanceSection(active: boolean, settings: boolean, coupons: b
   return [section, select] as const
 }
 
-export function FinanceNav({ section, select, settings, coupons, pending }: {
-  section: Section, select: (section: Section) => void, settings: boolean, coupons: boolean, pending: number
+export function FinanceNav({ section, select, settings, coupons, pending, orders = true }: {
+  section: Section, select: (section: Section) => void, settings: boolean, coupons: boolean, pending: number, orders?: boolean
 }) {
   return <nav className="finance-nav" aria-label="Bagian pembayaran">{(Object.keys(tabs) as Section[]).map(key => {
-    if ((key === 'settings' && !settings) || (key === 'coupons' && !coupons)) return null
+    if ((key === 'orders' && !orders) || (key === 'settings' && !settings) || (key === 'coupons' && !coupons)) return null
     const [label, Icon] = tabs[key]
     return <button key={key} type="button" onClick={() => select(key)} aria-current={section === key ? 'page' : undefined}>
       <Icon aria-hidden="true"/>{label}{key === 'orders' && pending > 0 && <span aria-label={pending + ' transaksi tertunda'}>{pending}</span>}

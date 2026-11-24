@@ -32,6 +32,21 @@ import {
   type PlatformPermission,
   type AdminStaffUser,
   getRoleBadge,
+  formatPermissionGroupLabel,
+  isAssignablePermissionKey,
+  normalizeRoleSlug,
+  sanitizeRoleSlugInput,
+  CUSTOM_ROLE_SLUG_REGEX,
+  fetchRbacMatrix,
+  fetchRbacStaff,
+  updateRbacMatrix,
+  assignRbacStaff,
+  createRbacStaff,
+  revokeRbacStaff,
+  createRbacCustomRole,
+  updateRbacCustomRole,
+  deleteRbacCustomRole,
+  RbacApiError,
 } from '../utils/rbac';
 import { useModalBackHandler } from '../utils/navigation';
 import { DesktopCustomSelect } from './DesktopCustomSelect';
@@ -39,6 +54,8 @@ import { DesktopCustomSelect } from './DesktopCustomSelect';
 interface AdminRBACManagementProps {
   token: string;
   currentUserEmail?: string;
+  currentUserId?: number;
+  canMutate?: boolean;
   onClose?: () => void;
   themeMode?: 'dark' | 'light';
   hideHeader?: boolean;
@@ -47,6 +64,8 @@ interface AdminRBACManagementProps {
 export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   token,
   currentUserEmail,
+  currentUserId,
+  canMutate = true,
   onClose,
   themeMode = 'dark',
   hideHeader = false,
@@ -84,6 +103,13 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
     accentBadgeColor: isDark ? '#38bdf8' : '#0284c7',
     shadow: isDark ? '0 10px 30px -10px rgba(0, 0, 0, 0.5)' : '0 4px 20px -2px rgba(15, 23, 42, 0.06)',
     modalBg: isDark ? '#0f172a' : '#ffffff',
+    btnSecondaryBg: isDark ? 'rgba(30, 41, 59, 0.85)' : '#ffffff',
+    btnSecondaryBorder: isDark ? 'rgba(148, 163, 184, 0.32)' : '#cbd5e1',
+    btnSecondaryText: isDark ? '#f1f5f9' : '#1e293b',
+    stickyHeaderBg: isDark ? '#162033' : '#f8fafc',
+    stickyCellBg: isDark ? '#0f172a' : '#ffffff',
+    stickyDomainBg: isDark ? '#1a2538' : '#f1f5f9',
+    stickyRightShadow: isDark ? '2px 0 8px -2px rgba(0, 0, 0, 0.5)' : '2px 0 8px -2px rgba(15, 23, 42, 0.12)',
   };
 
   const [activeTab, setActiveTab] = useState<'staff' | 'matrix' | 'create_role'>('staff');
@@ -111,7 +137,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
   useModalBackHandler({
     isOpen: showAssignModal,
-    onClose: () => setShowAssignModal(false)
+    onClose: () => { setShowAssignModal(false); setErrorMsg(''); }
   });
 
   // Create Staff Modal
@@ -125,7 +151,31 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
   useModalBackHandler({
     isOpen: showCreateStaffModal,
-    onClose: () => setShowCreateStaffModal(false)
+    onClose: () => { setShowCreateStaffModal(false); setErrorMsg(''); }
+  });
+
+  // Edit Custom Role Modal
+  const [editingRole, setEditingRole] = useState<{ slug: string; name: string; description: string; permissions: Set<string> } | null>(null);
+  const [updatingRole, setUpdatingRole] = useState(false);
+
+  useModalBackHandler({
+    isOpen: editingRole !== null,
+    onClose: () => { setEditingRole(null); setErrorMsg(''); }
+  });
+
+  // Confirmation Dialog (replaces window.confirm for Revoke Staff & Delete Custom Role)
+  const [confirmDialog, setConfirmDialog] = useState<
+    | { type: 'revoke_staff'; userId: number; email: string }
+    | { type: 'delete_role'; slug: string; name: string }
+    | null
+  >(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
+  useModalBackHandler({
+    isOpen: confirmDialog !== null,
+    onClose: () => {
+      if (!confirmLoading) setConfirmDialog(null);
+    }
   });
 
   // New Custom Role Form State
@@ -135,44 +185,38 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   const [newRolePerms, setNewRolePerms] = useState<Set<string>>(new Set());
   const [creatingRole, setCreatingRole] = useState(false);
 
+  const superadminCount = staffList.filter((s) => normalizeRoleSlug(s.platform_role) === 'superadmin').length;
+
   const fetchRBACData = async () => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
+      const [loadedStaff, matrixData] = await Promise.all([
+        fetchRbacStaff(token),
+        fetchRbacMatrix(token),
+      ]);
+      setStaffList(loadedStaff);
 
-      // 1. Fetch Staff List
-      const staffRes = await fetch('/api/admin/rbac/staff', { headers });
-      const staffData = await staffRes.json();
-      if (staffData.success) {
-        setStaffList(staffData.data || []);
-      }
+      const loadedRoles = matrixData.roles;
+      const loadedPerms = matrixData.permissions;
+      setRoles(loadedRoles);
+      setPermissions(loadedPerms);
 
-      // 2. Fetch Matrix
-      const matrixRes = await fetch('/api/admin/rbac/matrix', { headers });
-      const matrixData = await matrixRes.json();
-      if (matrixData.success) {
-        const loadedRoles: PlatformRole[] = matrixData.data.roles || [];
-        const loadedPerms: PlatformPermission[] = matrixData.data.permissions || [];
-        setRoles(loadedRoles);
-        setPermissions(loadedPerms);
-
-        const stateMap: Record<string, Set<string>> = {};
-        loadedRoles.forEach((r) => {
-          const permSet = new Set<string>();
-          if (r.permissions) {
-            r.permissions.forEach((p) => permSet.add(p.key));
-          }
-          stateMap[r.slug] = permSet;
-        });
-        setMatrixState(stateMap);
-        setHasUnsavedChanges(false);
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Gagal memuat data RBAC platform.');
+      const stateMap: Record<string, Set<string>> = {};
+      loadedRoles.forEach((r) => {
+        const permSet = new Set<string>();
+        if (r.permissions) {
+          r.permissions.forEach((p) => {
+            if (isAssignablePermissionKey(p.key)) permSet.add(p.key);
+          });
+        }
+        stateMap[r.slug] = permSet;
+      });
+      setMatrixState(stateMap);
+      setHasUnsavedChanges(false);
+    } catch (err) {
+      const msg = err instanceof RbacApiError ? err.message : (err instanceof Error ? err.message : 'Gagal memuat data RBAC platform.');
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
@@ -189,7 +233,9 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   };
 
   const handleToggleMatrixPerm = (roleSlug: string, permKey: string) => {
-    if (roleSlug === 'superadmin') return; // Superadmin always has full access
+    if (!canMutate) return;
+    if (normalizeRoleSlug(roleSlug) === 'superadmin') return;
+    if (!isAssignablePermissionKey(permKey)) return;
 
     setMatrixState((prev) => {
       const currentSet = new Set(prev[roleSlug] || []);
@@ -207,32 +253,21 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
   };
 
   const handleSaveMatrix = async (roleSlug: string) => {
+    if (!canMutate) {
+      setErrorMsg('Akses Ditolak: hanya Superadmin yang dapat menyimpan perubahan matriks RBAC.');
+      return;
+    }
     setSavingMatrix(roleSlug);
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const permKeys = Array.from(matrixState[roleSlug] || []);
-      const res = await fetch('/api/admin/rbac/matrix', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          role_slug: roleSlug,
-          permission_keys: permKeys,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSuccessMsg(`Hak akses role '${roleSlug}' berhasil disimpan secara realtime.`);
-        setHasUnsavedChanges(false);
-        fetchRBACData();
-      } else {
-        setErrorMsg(data.message || 'Gagal menyimpan perubahan matriks.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Terjadi kesalahan jaringan.');
+      const permKeys = Array.from(matrixState[roleSlug] || []).filter(isAssignablePermissionKey);
+      const message = await updateRbacMatrix(token, roleSlug, permKeys);
+      setSuccessMsg(message || `Hak akses role '${roleSlug}' berhasil disimpan secara realtime.`);
+      setHasUnsavedChanges(false);
+      await fetchRBACData();
+    } catch (err) {
+      setErrorMsg(err instanceof RbacApiError ? err.message : 'Terjadi kesalahan saat menyimpan matriks.');
     } finally {
       setSavingMatrix(null);
     }
@@ -240,33 +275,22 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
   const handleAssignRole = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canMutate) {
+      setErrorMsg('Akses Ditolak: hanya Superadmin yang dapat menetapkan peran staf.');
+      return;
+    }
     if (!selectedStaffEmail.trim() || !selectedRoleSlug) return;
     setLoading(true);
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const res = await fetch('/api/admin/rbac/staff/assign', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: selectedStaffEmail.trim(),
-          role_slug: selectedRoleSlug,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSuccessMsg(`Role staf '${selectedStaffEmail}' berhasil diubah menjadi '${selectedRoleSlug}'.`);
-        setShowAssignModal(false);
-        setSelectedStaffEmail('');
-        fetchRBACData();
-      } else {
-        setErrorMsg(data.message || 'Gagal mengubah role staf.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Terjadi kesalahan jaringan.');
+      const message = await assignRbacStaff(token, selectedStaffEmail.trim(), selectedRoleSlug);
+      setSuccessMsg(message || `Role staf '${selectedStaffEmail}' berhasil diubah menjadi '${selectedRoleSlug}'.`);
+      setShowAssignModal(false);
+      setSelectedStaffEmail('');
+      await fetchRBACData();
+    } catch (err) {
+      setErrorMsg(err instanceof RbacApiError ? err.message : 'Gagal mengubah role staf.');
     } finally {
       setLoading(false);
     }
@@ -274,6 +298,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
   const handleCreateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canMutate) {
+      setErrorMsg('Akses Ditolak: hanya Superadmin yang dapat menambahkan akun staf.');
+      return;
+    }
     if (!newStaffName.trim() || !newStaffEmail.trim() || !newStaffPassword) {
       setErrorMsg('Nama lengkap, email, dan password petugas wajib diisi.');
       return;
@@ -291,104 +319,120 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const res = await fetch('/api/admin/rbac/staff/create', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: newStaffName.trim(),
-          email: newStaffEmail.trim(),
-          password: newStaffPassword,
-          role_slug: newStaffRoleSlug || 'support',
-        }),
+      const message = await createRbacStaff(token, {
+        name: newStaffName.trim(),
+        email: newStaffEmail.trim(),
+        password: newStaffPassword,
+        role_slug: newStaffRoleSlug || 'support',
       });
-      const data = await res.json();
-      if (data.success) {
-        setSuccessMsg(`Akun petugas '${newStaffName.trim()}' (${newStaffEmail.trim()}) berhasil dibuat dengan role '${newStaffRoleSlug}'.`);
-        setShowCreateStaffModal(false);
-        setNewStaffName('');
-        setNewStaffEmail('');
-        setNewStaffPassword('');
-        setNewStaffRoleSlug('support');
-        setShowStaffPassword(false);
-        fetchRBACData();
-      } else {
-        setErrorMsg(data.message || 'Gagal menambahkan akun petugas baru.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Terjadi kesalahan jaringan.');
+      setSuccessMsg(message || `Akun petugas '${newStaffName.trim()}' (${newStaffEmail.trim()}) berhasil dibuat dengan role '${newStaffRoleSlug}'.`);
+      setShowCreateStaffModal(false);
+      setNewStaffName('');
+      setNewStaffEmail('');
+      setNewStaffPassword('');
+      setNewStaffRoleSlug('support');
+      setShowStaffPassword(false);
+      await fetchRBACData();
+    } catch (err) {
+      setErrorMsg(err instanceof RbacApiError ? err.message : 'Gagal menambahkan akun petugas baru.');
     } finally {
       setCreatingStaff(false);
     }
   };
 
-  const handleRevokeRole = async (userId: number, email: string) => {
-    if (!window.confirm(`Yakin ingin mencabut hak akses admin dari '${email}'? Pengguna akan kembali menjadi merchant standar.`)) {
+  const handleRevokeRole = (userId: number, email: string) => {
+    if (!canMutate) {
+      setErrorMsg('Akses Ditolak: hanya Superadmin yang dapat mencabut hak akses staf.');
       return;
     }
-    setLoading(true);
-    setErrorMsg('');
-    setSuccessMsg('');
-    try {
-      const res = await fetch(`/api/admin/rbac/staff/${userId}/revoke`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSuccessMsg(`Hak akses admin '${email}' berhasil dicabut.`);
-        fetchRBACData();
-      } else {
-        setErrorMsg(data.message || 'Gagal mencabut hak akses admin.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Terjadi kesalahan jaringan.');
-    } finally {
-      setLoading(false);
-    }
+    setConfirmDialog({ type: 'revoke_staff', userId, email });
   };
 
   const handleCreateCustomRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRoleSlug.trim() || !newRoleName.trim()) return;
+    if (!canMutate) {
+      setErrorMsg('Akses Ditolak: hanya Superadmin yang dapat membuat custom role.');
+      return;
+    }
+    const cleanSlug = sanitizeRoleSlugInput(newRoleSlug);
+    if (!CUSTOM_ROLE_SLUG_REGEX.test(cleanSlug)) {
+      setErrorMsg('Slug role harus 3-50 karakter huruf kecil, angka, atau garis bawah (diawali huruf, diakhiri huruf/angka).');
+      return;
+    }
+    if (!newRoleName.trim()) {
+      setErrorMsg('Nama tampilan role wajib diisi.');
+      return;
+    }
     setCreatingRole(true);
     setErrorMsg('');
     setSuccessMsg('');
     try {
-      const res = await fetch('/api/admin/rbac/roles', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          slug: newRoleSlug.trim(),
-          name: newRoleName.trim(),
-          description: newRoleDesc.trim(),
-          permission_keys: Array.from(newRolePerms),
-        }),
+      const filteredPerms = Array.from(newRolePerms).filter(isAssignablePermissionKey);
+      const message = await createRbacCustomRole(token, {
+        slug: cleanSlug,
+        name: newRoleName.trim(),
+        description: newRoleDesc.trim(),
+        permission_keys: filteredPerms,
       });
-      const data = await res.json();
-      if (data.success) {
-        setSuccessMsg(`Role kustom '${newRoleName}' (${newRoleSlug}) berhasil dibuat.`);
-        setNewRoleSlug('');
-        setNewRoleName('');
-        setNewRoleDesc('');
-        setNewRolePerms(new Set());
-        setActiveTab('matrix');
-        fetchRBACData();
-      } else {
-        setErrorMsg(data.message || 'Gagal membuat role kustom.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Terjadi kesalahan jaringan.');
+      setSuccessMsg(message || `Role kustom '${newRoleName.trim()}' (${cleanSlug}) berhasil dibuat.`);
+      setNewRoleSlug('');
+      setNewRoleName('');
+      setNewRoleDesc('');
+      setNewRolePerms(new Set());
+      setActiveTab('matrix');
+      await fetchRBACData();
+    } catch (err) {
+      setErrorMsg(err instanceof RbacApiError ? err.message : 'Gagal membuat role kustom.');
     } finally {
       setCreatingRole(false);
+    }
+  };
+
+  const handleUpdateCustomRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRole || !canMutate) return;
+    if (!editingRole.name.trim()) {
+      setErrorMsg('Nama tampilan role tidak boleh kosong.');
+      return;
+    }
+    setUpdatingRole(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const message = await updateRbacCustomRole(token, editingRole.slug, {
+        name: editingRole.name.trim(),
+        description: editingRole.description.trim(),
+        permission_keys: Array.from(editingRole.permissions).filter(isAssignablePermissionKey),
+      });
+      setSuccessMsg(message || `Custom role '${editingRole.name.trim()}' berhasil diperbarui.`);
+      setEditingRole(null);
+      await fetchRBACData();
+    } catch (err) {
+      setErrorMsg(err instanceof RbacApiError ? err.message : 'Gagal memperbarui custom role.');
+    } finally {
+      setUpdatingRole(false);
+    }
+  };
+
+  const handleExecuteConfirm = async () => {
+    if (!confirmDialog || !canMutate) return;
+    setConfirmLoading(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      if (confirmDialog.type === 'revoke_staff') {
+        const message = await revokeRbacStaff(token, confirmDialog.userId);
+        setSuccessMsg(message || `Hak akses admin '${confirmDialog.email}' berhasil dicabut.`);
+      } else {
+        const message = await deleteRbacCustomRole(token, confirmDialog.slug);
+        setSuccessMsg(message || `Custom role '${confirmDialog.name}' berhasil dihapus.`);
+      }
+      await fetchRBACData();
+    } catch (err) {
+      setErrorMsg(err instanceof RbacApiError ? err.message : 'Operasi RBAC gagal dijalankan.');
+    } finally {
+      setConfirmDialog(null);
+      setConfirmLoading(false);
     }
   };
 
@@ -408,6 +452,25 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
       (s.role_name && s.role_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (s.platform_role && s.platform_role.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const modalErrorAlert = errorMsg ? (
+    <div style={{
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      border: '1px solid rgba(239, 68, 68, 0.28)',
+      color: '#f87171',
+      padding: '0.75rem 1rem',
+      borderRadius: '0.75rem',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.55rem',
+      fontSize: '0.8rem',
+      fontWeight: 600,
+      marginBottom: '1rem'
+    }}>
+      <AlertCircle size={16} style={{ flexShrink: 0 }} />
+      <span>{errorMsg}</span>
+    </div>
+  ) : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', width: '100%', boxSizing: 'border-box' }}>
@@ -439,7 +502,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 Tata Kelola Staf &amp; RBAC Platform
               </h2>
               <p style={{ fontSize: '0.82rem', color: colors.textSecondary, margin: '0.25rem 0 0 0', lineHeight: 1.45 }}>
-                Manajemen peran berjenjang, pemisahan wewenang operasional (*Separation of Duties*), dan matriks izin dinamis.
+                Manajemen peran berjenjang, pemisahan wewenang operasional, dan matriks izin dinamis.
               </p>
             </div>
           </div>
@@ -457,7 +520,11 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 alignItems: 'center',
                 gap: '0.45rem',
                 borderRadius: '0.65rem',
-                fontWeight: 600
+                fontWeight: 600,
+                backgroundColor: colors.btnSecondaryBg,
+                border: `1px solid ${colors.btnSecondaryBorder}`,
+                color: colors.btnSecondaryText,
+                cursor: loading ? 'wait' : 'pointer'
               }}
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -468,7 +535,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 type="button"
                 onClick={onClose}
                 className="btn-secondary"
-                style={{ padding: '0.55rem', borderRadius: '0.65rem' }}
+                style={{
+                  padding: '0.55rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: colors.btnSecondaryBg,
+                  border: `1px solid ${colors.btnSecondaryBorder}`,
+                  color: colors.btnSecondaryText,
+                  cursor: 'pointer'
+                }}
                 title="Tutup Panel"
               >
                 <X size={16} />
@@ -676,6 +750,23 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
           <span>{successMsg}</span>
         </div>
       )}
+      {!canMutate && (
+        <div style={{
+          backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#fffbeb',
+          border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.3)' : '#fde68a'}`,
+          color: isDark ? '#fbbf24' : '#b45309',
+          padding: '0.85rem 1.2rem',
+          borderRadius: '0.85rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.65rem',
+          fontSize: '0.82rem',
+          fontWeight: 700
+        }}>
+          <Lock size={16} style={{ flexShrink: 0 }} />
+          <span>Mode Hanya-Baca: Hanya Superadmin yang dapat mengubah matriks izin, peran staf, atau definisi custom role.</span>
+        </div>
+      )}
 
       {/* 4. Elevated Segmented Tab Switcher */}
       <div style={{
@@ -856,7 +947,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <button
                 type="button"
+                disabled={!canMutate}
                 onClick={() => {
+                  if (!canMutate) return;
+                  setErrorMsg('');
                   setSelectedStaffEmail('');
                   setSelectedRoleSlug('support');
                   setShowAssignModal(true);
@@ -870,7 +964,12 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   alignItems: 'center',
                   gap: '0.45rem',
                   borderRadius: '0.75rem',
-                  fontWeight: 700
+                  fontWeight: 700,
+                  backgroundColor: isDark ? 'rgba(59, 130, 246, 0.14)' : '#eff6ff',
+                  border: `1px solid ${isDark ? 'rgba(96, 165, 250, 0.35)' : '#bfdbfe'}`,
+                  color: isDark ? '#93c5fd' : '#1d4ed8',
+                  cursor: canMutate ? 'pointer' : 'not-allowed',
+                  opacity: canMutate ? 1 : 0.5
                 }}
               >
                 <Edit2 size={15} />
@@ -879,7 +978,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
               <button
                 type="button"
+                disabled={!canMutate}
                 onClick={() => {
+                  if (!canMutate) return;
+                  setErrorMsg('');
                   setNewStaffName('');
                   setNewStaffEmail('');
                   setNewStaffPassword('');
@@ -899,13 +1001,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   fontWeight: 800,
                   borderRadius: '0.75rem',
                   border: 'none',
-                  cursor: 'pointer',
+                  cursor: canMutate ? 'pointer' : 'not-allowed',
+                  opacity: canMutate ? 1 : 0.5,
                   boxShadow: colors.primaryActionShadow,
                   transition: 'all 0.15s ease'
                 }}
               >
                 <UserPlus size={16} />
-                <span>+ Tambah Petugas Baru</span>
+                <span>Tambah Petugas Baru</span>
               </button>
             </div>
           </div>
@@ -954,8 +1057,9 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                 ) : (
                   filteredStaff.map((staff) => {
                     const badge = getRoleBadge(staff.platform_role);
-                    const isPrimarySuperadmin = staff.email === 'admin@catavor.com';
-                    const isSelf = staff.email === currentUserEmail;
+                    const isSelf = (typeof currentUserId === 'number' && currentUserId > 0 && staff.id === currentUserId) || (Boolean(currentUserEmail) && staff.email.toLowerCase() === currentUserEmail!.toLowerCase());
+                    const isLastSuperadmin = normalizeRoleSlug(staff.platform_role) === 'superadmin' && superadminCount <= 1;
+                    const isLockedSuperadmin = isSelf || isLastSuperadmin;
 
                     return (
                       <tr
@@ -1039,15 +1143,17 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                           <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.35rem',
-                            padding: '0.3rem 0.75rem',
-                            borderRadius: '999px',
-                            fontSize: '0.74rem',
-                            fontWeight: 800,
+                            gap: '0.4rem',
+                            padding: '0.28rem 0.65rem',
+                            borderRadius: '0.45rem',
+                            fontSize: '0.73rem',
+                            fontWeight: 700,
                             backgroundColor: badge.bg,
                             color: badge.color,
                             border: `1px solid ${badge.border}`,
-                            letterSpacing: '0.02em'
+                            borderLeft: `3px solid ${badge.color}`,
+                            whiteSpace: 'nowrap',
+                            letterSpacing: '0.01em'
                           }}>
                             <Shield size={12} />
                             <span>{staff.role_name}</span>
@@ -1059,12 +1165,23 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                             <button
                               type="button"
+                              disabled={!canMutate || isLockedSuperadmin}
+                              title={
+                                !canMutate
+                                  ? 'Hanya Superadmin yang dapat mengubah peran staf'
+                                  : isSelf
+                                    ? 'Anda tidak dapat menurunkan peran akun Anda sendiri'
+                                    : isLastSuperadmin
+                                      ? 'Role superadmin terakhir dilindungi anti-lockout'
+                                      : 'Ubah peran staf'
+                              }
                               onClick={() => {
+                                if (!canMutate || isLockedSuperadmin) return;
+                                setErrorMsg('');
                                 setSelectedStaffEmail(staff.email);
                                 setSelectedRoleSlug(staff.platform_role);
                                 setShowAssignModal(true);
                               }}
-                              className="btn-secondary"
                               style={{
                                 padding: '0.45rem 0.85rem',
                                 fontSize: '0.78rem',
@@ -1072,14 +1189,19 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                 fontWeight: 700,
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '0.35rem'
+                                gap: '0.35rem',
+                                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.14)' : '#eff6ff',
+                                color: isDark ? '#93c5fd' : '#1d4ed8',
+                                border: `1px solid ${isDark ? 'rgba(96, 165, 250, 0.35)' : '#bfdbfe'}`,
+                                cursor: !canMutate || isLockedSuperadmin ? 'not-allowed' : 'pointer',
+                                opacity: !canMutate || isLockedSuperadmin ? 0.45 : 1,
                               }}
                             >
-                              <Edit2 size={13} />
+                              {isLockedSuperadmin ? <Lock size={13} /> : <Edit2 size={13} />}
                               <span>Ubah Role</span>
                             </button>
 
-                            {!isPrimarySuperadmin && (
+                            {!isLockedSuperadmin && canMutate && (
                               <button
                                 type="button"
                                 onClick={() => handleRevokeRole(staff.id, staff.email)}
@@ -1090,7 +1212,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                   fontWeight: 700,
                                   border: '1px solid rgba(239, 68, 68, 0.3)',
                                   backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                                  color: '#f87171',
+                                  color: isDark ? '#fca5a5' : '#dc2626',
                                   cursor: 'pointer',
                                   display: 'inline-flex',
                                   alignItems: 'center',
@@ -1175,7 +1297,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{
-                  backgroundColor: colors.tableHeaderBg,
+                  backgroundColor: colors.stickyHeaderBg,
                   borderBottom: `1px solid ${colors.border}`,
                   position: 'sticky',
                   top: 0,
@@ -1188,8 +1310,13 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                     color: colors.textMuted,
                     textTransform: 'uppercase',
                     letterSpacing: '0.06em',
-                    minWidth: '320px',
-                    backgroundColor: colors.tableHeaderBg
+                    minWidth: '300px',
+                    maxWidth: '340px',
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 20,
+                    backgroundColor: colors.stickyHeaderBg,
+                    boxShadow: colors.stickyRightShadow
                   }}>
                     Katalog Izin &amp; Domain Hak Akses
                   </th>
@@ -1201,51 +1328,170 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                       <th
                         key={r.slug}
                         style={{
-                          padding: '1rem 0.85rem',
+                          padding: '0.85rem 0.75rem',
                           textAlign: 'center',
-                          minWidth: '150px',
-                          backgroundColor: colors.tableHeaderBg,
+                          minWidth: '176px',
+                          maxWidth: '200px',
+                          verticalAlign: 'top',
+                          backgroundColor: colors.stickyHeaderBg,
                           borderLeft: `1px solid ${colors.border}`
                         }}
                       >
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem' }}>
-                          <span style={{
-                            padding: '0.25rem 0.65rem',
-                            borderRadius: '999px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            backgroundColor: badge.bg,
-                            color: badge.color,
-                            border: `1px solid ${badge.border}`
-                          }}>
-                            {r.name}
-                          </span>
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          alignItems: 'stretch',
+                          gap: '0.55rem',
+                          minHeight: '92px'
+                        }}>
+                          <div
+                            title={r.name}
+                            style={{
+                              padding: '0.45rem 0.6rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: badge.bg,
+                              border: `1px solid ${badge.border}`,
+                              borderLeft: `3px solid ${badge.color}`,
+                              textAlign: 'left',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.15rem',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            <span style={{
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              color: colors.textPrimary,
+                              lineHeight: 1.25,
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden'
+                            }}>
+                              {r.name}
+                            </span>
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 600,
+                              fontFamily: 'monospace',
+                              color: badge.color,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {r.slug}
+                            </span>
+                          </div>
                           {r.slug !== 'superadmin' ? (
-                            <button
-                              type="button"
-                              onClick={() => handleSaveMatrix(r.slug)}
-                              disabled={Boolean(savingMatrix)}
-                              style={{
-                                padding: '0.35rem 0.75rem',
-                                fontSize: '0.74rem',
-                                borderRadius: '0.5rem',
-                                border: '1px solid #059669',
-                                backgroundColor: isDark ? 'rgba(5, 150, 105, 0.15)' : '#ecfdf5',
-                                color: isDark ? '#34d399' : '#059669',
-                                cursor: 'pointer',
-                                fontWeight: 800,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.35rem',
-                                transition: 'all 0.15s ease'
-                              }}
-                              title={`Simpan hak akses untuk role ${r.name}`}
-                            >
-                              <Save size={12} className={isSaving ? 'animate-spin' : ''} />
-                              <span>{isSaving ? 'Menyimpan...' : 'Simpan Role'}</span>
-                            </button>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem', width: '100%' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleSaveMatrix(r.slug)}
+                                disabled={Boolean(savingMatrix) || !canMutate}
+                                style={{
+                                  width: '100%',
+                                  height: '30px',
+                                  padding: '0 0.65rem',
+                                  fontSize: '0.72rem',
+                                  borderRadius: '0.45rem',
+                                  border: '1px solid #059669',
+                                  backgroundColor: isDark ? 'rgba(5, 150, 105, 0.15)' : '#ecfdf5',
+                                  color: isDark ? '#34d399' : '#059669',
+                                  cursor: !canMutate ? 'not-allowed' : 'pointer',
+                                  opacity: !canMutate ? 0.5 : 1,
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.35rem',
+                                  transition: 'all 0.15s ease',
+                                  boxSizing: 'border-box'
+                                }}
+                                title={`Simpan hak akses untuk role ${r.name}`}
+                              >
+                                <Save size={12} className={isSaving ? 'animate-spin' : ''} />
+                                <span>{isSaving ? 'Menyimpan...' : 'Simpan Role'}</span>
+                              </button>
+                              {!r.is_system && canMutate && (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', width: '100%' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setErrorMsg('');
+                                      setEditingRole({
+                                        slug: r.slug,
+                                        name: r.name,
+                                        description: r.description || '',
+                                        permissions: new Set(matrixState[r.slug] || []),
+                                      });
+                                    }}
+                                    style={{
+                                      height: '26px',
+                                      padding: '0 0.45rem',
+                                      fontSize: '0.68rem',
+                                      borderRadius: '0.4rem',
+                                      border: `1px solid ${isDark ? 'rgba(96, 165, 250, 0.35)' : '#bfdbfe'}`,
+                                      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.14)' : '#eff6ff',
+                                      color: isDark ? '#93c5fd' : '#1d4ed8',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '0.2rem',
+                                      boxSizing: 'border-box'
+                                    }}
+                                    title={`Edit metadata custom role ${r.name}`}
+                                  >
+                                    <Edit2 size={10} />
+                                    <span>Edit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDialog({ type: 'delete_role', slug: r.slug, name: r.name })}
+                                    style={{
+                                      height: '26px',
+                                      padding: '0 0.45rem',
+                                      fontSize: '0.68rem',
+                                      borderRadius: '0.4rem',
+                                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                                      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                      color: isDark ? '#fca5a5' : '#dc2626',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '0.2rem',
+                                      boxSizing: 'border-box'
+                                    }}
+                                    title={`Hapus custom role ${r.name}`}
+                                  >
+                                    <Trash2 size={10} />
+                                    <span>Hapus</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           ) : (
-                            <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                            <span style={{
+                              width: '100%',
+                              height: '30px',
+                              padding: '0 0.65rem',
+                              borderRadius: '0.45rem',
+                              backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
+                              border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.28)' : '#a7f3d0'}`,
+                              fontSize: '0.7rem',
+                              color: isDark ? '#34d399' : '#059669',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.3rem',
+                              boxSizing: 'border-box'
+                            }}>
                               <Lock size={11} />
                               <span>Akses Penuh</span>
                             </span>
@@ -1272,7 +1518,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                     <React.Fragment key={groupKey}>
                       {/* Domain Header Row */}
                       <tr style={{
-                        backgroundColor: isDark ? 'rgba(30, 41, 59, 0.35)' : '#f1f5f9',
+                        backgroundColor: colors.stickyDomainBg,
                         borderTop: `1px solid ${colors.border}`,
                         borderBottom: `1px solid ${colors.border}`
                       }}>
@@ -1284,10 +1530,11 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                             fontSize: '0.74rem',
                             textTransform: 'uppercase',
                             color: colors.accentBadgeColor,
-                            letterSpacing: '0.08em'
+                            letterSpacing: '0.08em',
+                            backgroundColor: colors.stickyDomainBg
                           }}
                         >
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <div style={{ position: 'sticky', left: '1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
                             <Layers size={14} />
                             <span>DOMAIN: {groupKey.toUpperCase()}</span>
                           </div>
@@ -1303,7 +1550,16 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                             transition: 'background-color 0.15s ease'
                           }}
                         >
-                          <td style={{ padding: '0.9rem 1.5rem' }}>
+                          <td style={{
+                            padding: '0.9rem 1.5rem',
+                            position: 'sticky',
+                            left: 0,
+                            zIndex: 5,
+                            backgroundColor: colors.stickyCellBg,
+                            boxShadow: colors.stickyRightShadow,
+                            minWidth: '300px',
+                            maxWidth: '340px'
+                          }}>
                             <div style={{ fontWeight: 800, fontSize: '0.84rem', color: colors.textPrimary }}>
                               {perm.name}
                             </div>
@@ -1323,7 +1579,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                           {/* Checkboxes per role */}
                           {roles.map((r) => {
                             const isSuper = r.slug === 'superadmin';
-                            const isChecked = isSuper || (matrixState[r.slug]?.has(perm.key) ?? false);
+                            const permLocked = !isSuper && !isAssignablePermissionKey(perm.key);
+                            const isChecked = isSuper || (!permLocked && (matrixState[r.slug]?.has(perm.key) ?? false));
 
                             return (
                               <td
@@ -1334,7 +1591,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                   borderLeft: `1px solid ${colors.border}`
                                 }}
                               >
-                                {isSuper ? (
+                                {isSuper || permLocked ? (
                                   <div
                                     style={{
                                       display: 'inline-flex',
@@ -1343,10 +1600,10 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                       width: '24px',
                                       height: '24px',
                                       borderRadius: '0.35rem',
-                                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                                      color: '#10b981'
+                                      backgroundColor: isSuper ? 'rgba(16, 185, 129, 0.12)' : colors.cardAlt,
+                                      color: isSuper ? '#10b981' : colors.textMuted
                                     }}
-                                    title="Superadmin memiliki akses absolut tidak terbatas"
+                                    title={isSuper ? 'Superadmin memiliki akses absolut tidak terbatas' : 'Eksklusif Superadmin: tidak dapat diberikan ke role lain'}
                                   >
                                     <Lock size={13} />
                                   </div>
@@ -1354,11 +1611,12 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                   <input
                                     type="checkbox"
                                     checked={isChecked}
+                                    disabled={!canMutate}
                                     onChange={() => handleToggleMatrixPerm(r.slug, perm.key)}
                                     style={{
                                       width: '20px',
                                       height: '20px',
-                                      cursor: 'pointer',
+                                      cursor: canMutate ? 'pointer' : 'not-allowed',
                                       accentColor: colors.primaryActionBg,
                                       borderRadius: '0.35rem'
                                     }}
@@ -1417,20 +1675,23 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   type="text"
                   placeholder="misal: junior_support / legal_officer"
                   value={newRoleSlug}
-                  onChange={(e) => setNewRoleSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  onChange={(e) => setNewRoleSlug(sanitizeRoleSlugInput(e.target.value))}
                   style={{
                     width: '100%',
                     height: '42px',
                     padding: '0 0.85rem',
                     borderRadius: '0.65rem',
                     backgroundColor: colors.inputBg,
-                    border: `1px solid ${colors.inputBorder}`,
+                    border: `1px solid ${newRoleSlug && !CUSTOM_ROLE_SLUG_REGEX.test(newRoleSlug) ? '#ef4444' : colors.inputBorder}`,
                     color: colors.textPrimary,
                     fontSize: '0.84rem',
                     boxSizing: 'border-box'
                   }}
                   required
                 />
+                <p style={{ fontSize: '0.7rem', color: colors.textMuted, margin: '0.35rem 0 0 0' }}>
+                  3-50 karakter huruf kecil, angka, atau garis bawah (diawali huruf).
+                </p>
               </div>
 
               <div>
@@ -1483,7 +1744,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
 
               <button
                 type="submit"
-                disabled={creatingRole}
+                disabled={creatingRole || !canMutate}
                 style={{
                   height: '44px',
                   backgroundColor: colors.primaryActionBg,
@@ -1492,7 +1753,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   fontSize: '0.84rem',
                   borderRadius: '0.75rem',
                   border: 'none',
-                  cursor: creatingRole ? 'wait' : 'pointer',
+                  cursor: !canMutate ? 'not-allowed' : creatingRole ? 'wait' : 'pointer',
+                  opacity: !canMutate ? 0.5 : 1,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1529,29 +1791,42 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                     Pilih Izin Awal untuk Role Baru
                   </h3>
                   <p style={{ margin: 0, fontSize: '0.78rem', color: colors.textSecondary }}>
-                    Terpilih: <strong>{newRolePerms.size}</strong> dari {permissions.length} izin platform.
+                    Terpilih: <strong>{newRolePerms.size}</strong> dari {permissions.filter((p) => isAssignablePermissionKey(p.key)).length} izin yang dapat didelegasikan.
                   </p>
                 </div>
                 <button
                   type="button"
+                  disabled={!canMutate}
                   onClick={() => {
-                    if (newRolePerms.size === permissions.length) {
+                    const assignable = permissions.filter((p) => isAssignablePermissionKey(p.key));
+                    if (newRolePerms.size === assignable.length) {
                       setNewRolePerms(new Set());
                     } else {
-                      setNewRolePerms(new Set(permissions.map((p) => p.key)));
+                      setNewRolePerms(new Set(assignable.map((p) => p.key)));
                     }
                   }}
                   className="btn-secondary"
-                  style={{ padding: '0.4rem 0.85rem', fontSize: '0.75rem', fontWeight: 700 }}
+                  style={{
+                    padding: '0.4rem 0.85rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    backgroundColor: colors.btnSecondaryBg,
+                    border: `1px solid ${colors.btnSecondaryBorder}`,
+                    color: colors.btnSecondaryText,
+                    borderRadius: '0.55rem',
+                    cursor: canMutate ? 'pointer' : 'not-allowed',
+                    opacity: canMutate ? 1 : 0.5
+                  }}
                 >
-                  {newRolePerms.size === permissions.length ? 'Batal Semua' : 'Pilih Semua Izin'}
+                  {newRolePerms.size === permissions.filter((p) => isAssignablePermissionKey(p.key)).length ? 'Batal Semua' : 'Pilih Semua Izin'}
                 </button>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxHeight: '550px', overflowY: 'auto', paddingRight: '0.5rem' }}>
                 {Object.keys(groupedPermissions).map((grpKey) => {
                   const grpPerms = groupedPermissions[grpKey];
-                  const allGrpSelected = grpPerms.every((p) => newRolePerms.has(p.key));
+                  const assignableGrpPerms = grpPerms.filter((p) => isAssignablePermissionKey(p.key));
+                  const allGrpSelected = assignableGrpPerms.length > 0 && assignableGrpPerms.every((p) => newRolePerms.has(p.key));
 
                   return (
                     <div
@@ -1565,38 +1840,42 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                         <span style={{ fontSize: '0.76rem', fontWeight: 800, color: colors.accentBadgeColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                          DOMAIN: {grpKey}
+                          {formatPermissionGroupLabel(grpKey)}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNewRolePerms((prev) => {
-                              const next = new Set(prev);
-                              if (allGrpSelected) {
-                                grpPerms.forEach((p) => next.delete(p.key));
-                              } else {
-                                grpPerms.forEach((p) => next.add(p.key));
-                              }
-                              return next;
-                            });
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: colors.textSecondary,
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            textDecoration: 'underline'
-                          }}
-                        >
-                          {allGrpSelected ? 'Batalkan Domain' : 'Pilih Semua Domain'}
-                        </button>
+                        {assignableGrpPerms.length > 0 && (
+                          <button
+                            type="button"
+                            disabled={!canMutate}
+                            onClick={() => {
+                              setNewRolePerms((prev) => {
+                                const next = new Set(prev);
+                                if (allGrpSelected) {
+                                  assignableGrpPerms.forEach((p) => next.delete(p.key));
+                                } else {
+                                  assignableGrpPerms.forEach((p) => next.add(p.key));
+                                }
+                                return next;
+                              });
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: colors.textSecondary,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            {allGrpSelected ? 'Batalkan Domain' : 'Pilih Semua Domain'}
+                          </button>
+                        )}
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.5rem' }}>
                         {grpPerms.map((p) => {
-                          const isSelected = newRolePerms.has(p.key);
+                          const permLocked = !isAssignablePermissionKey(p.key);
+                          const isSelected = !permLocked && newRolePerms.has(p.key);
                           return (
                             <label
                               key={p.key}
@@ -1606,16 +1885,23 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                 gap: '0.55rem',
                                 padding: '0.65rem 0.75rem',
                                 borderRadius: '0.6rem',
-                                backgroundColor: isSelected ? (isDark ? 'rgba(37, 99, 235, 0.15)' : '#eff6ff') : 'transparent',
+                                backgroundColor: permLocked
+                                  ? colors.cardAlt
+                                  : isSelected
+                                    ? (isDark ? 'rgba(37, 99, 235, 0.15)' : '#eff6ff')
+                                    : 'transparent',
                                 border: `1px solid ${isSelected ? 'rgba(37, 99, 235, 0.4)' : colors.border}`,
-                                cursor: 'pointer',
+                                cursor: permLocked || !canMutate ? 'not-allowed' : 'pointer',
+                                opacity: permLocked ? 0.65 : 1,
                                 transition: 'all 0.15s ease'
                               }}
                             >
                               <input
                                 type="checkbox"
                                 checked={isSelected}
+                                disabled={permLocked || !canMutate}
                                 onChange={() => {
+                                  if (permLocked || !canMutate) return;
                                   setNewRolePerms((prev) => {
                                     const next = new Set(prev);
                                     if (next.has(p.key)) next.delete(p.key);
@@ -1623,11 +1909,28 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                     return next;
                                   });
                                 }}
-                                style={{ marginTop: '2px', accentColor: colors.primaryActionBg, cursor: 'pointer' }}
+                                style={{ marginTop: '2px', accentColor: colors.primaryActionBg, cursor: permLocked || !canMutate ? 'not-allowed' : 'pointer' }}
                               />
-                              <div>
-                                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: colors.textPrimary }}>
-                                  {p.name}
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', fontSize: '0.78rem', fontWeight: 800, color: colors.textPrimary }}>
+                                  <span>{p.name}</span>
+                                  {permLocked && (
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.2rem',
+                                      fontSize: '0.65rem',
+                                      fontWeight: 700,
+                                      padding: '0.1rem 0.4rem',
+                                      borderRadius: '0.4rem',
+                                      backgroundColor: colors.accentBadgeBg,
+                                      color: colors.accentBadgeColor,
+                                      border: `1px solid ${colors.accentBadgeBorder}`,
+                                    }}>
+                                      <Lock size={10} />
+                                      <span>Eksklusif Superadmin</span>
+                                    </span>
+                                  )}
                                 </div>
                                 <div style={{ fontSize: '0.7rem', color: colors.textMuted, marginTop: '0.1rem' }}>
                                   <code>{p.key}</code>
@@ -1663,7 +1966,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             padding: '1.5rem',
             boxSizing: 'border-box'
           }}
-          onClick={() => setShowAssignModal(false)}
+          onClick={() => { setShowAssignModal(false); setErrorMsg(''); }}
         >
           <div
             style={{
@@ -1704,12 +2007,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setShowAssignModal(false)}
+                onClick={() => { setShowAssignModal(false); setErrorMsg(''); }}
                 style={{ background: 'transparent', border: 'none', color: colors.textMuted, cursor: 'pointer', padding: '0.35rem' }}
               >
                 <X size={18} />
               </button>
             </div>
+
+            {modalErrorAlert}
 
             <form onSubmit={handleAssignRole} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div>
@@ -1763,15 +2068,24 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
                 <button
                   type="button"
-                  onClick={() => setShowAssignModal(false)}
+                  onClick={() => { setShowAssignModal(false); setErrorMsg(''); }}
                   className="btn-secondary"
-                  style={{ padding: '0.6rem 1.25rem', fontSize: '0.82rem', borderRadius: '0.75rem', fontWeight: 700 }}
+                  style={{
+                    padding: '0.6rem 1.25rem',
+                    fontSize: '0.82rem',
+                    borderRadius: '0.75rem',
+                    fontWeight: 700,
+                    backgroundColor: colors.btnSecondaryBg,
+                    border: `1px solid ${colors.btnSecondaryBorder}`,
+                    color: colors.btnSecondaryText,
+                    cursor: 'pointer'
+                  }}
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !canMutate}
                   style={{
                     padding: '0.6rem 1.4rem',
                     fontSize: '0.82rem',
@@ -1780,7 +2094,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                     backgroundColor: colors.primaryActionBg,
                     color: '#ffffff',
                     border: 'none',
-                    cursor: loading ? 'wait' : 'pointer',
+                    cursor: !canMutate ? 'not-allowed' : loading ? 'wait' : 'pointer',
+                    opacity: !canMutate ? 0.5 : 1,
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.45rem',
@@ -1802,6 +2117,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   type="button"
                   onClick={() => {
                     setShowAssignModal(false);
+                    setErrorMsg('');
                     setNewStaffName('');
                     setNewStaffEmail('');
                     setNewStaffPassword('');
@@ -1847,7 +2163,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
             padding: '1.5rem',
             boxSizing: 'border-box'
           }}
-          onClick={() => setShowCreateStaffModal(false)}
+          onClick={() => { setShowCreateStaffModal(false); setErrorMsg(''); }}
         >
           <div
             style={{
@@ -1888,12 +2204,14 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setShowCreateStaffModal(false)}
+                onClick={() => { setShowCreateStaffModal(false); setErrorMsg(''); }}
                 style={{ background: 'transparent', border: 'none', color: colors.textMuted, cursor: 'pointer', padding: '0.35rem' }}
               >
                 <X size={18} />
               </button>
             </div>
+
+            {modalErrorAlert}
 
             <form onSubmit={handleCreateStaff} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               {/* Nama Lengkap */}
@@ -2029,15 +2347,24 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.5rem' }}>
                 <button
                   type="button"
-                  onClick={() => setShowCreateStaffModal(false)}
+                  onClick={() => { setShowCreateStaffModal(false); setErrorMsg(''); }}
                   className="btn-secondary"
-                  style={{ padding: '0.6rem 1.25rem', fontSize: '0.82rem', borderRadius: '0.75rem', fontWeight: 700 }}
+                  style={{
+                    padding: '0.6rem 1.25rem',
+                    fontSize: '0.82rem',
+                    borderRadius: '0.75rem',
+                    fontWeight: 700,
+                    backgroundColor: colors.btnSecondaryBg,
+                    border: `1px solid ${colors.btnSecondaryBorder}`,
+                    color: colors.btnSecondaryText,
+                    cursor: 'pointer'
+                  }}
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={creatingStaff}
+                  disabled={creatingStaff || !canMutate}
                   style={{
                     padding: '0.6rem 1.4rem',
                     fontSize: '0.82rem',
@@ -2046,7 +2373,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                     backgroundColor: colors.primaryActionBg,
                     color: '#ffffff',
                     border: 'none',
-                    cursor: creatingStaff ? 'wait' : 'pointer',
+                    cursor: !canMutate ? 'not-allowed' : creatingStaff ? 'wait' : 'pointer',
+                    opacity: !canMutate ? 0.5 : 1,
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '0.45rem',
@@ -2066,7 +2394,305 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                   )}
                 </button>
               </div>
+              </form>
+            </div>
+          </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 10. MODAL 3: EDIT CUSTOM ROLE (Desktop Centered Dialog)                  */}
+      {/* ========================================================================= */}
+      {editingRole && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '1.5rem',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => { setEditingRole(null); setErrorMsg(''); }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '640px',
+              maxHeight: '88vh',
+              overflowY: 'auto',
+              backgroundColor: colors.modalBg,
+              border: `1px solid ${colors.borderStrong}`,
+              borderRadius: '1.25rem',
+              padding: '2rem',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.65)',
+              boxSizing: 'border-box'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: colors.textPrimary }}>
+                  Edit Custom Role ({editingRole.slug})
+                </h3>
+                <p style={{ fontSize: '0.78rem', color: colors.textSecondary, margin: '0.15rem 0 0 0' }}>
+                  Perbarui nama, deskripsi, dan hak akses role kustom
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setEditingRole(null); setErrorMsg(''); }}
+                style={{ background: 'transparent', border: 'none', color: colors.textMuted, cursor: 'pointer', padding: '0.35rem' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {modalErrorAlert}
+
+            <form onSubmit={handleUpdateCustomRole} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: colors.textPrimary, marginBottom: '0.35rem' }}>
+                  Nama Tampilan Role <span style={{ color: '#f43f5e' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editingRole.name}
+                  onChange={(e) => setEditingRole(prev => prev ? { ...prev, name: e.target.value } : null)}
+                  style={{
+                    width: '100%',
+                    height: '42px',
+                    padding: '0 0.85rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: colors.inputBg,
+                    border: `1px solid ${colors.inputBorder}`,
+                    color: colors.textPrimary,
+                    fontSize: '0.84rem',
+                    boxSizing: 'border-box'
+                  }}
+                  required
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: colors.textPrimary, marginBottom: '0.35rem' }}>
+                  Deskripsi Role
+                </label>
+                <textarea
+                  value={editingRole.description}
+                  onChange={(e) => setEditingRole(prev => prev ? { ...prev, description: e.target.value } : null)}
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: colors.inputBg,
+                    border: `1px solid ${colors.inputBorder}`,
+                    color: colors.textPrimary,
+                    fontSize: '0.84rem',
+                    boxSizing: 'border-box',
+                    fontFamily: 'inherit'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: colors.textPrimary, marginBottom: '0.45rem' }}>
+                  Hak Akses ({editingRole.permissions.size} dipilih)
+                </label>
+                <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.45rem', padding: '0.5rem', borderRadius: '0.75rem', border: `1px solid ${colors.border}` }}>
+                  {permissions.map((p) => {
+                    const locked = !isAssignablePermissionKey(p.key);
+                    const checked = !locked && editingRole.permissions.has(p.key);
+                    return (
+                      <label
+                        key={p.key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.45rem 0.6rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: locked ? colors.cardAlt : checked ? (isDark ? 'rgba(37, 99, 235, 0.15)' : '#eff6ff') : 'transparent',
+                          cursor: locked ? 'not-allowed' : 'pointer',
+                          opacity: locked ? 0.6 : 1
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={locked}
+                          onChange={() => {
+                            if (locked) return;
+                            setEditingRole(prev => {
+                              if (!prev) return null;
+                              const next = new Set(prev.permissions);
+                              if (next.has(p.key)) next.delete(p.key);
+                              else next.add(p.key);
+                              return { ...prev, permissions: next };
+                            });
+                          }}
+                        />
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: colors.textPrimary }}>{p.name}</div>
+                          <div style={{ fontSize: '0.66rem', color: colors.textMuted }}><code>{p.key}</code></div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.4rem' }}>
+                <button
+                  type="button"
+                  onClick={() => { setEditingRole(null); setErrorMsg(''); }}
+                  className="btn-secondary"
+                  style={{
+                    padding: '0.6rem 1.25rem',
+                    fontSize: '0.82rem',
+                    borderRadius: '0.75rem',
+                    fontWeight: 700,
+                    backgroundColor: colors.btnSecondaryBg,
+                    border: `1px solid ${colors.btnSecondaryBorder}`,
+                    color: colors.btnSecondaryText,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingRole}
+                  style={{
+                    padding: '0.6rem 1.4rem',
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    borderRadius: '0.75rem',
+                    backgroundColor: colors.primaryActionBg,
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: updatingRole ? 'wait' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem'
+                  }}
+                >
+                  <Check size={16} />
+                  <span>{updatingRole ? 'Menyimpan...' : 'Simpan Role'}</span>
+                </button>
+              </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 11. MODAL 4: KONFIRMASI AKSI KRITIS (Pengganti window.confirm)            */}
+      {/* ========================================================================= */}
+      {confirmDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '1.5rem',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => { if (!confirmLoading) setConfirmDialog(null); }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '440px',
+              backgroundColor: colors.modalBg,
+              border: `1px solid ${colors.borderStrong}`,
+              borderRadius: '1.25rem',
+              padding: '1.75rem',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.65)',
+              boxSizing: 'border-box'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1rem' }}>
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '0.85rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.14)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                color: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <AlertCircle size={22} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.08rem', fontWeight: 800, margin: 0, color: colors.textPrimary }}>
+                  {confirmDialog.type === 'revoke_staff' ? 'Cabut Hak Akses Staf?' : 'Hapus Custom Role?'}
+                </h3>
+                <p style={{ fontSize: '0.76rem', color: colors.textMuted, margin: '0.15rem 0 0 0' }}>
+                  Tindakan keamanan RBAC langsung berlaku
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.84rem', lineHeight: 1.55, color: colors.textSecondary, margin: '0 0 1.4rem 0' }}>
+              {confirmDialog.type === 'revoke_staff'
+                ? `Yakin ingin mencabut seluruh hak akses pengelola dari akun '${confirmDialog.email}'? Seluruh sesi aktif akan dicabut dan akun dikembalikan menjadi merchant standar.`
+                : `Yakin ingin menghapus custom role '${confirmDialog.name}' (${confirmDialog.slug})? Penghapusan hanya diizinkan apabila tidak ada staf aktif yang memegang peran tersebut.`}
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+              <button
+                type="button"
+                disabled={confirmLoading}
+                onClick={() => setConfirmDialog(null)}
+                className="btn-secondary"
+                style={{
+                  padding: '0.6rem 1.25rem',
+                  fontSize: '0.82rem',
+                  borderRadius: '0.75rem',
+                  fontWeight: 700,
+                  backgroundColor: colors.btnSecondaryBg,
+                  border: `1px solid ${colors.btnSecondaryBorder}`,
+                  color: colors.btnSecondaryText,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={confirmLoading}
+                onClick={handleExecuteConfirm}
+                style={{
+                  padding: '0.6rem 1.35rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  borderRadius: '0.75rem',
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: confirmLoading ? 'wait' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <Trash2 size={15} />
+                <span>{confirmLoading ? 'Memproses...' : (confirmDialog.type === 'revoke_staff' ? 'Ya, Cabut Akses' : 'Ya, Hapus Role')}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

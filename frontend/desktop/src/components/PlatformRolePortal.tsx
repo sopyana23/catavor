@@ -105,7 +105,16 @@ import {
   Server,
   Scale
 } from 'lucide-react';
-import { type UserRBACInfo, hasPermission, isSuperAdmin, getRoleBadge } from '../utils/rbac';
+import {
+  type UserRBACInfo,
+  hasPermission,
+  isSuperAdmin,
+  getRoleBadge,
+  derivePortalCapabilities,
+  isViewPermitted,
+  getDefaultViewForCapabilities,
+} from '../utils/rbac';
+import { AccessDeniedPanel } from '../../../shared/rbac/AccessDeniedPanel';
 import { PlatformAdminShell } from './PlatformAdminShell';
 import { AdminRBACManagement } from './AdminRBACManagement';
 import { AdminSafeDomainsManagement } from './AdminSafeDomainsManagement';
@@ -277,10 +286,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   onOpenRBAC,
   onLogout
 }) => {
-  // Centralized authenticated fetch with automatic 401/403 session eviction
+  // Centralized authenticated fetch with automatic 401 session eviction (never logout on 403 RBAC deny)
   const fetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const res = await window.fetch(input, init);
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401) {
       if (onLogout) {
         onLogout();
       }
@@ -329,25 +338,32 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const roleSlug = currentUser?.platform_role || (currentUser?.is_superadmin ? 'superadmin' : 'merchant');
   const roleBadge = getRoleBadge(roleSlug);
 
-  // Granular Permission Checks (Module Level)
-  const canAccessRBAC = isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:admins:manage');
-  const canAccessCompliance = hasPermission(currentUser, 'compliance:reports:manage') || hasPermission(currentUser, 'compliance:dormancy:manage') || isSuperAdmin(currentUser);
-  const canAccessSupport = hasPermission(currentUser, 'support:tickets:read') || hasPermission(currentUser, 'support:tickets:reply') || isSuperAdmin(currentUser);
-  const canAccessFinance = hasPermission(currentUser, 'finance:orders:read') || hasPermission(currentUser, 'finance:orders:manage') || hasPermission(currentUser, 'finance:settings:manage') || isSuperAdmin(currentUser);
-  const canAccessMonetization = hasPermission(currentUser, 'monetization:google:manage') || isSuperAdmin(currentUser);
-  const canAccessBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
-  const canAccessAutomation = hasPermission(currentUser, 'system:automation:manage') || hasPermission(currentUser, 'system:automation:view') || isSuperAdmin(currentUser);
-  const canAccessAudit = isSuperAdmin(currentUser) || hasPermission(currentUser, 'audit:logs:read');
-  const canAccessMasterData = isSuperAdmin(currentUser) || canAccessSupport || canAccessMonetization;
-  const canAccessMarketIntel = isSuperAdmin(currentUser) || hasPermission(currentUser, 'market_intel:manage');
-
-  // Granular Sub-Action Permission Checks (Action / Execution Level)
-  const canReplySupport = isSuperAdmin(currentUser) || hasPermission(currentUser, 'support:tickets:reply');
-  const canManageReports = isSuperAdmin(currentUser) || hasPermission(currentUser, 'compliance:reports:manage');
-  const canManageFinance = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:orders:manage');
-  const canManagePaymentSettings = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:settings:manage') || hasPermission(currentUser, 'system:settings:manage');
-  const canManageCoupons = isSuperAdmin(currentUser) || hasPermission(currentUser, 'finance:orders:manage') || hasPermission(currentUser, 'finance:settings:manage') || hasPermission(currentUser, 'system:settings:manage');
-  const canSendBroadcast = isSuperAdmin(currentUser) || hasPermission(currentUser, 'content:broadcast:send');
+  // Granular Permission Checks (SSOT from shared rbac/model.ts)
+  const caps = derivePortalCapabilities(currentUser);
+  const {
+    canAccessRBAC,
+    canAccessCompliance,
+    canSuspendStores,
+    canAccessSupport,
+    canManageSupportTemplates,
+    canAccessFinance,
+    canReadOrders,
+    canReadRevenue,
+    canAccessMonetization,
+    canAccessBroadcast,
+    canAccessAutomation,
+    canAccessAudit,
+    canManageSystemSettings,
+    canAccessMasterData,
+    canAccessSettingsRead,
+    canAccessMarketIntel,
+    canReplySupport,
+    canManageOrders: canManageFinance,
+    canManagePaymentSettings,
+    canManageCoupons,
+  } = caps;
+  const canManageReports = caps.isSuperAdmin || hasPermission(currentUser, 'compliance:reports:manage');
+  const canSendBroadcast = canAccessBroadcast;
   // Helper to synchronize URL query parameters cleanly and safely for Mobile Admin
   const updatePlatformUrl = (
     view: string, 
@@ -427,7 +443,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['monetization', 'iklan', 'ads', 'google'].includes(tabParam)) return 'monetization';
       if (['broadcast', 'siaran', 'notifikasi'].includes(tabParam)) return 'broadcast';
       if (['automation', 'bot', 'bots', 'otomatisasi', 'cron', 'engine', 'workers'].includes(tabParam)) return 'automation';
-      if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'b2b'].includes(tabParam)) return 'market_intel';
+      if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'riset-pasar', 'b2b'].includes(tabParam)) return 'market_intel';
       if (['policies', 'policy', 'kebijakan', 'legal', 'settings', 'setting', 'terms', 'aturan'].includes(tabParam)) return 'policies';
       if (['master_data', 'master-data', 'domains', 'safe_domains', 'whitelist', 'domain', 'master', 'masters', 'templates', 'canned'].includes(tabParam)) return 'master_data';
       if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) return 'audit';
@@ -435,12 +451,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       // fallback
     }
 
-    if (isSuperAdmin(currentUser)) return 'dashboard';
-    if (roleSlug === 'compliance' && canAccessCompliance) return 'reports';
-    if (roleSlug === 'support' && canAccessSupport) return 'support';
-    if (roleSlug === 'finance' && canAccessFinance) return 'finance';
-    if (roleSlug === 'content' && canAccessBroadcast) return 'broadcast';
-    return 'dashboard';
+    return getDefaultViewForCapabilities(caps, roleSlug) as ActiveView;
   };
 
   const [activeView, setActiveView] = useState<ActiveView>(getDefaultView());
@@ -1396,8 +1407,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     return () => clearTimeout(timer);
   }, [reportsFilter, reportsTargetFilter, reportsSearchQuery, token, canAccessCompliance]);
 
-  const [financeSubTab, setFinanceSubTab] = useFinanceSection(activeView === 'finance', canManagePaymentSettings, canManageCoupons);
-  const orderPage = useFinancePage('orders', activeView === 'finance' && financeSubTab === 'orders' && canAccessFinance, token);
+  const [financeSubTab, setFinanceSubTab] = useFinanceSection(activeView === 'finance', canManagePaymentSettings, canManageCoupons, canReadOrders);
+  const orderPage = useFinancePage('orders', activeView === 'finance' && financeSubTab === 'orders' && canReadOrders, token);
   const couponPage = useFinancePage('coupons', activeView === 'finance' && financeSubTab === 'coupons' && canManageCoupons, token);
   const { data: orders, input: ordersSearchQuery, setKeyword: setOrdersSearchQuery } = orderPage;
   const { data: coupons, loading: loadingCoupons, input: couponSearchQuery, setKeyword: setCouponSearchQuery, refresh: fetchCoupons } = couponPage;
@@ -2162,10 +2173,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       }
       if (canAccessFinance) {
         if (refreshLists && activeView === 'finance') {
-          if (financeSubTab === 'orders') orderPage.refresh();
-          if (financeSubTab === 'coupons') couponPage.refresh();
+          if (financeSubTab === 'orders' && canReadOrders) orderPage.refresh();
+          if (financeSubTab === 'coupons' && canManageCoupons) couponPage.refresh();
         }
-        if (!orderPageProvidesTotals) {
+        if (canReadOrders && !orderPageProvidesTotals) {
           const res = await fetch('/api/admin/subscription/orders?summary=1', { headers: { Authorization: `Bearer ${token}` } });
           if (res.ok) {
             const data = await res.json();
@@ -2185,10 +2196,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       // di blok header ber-`&& false` (dead code), sedangkan kartu dashboard
       // siaran memakai subtitle statis 'Notifikasi Massal Pengguna'. Halaman
       // siaran sudah mengambil daftarnya sendiri saat activeView === 'broadcast'.
-      if (canAccessMonetization || canAccessMasterData || canAccessFinance) {
+      if (canAccessSettingsRead) {
         const setRes = await fetch('/api/admin/settings?exclude=master_coupons', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        }).catch(() => fetch('/api/settings'));
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include',
+        });
         if (setRes.ok) {
           const setData = await setRes.json();
           if (setData.data) {
@@ -2317,6 +2329,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             setActiveView('master_data');
           } else if (['audit', 'logs', 'activity', 'jejak'].includes(tabParam)) {
             setActiveView('audit');
+          } else if (['market_intel', 'market-intel', 'intel', 'intelligence', 'riset', 'riset-pasar', 'b2b'].includes(tabParam)) {
+            setActiveView('market_intel');
           }
         }
 
@@ -3029,6 +3043,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     e.preventDefault();
     setSavingSettings(true);
     try {
+      const payload = {
+        ads_enabled: googleSettings.ads_enabled ?? '0',
+        ads_client_id: googleSettings.ads_client_id ?? '',
+        ads_auto_enabled: googleSettings.ads_auto_enabled ?? '1',
+        ads_slot_header: googleSettings.ads_slot_header ?? '',
+        ads_slot_infeed: googleSettings.ads_slot_infeed ?? '',
+        ads_slot_product_detail: googleSettings.ads_slot_product_detail ?? '',
+        ads_slot_bottom: googleSettings.ads_slot_bottom ?? '',
+        ads_test_mode: googleSettings.ads_test_mode ?? '1',
+        ads_txt_content: googleSettings.ads_txt_content ?? '',
+        ga_enabled: googleSettings.ga_enabled ?? '0',
+        ga_measurement_id: googleSettings.ga_measurement_id ?? '',
+      };
       const res = await fetch('/api/admin/monetization/settings', {
         method: 'POST',
         credentials: 'include',
@@ -3036,13 +3063,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(googleSettings),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         showToast('Pengaturan Google AdSense & Analytics berhasil disimpan!', 'success');
         loadData();
       } else {
-        showToast('Gagal menyimpan pengaturan Google', 'error');
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.message || 'Gagal menyimpan pengaturan Google', 'error');
       }
     } catch {
       showToast('Kesalahan jaringan saat menyimpan', 'error');
@@ -3621,7 +3649,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       bg: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
       border: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.25)',
       badge: 0,
-      visible: canAccessMasterData
+      visible: canManageSystemSettings
     },
     {
       id: 'master_data' as ActiveView,
@@ -4280,6 +4308,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       canAccessAutomation={canAccessAutomation}
       canAccessAudit={canAccessAudit}
       canAccessMasterData={canAccessMasterData}
+      canAccessPolicies={canManageSystemSettings}
       canAccessMarketIntel={canAccessMarketIntel}
       pendingReportsCount={pendingReportsCount}
       urgentTicketsCount={urgentTicketsCount}
@@ -5011,24 +5040,34 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {activeView === 'dashboard' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Quick Metrics Strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.45rem' }}>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Merchant</span>
-              <strong style={{ fontSize: '1.1rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900 }}>{dormancyMetrics?.active_stores || 1}</strong>
+          {(canAccessCompliance || canAccessFinance || canAccessSupport) && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.45rem' }}>
+              {canAccessCompliance && (
+                <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                  <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Merchant</span>
+                  <strong style={{ fontSize: '1.1rem', color: isDark ? '#38bdf8' : '#0284c7', fontWeight: 900 }}>{dormancyMetrics?.active_stores ?? 0}</strong>
+                </div>
+              )}
+              {canAccessFinance && (
+                <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                  <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Order</span>
+                  <strong style={{ fontSize: '1.1rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900 }}>{financeSummary.total}</strong>
+                </div>
+              )}
+              {canAccessCompliance && (
+                <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                  <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Laporan</span>
+                  <strong style={{ fontSize: '1.1rem', color: pendingReportsCount > 0 ? '#f43f5e' : (isDark ? '#fbbf24' : '#d97706'), fontWeight: 900 }}>{reports.length}</strong>
+                </div>
+              )}
+              {canAccessSupport && (
+                <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                  <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Tiket</span>
+                  <strong style={{ fontSize: '1.1rem', color: openTicketsCount > 0 ? '#06b6d4' : theme.textPrimary, fontWeight: 900 }}>{tickets.length}</strong>
+                </div>
+              )}
             </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Order</span>
-              <strong style={{ fontSize: '1.1rem', color: isDark ? '#34d399' : '#059669', fontWeight: 900 }}>{financeSummary.total}</strong>
-            </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Laporan</span>
-              <strong style={{ fontSize: '1.1rem', color: pendingReportsCount > 0 ? '#f43f5e' : (isDark ? '#fbbf24' : '#d97706'), fontWeight: 900 }}>{reports.length}</strong>
-            </div>
-            <div style={{ backgroundColor: theme.surface, padding: '0.7rem 0.25rem', borderRadius: '0.85rem', textAlign: 'center', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <span style={{ fontSize: '0.64rem', color: theme.textSecondary, display: 'block', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.2rem' }}>Tiket</span>
-              <strong style={{ fontSize: '1.1rem', color: openTicketsCount > 0 ? '#06b6d4' : theme.textPrimary, fontWeight: 900 }}>{tickets.length}</strong>
-            </div>
-          </div>
+          )}
 
           {/* Executive Operational Action Center / Perlu Tindakan Administrator */}
           <div style={{
@@ -5068,43 +5107,47 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     Perlu Tindakan Administrator
                   </h4>
                   <span style={{ fontSize: '0.66rem', color: theme.textSecondary }}>
-                    {(pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount) > 0
-                      ? `${pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount} antrean tugas aktif`
-                      : 'Semua antrean operasional telah ditangani'}
+                    {(() => {
+                      const gatedAlerts = (canAccessCompliance ? pendingReportsCount : 0) + (canAccessSupport ? (actionRequiredTicketsCount || openTicketsCount) : 0) + (canAccessFinance ? pendingOrdersCount : 0);
+                      return gatedAlerts > 0 ? `${gatedAlerts} antrean tugas aktif` : 'Semua antrean operasional telah ditangani';
+                    })()}
                   </span>
                 </div>
               </div>
 
-              {(pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount) > 0 ? (
-                <span style={{
-                  padding: '0.2rem 0.55rem',
-                  borderRadius: '999px',
-                  backgroundColor: '#ef4444',
-                  color: '#ffffff',
-                  fontSize: '0.65rem',
-                  fontWeight: 900,
-                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
-                }}>
-                  {pendingReportsCount + (actionRequiredTicketsCount || openTicketsCount) + pendingOrdersCount} Prioritas
-                </span>
-              ) : (
-                <span style={{
-                  padding: '0.2rem 0.55rem',
-                  borderRadius: '999px',
-                  backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#ecfdf5',
-                  color: isDark ? '#34d399' : '#059669',
-                  fontSize: '0.65rem',
-                  fontWeight: 800,
-                  border: isDark ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid #a7f3d0'
-                }}>
-                  Terkendali
-                </span>
-              )}
+              {(() => {
+                const gatedAlerts = (canAccessCompliance ? pendingReportsCount : 0) + (canAccessSupport ? (actionRequiredTicketsCount || openTicketsCount) : 0) + (canAccessFinance ? pendingOrdersCount : 0);
+                return gatedAlerts > 0 ? (
+                  <span style={{
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '999px',
+                    backgroundColor: '#ef4444',
+                    color: '#ffffff',
+                    fontSize: '0.65rem',
+                    fontWeight: 900,
+                    boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)'
+                  }}>
+                    {gatedAlerts} Prioritas
+                  </span>
+                ) : (
+                  <span style={{
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '999px',
+                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#ecfdf5',
+                    color: isDark ? '#34d399' : '#059669',
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    border: isDark ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid #a7f3d0'
+                  }}>
+                    Terkendali
+                  </span>
+                );
+              })()}
             </div>
 
             {/* Action Items List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {(actionRequiredTicketsCount > 0 || openTicketsCount > 0) && (
+              {canAccessSupport && (actionRequiredTicketsCount > 0 || openTicketsCount > 0) && (
                 <div
                   onClick={() => handleSwitchView('support')}
                   style={{
@@ -5149,7 +5192,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
               )}
 
-              {pendingReportsCount > 0 && (
+              {canAccessCompliance && pendingReportsCount > 0 && (
                 <div
                   onClick={() => handleSwitchView('reports')}
                   style={{
@@ -5194,7 +5237,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
               )}
 
-              {pendingOrdersCount > 0 && (
+              {canAccessFinance && pendingOrdersCount > 0 && (
                 <div
                   onClick={() => handleSwitchView('finance')}
                   style={{
@@ -5368,16 +5411,30 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         </div>
       )}
 
+      {/* ACCESS DENIED PANEL ON DIRECT URL BYPASS TO RESTRICTED VIEW */}
+      {!isViewPermitted(activeView, caps) && (
+        <AccessDeniedPanel
+          moduleName={headerConfig?.title || activeView}
+          roleSlug={roleSlug}
+          isDark={isDark}
+          onBack={() => handleSwitchView(getDefaultViewForCapabilities(caps, roleSlug) as ActiveView)}
+        />
+      )}
+
       {/* ========================================================================= */}
       {/* 4. MODULE 1: STAF & RBAC MANAGEMENT                                       */}
       {/* ========================================================================= */}
       {activeView === 'rbac' && canAccessRBAC && (
-        <AdminRBACManagement
-          token={token}
-          currentUserEmail={currentUser?.email}
-          themeMode={themeMode}
-          hideHeader={true}
-        />
+        <ErrorBoundary sectionName="Manajemen Staf & Role RBAC">
+          <AdminRBACManagement
+            token={token}
+            currentUserEmail={currentUser?.email}
+            currentUserId={currentUser?.id}
+            canMutate={caps.isSuperAdmin}
+            themeMode={themeMode}
+            hideHeader={true}
+          />
+        </ErrorBoundary>
       )}
 
       {/* ========================================================================= */}
@@ -5972,12 +6029,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               info: 'Seketika mengubah database item menjadi IsActive=True. Item dipulihkan dan dapat kembali diakses serta ditampilkan secara publik seperti biasa.'
                             }
                           ] : []),
-                          {
-                            value: 'catalog_suspended',
-                            label: 'Bekukan / Suspend Profil Katalog',
-                            desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time',
-                            info: 'Seketika mengubah status dormansi profil katalog menjadi Suspended. Seluruh etalase katalog dan itemnya dinonaktifkan sementara dari akses publik secara real-time.'
-                          },
+                          ...(canSuspendStores ? [
+                            {
+                              value: 'catalog_suspended',
+                              label: 'Bekukan / Suspend Profil Katalog',
+                              desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time',
+                              info: 'Seketika mengubah status dormansi profil katalog menjadi Suspended. Seluruh etalase katalog dan itemnya dinonaktifkan sementara dari akses publik secara real-time.'
+                            },
+                          ] : []),
                           {
                             value: 'catalog_banned',
                             label: 'Blokir / Banned Permanen Profil Katalog',
@@ -9020,12 +9079,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {activeView === 'finance' && canAccessFinance && (
         <div className="finance-workspace" style={{ ...financeColors(isDark, theme), display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
           <FinanceNav section={financeSubTab} select={setFinanceSubTab} settings={canManagePaymentSettings}
-            coupons={canManageCoupons} pending={pendingOrdersCount}/>
+            coupons={canManageCoupons} pending={pendingOrdersCount} orders={canReadOrders}/>
 
           {financeSubTab === 'orders' && (() => {
             const filteredOrders = orders.map(o => ({ raw: o, desc: describeSubscriptionOrder(o) }));
             const { total: totalOrdersCount = 0, pending: pendingCount = 0, paid: activeCount = 0,
-              rejected: rejectedCount = 0, revenue: totalVerifiedRevenue = 0 } = orderPage.summary;
+              rejected: rejectedCount = 0 } = orderPage.summary;
+            const totalVerifiedRevenue = Number(orderPage.summary?.revenue ?? 0);
+            const revenueRedacted = !canReadRevenue || Boolean(orderPage.summary?.revenue_redacted);
 
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -9107,11 +9168,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       </span>
                       <DollarSign size={15} color={isDark ? '#38bdf8' : '#0284c7'} />
                     </div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 900, color: theme.textPrimary }}>
-                      Rp {totalVerifiedRevenue.toLocaleString('id-ID')}
+                    <div style={{ fontSize: '1.25rem', fontWeight: 900, color: revenueRedacted ? theme.textMuted : theme.textPrimary }}>
+                      {revenueRedacted ? 'Akses Omzet Dibatasi' : `Rp ${totalVerifiedRevenue.toLocaleString('id-ID')}`}
                     </div>
                     <span style={{ fontSize: '0.72rem', color: theme.textSecondary }}>
-                      Akumulasi transaksi berstatus aktif
+                      {revenueRedacted ? 'Perlu izin finance:revenue:read' : 'Akumulasi transaksi berstatus aktif'}
                     </span>
                   </div>
                 </div>
@@ -11008,12 +11069,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* MODULE: MARKET INTELLIGENCE & B2B RESEARCH                                */}
       {/* ========================================================================= */}
       {activeView === 'market_intel' && canAccessMarketIntel && (
-        <PlatformMarketIntelView
-          token={token}
-          isDark={isDark}
-          theme={theme}
-          showToast={showToast}
-        />
+        <ErrorBoundary sectionName="Riset Pasar B2B">
+          <PlatformMarketIntelView
+            token={token}
+            isDark={isDark}
+            theme={theme}
+            showToast={showToast}
+            canTriggerBot={isSuperAdmin(currentUser) || hasPermission(currentUser, 'system:automation:manage')}
+          />
+        </ErrorBoundary>
       )}
 
       {activeView === 'automation' && canAccessAutomation && (
@@ -11951,6 +12015,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 gap: '0.85rem'
               }}>
                 {/* Master Option 1: Master Domain Aman */}
+                {canManageSystemSettings && (
                 <div
                   role="button"
                   tabIndex={0}
@@ -12063,8 +12128,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Master Option 2: Template Pesan Cepat CS */}
+                {canManageSupportTemplates && (
                 <div
                   role="button"
                   tabIndex={0}
@@ -12179,8 +12246,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Master Option 3: Mitra Rekber Syariah (rekbersyariah.com) */}
+                {canManageSystemSettings && (
                 <div
                   role="button"
                   tabIndex={0}
@@ -12295,8 +12364,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Master Option 4: Kontak Bantuan & Support Resmi */}
+                {canManageSystemSettings && (
                 <div
                   role="button"
                   tabIndex={0}
@@ -12409,8 +12480,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Master Option 5: Kebijakan & Legalitas Platform */}
+                {canManageSystemSettings && (
                 <div
                   role="button"
                   tabIndex={0}
@@ -12523,6 +12596,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Extensibility & Scalability Information Card */}
@@ -12544,8 +12618,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
           )}
 
+          {!canManageSystemSettings && masterSubView !== 'menu' && masterSubView !== 'templates' && (
+            <AccessDeniedPanel
+              moduleName="Pengaturan Master Sistem"
+              roleSlug={roleSlug}
+              isDark={isDark}
+              onBack={() => {
+                setMasterSubView('menu');
+                updatePlatformUrl('master_data', null, null);
+              }}
+              backLabel="Kembali ke Data Master"
+            />
+          )}
+
           {/* SUB-VIEW 1: MASTER DOMAIN AMAN (WHITELIST) */}
-          {masterSubView === 'domains' && (
+          {canManageSystemSettings && masterSubView === 'domains' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               {/* Header Box with Back Button */}
               <div style={{
@@ -12613,7 +12700,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           )}
 
           {/* SUB-VIEW 2: MASTER CANNED RESPONSES (TEMPLATES) */}
-          {masterSubView === 'templates' && (
+          {canManageSupportTemplates && masterSubView === 'templates' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               {/* Header Box with Back Button & Actions */}
               <div style={{
@@ -13076,7 +13163,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           )}
 
           {/* SUB-VIEW 3: MASTER REKBER SYARIAH (INTEGRASI ESCROW RESMI) */}
-          {masterSubView === 'rekber' && (
+          {canManageSystemSettings && masterSubView === 'rekber' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {/* Top Sub-Header & Navigation */}
               <div style={{
@@ -14000,7 +14087,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           )}
 
           {/* SUB-VIEW 4: KONTAK RESMI PLATFORM (WHATSAPP & EMAIL) */}
-          {masterSubView === 'contact' && (
+          {canManageSystemSettings && masterSubView === 'contact' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {/* Top Sub-Header & Navigation */}
               <div style={{
@@ -14199,7 +14286,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           )}
 
           {/* SUB-VIEW 5: MASTER KEBIJAKAN & LEGALITAS PLATFORM */}
-          {masterSubView === 'policies' && (
+          {canManageSystemSettings && masterSubView === 'policies' && (
             <ErrorBoundary sectionName="Manajemen Kebijakan Platform">
               <PlatformPolicyManager
                 token={token || localStorage.getItem('catavor_token') || ''}
@@ -14220,7 +14307,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       )}
 
       {/* DIRECT TOP-LEVEL VIEW: KEBIJAKAN & LEGALITAS PLATFORM */}
-      {activeView === 'policies' && canAccessMasterData && (
+      {activeView === 'policies' && canManageSystemSettings && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <ErrorBoundary sectionName="Manajemen Kebijakan Platform">
             <PlatformPolicyManager

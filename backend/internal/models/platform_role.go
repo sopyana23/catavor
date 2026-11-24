@@ -1,8 +1,11 @@
 package models
 
-import "strings"
+import (
+	"strings"
+	"sync"
+)
 
-// PlatformStaffRoles adalah daftar TUNGGAL role staf platform yang sah.
+// PlatformStaffRoles adalah daftar role staf platform bawaan yang sah.
 //
 // ARSITEKTUR (control plane vs data plane): staf platform dan merchant adalah
 // dua dimensi yang INDEPENDEN.
@@ -30,6 +33,32 @@ var PlatformStaffRoles = map[string]struct{}{
 	"content":    {},
 }
 
+// ReservedNonStaffRoles adalah identifier yang tidak pernah boleh menjadi role staf
+// kustom maupun dianggap staf pengelola platform.
+var ReservedNonStaffRoles = map[string]struct{}{
+	"":         {},
+	"merchant": {},
+	"admin":    {},
+	"user":     {},
+	"buyer":    {},
+	"guest":    {},
+	"system":   {},
+	"*":        {},
+}
+
+var (
+	customStaffRoleMu      sync.RWMutex
+	customStaffRoleChecker func(string) bool
+)
+
+// RegisterCustomStaffRoleChecker mendaftarkan pemeriksa role kustom yang didukung DB/cache
+// (diisi oleh package services agar models tetap bebas ketergantungan sirkular).
+func RegisterCustomStaffRoleChecker(fn func(string) bool) {
+	customStaffRoleMu.Lock()
+	defer customStaffRoleMu.Unlock()
+	customStaffRoleChecker = fn
+}
+
 // NormalizePlatformRole mengembalikan platform_role dalam bentuk kanonik
 // (huruf kecil, tanpa spasi tepi).
 func NormalizePlatformRole(role string) string {
@@ -38,9 +67,26 @@ func NormalizePlatformRole(role string) string {
 
 // IsPlatformStaffRole adalah varian string-level dari User.IsPlatformStaff,
 // untuk pemanggil yang hanya menyimpan role sebagai string (mis. koneksi SSE).
+// Tetap fail-closed: nilai kosong, reserved, mengandung null-byte, atau tidak
+// terdaftar di built-in maupun role DB kustom dianggap BUKAN staf.
 func IsPlatformStaffRole(role string) bool {
-	_, ok := PlatformStaffRoles[NormalizePlatformRole(role)]
-	return ok
+	if strings.ContainsRune(role, '\x00') {
+		return false
+	}
+	norm := NormalizePlatformRole(role)
+	if _, reserved := ReservedNonStaffRoles[norm]; reserved {
+		return false
+	}
+	if _, ok := PlatformStaffRoles[norm]; ok {
+		return true
+	}
+	customStaffRoleMu.RLock()
+	checker := customStaffRoleChecker
+	customStaffRoleMu.RUnlock()
+	if checker != nil {
+		return checker(norm)
+	}
+	return false
 }
 
 // IsPlatformStaff melaporkan apakah pemilik akun ini adalah staf platform.

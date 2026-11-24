@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"catavor-backend/internal/models"
+	"catavor-backend/internal/services"
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
@@ -193,6 +194,16 @@ func (h *SubscriptionHandler) financeOrdersPage(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(500, "Gagal memuat transaksi")
 	}
+
+	// Redact sensitive revenue metric unless caller holds finance:revenue:read or finance:orders:manage.
+	if user, ok := c.Locals("user").(*models.User); ok && user != nil && result.Summary != nil {
+		rbac := services.GetRBACServiceForDB(h.db)
+		if !rbac.HasPermission(user, "finance:revenue:read") && !rbac.HasPermission(user, "finance:orders:manage") {
+			result.Summary["revenue"] = nil
+			result.Summary["revenue_redacted"] = true
+		}
+	}
+
 	return c.JSON(result)
 }
 

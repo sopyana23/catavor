@@ -41,6 +41,7 @@ export interface PlatformAdminShellProps {
   canAccessAutomation: boolean;
   canAccessAudit: boolean;
   canAccessMasterData: boolean;
+  canAccessPolicies?: boolean;
   canAccessMarketIntel?: boolean;
   pendingReportsCount: number;
   urgentTicketsCount: number;
@@ -70,6 +71,7 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
   canAccessAutomation,
   canAccessAudit,
   canAccessMasterData,
+  canAccessPolicies,
   canAccessMarketIntel = false,
   pendingReportsCount,
   urgentTicketsCount,
@@ -217,7 +219,7 @@ export const PlatformAdminShell: React.FC<PlatformAdminShellProps> = ({
           sublabel: '6 Pilar Regulasi & Banner',
           icon: <Scale size={18} strokeWidth={1.75} />,
           badge: 0,
-          visible: canAccessMasterData
+          visible: canAccessPolicies !== undefined ? canAccessPolicies : canAccessMasterData
         },
         {
           id: 'master_data',

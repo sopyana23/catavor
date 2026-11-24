@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"catavor-backend/internal/config"
 	"catavor-backend/internal/database"
+	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 
 	"github.com/gofiber/fiber/v2"
@@ -56,7 +58,10 @@ func rbacApp(t *testing.T, handlerDB *gorm.DB) *fiber.App {
 	app.Post("/rbac/staff", actorMiddleware, h.AssignStaff)
 	app.Post("/rbac/staff/create", actorMiddleware, h.CreateStaff)
 	app.Delete("/rbac/staff", actorMiddleware, h.RevokeStaff)
+	app.Delete("/rbac/staff/:id", actorMiddleware, h.RevokeStaff)
 	app.Post("/rbac/roles", actorMiddleware, h.CreateRole)
+	app.Put("/rbac/roles/:slug", actorMiddleware, h.UpdateRole)
+	app.Delete("/rbac/roles/:slug", actorMiddleware, h.DeleteRole)
 	return app
 }
 
@@ -165,12 +170,12 @@ func TestRBACUpdateMatrix_SQLite(t *testing.T) {
 		}
 	})
 
-	t.Run("bukan_superadmin_ditolak", func(t *testing.T) {
+	t.Run("bukan_superadmin_ditolak_403", func(t *testing.T) {
 		for _, actor := range []string{"", "merchant", "garbage"} {
 			code, body := rbacReq(t, app, "PUT", "/rbac/matrix", actor,
 				`{"role_slug":"admin","permission_keys":["*"]}`)
-			if code != 400 {
-				t.Fatalf("actor %q: status = %d, want 400 (body %v)", actor, code, body)
+			if code != 403 {
+				t.Fatalf("actor %q: status = %d, want 403 (body %v)", actor, code, body)
 			}
 			msg, _ := body["message"].(string)
 			if !strings.Contains(strings.ToLower(msg), "akses ditolak") {
@@ -179,11 +184,11 @@ func TestRBACUpdateMatrix_SQLite(t *testing.T) {
 		}
 	})
 
-	t.Run("superadmin_matrix_tidak_bisa_diubah", func(t *testing.T) {
+	t.Run("superadmin_matrix_tidak_bisa_diubah_409", func(t *testing.T) {
 		code, body := rbacReq(t, app, "PUT", "/rbac/matrix", "superadmin",
 			`{"role_slug":"superadmin","permission_keys":["products.read"]}`)
-		if code != 400 {
-			t.Fatalf("status = %d, want 400 (body %v)", code, body)
+		if code != 409 {
+			t.Fatalf("status = %d, want 409 (body %v)", code, body)
 		}
 		msg, _ := body["message"].(string)
 		if !strings.Contains(strings.ToLower(msg), "superadmin") {
@@ -221,12 +226,12 @@ func TestRBACAssignStaff_SQLite(t *testing.T) {
 		}
 	})
 
-	t.Run("bukan_superadmin_tidak_boleh_menaikkan_role", func(t *testing.T) {
+	t.Run("bukan_superadmin_tidak_boleh_menaikkan_role_403", func(t *testing.T) {
 		for _, actor := range []string{"", "merchant", "garbage"} {
 			code, body := rbacReq(t, app, "POST", "/rbac/staff", actor,
 				`{"email":"saya@example.com","role_slug":"superadmin"}`)
-			if code != 400 {
-				t.Fatalf("actor %q: status = %d, want 400 (body %v)", actor, code, body)
+			if code != 403 {
+				t.Fatalf("actor %q: status = %d, want 403 (body %v)", actor, code, body)
 			}
 			msg, _ := body["message"].(string)
 			if !strings.Contains(strings.ToLower(msg), "akses ditolak") {
@@ -256,18 +261,27 @@ func TestRBACRevokeStaff_SQLite(t *testing.T) {
 		}
 	})
 
-	t.Run("bukan_superadmin_ditolak", func(t *testing.T) {
+	t.Run("bukan_superadmin_ditolak_403", func(t *testing.T) {
 		db := newTestDB(t)
 		app := rbacApp(t, db)
 		for _, actor := range []string{"", "merchant", "garbage"} {
 			code, body := rbacReq(t, app, "DELETE", "/rbac/staff", actor, `{"user_id":5}`)
-			if code != 400 {
-				t.Fatalf("actor %q: status = %d, want 400 (body %v)", actor, code, body)
+			if code != 403 {
+				t.Fatalf("actor %q: status = %d, want 403 (body %v)", actor, code, body)
 			}
 			msg, _ := body["message"].(string)
 			if !strings.Contains(strings.ToLower(msg), "akses ditolak") {
 				t.Errorf("actor %q: pesan = %q, want mengandung 'akses ditolak'", actor, msg)
 			}
+		}
+	})
+
+	t.Run("delete_param_id_empty_body_tidak_400", func(t *testing.T) {
+		db := newTestDB(t)
+		app := rbacApp(t, db)
+		code, _ := rbacReq(t, app, "DELETE", "/rbac/staff/999999", "superadmin", "")
+		if code != 404 {
+			t.Fatalf("DELETE empty body param id: status = %d, want 404 (not 400 parse error)", code)
 		}
 	})
 }
@@ -331,12 +345,12 @@ func TestRBACCreateStaff_SQLite(t *testing.T) {
 		}
 	})
 
-	t.Run("bukan_superadmin_ditolak", func(t *testing.T) {
+	t.Run("bukan_superadmin_ditolak_403", func(t *testing.T) {
 		for _, actor := range []string{"", "merchant", "garbage"} {
 			code, body := rbacReq(t, app, "POST", "/rbac/staff/create", actor,
 				`{"name":"Petugas Baru","email":"petugas.baru@test.com","password":"password123","role_slug":"support"}`)
-			if code != 400 {
-				t.Fatalf("actor %q: status = %d, want 400 (body %v)", actor, code, body)
+			if code != 403 {
+				t.Fatalf("actor %q: status = %d, want 403 (body %v)", actor, code, body)
 			}
 			msg, _ := body["message"].(string)
 			if !strings.Contains(strings.ToLower(msg), "akses ditolak") {
@@ -344,4 +358,160 @@ func TestRBACCreateStaff_SQLite(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestRBAC_FullLifecycleAndDomainGuards_SQLite(t *testing.T) {
+	db := newTestDB(t)
+	prevGlobalDB := database.DB
+	database.DB = db
+	t.Cleanup(func() { database.DB = prevGlobalDB })
+
+	perms := []models.PlatformPermission{
+		{Key: "finance:settings:manage", Group: "finance", Name: "Kelola Pembayaran"},
+		{Key: "finance:orders:read", Group: "finance", Name: "Lihat Order"},
+		{Key: "monetization:google:manage", Group: "monetization", Name: "Kelola AdSense"},
+		{Key: "system:settings:manage", Group: "system", Name: "Master Settings"},
+		{Key: "system:admins:manage", Group: "system", Name: "Kelola RBAC"},
+	}
+	for i := range perms {
+		db.FirstOrCreate(&perms[i], models.PlatformPermission{Key: perms[i].Key})
+	}
+	sysRoles := []models.PlatformRole{
+		{Slug: "superadmin", Name: "Super Administrator", IsSystem: true},
+		{Slug: "finance", Name: "Finance & Billing", IsSystem: true},
+		{Slug: "content", Name: "Content & Marketing", IsSystem: true},
+	}
+	for i := range sysRoles {
+		db.FirstOrCreate(&sysRoles[i], models.PlatformRole{Slug: sysRoles[i].Slug})
+	}
+
+	var finRole, contentRole models.PlatformRole
+	db.Where("slug = ?", "finance").First(&finRole)
+	db.Where("slug = ?", "content").First(&contentRole)
+	var finSetPerm, adsPerm models.PlatformPermission
+	db.Where("key = ?", "finance:settings:manage").First(&finSetPerm)
+	db.Where("key = ?", "monetization:google:manage").First(&adsPerm)
+	db.FirstOrCreate(&models.PlatformRolePermission{RoleID: finRole.ID, PermissionID: finSetPerm.ID})
+	db.FirstOrCreate(&models.PlatformRolePermission{RoleID: contentRole.ID, PermissionID: adsPerm.ID})
+
+	root := models.User{Name: "Root", Email: "root@test.local", PlatformRole: "superadmin"}
+	finStaff := models.User{Name: "Fin", Email: "fin@test.local", PlatformRole: "finance", TokenVersion: 1}
+	contentStaff := models.User{Name: "Content", Email: "content@test.local", PlatformRole: "content", TokenVersion: 1}
+	db.Create(&root)
+	db.Create(&finStaff)
+	db.Create(&contentStaff)
+
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	setH := NewSettingHandler(db)
+	rbacH := NewRBACHandler(db)
+
+	injectUser := func(c *fiber.Ctx) error {
+		switch c.Get("X-Actor") {
+		case "root":
+			c.Locals("user", &root)
+		case "finance":
+			c.Locals("user", &finStaff)
+		case "content":
+			c.Locals("user", &contentStaff)
+		}
+		return c.Next()
+	}
+
+	cfg := &config.Config{AppEnv: "local"}
+	app.Delete("/api/admin/rbac/staff/:id", injectUser, rbacH.RevokeStaff)
+	app.Post("/api/admin/rbac/roles", injectUser, rbacH.CreateRole)
+	app.Put("/api/admin/rbac/roles/:slug", injectUser, rbacH.UpdateRole)
+	app.Delete("/api/admin/rbac/roles/:slug", injectUser, rbacH.DeleteRole)
+	app.Get("/api/admin/settings", injectUser, setH.Index)
+	app.Post("/api/admin/settings", injectUser, setH.Store)
+	app.Get("/api/admin/orders-guard", injectUser, middleware.RequireAnyPermission(cfg, "finance:orders:read", "finance:revenue:read"), func(c *fiber.Ctx) error {
+		return c.SendStatus(200)
+	})
+
+	doReq := func(method, path, actor, body string) (int, map[string]any) {
+		var rdr io.Reader
+		if body != "" {
+			rdr = strings.NewReader(body)
+		}
+		req := httptest.NewRequest(method, path, rdr)
+		req.Header.Set("Content-Type", "application/json")
+		if actor != "" {
+			req.Header.Set("X-Actor", actor)
+		}
+		resp, err := app.Test(req, -1)
+		if err != nil {
+			t.Fatalf("%s %s: %v", method, path, err)
+		}
+		defer resp.Body.Close()
+		raw, _ := io.ReadAll(resp.Body)
+		out := map[string]any{}
+		if len(raw) > 0 {
+			_ = json.Unmarshal(raw, &out)
+		}
+		return resp.StatusCode, out
+	}
+
+	// 1. Custom Role CRUD & revoke empty body
+	if code, body := doReq("POST", "/api/admin/rbac/roles", "root", `{"slug":"custom_aud","name":"Custom Auditor","permission_keys":["finance:orders:read"]}`); code != 201 {
+		t.Fatalf("CreateRole 201 want, got %d (%v)", code, body)
+	}
+	if code, body := doReq("PUT", "/api/admin/rbac/roles/custom_aud", "root", `{"name":"Custom Auditor V2","description":"Edit desc","permission_keys":["finance:orders:read"]}`); code != 200 {
+		t.Fatalf("UpdateRole 200 want, got %d (%v)", code, body)
+	}
+	if code, _ := doReq("DELETE", "/api/admin/rbac/roles/custom_aud", "root", ""); code != 200 {
+		t.Fatalf("DeleteRole unused role want 200, got %d", code)
+	}
+	if code, _ := doReq("DELETE", "/api/admin/rbac/roles/finance", "root", ""); code != 409 {
+		t.Fatalf("DeleteRole system role want 409, got %d", code)
+	}
+
+	// Assign & Delete empty body /api/admin/rbac/staff/:id
+	if code, body := doReq("DELETE", "/api/admin/rbac/staff/"+jsonNumberToString(finStaff.ID), "root", ""); code != 200 {
+		t.Fatalf("RevokeStaff empty body param id want 200, got %d (%v)", code, body)
+	}
+
+	// Restore finStaff as finance & refresh cache
+	db.Model(&models.User{}).Where("id = ?", finStaff.ID).Update("platform_role", "finance")
+	finStaff.PlatformRole = "finance"
+	rbacH.rbacService.RefreshCache()
+
+	// 2. SettingHandler domain allowlist enforcement
+	db.Create(&models.Setting{Key: "smtp_password", Value: "supersecret_smtp"})
+	db.Create(&models.Setting{Key: "ads_client_id", Value: "ca-pub-123"})
+	db.Create(&models.Setting{Key: "payment_bank_account", Value: "998877"})
+
+	if code, _ := doReq("POST", "/api/admin/settings", "finance", `{"payment_bank_holder":"PT Baru"}`); code != 200 {
+		t.Fatalf("finance ubah payment_* seharusnya 200, dapat %d", code)
+	}
+	if code, _ := doReq("POST", "/api/admin/settings", "finance", `{"ads_enabled":"1"}`); code != 403 {
+		t.Fatalf("finance ubah ads_* harus ditolak 403, dapat %d", code)
+	}
+	if code, body := doReq("GET", "/api/admin/settings", "content", ""); code != 200 {
+		t.Fatalf("content GET /admin/settings want 200, got %d", code)
+	} else {
+		data, _ := body["data"].(map[string]any)
+		if _, leakedSMTP := data["smtp_password"]; leakedSMTP {
+			t.Fatal("SECRET LEAK: smtp_password bocor ke role content!")
+		}
+		if _, leakedAulaa := data["payment_bank_account"]; leakedAulaa {
+			t.Fatal("DOMAIN LEAK: payment_bank_account bocor ke role content!")
+		}
+		if data["ads_client_id"] != "ca-pub-123" {
+			t.Errorf("content harus tetap menerima ads_client_id miliknya, dapat %v", data["ads_client_id"])
+		}
+	}
+
+	// 3. RequireAnyPermission mencatat RBAC_ACCESS_DENIED saat 403
+	if code, _ := doReq("GET", "/api/admin/orders-guard", "content", ""); code != 403 {
+		t.Fatalf("content GET /api/admin/orders-guard want 403, got %d", code)
+	}
+	var denyLog models.ActivityLog
+	if err := db.Where("action = ? AND actor_email = ?", "RBAC_ACCESS_DENIED", contentStaff.Email).First(&denyLog).Error; err != nil {
+		t.Fatalf("RequireAnyPermission 403 harus mencatat activity_log RBAC_ACCESS_DENIED: %v", err)
+	}
+}
+
+func jsonNumberToString(id uint) string {
+	b, _ := json.Marshal(id)
+	return string(b)
 }

@@ -23,40 +23,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// scopedRouter attaches middlewares per route instead of calling Router.Group("", ...)
-// which in GoFiber v2 mounts prefix middleware globally for subsequent groups like /api/admin.
-type scopedRouter struct {
-	parent      fiber.Router
-	middlewares []fiber.Handler
-}
-
-func (r scopedRouter) wrap(handlers []fiber.Handler) []fiber.Handler {
-	chain := make([]fiber.Handler, 0, len(r.middlewares)+len(handlers))
-	chain = append(chain, r.middlewares...)
-	chain = append(chain, handlers...)
-	return chain
-}
-
-func (r scopedRouter) Get(path string, handlers ...fiber.Handler) fiber.Router {
-	return r.parent.Get(path, r.wrap(handlers)...)
-}
-
-func (r scopedRouter) Post(path string, handlers ...fiber.Handler) fiber.Router {
-	return r.parent.Post(path, r.wrap(handlers)...)
-}
-
-func (r scopedRouter) Put(path string, handlers ...fiber.Handler) fiber.Router {
-	return r.parent.Put(path, r.wrap(handlers)...)
-}
-
-func (r scopedRouter) Patch(path string, handlers ...fiber.Handler) fiber.Router {
-	return r.parent.Patch(path, r.wrap(handlers)...)
-}
-
-func (r scopedRouter) Delete(path string, handlers ...fiber.Handler) fiber.Router {
-	return r.parent.Delete(path, r.wrap(handlers)...)
-}
-
 func main() {
 	// 1. Initialize Zerolog output
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
@@ -155,6 +121,9 @@ func main() {
 
 	// Initialize OTP Service for Email Verification & Password Recovery
 	services.InitOTPService(database.DB)
+
+	// Start RBAC Redis cache invalidation subscriber when Redis is available
+	services.StartRBACCacheSubscriber(context.Background())
 
 	// Start Background Notification Cleaner Worker & Scheduled Broadcast Publisher
 	services.StartNotificationCleaner(context.Background(), database.DB, 1*time.Hour)
@@ -551,8 +520,8 @@ func main() {
 	api.Get("/auth/check-slug/:slug", storeHandler.CheckSlug)
 	api.Get("/auth/check-slug", storeHandler.CheckSlug)
 
-	// User Auth-Guarded Endpoints (Requires valid JWT Token)
-	authOnly := scopedRouter{parent: api, middlewares: []fiber.Handler{middleware.AuthRequired(cfg)}}
+	// User Auth-Guarded Endpoints (Requires valid JWT Token — scoped per route)
+	authOnly := newScopedGroup(api, middleware.AuthRequired(cfg))
 	{
 		authOnly.Get("/auth/verify", authHandler.VerifyToken)
 		authOnly.Get("/auth/me", authHandler.VerifyToken)
@@ -597,16 +566,10 @@ func main() {
 		authOnly.Get("/notifications/:id", notificationHandler.GetNotificationByID)
 	}
 
-	// Guarded Admin & Merchant Endpoints (Requires JWT Token & Store Ownership)
-	guarded := scopedRouter{
-		parent:      api,
-		middlewares: []fiber.Handler{middleware.AuthRequired(cfg), middleware.StoreOwnerRequired()},
-	}
+	// Guarded Admin & Merchant Endpoints (Requires JWT Token & Store Ownership — scoped per route)
+	guarded := newScopedGroup(api, middleware.AuthRequired(cfg), middleware.StoreOwnerRequired())
 	// Guarded Mutation Endpoints (Requires Active/Operational Store - Blocks Banned/Suspended Stores)
-	guardedMutations := scopedRouter{
-		parent:      api,
-		middlewares: []fiber.Handler{middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), middleware.OperationalStoreRequired()},
-	}
+	guardedMutations := newScopedGroup(api, middleware.AuthRequired(cfg), middleware.StoreOwnerRequired(), middleware.OperationalStoreRequired())
 	{
 		// Storage & Cloud Object Endpoints (S3 / MinIO / Local)
 		guardedMutations.Post("/storage/upload", storageHandler.Upload)
@@ -754,6 +717,8 @@ func main() {
 		adminApi.Post("/rbac/matrix", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.UpdateMatrix)
 		adminApi.Get("/rbac/roles", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.GetMatrix)
 		adminApi.Post("/rbac/roles", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.CreateRole)
+		adminApi.Put("/rbac/roles/:slug", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.UpdateRole)
+		adminApi.Delete("/rbac/roles/:slug", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.DeleteRole)
 		adminApi.Get("/rbac/staff", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.GetStaff)
 		adminApi.Post("/rbac/staff", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.AssignStaff)
 		adminApi.Post("/rbac/staff/assign", middleware.RequirePermission(cfg, "system:admins:manage"), rbacHandler.AssignStaff)
@@ -802,8 +767,8 @@ func main() {
 		// Monetization, Rekber Syariah & Platform Settings
 		// SECURITY (N-12): settings mengubah konfigurasi platform (monetisasi, iklan,
 		// kredensial partner) -> wajib izin khusus, bukan sekadar staf platform.
-		adminApi.Get("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Index)
-		adminApi.Post("/settings", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.Store)
+		adminApi.Get("/settings", middleware.RequireAnyPermission(cfg, "system:settings:manage", "finance:settings:manage", "monetization:google:manage"), settingHandler.Index)
+		adminApi.Post("/settings", middleware.RequireAnyPermission(cfg, "system:settings:manage", "finance:settings:manage", "monetization:google:manage"), settingHandler.Store)
 		adminApi.Get("/monetization/settings", middleware.RequireAnyPermission(cfg, "monetization:google:manage", "system:settings:manage"), settingHandler.GetMonetizationSettings)
 		adminApi.Post("/monetization/settings", middleware.RequireAnyPermission(cfg, "monetization:google:manage", "system:settings:manage"), settingHandler.StoreMonetization)
 		adminApi.Get("/ads/overview", middleware.RequireAnyPermission(cfg, "monetization:google:manage", "finance:orders:read", "system:settings:manage"), adHandler.AdminGetOverview)
@@ -817,7 +782,7 @@ func main() {
 		adminApi.Post("/settings/policies/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetDefaultPolicies)
 		adminApi.Get("/settings/policy-audit-logs", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.GetPolicyAuditLogs)
 		adminApi.Post("/settings/rekber/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), settingHandler.ResetRekberDefaults)
-		adminApi.Post("/payments/aulaa/test-connection", middleware.RequirePermission(cfg, "system:settings:manage"), paymentHandler.TestAulaaConnection)
+		adminApi.Post("/payments/aulaa/test-connection", middleware.RequireAnyPermission(cfg, "finance:settings:manage", "system:settings:manage"), paymentHandler.TestAulaaConnection)
 
 		// Master Safe Domains (Ecosystem URL Whitelist)
 		// SECURITY (N-29): daftar ini adalah whitelist domain tepercaya yang dipakai
@@ -835,7 +800,7 @@ func main() {
 		adminApi.Post("/safe-domains/reset-defaults", middleware.RequirePermission(cfg, "system:settings:manage"), safeDomainHandler.ResetDefaultSafeDomains)
 
 		// Finance & Billing
-		adminApi.Get("/subscription/orders", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.AdminListOrders)
+		adminApi.Get("/subscription/orders", middleware.RequireAnyPermission(cfg, "finance:orders:read", "finance:orders:manage", "finance:revenue:read"), subscriptionHandler.AdminListOrders)
 		adminApi.Get("/subscription/orders/:id/proof", middleware.RequirePermission(cfg, "finance:orders:read"), subscriptionHandler.GetOrderProof)
 		adminApi.Post("/subscription/orders/:id/approve", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.ApproveOrder)
 		adminApi.Post("/subscription/orders/:id/reject", middleware.RequirePermission(cfg, "finance:orders:manage"), subscriptionHandler.RejectOrder)
@@ -851,7 +816,7 @@ func main() {
 
 		// Audit & Market Intelligence
 		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)
-		adminApi.Get("/analytics/overview", middleware.RequireAnyPermission(cfg, "market_intel:manage", "audit:logs:read", "system:settings:manage"), analyticsHandler.GetGlobalAnalyticsOverview)
+		adminApi.Get("/analytics/overview", middleware.RequireAnyPermission(cfg, "market_intel:manage", "audit:logs:read", "finance:revenue:read", "system:settings:manage"), analyticsHandler.GetGlobalAnalyticsOverview)
 		adminApi.Get("/market-intelligence", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetMarketIntelligenceSummary)
 		adminApi.Get("/market-intelligence/export", middleware.RequirePermission(cfg, "market_intel:manage"), middleware.ExportRateLimiter(), analyticsHandler.ExportMarketIntelligenceData)
 		adminApi.Get("/market-intelligence/trending-keywords", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetTrendingKeywords)

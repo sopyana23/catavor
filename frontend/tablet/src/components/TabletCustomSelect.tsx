@@ -463,7 +463,7 @@ export const TabletCustomSelect: React.FC<TabletCustomSelectProps> = ({
             style={{
               position: 'fixed',
               inset: 0,
-              zIndex: 99998,
+              zIndex: 200000,
               backgroundColor: 'transparent',
               touchAction: 'manipulation'
             }}
@@ -481,7 +481,7 @@ export const TabletCustomSelect: React.FC<TabletCustomSelectProps> = ({
               bottom: coords.bottom !== undefined ? `${coords.bottom}px` : 'auto',
               left: `${coords.left}px`,
               width: `${coords.width}px`,
-              zIndex: 99999,
+              zIndex: 200001,
               backgroundColor: 'var(--bg-card, #ffffff)',
               borderRadius: '0.85rem',
               border: '1px solid var(--border-light, rgba(30, 58, 138, 0.14))',

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -154,6 +155,49 @@ func maskSecretValue(val string) string {
 	return "****" + trimmed[len(trimmed)-4:]
 }
 
+func (h *SettingHandler) resolveActor(c *fiber.Ctx) *models.User {
+	if userVal := c.Locals("user"); userVal != nil {
+		if u, ok := userVal.(*models.User); ok && u != nil {
+			return u
+		}
+	}
+	if uid, ok := c.Locals("user_id").(uint); ok && uid > 0 && h.db != nil {
+		var u models.User
+		if err := h.db.First(&u, uid).Error; err == nil {
+			return &u
+		}
+	}
+	return nil
+}
+
+func canAccessSettingKey(user *models.User, rbac *services.RBACService, key string) bool {
+	if user == nil || !user.IsPlatformStaff() {
+		return false
+	}
+	if user.IsSuperadmin() || rbac.HasPermission(user, "system:settings:manage") {
+		return true
+	}
+	if rbac.HasPermission(user, "finance:settings:manage") &&
+		(strings.HasPrefix(key, "payment_") || strings.HasPrefix(key, "aulaa_")) {
+		return true
+	}
+	if rbac.HasPermission(user, "monetization:google:manage") &&
+		(strings.HasPrefix(key, "ads_") || strings.HasPrefix(key, "ga_")) {
+		return true
+	}
+	return false
+}
+
+func hasAnySettingDomainPermission(user *models.User, rbac *services.RBACService) bool {
+	if user == nil || !user.IsPlatformStaff() {
+		return false
+	}
+	return user.IsSuperadmin() ||
+		rbac.HasPermission(user, "system:settings:manage") ||
+		rbac.HasPermission(user, "finance:settings:manage") ||
+		rbac.HasPermission(user, "monetization:google:manage")
+}
+
 func (h *SettingHandler) Index(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -161,6 +205,29 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
+	user := h.resolveActor(c)
+	if user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Autentikasi diperlukan.",
+		})
+	}
+	if !middleware.IsPlatformStaffRole(user.PlatformRole) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "FORBIDDEN_ROLE",
+			"message": "Akses Ditolak: Hanya Pengelola Platform yang berwenang membaca pengaturan internal.",
+		})
+	}
+	rbac := services.GetRBACServiceForDB(h.db)
+	if !hasAnySettingDomainPermission(user, rbac) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "FORBIDDEN_PERMISSION_REQUIRED",
+			"message": "Akses Ditolak: Anda tidak memiliki izin untuk membaca pengaturan platform.",
+		})
+	}
+
 	var settings []models.Setting
 	query := h.db
 	if c.Query("exclude") == "master_coupons" {
@@ -180,6 +247,16 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 	}
 
 	h.applyFallbacks(res)
+
+	if !user.IsSuperadmin() && !rbac.HasPermission(user, "system:settings:manage") {
+		filtered := make(map[string]string)
+		for k, v := range res {
+			if canAccessSettingKey(user, rbac, k) {
+				filtered[k] = v
+			}
+		}
+		res = filtered
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -476,19 +553,7 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 	}
 	// Security check: Only Platform Admin (Super Admin or operational staff) can mutate platform settings.
 	// Merchants are strictly disallowed to prevent tampering with platform monetization, ads, or partner credentials.
-	userVal := c.Locals("user")
-	var user *models.User
-	if userVal != nil {
-		user, _ = userVal.(*models.User)
-	}
-	if user == nil {
-		if uid, ok := c.Locals("user_id").(uint); ok && uid > 0 {
-			var u models.User
-			if err := h.db.First(&u, uid).Error; err == nil {
-				user = &u
-			}
-		}
-	}
+	user := h.resolveActor(c)
 
 	if user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -497,14 +562,21 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 		})
 	}
 
-	// SECURITY (N-12): whitelist eksplisit, bukan blacklist. Sebelumnya hanya
-	// "" dan "merchant" yang ditolak sehingga staf operasional mana pun (mis.
-	// support) bisa mengubah pengaturan platform.
+	// SECURITY (N-12): whitelist eksplisit, bukan blacklist.
 	if !middleware.IsPlatformStaffRole(user.PlatformRole) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
 			"code":    "FORBIDDEN_ROLE",
 			"message": "Akses Ditolak: Hanya Pengelola Platform (Admin/Superadmin) yang berwenang mengubah konfigurasi sistem.",
+		})
+	}
+
+	rbac := services.GetRBACServiceForDB(h.db)
+	if !hasAnySettingDomainPermission(user, rbac) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "FORBIDDEN_PERMISSION_REQUIRED",
+			"message": "Akses Ditolak: Anda tidak memiliki izin untuk mengubah konfigurasi pengaturan.",
 		})
 	}
 
@@ -514,6 +586,28 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 			"success": false,
 			"message": "Format data tidak valid.",
 		})
+	}
+
+	// Validasi izin domain untuk setiap key sebelum transaksi dimulai agar tidak terjadi partial write.
+	if !user.IsSuperadmin() && !rbac.HasPermission(user, "system:settings:manage") {
+		var forbiddenKeys []string
+		for k := range payload {
+			sanitizedKey := security.SanitizePlainText(k, 100)
+			if sanitizedKey == "" {
+				continue
+			}
+			if !canAccessSettingKey(user, rbac, sanitizedKey) {
+				forbiddenKeys = append(forbiddenKeys, sanitizedKey)
+			}
+		}
+		if len(forbiddenKeys) > 0 {
+			sort.Strings(forbiddenKeys)
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"success": false,
+				"code":    "FORBIDDEN_PERMISSION_REQUIRED",
+				"message": fmt.Sprintf("Akses Ditolak: Anda tidak berwenang mengubah pengaturan domain lain (%s).", strings.Join(forbiddenKeys, ", ")),
+			})
+		}
 	}
 
 	if rawBaseURL, exists := payload["aulaa_base_url"]; exists && strings.TrimSpace(rawBaseURL) != "" {

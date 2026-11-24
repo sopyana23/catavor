@@ -1,8 +1,11 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -15,16 +18,43 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	rbacSuperadminManagePermKey  = "system:admins:manage"
+	rbacCacheInvalidationChannel = "catavor:rbac:invalidate"
+)
+
+var (
+	// Sentinel errors untuk mapping HTTP status yang akurat di RBACHandler.
+	ErrRBACForbidden  = errors.New("akses ditolak")
+	ErrRBACNotFound   = errors.New("data rbac tidak ditemukan")
+	ErrRBACConflict   = errors.New("konflik operasi rbac")
+	ErrRBACValidation = errors.New("validasi rbac gagal")
+
+	customRoleSlugRegex = regexp.MustCompile(`^[a-z][a-z0-9_]{1,48}[a-z0-9]$`)
+)
+
 type RBACService struct {
 	db        *gorm.DB
 	cacheLock sync.RWMutex
 	permCache map[string]map[string]bool // roleSlug -> map[permKey]bool
+	roleSlugs map[string]bool            // registered DB role slugs (normalized)
 }
 
 var (
-	rbacServiceInstance *RBACService
-	rbacOnce            sync.Once
+	rbacServiceInstance  *RBACService
+	rbacOnce             sync.Once
+	rbacSubStartedMu     sync.Mutex
+	rbacSubStarted       bool
 )
+
+func init() {
+	models.RegisterCustomStaffRoleChecker(func(slug string) bool {
+		if database.DB == nil {
+			return false
+		}
+		return GetRBACService().IsRegisteredStaffRole(slug)
+	})
+}
 
 // SECURITY (N-05): gerbang otorisasi di level service.
 // Sebelumnya AssignStaffRole / RevokeStaffRole / UpdateRolePermissions tidak
@@ -34,10 +64,10 @@ var (
 // sebagai pertahanan berlapis (defense-in-depth).
 func requireRBACSuperadmin(actor *models.User) error {
 	if actor == nil {
-		return errors.New("akses ditolak: aktor tidak teridentifikasi")
+		return fmt.Errorf("%w: aktor tidak teridentifikasi", ErrRBACForbidden)
 	}
-	if strings.ToLower(strings.TrimSpace(actor.PlatformRole)) != "superadmin" {
-		return errors.New("akses ditolak: hanya superadmin yang boleh mengubah RBAC")
+	if !actor.IsSuperadmin() {
+		return fmt.Errorf("%w: hanya superadmin yang boleh mengubah RBAC", ErrRBACForbidden)
 	}
 	return nil
 }
@@ -47,6 +77,7 @@ func InitRBACService(db *gorm.DB) *RBACService {
 	svc.cacheLock.Lock()
 	svc.db = db
 	svc.permCache = make(map[string]map[string]bool)
+	svc.roleSlugs = make(map[string]bool)
 	svc.cacheLock.Unlock()
 	if db != nil {
 		svc.RefreshCache()
@@ -59,6 +90,7 @@ func GetRBACService() *RBACService {
 		rbacServiceInstance = &RBACService{
 			db:        database.DB,
 			permCache: make(map[string]map[string]bool),
+			roleSlugs: make(map[string]bool),
 		}
 		if database.DB != nil {
 			rbacServiceInstance.RefreshCache()
@@ -90,6 +122,7 @@ func GetRBACServiceForDB(db *gorm.DB) *RBACService {
 	svc := &RBACService{
 		db:        db,
 		permCache: make(map[string]map[string]bool),
+		roleSlugs: make(map[string]bool),
 	}
 	svc.RefreshCache()
 	return svc
@@ -100,33 +133,134 @@ func (s *RBACService) RefreshCache() {
 	s.cacheLock.Lock()
 	defer s.cacheLock.Unlock()
 
+	if s.db == nil {
+		return
+	}
+
 	var roles []models.PlatformRole
 	if err := s.db.Preload("Permissions").Find(&roles).Error; err != nil {
 		return
 	}
 
-	newCache := make(map[string]map[string]bool)
+	newCache := make(map[string]map[string]bool, len(roles))
+	newSlugs := make(map[string]bool, len(roles))
 	for _, role := range roles {
-		perms := make(map[string]bool)
+		normSlug := models.NormalizePlatformRole(role.Slug)
+		if _, reserved := models.ReservedNonStaffRoles[normSlug]; reserved {
+			continue
+		}
+		perms := make(map[string]bool, len(role.Permissions))
 		for _, p := range role.Permissions {
 			perms[p.Key] = true
 		}
-		newCache[role.Slug] = perms
+		newCache[normSlug] = perms
+		newSlugs[normSlug] = true
 	}
 	s.permCache = newCache
+	s.roleSlugs = newSlugs
+}
+
+// IsRegisteredStaffRole melaporkan apakah slug merupakan role staf bawaan atau custom role aktif di DB.
+func (s *RBACService) IsRegisteredStaffRole(slug string) bool {
+	if strings.ContainsRune(slug, '\x00') {
+		return false
+	}
+	norm := models.NormalizePlatformRole(slug)
+	if _, reserved := models.ReservedNonStaffRoles[norm]; reserved {
+		return false
+	}
+	if _, builtin := models.PlatformStaffRoles[norm]; builtin {
+		return true
+	}
+
+	s.cacheLock.RLock()
+	hasSlugsCache := s.roleSlugs != nil && len(s.roleSlugs) > 0
+	isRegistered := s.roleSlugs != nil && s.roleSlugs[norm]
+	db := s.db
+	s.cacheLock.RUnlock()
+
+	if isRegistered {
+		return true
+	}
+	if !hasSlugsCache && db != nil {
+		s.RefreshCache()
+		s.cacheLock.RLock()
+		isRegistered = s.roleSlugs != nil && s.roleSlugs[norm]
+		s.cacheLock.RUnlock()
+		return isRegistered
+	}
+	return false
+}
+
+func (s *RBACService) isStaffForService(roleSlug string) bool {
+	if roleSlug == "" {
+		return false
+	}
+	if s.db == nil {
+		_, builtin := models.PlatformStaffRoles[roleSlug]
+		return builtin
+	}
+	return models.IsPlatformStaffRole(roleSlug) || s.IsRegisteredStaffRole(roleSlug)
+}
+
+func publishRBACInvalidation() {
+	if !database.IsRedisAvailable() || database.RedisClient == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	if err := database.RedisClient.Publish(ctx, rbacCacheInvalidationChannel, time.Now().UTC().Format(time.RFC3339Nano)).Err(); err != nil {
+		log.Warn().Err(err).Msg("rbac: gagal mempublikasikan invalidasi cache ke Redis")
+	}
+}
+
+// StartRBACCacheSubscriber mendengarkan invalidasi matriks RBAC antar instance via Redis Pub/Sub.
+func StartRBACCacheSubscriber(ctx context.Context) {
+	if !database.IsRedisAvailable() || database.RedisClient == nil {
+		return
+	}
+	rbacSubStartedMu.Lock()
+	if rbacSubStarted {
+		rbacSubStartedMu.Unlock()
+		return
+	}
+	rbacSubStarted = true
+	rbacSubStartedMu.Unlock()
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error().Interface("panic", r).Msg("rbac: subscriber cache invalidation mengalami panic")
+			}
+		}()
+
+		pubsub := database.RedisClient.Subscribe(ctx, rbacCacheInvalidationChannel)
+		defer pubsub.Close()
+
+		ch := pubsub.Channel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg, ok := <-ch:
+				if !ok {
+					return
+				}
+				_ = msg
+				GetRBACService().RefreshCache()
+			}
+		}
+	}()
 }
 
 // HasPermission checks if the user possesses the required permission.
 func (s *RBACService) HasPermission(user *models.User, requiredPermission string) bool {
-	if user == nil {
+	if user == nil || strings.ContainsRune(user.PlatformRole, '\x00') {
 		return false
 	}
 
-	// ARSITEKTUR (N-25): pakai satu sumber kebenaran untuk menandai staf.
-	// Sebelumnya baris ini menolak hanya "" dan "merchant", sehingga string
-	// sampah (mis. salah ketik saat penugasan role) dianggap staf dan lanjut
-	// ke pemeriksaan cache. Sekarang whitelist eksplisit.
-	if !user.IsPlatformStaff() {
+	roleSlug := models.NormalizePlatformRole(user.PlatformRole)
+	if !s.isStaffForService(roleSlug) {
 		return false
 	}
 
@@ -135,13 +269,11 @@ func (s *RBACService) HasPermission(user *models.User, requiredPermission string
 		return true
 	}
 
-	roleSlug := models.NormalizePlatformRole(user.PlatformRole)
-
 	s.cacheLock.RLock()
 	rolePerms, exists := s.permCache[roleSlug]
 	s.cacheLock.RUnlock()
 
-	if !exists {
+	if !exists && s.db != nil {
 		// Cache miss fallback: reload
 		s.RefreshCache()
 		s.cacheLock.RLock()
@@ -158,21 +290,19 @@ func (s *RBACService) HasPermission(user *models.User, requiredPermission string
 
 // GetUserPermissions returns all active permission keys for a user.
 func (s *RBACService) GetUserPermissions(user *models.User) []string {
-	if user == nil {
-		return []string{}
-	}
-
-	// SECURITY (N-41): pakai sumber kebenaran yang sama dengan HasPermission.
-	// Sebelumnya fungsi ini memakai daftar hitam ("" dan "merchant"), sehingga
-	// role sampah seperti "superadminx" dianggap staf dan bisa menembus cache
-	// (termasuk wildcard "*"). Sekarang whitelist eksplisit — fail-closed.
-	if !user.IsPlatformStaff() {
+	if user == nil || strings.ContainsRune(user.PlatformRole, '\x00') {
 		return []string{}
 	}
 
 	roleSlug := models.NormalizePlatformRole(user.PlatformRole)
+	if !s.isStaffForService(roleSlug) {
+		return []string{}
+	}
 
 	if roleSlug == "superadmin" {
+		if s.db == nil {
+			return []string{"*"}
+		}
 		var allPerms []models.PlatformPermission
 		s.db.Find(&allPerms)
 		keys := make([]string, 0, len(allPerms))
@@ -186,7 +316,7 @@ func (s *RBACService) GetUserPermissions(user *models.User) []string {
 	rolePerms, exists := s.permCache[roleSlug]
 	s.cacheLock.RUnlock()
 
-	if !exists {
+	if !exists && s.db != nil {
 		s.RefreshCache()
 		s.cacheLock.RLock()
 		rolePerms = s.permCache[roleSlug]
@@ -228,9 +358,9 @@ func (s *RBACService) GetMatrix() (*RoleMatrixResponse, error) {
 
 // UpdateRolePermissions modifies the active permission set for a given platform role.
 func (s *RBACService) UpdateRolePermissions(roleSlug string, permissionKeys []string, actor *models.User) error {
-	roleSlug = strings.ToLower(strings.TrimSpace(roleSlug))
+	roleSlug = models.NormalizePlatformRole(roleSlug)
 	if roleSlug == "" {
-		return errors.New("role slug tidak valid")
+		return fmt.Errorf("%w: role slug tidak valid", ErrRBACValidation)
 	}
 
 	// SECURITY (N-05): tolak bila aktor bukan superadmin (pertahanan berlapis).
@@ -240,59 +370,81 @@ func (s *RBACService) UpdateRolePermissions(roleSlug string, permissionKeys []st
 
 	// SECURITY (N-05): role superadmin memiliki hak akses absolut wildcard dan matriks izinnya tidak dapat diubah
 	if roleSlug == "superadmin" {
-		return errors.New("role 'superadmin' memiliki akses absolut wildcard dan matriks izinnya tidak dapat diubah")
+		return fmt.Errorf("%w: role 'superadmin' memiliki akses absolut wildcard dan matriks izinnya tidak dapat diubah", ErrRBACConflict)
 	}
 
 	var role models.PlatformRole
 	if err := s.db.Where("slug = ?", roleSlug).First(&role).Error; err != nil {
-		return fmt.Errorf("role '%s' tidak ditemukan", roleSlug)
+		return fmt.Errorf("%w: role '%s' tidak ditemukan", ErrRBACNotFound, roleSlug)
 	}
 
-	// Resolve permission IDs from keys
-	var targetPerms []models.PlatformPermission
-	if len(permissionKeys) > 0 {
-		if err := s.db.Where("key IN ?", permissionKeys).Find(&targetPerms).Error; err != nil {
-			return err
-		}
-	}
-
-	// Begin atomic transaction
-	tx := s.db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	// Delete old mappings
-	if err := tx.Where("role_id = ?", role.ID).Delete(&models.PlatformRolePermission{}).Error; err != nil {
-		tx.Rollback()
+	targetPerms, uniqueKeys, err := s.validateAssignablePermissions(permissionKeys)
+	if err != nil {
 		return err
 	}
 
-	// Insert new mappings
-	for _, p := range targetPerms {
-		rp := models.PlatformRolePermission{
-			RoleID:       role.ID,
-			PermissionID: p.ID,
-			CreatedAt:    time.Now(),
-		}
-		if err := tx.Create(&rp).Error; err != nil {
-			tx.Rollback()
+	var addedKeys, removedKeys []string
+
+	// Begin atomic transaction (snapshot diff + replace mappings)
+	if txErr := s.db.Transaction(func(tx *gorm.DB) error {
+		var oldKeys []string
+		if err := tx.Model(&models.PlatformPermission{}).
+			Joins("JOIN platform_role_permissions prp ON prp.permission_id = platform_permissions.id").
+			Where("prp.role_id = ?", role.ID).
+			Pluck("platform_permissions.key", &oldKeys).Error; err != nil {
 			return err
 		}
+
+		oldSet := make(map[string]bool, len(oldKeys))
+		for _, k := range oldKeys {
+			oldSet[k] = true
+		}
+		newSet := make(map[string]bool, len(uniqueKeys))
+		for _, k := range uniqueKeys {
+			newSet[k] = true
+			if !oldSet[k] {
+				addedKeys = append(addedKeys, k)
+			}
+		}
+		for _, k := range oldKeys {
+			if !newSet[k] {
+				removedKeys = append(removedKeys, k)
+			}
+		}
+
+		if err := tx.Where("role_id = ?", role.ID).Delete(&models.PlatformRolePermission{}).Error; err != nil {
+			return err
+		}
+
+		for _, p := range targetPerms {
+			rp := models.PlatformRolePermission{
+				RoleID:       role.ID,
+				PermissionID: p.ID,
+				CreatedAt:    time.Now().UTC(),
+			}
+			if err := tx.Create(&rp).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); txErr != nil {
+		return txErr
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		return err
-	}
+	sort.Strings(addedKeys)
+	sort.Strings(removedKeys)
 
-	// Invalidate and refresh in-memory cache
+	// Invalidate local cache & broadcast to sibling instances
 	s.RefreshCache()
+	publishRBACInvalidation()
 
-	// Record Enterprise Audit Log
+	// Record Enterprise Audit Log with permission diff
 	if actor != nil {
 		roleID := role.ID
+		diffSummary := ""
+		if len(addedKeys) > 0 || len(removedKeys) > 0 {
+			diffSummary = fmt.Sprintf(" (+[%s] -[%s])", strings.Join(addedKeys, ", "), strings.Join(removedKeys, ", "))
+		}
 		RecordActivity(RecordActivityParams{
 			DB:          s.db,
 			UserID:      &actor.ID,
@@ -304,11 +456,50 @@ func (s *RBACService) UpdateRolePermissions(roleSlug string, permissionKeys []st
 			EntityType:  "platform_role",
 			EntityID:    &roleID,
 			EntityTitle: role.Name,
-			Description: fmt.Sprintf("Superadmin '%s' memperbarui matriks hak akses untuk role '%s' (%d izin aktif).", actor.Name, role.Name, len(targetPerms)),
+			Description: fmt.Sprintf("Superadmin '%s' memperbarui matriks hak akses untuk role '%s' (%d izin aktif)%s.", actor.Name, role.Name, len(targetPerms), diffSummary),
 		})
 	}
 
 	return nil
+}
+
+func (s *RBACService) validateAssignablePermissions(permissionKeys []string) ([]models.PlatformPermission, []string, error) {
+	seen := make(map[string]bool, len(permissionKeys))
+	uniqueKeys := make([]string, 0, len(permissionKeys))
+	for _, raw := range permissionKeys {
+		k := strings.TrimSpace(raw)
+		if k == "" || seen[k] {
+			continue
+		}
+		if k == rbacSuperadminManagePermKey {
+			return nil, nil, fmt.Errorf("%w: izin '%s' eksklusif untuk superadmin dan tidak dapat diberikan ke role lain", ErrRBACValidation, rbacSuperadminManagePermKey)
+		}
+		seen[k] = true
+		uniqueKeys = append(uniqueKeys, k)
+	}
+	if len(uniqueKeys) == 0 {
+		return nil, uniqueKeys, nil
+	}
+
+	var perms []models.PlatformPermission
+	if err := s.db.Where("key IN ?", uniqueKeys).Find(&perms).Error; err != nil {
+		return nil, nil, err
+	}
+	if len(perms) != len(uniqueKeys) {
+		foundSet := make(map[string]bool, len(perms))
+		for _, p := range perms {
+			foundSet[p.Key] = true
+		}
+		var missing []string
+		for _, k := range uniqueKeys {
+			if !foundSet[k] {
+				missing = append(missing, k)
+			}
+		}
+		sort.Strings(missing)
+		return nil, nil, fmt.Errorf("%w: permission key tidak valid: %s", ErrRBACValidation, strings.Join(missing, ", "))
+	}
+	return perms, uniqueKeys, nil
 }
 
 // AdminStaffUser represents a platform staff user with their active role metadata.
@@ -360,7 +551,7 @@ func (s *RBACService) GetStaffList() ([]AdminStaffUser, error) {
 
 // AssignStaffRole changes or assigns a platform role to a user.
 func (s *RBACService) AssignStaffRole(targetEmailOrID string, roleSlug string, actor *models.User) error {
-	roleSlug = strings.ToLower(strings.TrimSpace(roleSlug))
+	roleSlug = models.NormalizePlatformRole(roleSlug)
 	targetEmailOrID = strings.TrimSpace(targetEmailOrID)
 
 	// SECURITY (N-05): tolak bila aktor bukan superadmin (pertahanan berlapis).
@@ -368,15 +559,22 @@ func (s *RBACService) AssignStaffRole(targetEmailOrID string, roleSlug string, a
 		return err
 	}
 
+	if roleSlug == "" || targetEmailOrID == "" {
+		return fmt.Errorf("%w: target staf dan role slug wajib diisi", ErrRBACValidation)
+	}
+	if _, reserved := models.ReservedNonStaffRoles[roleSlug]; reserved {
+		return fmt.Errorf("%w: role '%s' tidak valid untuk penugasan staf — gunakan endpoint pencabutan untuk menurunkan akses", ErrRBACValidation, roleSlug)
+	}
+
 	var targetUser models.User
 	if err := s.db.Where("LOWER(email) = LOWER(?) OR CAST(id AS TEXT) = ?", targetEmailOrID, targetEmailOrID).First(&targetUser).Error; err != nil {
-		return errors.New("pengguna target tidak ditemukan")
+		return fmt.Errorf("%w: pengguna target tidak ditemukan", ErrRBACNotFound)
 	}
 
 	// Validate role exists
 	var role models.PlatformRole
 	if err := s.db.Where("slug = ?", roleSlug).First(&role).Error; err != nil {
-		return fmt.Errorf("role '%s' tidak terdaftar dalam sistem", roleSlug)
+		return fmt.Errorf("%w: role '%s' tidak terdaftar dalam sistem", ErrRBACNotFound, roleSlug)
 	}
 
 	// Validasi isolasi akun mutlak: Akun yang terdaftar sebagai merchant toko
@@ -384,20 +582,35 @@ func (s *RBACService) AssignStaffRole(targetEmailOrID string, roleSlug string, a
 	// kebingungan hak akses sistem dan risiko keamanan operasional.
 	var storeCount int64
 	s.db.Model(&models.Store{}).Where("user_id = ?", targetUser.ID).Count(&storeCount)
-	if storeCount > 0 || (!targetUser.IsPlatformStaff() && targetUser.PlatformRole == "merchant") {
-		return errors.New("akun ini terdaftar sebagai akun merchant toko. Email merchant tidak dapat dialihkan menjadi admin pengelola platform demi keamanan dan integritas data.")
+	if storeCount > 0 || (!targetUser.IsPlatformStaff() && !s.isStaffForService(models.NormalizePlatformRole(targetUser.PlatformRole)) && targetUser.PlatformRole == "merchant") {
+		return fmt.Errorf("%w: akun ini terdaftar sebagai akun merchant toko. Email merchant tidak dapat dialihkan menjadi admin pengelola platform demi keamanan dan integritas data.", ErrRBACConflict)
+	}
+
+	// Anti-lockout & self-demotion protection saat menurunkan superadmin via AssignStaffRole.
+	if targetUser.IsSuperadmin() && roleSlug != "superadmin" {
+		if actor != nil && targetUser.ID == actor.ID {
+			return fmt.Errorf("%w: Anda tidak dapat menurunkan role superadmin milik Anda sendiri", ErrRBACConflict)
+		}
+		var superadminCount int64
+		if err := s.db.Model(&models.User{}).
+			Where("LOWER(TRIM(platform_role)) = ?", "superadmin").
+			Count(&superadminCount).Error; err != nil {
+			return fmt.Errorf("gagal memverifikasi jumlah superadmin: %w", err)
+		}
+		if superadminCount <= 1 {
+			return fmt.Errorf("%w: role superadmin terakhir tidak dapat diturunkan — tugaskan superadmin lain terlebih dahulu", ErrRBACConflict)
+		}
 	}
 
 	oldRole := targetUser.PlatformRole
 	targetUser.PlatformRole = roleSlug
-	if models.IsPlatformStaffRole(roleSlug) {
-		targetUser.TwoFactorEnforced = true
-	}
+	targetUser.TwoFactorEnforced = true
+	targetUser.TokenVersion++
 	if err := s.db.Save(&targetUser).Error; err != nil {
 		return err
 	}
 
-	// Mutasi role staf wajib mencabut sesi lama agar pengguna terikat kembali pada gerbang MFA sesuai role barunya.
+	// Mutasi role staf wajib mencabut sesi lama agar pengguna terikat kembali pada gerbang MFA & token version baru.
 	if err := RevokeAllSessionsForUser(s.db, targetUser.ID); err != nil {
 		log.Warn().Err(err).Uint("user_id", targetUser.ID).
 			Msg("gagal mencabut sesi setelah penugasan role staf")
@@ -444,36 +657,38 @@ func (s *RBACService) CreateStaffUser(params CreateStaffParams) (*models.User, e
 	email := strings.ToLower(strings.TrimSpace(params.Email))
 	// NIST SP 800-63B §5.1.1.2: jangan pernah men-trim whitespace pada password pengguna
 	password := params.Password
-	roleSlug := strings.ToLower(strings.TrimSpace(params.RoleSlug))
+	roleSlug := models.NormalizePlatformRole(params.RoleSlug)
 
 	if name == "" {
-		return nil, errors.New("nama lengkap petugas wajib diisi")
+		return nil, fmt.Errorf("%w: nama lengkap petugas wajib diisi", ErrRBACValidation)
 	}
 	if email == "" || !strings.Contains(email, "@") || !strings.Contains(email, ".") {
-		return nil, errors.New("format email petugas tidak valid")
+		return nil, fmt.Errorf("%w: format email petugas tidak valid", ErrRBACValidation)
 	}
 	if err := security.ValidatePassword(params.Password); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrRBACValidation, err)
+	}
+
+	// Default role jika kosong
+	if roleSlug == "" {
+		roleSlug = "support"
+	}
+	if _, reserved := models.ReservedNonStaffRoles[roleSlug]; reserved {
+		return nil, fmt.Errorf("%w: role '%s' tidak valid untuk akun staf pengelola platform", ErrRBACValidation, roleSlug)
 	}
 
 	// Cek apakah email sudah terdaftar (baik sebagai merchant maupun pengelola)
 	var existingUser models.User
 	if err := s.db.Where("LOWER(email) = ?", email).First(&existingUser).Error; err == nil {
-		if existingUser.IsPlatformStaff() {
-			return nil, errors.New("email ini sudah terdaftar sebagai akun staf/pengelola platform")
+		if existingUser.IsPlatformStaff() || s.isStaffForService(models.NormalizePlatformRole(existingUser.PlatformRole)) {
+			return nil, fmt.Errorf("%w: email ini sudah terdaftar sebagai akun staf/pengelola platform", ErrRBACConflict)
 		}
-		return nil, errors.New("email ini sudah terdaftar sebagai akun merchant dan tidak dapat didaftarkan kembali sebagai akun pengelola platform. Email pengelola dan merchant harus terpisah secara mutlak.")
+		return nil, fmt.Errorf("%w: email ini sudah terdaftar sebagai akun merchant dan tidak dapat didaftarkan kembali sebagai akun pengelola platform. Email pengelola dan merchant harus terpisah secara mutlak.", ErrRBACConflict)
 	}
 
-	// Validasi role jika role diisi dan bukan "merchant"
-	if roleSlug == "" {
-		roleSlug = "support" // default staf role
-	}
-	if roleSlug != "merchant" {
-		var role models.PlatformRole
-		if err := s.db.Where("slug = ?", roleSlug).First(&role).Error; err != nil {
-			return nil, fmt.Errorf("role '%s' tidak terdaftar dalam sistem", roleSlug)
-		}
+	var role models.PlatformRole
+	if err := s.db.Where("slug = ?", roleSlug).First(&role).Error; err != nil {
+		return nil, fmt.Errorf("%w: role '%s' tidak terdaftar dalam sistem", ErrRBACNotFound, roleSlug)
 	}
 
 	now := time.Now().UTC()
@@ -481,7 +696,7 @@ func (s *RBACService) CreateStaffUser(params CreateStaffParams) (*models.User, e
 		Name:              name,
 		Email:             email,
 		PlatformRole:      roleSlug,
-		TwoFactorEnforced: models.IsPlatformStaffRole(roleSlug),
+		TwoFactorEnforced: true,
 		EmailVerifiedAt:   &now,
 		IsPasswordChanged: true,
 		HasCustomPassword: true,
@@ -528,7 +743,7 @@ func (s *RBACService) RevokeStaffRole(targetUserID uint, actor *models.User) err
 
 	var targetUser models.User
 	if err := s.db.First(&targetUser, targetUserID).Error; err != nil {
-		return errors.New("pengguna tidak ditemukan")
+		return fmt.Errorf("%w: pengguna tidak ditemukan", ErrRBACNotFound)
 	}
 
 	// SECURITY (N-25): anti-lockout TIDAK boleh bergantung pada alamat email.
@@ -545,12 +760,12 @@ func (s *RBACService) RevokeStaffRole(targetUserID uint, actor *models.User) err
 			return errors.New("gagal memverifikasi jumlah superadmin")
 		}
 		if superadminCount <= 1 {
-			return errors.New("role superadmin terakhir tidak dapat dicabut — tugaskan superadmin lain terlebih dahulu")
+			return fmt.Errorf("%w: role superadmin terakhir tidak dapat dicabut — tugaskan superadmin lain terlebih dahulu", ErrRBACConflict)
 		}
 	}
 
 	if actor != nil && targetUser.ID == actor.ID {
-		return errors.New("Anda tidak dapat mencabut hak akses admin Anda sendiri")
+		return fmt.Errorf("%w: Anda tidak dapat mencabut hak akses admin Anda sendiri", ErrRBACConflict)
 	}
 
 	oldRole := targetUser.PlatformRole
@@ -596,22 +811,35 @@ func (s *RBACService) RevokeStaffRole(targetUserID uint, actor *models.User) err
 
 // CreateCustomRole registers a new customizable platform role with initial permissions.
 func (s *RBACService) CreateCustomRole(slug, name, description string, permissionKeys []string, actor *models.User) (*models.PlatformRole, error) {
-	slug = strings.ToLower(strings.TrimSpace(slug))
-	slug = strings.ReplaceAll(slug, " ", "_")
-	name = strings.TrimSpace(name)
-
 	// SECURITY (N-05): tolak bila aktor bukan superadmin (pertahanan berlapis).
 	if err := requireRBACSuperadmin(actor); err != nil {
 		return nil, err
 	}
 
+	slug = models.NormalizePlatformRole(slug)
+	name = strings.TrimSpace(name)
+
 	if slug == "" || name == "" {
-		return nil, errors.New("slug dan nama role wajib diisi")
+		return nil, fmt.Errorf("%w: slug dan nama role wajib diisi", ErrRBACValidation)
+	}
+	if _, reserved := models.ReservedNonStaffRoles[slug]; reserved {
+		return nil, fmt.Errorf("%w: slug role '%s' dicadangkan sistem dan tidak dapat dipakai", ErrRBACValidation, slug)
+	}
+	if _, builtin := models.PlatformStaffRoles[slug]; builtin {
+		return nil, fmt.Errorf("%w: slug role bawaan '%s' sudah terdaftar", ErrRBACConflict, slug)
+	}
+	if !customRoleSlugRegex.MatchString(slug) {
+		return nil, fmt.Errorf("%w: slug role harus 3-50 karakter huruf kecil, angka, atau garis bawah (diawali huruf, diakhiri huruf/angka)", ErrRBACValidation)
 	}
 
 	var existing models.PlatformRole
 	if err := s.db.Where("slug = ?", slug).First(&existing).Error; err == nil {
-		return nil, fmt.Errorf("role dengan slug '%s' sudah terdaftar", slug)
+		return nil, fmt.Errorf("%w: role dengan slug '%s' sudah terdaftar", ErrRBACConflict, slug)
+	}
+
+	perms, _, err := s.validateAssignablePermissions(permissionKeys)
+	if err != nil {
+		return nil, err
 	}
 
 	role := models.PlatformRole{
@@ -621,25 +849,27 @@ func (s *RBACService) CreateCustomRole(slug, name, description string, permissio
 		IsSystem:    false,
 	}
 
-	if err := s.db.Create(&role).Error; err != nil {
-		return nil, err
-	}
-
-	// Map initial permissions if provided
-	if len(permissionKeys) > 0 {
-		var perms []models.PlatformPermission
-		s.db.Where("key IN ?", permissionKeys).Find(&perms)
+	if txErr := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&role).Error; err != nil {
+			return err
+		}
 		for _, p := range perms {
 			rp := models.PlatformRolePermission{
 				RoleID:       role.ID,
 				PermissionID: p.ID,
-				CreatedAt:    time.Now(),
+				CreatedAt:    time.Now().UTC(),
 			}
-			s.db.Create(&rp)
+			if err := tx.Create(&rp).Error; err != nil {
+				return err
+			}
 		}
+		return nil
+	}); txErr != nil {
+		return nil, txErr
 	}
 
 	s.RefreshCache()
+	publishRBACInvalidation()
 
 	if actor != nil {
 		newRoleID := role.ID
@@ -654,9 +884,152 @@ func (s *RBACService) CreateCustomRole(slug, name, description string, permissio
 			EntityType:  "platform_role",
 			EntityID:    &newRoleID,
 			EntityTitle: role.Name,
-			Description: fmt.Sprintf("Superadmin '%s' membuat custom role baru: '%s' (%s).", actor.Name, role.Name, role.Slug),
+			Description: fmt.Sprintf("Superadmin '%s' membuat custom role baru: '%s' (%s) dengan %d izin.", actor.Name, role.Name, role.Slug, len(perms)),
 		})
 	}
 
 	return &role, nil
+}
+
+// UpdateCustomRole edits metadata and optionally syncs permissions of a non-system custom role.
+func (s *RBACService) UpdateCustomRole(slug, name, description string, permissionKeys *[]string, actor *models.User) (*models.PlatformRole, error) {
+	if err := requireRBACSuperadmin(actor); err != nil {
+		return nil, err
+	}
+
+	slug = models.NormalizePlatformRole(slug)
+	name = strings.TrimSpace(name)
+	if slug == "" || name == "" {
+		return nil, fmt.Errorf("%w: slug dan nama role wajib diisi", ErrRBACValidation)
+	}
+
+	var role models.PlatformRole
+	if err := s.db.Where("slug = ?", slug).First(&role).Error; err != nil {
+		return nil, fmt.Errorf("%w: role '%s' tidak ditemukan", ErrRBACNotFound, slug)
+	}
+	if role.IsSystem {
+		return nil, fmt.Errorf("%w: metadata role bawaan sistem '%s' tidak dapat diubah — gunakan matriks untuk mengubah izinnya", ErrRBACConflict, slug)
+	}
+
+	var perms []models.PlatformPermission
+	if permissionKeys != nil {
+		var err error
+		perms, _, err = s.validateAssignablePermissions(*permissionKeys)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if txErr := s.db.Transaction(func(tx *gorm.DB) error {
+		role.Name = name
+		role.Description = strings.TrimSpace(description)
+		if err := tx.Save(&role).Error; err != nil {
+			return err
+		}
+		if permissionKeys != nil {
+			if err := tx.Where("role_id = ?", role.ID).Delete(&models.PlatformRolePermission{}).Error; err != nil {
+				return err
+			}
+			for _, p := range perms {
+				rp := models.PlatformRolePermission{
+					RoleID:       role.ID,
+					PermissionID: p.ID,
+					CreatedAt:    time.Now().UTC(),
+				}
+				if err := tx.Create(&rp).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}); txErr != nil {
+		return nil, txErr
+	}
+
+	s.RefreshCache()
+	publishRBACInvalidation()
+
+	if actor != nil {
+		roleID := role.ID
+		RecordActivity(RecordActivityParams{
+			DB:          s.db,
+			UserID:      &actor.ID,
+			ActorEmail:  actor.Email,
+			ActorName:   actor.Name,
+			ActorRole:   "superadmin",
+			Action:      "RBAC_CUSTOM_ROLE_UPDATED",
+			Category:    "superadmin",
+			EntityType:  "platform_role",
+			EntityID:    &roleID,
+			EntityTitle: role.Name,
+			Description: fmt.Sprintf("Superadmin '%s' memperbarui custom role '%s' (%s).", actor.Name, role.Name, role.Slug),
+		})
+	}
+
+	return &role, nil
+}
+
+// DeleteCustomRole permanently removes a non-system role when no active staff holds it.
+func (s *RBACService) DeleteCustomRole(slug string, actor *models.User) error {
+	if err := requireRBACSuperadmin(actor); err != nil {
+		return err
+	}
+
+	slug = models.NormalizePlatformRole(slug)
+	if slug == "" {
+		return fmt.Errorf("%w: slug role wajib diisi", ErrRBACValidation)
+	}
+
+	var role models.PlatformRole
+	if err := s.db.Where("slug = ?", slug).First(&role).Error; err != nil {
+		return fmt.Errorf("%w: role '%s' tidak ditemukan", ErrRBACNotFound, slug)
+	}
+	if role.IsSystem {
+		return fmt.Errorf("%w: role bawaan sistem '%s' tidak dapat dihapus", ErrRBACConflict, slug)
+	}
+	if _, builtin := models.PlatformStaffRoles[slug]; builtin {
+		return fmt.Errorf("%w: role bawaan '%s' tidak dapat dihapus", ErrRBACConflict, slug)
+	}
+
+	var activeCount int64
+	if err := s.db.Model(&models.User{}).Where("LOWER(TRIM(platform_role)) = ?", slug).Count(&activeCount).Error; err != nil {
+		return err
+	}
+	if activeCount > 0 {
+		return fmt.Errorf("%w: masih ada %d staf aktif menggunakan role '%s' — pindahkan mereka ke role lain terlebih dahulu", ErrRBACConflict, activeCount, role.Name)
+	}
+
+	if txErr := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("role_id = ?", role.ID).Delete(&models.PlatformRolePermission{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&role).Error; err != nil {
+			return err
+		}
+		return nil
+	}); txErr != nil {
+		return txErr
+	}
+
+	s.RefreshCache()
+	publishRBACInvalidation()
+
+	if actor != nil {
+		roleID := role.ID
+		RecordActivity(RecordActivityParams{
+			DB:          s.db,
+			UserID:      &actor.ID,
+			ActorEmail:  actor.Email,
+			ActorName:   actor.Name,
+			ActorRole:   "superadmin",
+			Action:      "RBAC_CUSTOM_ROLE_DELETED",
+			Category:    "superadmin",
+			EntityType:  "platform_role",
+			EntityID:    &roleID,
+			EntityTitle: role.Name,
+			Description: fmt.Sprintf("Superadmin '%s' menghapus custom role '%s' (%s).", actor.Name, role.Name, role.Slug),
+		})
+	}
+
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -120,7 +121,12 @@ type AnalyticsHandler struct {
 	db  *gorm.DB
 }
 
+var analyticsCacheInitOnce sync.Once
+
 func NewAnalyticsHandler(cfg *config.Config, db *gorm.DB) *AnalyticsHandler {
+	analyticsCacheInitOnce.Do(func() {
+		services.RegisterMarketCacheInvalidator(InvalidateMarketListCache)
+	})
 	return &AnalyticsHandler{cfg: cfg, db: db}
 }
 
@@ -1436,6 +1442,8 @@ func (h *AnalyticsHandler) GetGlobalAnalyticsOverview(c *fiber.Ctx) error {
 			"message": "Akses khusus platform staff / superadmin.",
 		})
 	}
+	c.Set("Cache-Control", "private, no-store, no-cache, must-revalidate")
+	c.Set("Pragma", "no-cache")
 
 	period := strings.ToLower(strings.TrimSpace(c.Query("period", "7d")))
 	days := 7
@@ -1447,7 +1455,8 @@ func (h *AnalyticsHandler) GetGlobalAnalyticsOverview(c *fiber.Ctx) error {
 		period = "7d"
 	}
 
-	startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
+	nowUTC := time.Now().UTC()
+	startDate := nowUTC.AddDate(0, 0, -(days - 1)).Format("2006-01-02")
 	db := h.db
 
 	if telemetrySvc := services.GetStoreTelemetryService(); telemetrySvc != nil {
@@ -1502,7 +1511,7 @@ func (h *AnalyticsHandler) GetGlobalAnalyticsOverview(c *fiber.Ctx) error {
 	}
 	trends := make([]fiber.Map, 0, days)
 	for i := days - 1; i >= 0; i-- {
-		dt := time.Now().AddDate(0, 0, -i).Format("2006-01-02")
+		dt := nowUTC.AddDate(0, 0, -i).Format("2006-01-02")
 		if rec, exists := trendMap[dt]; exists {
 			trends = append(trends, fiber.Map{
 				"date":            dt,
@@ -1528,7 +1537,7 @@ func (h *AnalyticsHandler) GetGlobalAnalyticsOverview(c *fiber.Ctx) error {
 		Views        int64  `gorm:"column:views" json:"views"`
 		TotalActions int64  `gorm:"column:total_actions" json:"total_actions"`
 	}
-	var topStores []topStoreRow
+	topStores := make([]topStoreRow, 0)
 	_ = db.Table("store_daily_analytics").
 		Select("store_daily_analytics.store_id, stores.slug, stores.store_title, SUM(store_daily_analytics.store_views) as views, SUM(store_daily_analytics.total_actions) as total_actions").
 		Joins("JOIN stores ON stores.id = store_daily_analytics.store_id").
@@ -1543,21 +1552,27 @@ func (h *AnalyticsHandler) GetGlobalAnalyticsOverview(c *fiber.Ctx) error {
 
 	// 4. Real-time Live Global Visitors
 	telemetrySvc := services.GetStoreTelemetryService()
-	var recentVisitors []services.RecentVisitorDTO
+	recentVisitors := make([]services.RecentVisitorDTO, 0)
 	if telemetrySvc != nil {
-		recentVisitors = telemetrySvc.GetGlobalRecentVisitors(50)
+		if rv := telemetrySvc.GetGlobalRecentVisitors(50); rv != nil {
+			recentVisitors = rv
+		}
 	}
 
 	bounceRate := 0.0
-	if agg.TotalViews > 0 {
-		bounceRate = (float64(agg.TotalBounces) / float64(agg.TotalViews)) * 100.0
+	bounceDenom := agg.TotalUniqueVisitors
+	if bounceDenom <= 0 {
+		bounceDenom = agg.TotalViews
+	}
+	if bounceDenom > 0 && agg.TotalBounces > 0 {
+		bounceRate = math.Round(((float64(agg.TotalBounces)/float64(bounceDenom))*100.0)*100) / 100
 		if bounceRate > 100.0 {
 			bounceRate = 100.0
 		}
 	}
 	conversionRate := 0.0
-	if agg.TotalViews > 0 {
-		conversionRate = (float64(agg.TotalActions) / float64(agg.TotalViews)) * 100.0
+	if agg.TotalViews > 0 && agg.TotalActions > 0 {
+		conversionRate = math.Round(((float64(agg.TotalActions)/float64(agg.TotalViews))*100.0)*100) / 100
 		if conversionRate > 100.0 {
 			conversionRate = 100.0
 		}
@@ -1623,6 +1638,7 @@ func (h *AnalyticsHandler) GetMarketIntelligenceSummary(c *fiber.Ctx) error {
 			"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
 		})
 	}
+	c.Set("Cache-Control", "private, no-store")
 
 	summary, err := services.GetMacroMarketSummary(h.db)
 	if err != nil {
@@ -1636,6 +1652,43 @@ func (h *AnalyticsHandler) GetMarketIntelligenceSummary(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"success": true,
 		"data":    summary,
+	})
+}
+
+func (h *AnalyticsHandler) recordMarketIntelExportAudit(c *fiber.Ctx, format string) {
+	user, ok := c.Locals("user").(*models.User)
+	if !ok || user == nil || h.db == nil {
+		return
+	}
+	actorRole := "merchant"
+	if user.IsPlatformStaff() {
+		actorRole = strings.TrimSpace(string(user.PlatformRole))
+		if actorRole == "" {
+			actorRole = "superadmin"
+		}
+	}
+	var storeIDPtr *uint
+	if store, ok := c.Locals("store").(*models.Store); ok && store != nil && store.ID > 0 {
+		id := store.ID
+		storeIDPtr = &id
+	} else if sVal, ok := c.Locals("store").(models.Store); ok && sVal.ID > 0 {
+		id := sVal.ID
+		storeIDPtr = &id
+	}
+	uID := user.ID
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		StoreID:     storeIDPtr,
+		UserID:      &uID,
+		ActorRole:   actorRole,
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      "market_intel_exported",
+		Category:    "market_intel",
+		EntityType:  "market_intelligence",
+		Description: fmt.Sprintf("Mengekspor dataset Riset Pasar B2B format '%s'", format),
+		IPAddress:   c.IP(),
+		UserAgent:   c.Get("User-Agent"),
 	})
 }
 
@@ -1653,7 +1706,18 @@ func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
 			"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
 		})
 	}
-	format := strings.ToLower(c.Query("format", "csv"))
+	format := strings.ToLower(strings.TrimSpace(c.Query("format", "csv")))
+	if format != "csv" && format != "json" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Format ekspor tidak didukung. Gunakan csv atau json.",
+		})
+	}
+
+	dateStamp := time.Now().UTC().Format("20060102")
+	c.Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	c.Set("Pragma", "no-cache")
+	c.Set("X-Content-Type-Options", "nosniff")
 
 	if format == "json" {
 		summary, err := services.GetMacroMarketSummary(h.db)
@@ -1664,7 +1728,9 @@ func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
 				"message": "Gagal mengekspor data.",
 			})
 		}
-		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=catavor-market-intelligence-%s.json", time.Now().Format("20060102")))
+		h.recordMarketIntelExportAudit(c, "json")
+		filename := fmt.Sprintf("catavor-market-intelligence-%s.json", dateStamp)
+		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 		return c.JSON(summary)
 	}
 
@@ -1677,8 +1743,10 @@ func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
 		})
 	}
 
+	h.recordMarketIntelExportAudit(c, "csv")
+	filename := fmt.Sprintf("catavor-market-intelligence-%s.csv", dateStamp)
 	c.Set("Content-Type", "text/csv; charset=utf-8")
-	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=catavor-market-intelligence-%s.csv", time.Now().Format("20060102")))
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	return c.Send(csvData)
 }
 
@@ -1721,16 +1789,31 @@ func (h *AnalyticsHandler) TrackSearchEvent(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"success": true, "message": "Search diabaikan."})
 	}
 
+	storeSlug := strings.TrimSpace(req.StoreSlug)
+	if len(storeSlug) > 100 {
+		storeSlug = storeSlug[:100]
+	}
+	catSlug := strings.TrimSpace(req.CategorySlug)
+	if len(catSlug) > 100 {
+		catSlug = catSlug[:100]
+	}
+	pType := strings.ToLower(strings.TrimSpace(req.ProductType))
+	switch pType {
+	case "all", "physical", "food", "digital", "service", "plant", "fauna", "property":
+	default:
+		pType = "all"
+	}
+
 	// Cache session search intent for server-side search-to-click attribution
 	sessID := strings.TrimSpace(req.SessionID)
 	if sessID == "" {
 		sessID = c.Get("X-Session-ID")
 	}
-	globalSessionSearchCache.put(c.IP(), sessID, cleanKw, req.ProductType)
+	globalSessionSearchCache.put(c.IP(), sessID, cleanKw, pType)
 
 	// Sliding-window keyword deduplication per IP + Store + Keyword (TTL 60s)
 	// Prevents repeated enter-pressing / bot looping from inflating search analytics
-	dedupKey := fmt.Sprintf("search:%s:%s:%s", c.IP(), strings.ToLower(req.StoreSlug), cleanKw)
+	dedupKey := fmt.Sprintf("search:%s:%s:%s", c.IP(), strings.ToLower(storeSlug), cleanKw)
 	if telemetryDedup.isDuplicate(dedupKey, 60) {
 		return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
 			"success": true,
@@ -1744,26 +1827,40 @@ func (h *AnalyticsHandler) TrackSearchEvent(c *fiber.Ctx) error {
 	}
 
 	var storeID *uint
-	if req.StoreSlug != "" {
-		if sid, err := globalStoreSlugCache.getOrFetch(req.StoreSlug, h.db); err == nil && sid > 0 {
+	if storeSlug != "" {
+		if sid, err := globalStoreSlugCache.getOrFetch(storeSlug, h.db); err == nil && sid > 0 {
 			storeID = &sid
 		}
 	}
 
-	city := strings.TrimSpace(req.City)
+	city := strings.Map(func(r rune) rune {
+		if r == '\r' || r == '\n' || r == '\t' || r == '<' || r == '>' {
+			return ' '
+		}
+		return r
+	}, strings.TrimSpace(req.City))
+	city = strings.Join(strings.Fields(city), " ")
+	if len(city) > 60 {
+		city = strings.TrimSpace(city[:60])
+	}
 	if city == "" {
 		city = "Indonesia"
 	}
 
+	resCount := req.ResultCount
+	if resCount < 0 {
+		resCount = 0
+	}
+
 	event := models.SearchAnalytics{
 		StoreID:      storeID,
-		StoreSlug:    req.StoreSlug,
+		StoreSlug:    storeSlug,
 		Keyword:      kw,
-		CategorySlug: req.CategorySlug,
-		ProductType:  req.ProductType,
+		CategorySlug: catSlug,
+		ProductType:  pType,
 		City:         city,
-		ResultCount:  req.ResultCount,
-		IsZeroResult: req.IsZeroResult || req.ResultCount == 0,
+		ResultCount:  resCount,
+		IsZeroResult: req.IsZeroResult || resCount == 0,
 		Date:         time.Now().UTC().Format("2006-01-02"),
 		CreatedAt:    time.Now().UTC(),
 	}
@@ -1800,6 +1897,16 @@ type marketIntelListCache struct {
 
 var globalMarketListCache = &marketIntelListCache{}
 
+// InvalidateMarketListCache clears cached trending keywords and demand gaps so fresh queries reflect new data.
+func InvalidateMarketListCache() {
+	globalMarketListCache.mu.Lock()
+	globalMarketListCache.trendingData = nil
+	globalMarketListCache.trendingAt = 0
+	globalMarketListCache.gapsData = nil
+	globalMarketListCache.gapsAt = 0
+	globalMarketListCache.mu.Unlock()
+}
+
 // GetTrendingKeywords returns top trending search keywords across the ecosystem with Zero PII.
 func (h *AnalyticsHandler) GetTrendingKeywords(c *fiber.Ctx) error {
 	if h.db == nil {
@@ -1811,7 +1918,7 @@ func (h *AnalyticsHandler) GetTrendingKeywords(c *fiber.Ctx) error {
 			"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
 		})
 	}
-	c.Set("Cache-Control", "private, no-cache")
+	c.Set("Cache-Control", "private, no-store")
 
 	now := time.Now().Unix()
 	globalMarketListCache.mu.RLock()
@@ -1825,38 +1932,59 @@ func (h *AnalyticsHandler) GetTrendingKeywords(c *fiber.Ctx) error {
 	}
 	globalMarketListCache.mu.RUnlock()
 
-	var results []TrendingItem
-	// Try daily rollups first (30 days window)
+	results := make([]TrendingItem, 0)
+	// Try daily rollups first (30 days UTC window)
 	startDate := time.Now().UTC().AddDate(0, 0, -30).Format("2006-01-02")
-	_ = h.db.Raw(`
+	if err := h.db.Raw(`
 		SELECT 
 			keyword,
 			COALESCE(NULLIF(product_type, ''), 'all') as product_type,
 			SUM(search_volume) as search_volume,
 			SUM(zero_result_count) as zero_count,
-			CASE WHEN SUM(search_volume) > 0 THEN ROUND(LEAST(100.0, (SUM(clicked_product_count)::numeric / SUM(search_volume)::numeric) * 100), 2) ELSE 0 END as ctr
+			CASE WHEN SUM(search_volume) > 0 THEN
+				CASE WHEN (CAST(SUM(clicked_product_count) AS DOUBLE PRECISION) / CAST(SUM(search_volume) AS DOUBLE PRECISION)) * 100.0 > 100.0
+				THEN 100.0
+				ELSE (CAST(SUM(clicked_product_count) AS DOUBLE PRECISION) / CAST(SUM(search_volume) AS DOUBLE PRECISION)) * 100.0
+				END
+			ELSE 0 END as ctr
 		FROM search_daily_rollups
 		WHERE date >= ?
 		GROUP BY keyword, COALESCE(NULLIF(product_type, ''), 'all')
 		ORDER BY search_volume DESC
 		LIMIT 25
-	`, startDate).Scan(&results).Error
+	`, startDate).Scan(&results).Error; err != nil {
+		log.Warn().Err(err).Str("section", "trending_keywords_rollup").Msg("MarketIntel list query error")
+	}
 
 	// Fallback to raw search_analytics if rollups are not yet populated
 	if len(results) == 0 {
-		_ = h.db.Raw(`
+		if err := h.db.Raw(`
 			SELECT 
 				clean_keyword as keyword,
-				product_type,
+				COALESCE(NULLIF(product_type, ''), 'all') as product_type,
 				COUNT(*) as search_volume,
 				SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) as zero_count,
 				0 as ctr
 			FROM search_analytics
 			WHERE date >= ?
-			GROUP BY clean_keyword, product_type
+			GROUP BY clean_keyword, COALESCE(NULLIF(product_type, ''), 'all')
 			ORDER BY search_volume DESC
 			LIMIT 25
-		`, startDate).Scan(&results).Error
+		`, startDate).Scan(&results).Error; err != nil {
+			log.Warn().Err(err).Str("section", "trending_keywords_raw").Msg("MarketIntel list query error")
+		}
+	}
+
+	for i := range results {
+		results[i].CTR = math.Round(results[i].CTR*100) / 100
+		if results[i].CTR > 100.0 {
+			results[i].CTR = 100.0
+		} else if results[i].CTR < 0 {
+			results[i].CTR = 0
+		}
+	}
+	if results == nil {
+		results = make([]TrendingItem, 0)
 	}
 
 	globalMarketListCache.mu.Lock()
@@ -1881,7 +2009,7 @@ func (h *AnalyticsHandler) GetDemandGaps(c *fiber.Ctx) error {
 			"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
 		})
 	}
-	c.Set("Cache-Control", "private, no-cache")
+	c.Set("Cache-Control", "private, no-store")
 
 	now := time.Now().Unix()
 	globalMarketListCache.mu.RLock()
@@ -1895,23 +2023,47 @@ func (h *AnalyticsHandler) GetDemandGaps(c *fiber.Ctx) error {
 	}
 	globalMarketListCache.mu.RUnlock()
 
-	var gaps []GapItem
+	gaps := make([]GapItem, 0)
 	startDate := time.Now().UTC().AddDate(0, 0, -30).Format("2006-01-02")
 
-	// Read from search_analytics for immediate real-time demand gaps
-	_ = h.db.Raw(`
+	// Read from search_daily_rollups first (consistent with GetMacroMarketSummary and GetTrendingKeywords)
+	if err := h.db.Raw(`
 		SELECT 
-			clean_keyword as keyword,
+			keyword,
 			COALESCE(NULLIF(product_type, ''), 'all') as product_type,
-			SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) as zero_result_count,
-			COUNT(*) as total_searches
-		FROM search_analytics
+			SUM(zero_result_count) as zero_result_count,
+			SUM(search_volume) as total_searches
+		FROM search_daily_rollups
 		WHERE date >= ?
-		GROUP BY clean_keyword, COALESCE(NULLIF(product_type, ''), 'all')
-		HAVING SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) > 0
+		GROUP BY keyword, COALESCE(NULLIF(product_type, ''), 'all')
+		HAVING SUM(zero_result_count) > 0
 		ORDER BY zero_result_count DESC
 		LIMIT 20
-	`, startDate).Scan(&gaps).Error
+	`, startDate).Scan(&gaps).Error; err != nil {
+		log.Warn().Err(err).Str("section", "demand_gaps_rollup").Msg("MarketIntel list query error")
+	}
+
+	if len(gaps) == 0 {
+		if err := h.db.Raw(`
+			SELECT 
+				clean_keyword as keyword,
+				COALESCE(NULLIF(product_type, ''), 'all') as product_type,
+				SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) as zero_result_count,
+				COUNT(*) as total_searches
+			FROM search_analytics
+			WHERE date >= ?
+			GROUP BY clean_keyword, COALESCE(NULLIF(product_type, ''), 'all')
+			HAVING SUM(CASE WHEN is_zero_result THEN 1 ELSE 0 END) > 0
+			ORDER BY zero_result_count DESC
+			LIMIT 20
+		`, startDate).Scan(&gaps).Error; err != nil {
+			log.Warn().Err(err).Str("section", "demand_gaps_raw").Msg("MarketIntel list query error")
+		}
+	}
+
+	if gaps == nil {
+		gaps = make([]GapItem, 0)
+	}
 
 	globalMarketListCache.mu.Lock()
 	globalMarketListCache.gapsData = gaps
@@ -1924,7 +2076,7 @@ func (h *AnalyticsHandler) GetDemandGaps(c *fiber.Ctx) error {
 	})
 }
 
-// GetCategoryPriceBenchmarks returns statistical price distributions with strict K-Anonymity (>= 50 samples).
+// GetCategoryPriceBenchmarks returns statistical price distributions with K-Anonymity (>= 3 unique stores).
 func (h *AnalyticsHandler) GetCategoryPriceBenchmarks(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false})
@@ -1935,15 +2087,21 @@ func (h *AnalyticsHandler) GetCategoryPriceBenchmarks(c *fiber.Ctx) error {
 			"message": "Fitur Market Intelligence saat ini sedang dinonaktifkan oleh administrator.",
 		})
 	}
+	c.Set("Cache-Control", "private, no-store")
 
 	summary, err := services.GetMacroMarketSummary(h.db)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "message": "Gagal menghitung benchmark harga."})
 	}
 
+	benchmarks := summary.PriceBenchmarks
+	if benchmarks == nil {
+		benchmarks = make([]services.CategoryPriceBenchmark, 0)
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
-		"data":    summary.PriceBenchmarks,
+		"data":    benchmarks,
 	})
 }
 

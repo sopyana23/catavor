@@ -11701,7 +11701,19 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
             if (data.user) {
               setAdminUser(prev => {
-                if (prev && prev.id === data.user.id && prev.email === data.user.email && prev.platform_role === data.user.platform_role && prev.store_slug === data.user.store_slug && prev.is_password_changed === data.user.is_password_changed) {
+                const prevPerms = Array.isArray(prev?.permissions) ? [...prev.permissions].sort().join(',') : '';
+                const nextPerms = Array.isArray(data.user.permissions) ? [...data.user.permissions].sort().join(',') : '';
+                if (
+                  prev &&
+                  prev.id === data.user.id &&
+                  prev.email === data.user.email &&
+                  prev.platform_role === data.user.platform_role &&
+                  Boolean(prev.is_admin) === Boolean(data.user.is_admin) &&
+                  Boolean(prev.is_superadmin) === Boolean(data.user.is_superadmin) &&
+                  prevPerms === nextPerms &&
+                  prev.store_slug === data.user.store_slug &&
+                  prev.is_password_changed === data.user.is_password_changed
+                ) {
                   return prev;
                 }
                 return data.user;
@@ -16123,8 +16135,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
           </form>
 
           <div style={{ marginTop: '1.25rem', textAlign: 'center', borderTop: '1px solid rgba(148, 163, 184, 0.1)', paddingTop: '0.85rem' }}>
-            <span style={{ fontSize: '0.66rem', color: '#64748b' }}>
-              🔒 Akses terbatas untuk personel pengelola resmi Catavor.
+            <span style={{ fontSize: '0.66rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+              <Lock size={11} style={{ flexShrink: 0 }} />
+              <span>Akses terbatas untuk personel pengelola resmi Catavor.</span>
             </span>
           </div>
         </div>
