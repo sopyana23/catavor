@@ -3,6 +3,7 @@ import { paymentChannel } from '../../../shared/finance/paymentChannel';
 import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColors, useFinanceSection } from '../../../shared/finance/FinanceControls';
 import { AutomationConsole } from '../../../shared/automation/AutomationConsole';
 import { AdminMonetizationConsole } from '../../../shared/monetization/AdminMonetizationConsole';
+import { AdminBroadcastConsole } from '../../../shared/broadcast/AdminBroadcastConsole';
 import { AutomationCatalog } from './AutomationCatalog';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { compactToastMessage } from './SwipeableToast';
@@ -167,15 +168,15 @@ export interface ContextualHeaderConfig {
   includeGlobalUtilities?: boolean;
 }
 
-type ActiveView = 
-  | 'dashboard' 
-  | 'rbac' 
-  | 'stores' 
-  | 'reports' 
-  | 'support' 
-  | 'finance' 
-  | 'monetization' 
-  | 'broadcast' 
+type ActiveView =
+  | 'dashboard'
+  | 'rbac'
+  | 'stores'
+  | 'reports'
+  | 'support'
+  | 'finance'
+  | 'monetization'
+  | 'broadcast'
   | 'automation'
   | 'audit'
   | 'safe_domains'
@@ -347,8 +348,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const canSendBroadcast = hasPermission(currentUser, 'content:broadcast:send') || isSuperAdmin(currentUser);
   // Helper to synchronize URL query parameters cleanly and safely for Mobile Admin
   const updatePlatformUrl = (
-    view: string, 
-    ticketRef?: string | number | null, 
+    view: string,
+    ticketRef?: string | number | null,
     subtabRef?: string | null,
     broadcastIdRef?: string | number | null,
     reportIdRef?: string | number | null
@@ -395,8 +396,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       const currentRelativePathQuery = window.location.pathname + window.location.search + window.location.hash;
       if (newRelativePathQuery !== currentRelativePathQuery) {
         window.history.pushState(
-          { view, ticket: ticketRef || null, subtab: subtabRef || null, broadcast_id: broadcastIdRef || null, report_id: reportIdRef || null }, 
-          '', 
+          { view, ticket: ticketRef || null, subtab: subtabRef || null, broadcast_id: broadcastIdRef || null, report_id: reportIdRef || null },
+          '',
           newRelativePathQuery
         );
       }
@@ -444,17 +445,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   const [activeView, setActiveView] = useState<ActiveView>(getDefaultView());
 
-  const handleSwitchView = (view: ActiveView, ticketId?: any, subView?: string | null) => {
+  const performSwitchView = (view: ActiveView, ticketId?: any, subView?: string | null) => {
     const targetView = view === 'safe_domains' ? 'master_data' : view;
     setActiveView(targetView);
     setSelectedTicket(null);
-    if (targetView !== 'broadcast') {
-      setBroadcastSubView('list');
-      setSelectedBroadcastDetail(null);
+    if (targetView === 'broadcast') {
+      setBroadcastSubViewState((subView === 'create' || subView === 'detail') ? subView : 'list');
+    } else {
+      setBroadcastSubViewState('list');
     }
     if (targetView === 'master_data') {
-      const sub = (subView === 'templates' || subView === 'domains' || subView === 'rekber' || subView === 'contact' || subView === 'policies') 
-        ? subView 
+      const sub = (subView === 'templates' || subView === 'domains' || subView === 'rekber' || subView === 'contact' || subView === 'policies')
+        ? subView
         : (view === 'safe_domains' ? 'domains' : (subView === 'menu' ? 'menu' : (subView ? (subView as any) : 'menu')));
       setMasterSubView(sub);
       updatePlatformUrl('master_data', null, sub === 'menu' ? null : sub);
@@ -471,44 +473,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
-  const handleOpenCreateBroadcast = () => {
-    setBroadcastSubView('create');
-    setSelectedBroadcastDetail(null);
-    updatePlatformUrl('broadcast', null, 'create', null);
-    try {
-      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    } catch {
-      window.scrollTo(0, 0);
+  const handleSwitchView = (view: ActiveView, ticketId?: any, subView?: string | null) => {
+    const targetView = view === 'safe_domains' ? 'master_data' : view;
+    if (activeView === 'broadcast' && broadcastSubViewState !== 'list' && targetView !== 'broadcast' && typeof window !== 'undefined') {
+      const guard = (window as unknown as { __catavor_broadcast_dirty_guard?: (cb?: () => void) => boolean }).__catavor_broadcast_dirty_guard;
+      if (guard && guard(() => performSwitchView(view, ticketId, subView))) {
+        return;
+      }
     }
-  };
-
-  const handleCloseCreateBroadcast = () => {
-    setBroadcastSubView('list');
-    setSelectedBroadcastDetail(null);
-    updatePlatformUrl('broadcast', null, null, null);
-    try {
-      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    } catch {
-      window.scrollTo(0, 0);
-    }
-  };
-
-  const handleOpenBroadcastDetail = (b: any) => {
-    if (!b) return;
-    setSelectedBroadcastDetail(b);
-    setBroadcastSubView('detail');
-    updatePlatformUrl('broadcast', null, 'detail', b.id);
-    try {
-      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    } catch {
-      window.scrollTo(0, 0);
-    }
-  };
-
-  const handleCloseBroadcastDetail = () => {
-    setBroadcastSubView('list');
-    setSelectedBroadcastDetail(null);
-    updatePlatformUrl('broadcast', null, 'list', null);
+    performSwitchView(view, ticketId, subView);
   };
 
   const handleCloseTicketChat = () => {
@@ -537,7 +510,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (['rekber', 'rekbersyariah', 'escrow'].includes(sub) || ['rekber', 'rekbersyariah'].includes(tab)) return 'rekber';
       if (['templates', 'template', 'canned', 'canned_responses'].includes(sub) || ['templates', 'canned'].includes(tab)) return 'templates';
       if (['domains', 'safe_domains', 'whitelist', 'domain'].includes(sub) || ['domains', 'safe_domains', 'whitelist'].includes(tab)) return 'domains';
-    } catch {}
+    } catch { }
     return 'menu';
   });
   const [cannedTemplates, setCannedTemplates] = useState<any[]>([]);
@@ -1279,7 +1252,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       return getLatestTime(b) - getLatestTime(a);
     });
   }, [tickets]);
-  
+
   // Server-Side Tickets Pagination & Metrics State
   const [ticketsMetrics, setTicketsMetrics] = useState<{
     total: number;
@@ -1540,7 +1513,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     is_active: true
   });
 
-  const [broadcasts, setBroadcasts] = useState<any[]>([]);
+  const [broadcastActiveCount, setBroadcastActiveCount] = useState<number>(0);
+  const [broadcastSubViewState, setBroadcastSubViewState] = useState<string>('list');
+  const [broadcastRefreshRev, setBroadcastRefreshRev] = useState<number>(0);
 
   const [automationRevision, setAutomationRevision] = useState(0);
 
@@ -1605,11 +1580,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   const openDocumentPreview = (att: any) => {
     if (!att) return;
-    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
-      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) ||
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') ||
       /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
-    const isPdf = (att.file_type || '').includes('pdf') || 
-      (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+    const isPdf = (att.file_type || '').includes('pdf') ||
+      (att.file_name || '').toLowerCase().endsWith('.pdf') ||
       (att.file_url || '').toLowerCase().endsWith('.pdf');
 
     setDocPreview({
@@ -1645,8 +1620,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       e.preventDefault();
     }
     if (!att) return;
-    const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
-      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+    const isImage = (att.file_type && att.file_type.startsWith('image/')) ||
+      /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') ||
       /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
     const fileName = att.file_name || (isImage ? 'Lampiran_Gambar.jpg' : 'Dokumen.pdf');
     const authToken = token || localStorage.getItem('catavor_token') || '';
@@ -1688,14 +1663,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   // Deteksi status seluruh overlay/modal aktif (baik global modal stack maupun modal lokal)
   const isGlobalModalOpen = useIsAnyModalOpen();
-  const isAnyOverlayActive = isGlobalModalOpen || 
-    Boolean(moderationModalReport) || 
-    Boolean(showModerationConfirmModal) || 
-    Boolean(showTemplateModal) || 
-    Boolean(showTemplateFormModal) || 
-    Boolean(showFooterStatusMenu) || 
+  const isAnyOverlayActive = isGlobalModalOpen ||
+    Boolean(moderationModalReport) ||
+    Boolean(showModerationConfirmModal) ||
+    Boolean(showTemplateModal) ||
+    Boolean(showTemplateFormModal) ||
+    Boolean(showFooterStatusMenu) ||
     Boolean(showOptionsMenu) ||
-    Boolean(activeFilterModal) || 
+    Boolean(activeFilterModal) ||
     Boolean(docPreview?.isOpen) ||
     Boolean(selectedProofOrder) ||
     Boolean(rejectingOrder);
@@ -1836,7 +1811,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           },
           body: JSON.stringify({ is_typing: true })
         });
-      } catch {}
+      } catch { }
     }, 1200);
 
     return () => {
@@ -1845,119 +1820,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       }
     };
   }, [replyText, selectedTicket?.id, token, canAccessSupport]);
-
-  // Enhanced Broadcast State & Segmentation
-  const [broadcastSubView, setBroadcastSubView] = useState<'list' | 'create' | 'detail'>(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const sub = (params.get('subtab') || params.get('subview') || params.get('action') || '').toLowerCase();
-      if (['create', 'new', 'tambah', 'buat'].includes(sub)) return 'create';
-      const broadcastId = params.get('broadcast_id') || params.get('broadcast') || params.get('notif_id');
-      if (sub === 'detail' || broadcastId) return 'detail';
-    } catch {}
-    return 'list';
-  });
-  const [showBroadcastSheet, setShowBroadcastSheet] = useState(false);
-  const [selectedBroadcastDetail, setSelectedBroadcastDetail] = useState<any | null>(null);
-  const [isFetchingBroadcastDetail, setIsFetchingBroadcastDetail] = useState(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const sub = (params.get('subtab') || params.get('subview') || '').toLowerCase();
-      const bId = params.get('broadcast_id') || params.get('broadcast') || params.get('notif_id');
-      return Boolean(sub === 'detail' || bId);
-    } catch {
-      return false;
-    }
-  });
-  const [broadcastPage, setBroadcastPage] = useState(1);
-  const [broadcastTotalPages, setBroadcastTotalPages] = useState(1);
-  const [broadcastMetrics, setBroadcastMetrics] = useState<{
-    total_broadcasts: number;
-    active_broadcasts: number;
-    global_broadcasts?: number;
-    targeted_broadcasts?: number;
-    total_reads?: number;
-  }>({ total_broadcasts: 0, active_broadcasts: 0, global_broadcasts: 0, targeted_broadcasts: 0, total_reads: 0 });
-  const [broadcastStatusFilter, setBroadcastStatusFilter] = useState<'all' | 'active' | 'expired'>('all');
-  const [broadcastSearchQuery, setBroadcastSearchQuery] = useState('');
-  const [debouncedBroadcastSearch, setDebouncedBroadcastSearch] = useState('');
-  const [isFetchingBroadcasts, setIsFetchingBroadcasts] = useState(false);
-  const [sendingBroadcast, setSendingBroadcast] = useState(false);
-
-  const fetchSingleBroadcastDetail = async (id: number | string) => {
-    if (!id) {
-      setIsFetchingBroadcastDetail(false);
-      return;
-    }
-    const cleanId = String(id).replace(/[^a-zA-Z0-9_#-]/g, '').trim();
-    if (!cleanId) {
-      setIsFetchingBroadcastDetail(false);
-      return;
-    }
-    setIsFetchingBroadcastDetail(true);
-
-    const authToken = token || localStorage.getItem('catavor_token') || localStorage.getItem('token') || '';
-    const headers: Record<string, string> = authToken ? { Authorization: `Bearer ${authToken}` } : {};
-
-    // 1. Check in-memory broadcasts if available
-    if (broadcasts && broadcasts.length > 0) {
-      const existing = broadcasts.find(b => 
-        String(b.id) === cleanId || 
-        String(b.id) === String(id) || 
-        String(b.id).replace('#', '') === cleanId.replace('#', '')
-      );
-      if (existing) {
-        setSelectedBroadcastDetail(existing);
-        setBroadcastSubView('detail');
-      }
-    }
-
-    try {
-      // 2. Fetch direct broadcast detail from admin endpoint
-      const res = await fetch(`/api/admin/notifications/${encodeURIComponent(cleanId)}`, { headers });
-      if (res.ok) {
-        const d = await res.json();
-        if (d.data) {
-          setSelectedBroadcastDetail(d.data);
-          setBroadcastSubView('detail');
-          return;
-        }
-      }
-
-      // 3. Fallback to standard notifications endpoint
-      const res2 = await fetch(`/api/notifications/${encodeURIComponent(cleanId)}`, { headers });
-      if (res2.ok) {
-        const d2 = await res2.json();
-        if (d2.data) {
-          setSelectedBroadcastDetail(d2.data);
-          setBroadcastSubView('detail');
-          return;
-        }
-      }
-
-      // 4. Secondary fallback: query list to find item
-      const resList = await fetch('/api/admin/notifications?limit=50', { headers });
-      if (resList.ok) {
-        const listData = await resList.json();
-        if (Array.isArray(listData.data)) {
-          const matched = listData.data.find((b: any) => 
-            String(b.id) === cleanId || 
-            String(b.id) === String(id) || 
-            String(b.id).replace('#', '') === cleanId.replace('#', '')
-          );
-          if (matched) {
-            setSelectedBroadcastDetail(matched);
-            setBroadcastSubView('detail');
-            return;
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Failed to fetch single broadcast detail:', e);
-    } finally {
-      setIsFetchingBroadcastDetail(false);
-    }
-  };
 
   // Global Luxury Mobile Bottom Sheet Dropdown Picker for Form Controls
   const [crudDropdownPicker, setCrudDropdownPicker] = useState<{
@@ -2012,63 +1874,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   }, [crudDropdownPicker]);
 
-  // Target Autocomplete Search for Broadcast (Supports Multiple Stores & Users)
-  const [targetRecipientSearch, setTargetRecipientSearch] = useState('');
-  const [recipientSuggestions, setRecipientSuggestions] = useState<Array<{
-    type: 'store' | 'user';
-    id: number;
-    name: string;
-    slug?: string;
-    email?: string;
-    plan?: string;
-  }>>([]);
-  const [isSearchingRecipients, setIsSearchingRecipients] = useState(false);
-  const recipientSearchAbortControllerRef = useRef<AbortController | null>(null);
-  const recipientSearchCacheRef = useRef<Map<string, Array<{
-    type: 'store' | 'user';
-    id: number;
-    name: string;
-    slug?: string;
-    email?: string;
-    plan?: string;
-  }>>>(new Map());
-
-  // Legacy fallback states
-  const [targetStoreSearch, setTargetStoreSearch] = useState('');
-  const [storeSuggestions, setStoreSuggestions] = useState<any[]>([]);
-  const [selectedStoreTarget, setSelectedStoreTarget] = useState<any | null>(null);
-
-  const [targetUserSearch, setTargetUserSearch] = useState('');
-  const [userSuggestions, setUserSuggestions] = useState<any[]>([]);
-  const [selectedUserTarget, setSelectedUserTarget] = useState<any | null>(null);
-
-  const [broadcastForm, setBroadcastForm] = useState({
-    target_type: 'all' as 'all' | 'plan' | 'specific' | 'single_store' | 'single_user',
-    target_plan_code: 'pro',
-    target_id: 0,
-    target_name: '',
-    recipients: [] as Array<{
-      type: 'store' | 'user';
-      id: number;
-      name: string;
-      slug?: string;
-      email?: string;
-      plan?: string;
-    }>,
-    title: '',
-    category: 'PENGUMUMAN',
-    message: '',
-    notification_action_enabled: false,
-    action_type: 'none' as 'detail' | 'navigate' | 'external_link' | 'none',
-    detail_content: '',
-    type: 'info' as 'info' | 'warning' | 'success' | 'system',
-    link_sub_tab: 'settings',
-    link_mobile_settings_tab: 'about',
-    action_label: 'Buka Pengumuman Lengkap →',
-    action_url: '',
-    expires_in_hours: 0,
-  });
-
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMsg({ text: compactToastMessage(text), type });
     setTimeout(() => setToastMsg(null), 3000);
@@ -2090,117 +1895,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }, 300);
     return () => clearTimeout(handler);
   }, [ticketSearchQuery]);
-
-  // 300ms Debounced Broadcast Search
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedBroadcastSearch(broadcastSearchQuery);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [broadcastSearchQuery]);
-
-  // 300ms Debounced & Cached Multi-Recipient Unified Autocomplete Search (Store & User) with AbortController
-  useEffect(() => {
-    const query = targetRecipientSearch.trim();
-    if (['specific', 'single_store', 'single_user'].includes(broadcastForm.target_type) && query.length >= 1) {
-      const cacheKey = `${broadcastForm.target_type}:${query.toLowerCase()}`;
-      
-      // Check in-memory fast cache first
-      if (recipientSearchCacheRef.current.has(cacheKey)) {
-        setRecipientSuggestions(recipientSearchCacheRef.current.get(cacheKey) || []);
-        setIsSearchingRecipients(false);
-        return;
-      }
-
-      setIsSearchingRecipients(true);
-      const timer = setTimeout(async () => {
-        // Abort any previous pending in-flight search request
-        if (recipientSearchAbortControllerRef.current) {
-          recipientSearchAbortControllerRef.current.abort();
-        }
-        const abortController = new AbortController();
-        recipientSearchAbortControllerRef.current = abortController;
-
-        try {
-          const authToken = token || localStorage.getItem('catavor_token') || '';
-          const headers: Record<string, string> = authToken ? { Authorization: `Bearer ${authToken}` } : {};
-
-          const [storesRes, usersRes] = await Promise.allSettled([
-            fetch(`/api/admin/stores/search?q=${encodeURIComponent(query)}`, { headers, signal: abortController.signal }),
-            fetch(`/api/admin/users/search?q=${encodeURIComponent(query)}`, { headers, signal: abortController.signal })
-          ]);
-
-          if (abortController.signal.aborted) return;
-
-          const combined: Array<{
-            type: 'store' | 'user';
-            id: number;
-            name: string;
-            slug?: string;
-            email?: string;
-            plan?: string;
-          }> = [];
-
-          if (storesRes.status === 'fulfilled' && storesRes.value.ok) {
-            const sd = await storesRes.value.json();
-            if (Array.isArray(sd.data)) {
-              sd.data.forEach((s: any) => {
-                combined.push({
-                  type: 'store',
-                  id: s.id,
-                  name: s.store_title || s.name || s.slug || `Toko #${s.id}`,
-                  slug: s.slug,
-                  plan: s.plan || 'free',
-                  email: s.user_email || s.email
-                });
-              });
-            }
-          }
-
-          if (usersRes.status === 'fulfilled' && usersRes.value.ok) {
-            const ud = await usersRes.value.json();
-            if (Array.isArray(ud.data)) {
-              ud.data.forEach((u: any) => {
-                combined.push({
-                  type: 'user',
-                  id: u.id,
-                  name: u.name || u.email || `User #${u.id}`,
-                  email: u.email
-                });
-              });
-            }
-          }
-
-          // Cache the combined results (limit cache size to 100 entries to prevent memory leak)
-          if (recipientSearchCacheRef.current.size >= 100) {
-            const firstKey = recipientSearchCacheRef.current.keys().next().value;
-            if (firstKey) recipientSearchCacheRef.current.delete(firstKey);
-          }
-          recipientSearchCacheRef.current.set(cacheKey, combined);
-
-          setRecipientSuggestions(combined);
-        } catch (e: any) {
-          if (e?.name !== 'AbortError') {
-            console.error('Failed to search recipients:', e);
-          }
-        } finally {
-          if (!abortController.signal.aborted) {
-            setIsSearchingRecipients(false);
-          }
-        }
-      }, 300);
-
-      return () => {
-        clearTimeout(timer);
-        if (recipientSearchAbortControllerRef.current) {
-          recipientSearchAbortControllerRef.current.abort();
-        }
-      };
-    } else {
-      setRecipientSuggestions([]);
-      setIsSearchingRecipients(false);
-    }
-  }, [targetRecipientSearch, broadcastForm.target_type, token]);
 
   // Unread & Incoming Chat Audio/Notification Management for Mobile
   const readTicketIdsRef = useRef<Set<string | number>>(new Set());
@@ -2231,7 +1925,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + 0.35);
-    } catch {}
+    } catch { }
   };
 
   const sendSupportNotification = (title: string, body: string) => {
@@ -2239,15 +1933,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (Notification.permission === 'granted') {
         try {
           new Notification(title, { body, icon: '/favicon.ico' });
-        } catch {}
+        } catch { }
       } else if (Notification.permission !== 'denied') {
         Notification.requestPermission().then(permission => {
           if (permission === 'granted') {
             try {
               new Notification(title, { body, icon: '/favicon.ico' });
-            } catch {}
+            } catch { }
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
   };
@@ -2281,7 +1975,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (res.ok) {
         const json = await res.json();
         const data = Array.isArray(json) ? json : (json.data || json.tickets || []);
-        
+
         const mappedData = data.map((t: any) => {
           const msgs = Array.isArray(t.messages) ? t.messages : [];
           const isViewed = readTicketIdsRef.current.has(t.id) || readTicketIdsRef.current.has(String(t.id)) || (selectedTicket && selectedTicket.id === t.id);
@@ -2678,6 +2372,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   useEffect(() => {
     const handlePopState = () => {
       try {
+        if ((window as unknown as { __catavor_is_modal_popping?: boolean }).__catavor_is_modal_popping) return;
+        if ((window as unknown as { __catavor_broadcast_dirty_guard?: (cb?: () => void) => boolean }).__catavor_broadcast_dirty_guard?.()) {
+          return;
+        }
         const searchParams = new URLSearchParams(window.location.search);
         const tabParam = (searchParams.get('tab') || searchParams.get('view') || searchParams.get('division') || '').toLowerCase();
         const ticketParam = searchParams.get('ticket') || searchParams.get('ticket_id');
@@ -2731,16 +2429,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         }
 
         if (['create', 'new', 'tambah', 'buat'].includes(subtabParam)) {
-          setBroadcastSubView('create');
-          setSelectedBroadcastDetail(null);
+          setBroadcastSubViewState('create');
         } else if (broadcastId || subtabParam === 'detail') {
-          setBroadcastSubView('detail');
-          if (broadcastId) {
-            fetchSingleBroadcastDetail(broadcastId);
-          }
+          setBroadcastSubViewState('detail');
         } else {
-          setBroadcastSubView('list');
-          setSelectedBroadcastDetail(null);
+          setBroadcastSubViewState('list');
         }
 
         if (!ticketParam) {
@@ -2763,7 +2456,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   handleOpenModerationPage(d.data, false);
                 }
               })
-              .catch(() => {});
+              .catch(() => { });
           }
         } else if (!ticketParam && !broadcastId && activeView === 'reports') {
           setModerationModalReport(null);
@@ -2782,7 +2475,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const urlParams = new URLSearchParams(window.location.search);
     const reportParam = urlParams.get('report_id') || urlParams.get('report');
     const tabParam = (urlParams.get('tab') || urlParams.get('view') || '').toLowerCase();
-    
+
     if (reportParam || tabParam === 'reports' || ['compliance', 'laporan'].includes(tabParam)) {
       if (reportParam) {
         if (reports.length > 0) {
@@ -2800,7 +2493,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 handleOpenModerationPage(d.data, false);
               }
             })
-            .catch(() => {});
+            .catch(() => { });
         }
       }
     }
@@ -2813,21 +2506,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const ticketParam = urlParams.get('ticket') || urlParams.get('ticket_id');
     const subtabParam = (urlParams.get('subtab') || urlParams.get('subview') || urlParams.get('action') || '').toLowerCase();
     const broadcastId = urlParams.get('broadcast_id') || urlParams.get('broadcast') || urlParams.get('notif_id');
-    
+
     if (ticketParam) {
       if (activeView !== 'support') setActiveView('support');
     } else if (broadcastId || tabParam === 'broadcast' || ['siaran', 'notifikasi'].includes(tabParam)) {
       if (activeView !== 'broadcast') setActiveView('broadcast');
       if (['create', 'new', 'tambah', 'buat'].includes(subtabParam)) {
-        setBroadcastSubView('create');
-        setSelectedBroadcastDetail(null);
+        setBroadcastSubViewState('create');
       } else if (broadcastId || subtabParam === 'detail') {
-        setBroadcastSubView('detail');
-        if (broadcastId && (!selectedBroadcastDetail || String(selectedBroadcastDetail.id) !== String(broadcastId))) {
-          fetchSingleBroadcastDetail(broadcastId);
-        }
+        setBroadcastSubViewState('detail');
       } else {
-        setBroadcastSubView('list');
+        setBroadcastSubViewState('list');
       }
     }
 
@@ -2852,7 +2541,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               });
             }
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     }
   }, [tickets, token, canAccessBroadcast, canAccessSupport]);
@@ -3022,12 +2711,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         body: JSON.stringify({ status })
       });
       if (res.ok) {
-        const statusLabel = 
+        const statusLabel =
           status === 'open' ? 'OPEN' :
-          status === 'in_progress' ? 'SEDANG DIPROSES' :
-          status === 'waiting_user' ? 'MENUNGGU MERCHANT' :
-          status === 'resolved' ? 'TERSELESAIKAN' :
-          status === 'closed' ? 'DITUTUP' : status.toUpperCase();
+            status === 'in_progress' ? 'SEDANG DIPROSES' :
+              status === 'waiting_user' ? 'MENUNGGU MERCHANT' :
+                status === 'resolved' ? 'TERSELESAIKAN' :
+                  status === 'closed' ? 'DITUTUP' : status.toUpperCase();
         showToast(`Status tiket diubah ke ${statusLabel}`, 'success');
         loadData();
         if (selectedTicket && selectedTicket.id === ticketId) {
@@ -3071,9 +2760,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   // Compliance Status & Moderation Action Update
   const handleUpdateReportStatus = async (
-    reportId: number, 
-    status: string, 
-    actionTaken: string = 'none', 
+    reportId: number,
+    status: string,
+    actionTaken: string = 'none',
     adminNotes: string = '',
     applyEnforcement: boolean = true
   ) => {
@@ -3084,11 +2773,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       const res = await fetch(`/api/admin/reports/${reportId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ 
-          status, 
-          action_taken: actionTaken, 
+        body: JSON.stringify({
+          status,
+          action_taken: actionTaken,
           admin_notes: adminNotes,
-          apply_enforcement: applyEnforcement 
+          apply_enforcement: applyEnforcement
         })
       });
       if (res.ok) {
@@ -3099,7 +2788,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             localStorage.removeItem(`catavor_store_${moderationModalReport.store_slug.toLowerCase()}`);
           }
           localStorage.removeItem('catavor_settings');
-        } catch {}
+        } catch { }
         fetchReportsList(reportsPagination.page);
         handleDismissBannedConfirmModal();
         handleCloseModerationPage();
@@ -3409,178 +3098,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
-  // Fetch Server-Side Broadcasts
-  const fetchBroadcasts = async (page = 1, silent = false) => {
-    if (!token || !canAccessBroadcast) return;
-    if (!silent) setIsFetchingBroadcasts(true);
-    try {
-      const params = new URLSearchParams();
-      params.set('page', String(page));
-      params.set('limit', '10');
-      if (broadcastStatusFilter !== 'all') params.set('status', broadcastStatusFilter);
-      if (debouncedBroadcastSearch.trim()) params.set('q', debouncedBroadcastSearch.trim());
-
-      const res = await fetch(`/api/admin/notifications?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const d = await res.json();
-        const bcastList = Array.isArray(d.data) ? d.data : [];
-        setBroadcasts(bcastList);
-        if (d.pagination) {
-          setBroadcastPage(d.pagination.page || 1);
-          setBroadcastTotalPages(d.pagination.total_pages || 1);
-        }
-        if (d.metrics) {
-          setBroadcastMetrics(d.metrics);
-        }
-
-        // Deep-link auto match on load
-        try {
-          const urlParams = new URLSearchParams(window.location.search);
-          const bId = urlParams.get('broadcast_id') || urlParams.get('broadcast') || urlParams.get('notif_id');
-          if (bId && bcastList.length > 0) {
-            const cleanBId = String(bId).replace(/[^a-zA-Z0-9_#-]/g, '').trim();
-            const matched = bcastList.find((b: any) => 
-              String(b.id) === cleanBId || 
-              String(b.id) === String(bId) || 
-              String(b.id).replace('#', '') === cleanBId.replace('#', '')
-            );
-            if (matched) {
-              setSelectedBroadcastDetail((prev: any) => prev || matched);
-              setIsFetchingBroadcastDetail(false);
-            }
-          }
-        } catch {}
-      }
-    } catch (e) {
-      console.error('Failed to fetch broadcasts:', e);
-    } finally {
-      setIsFetchingBroadcasts(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeView === 'broadcast' && canAccessBroadcast) {
-      fetchBroadcasts(1);
-    }
-  }, [activeView, canAccessBroadcast, broadcastStatusFilter, debouncedBroadcastSearch]);
-
-  // Broadcast Submit
-  const handleSendBroadcast = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!broadcastForm.title.trim() || !broadcastForm.message.trim()) {
-      showToast('Judul dan pesan siaran wajib diisi', 'error');
-      return;
-    }
-    if (broadcastForm.target_type === 'specific') {
-      if (broadcastForm.recipients.length === 0) {
-        showToast('Silakan tambahkan minimal 1 penerima (merchant/user)', 'error');
-        return;
-      }
-    } else if (broadcastForm.target_type === 'single_store' && (!broadcastForm.target_id || broadcastForm.target_id === 0)) {
-      showToast('Silakan pilih toko target terlebih dahulu', 'error');
-      return;
-    } else if (broadcastForm.target_type === 'single_user' && (!broadcastForm.target_id || broadcastForm.target_id === 0)) {
-      showToast('Silakan pilih user target terlebih dahulu', 'error');
-      return;
-    }
-
-    setSendingBroadcast(true);
-    try {
-      let finalTargetName = broadcastForm.target_name;
-      if (broadcastForm.target_type === 'specific' && broadcastForm.recipients.length > 0) {
-        const count = broadcastForm.recipients.length;
-        const names = broadcastForm.recipients.slice(0, 2).map(r => r.name).join(', ');
-        finalTargetName = `${count} Penerima Spesifik (${names}${count > 2 ? '...' : ''})`;
-      }
-
-      const isActionActive = broadcastForm.notification_action_enabled && broadcastForm.action_type !== 'none';
-      const effectiveActionType = isActionActive ? broadcastForm.action_type : 'none';
-
-      const payload = {
-        ...broadcastForm,
-        action_enabled: isActionActive,
-        action_type: effectiveActionType,
-        detail_content: isActionActive && effectiveActionType === 'detail' ? broadcastForm.detail_content : '',
-        link_sub_tab: isActionActive && effectiveActionType === 'navigate' ? broadcastForm.link_sub_tab : '',
-        link_mobile_settings_tab: isActionActive && effectiveActionType === 'navigate' && broadcastForm.link_sub_tab === 'settings' ? broadcastForm.link_mobile_settings_tab : '',
-        action_url: isActionActive && effectiveActionType === 'external_link' ? broadcastForm.action_url : '',
-        action_label: isActionActive ? (broadcastForm.action_label || (effectiveActionType === 'external_link' ? 'Buka Tautan Luar →' : effectiveActionType === 'navigate' ? 'Buka Menu Terkait →' : 'Buka Pengumuman Lengkap →')) : '',
-        target_name: finalTargetName,
-        target_recipients: JSON.stringify(broadcastForm.recipients),
-        recipients: broadcastForm.recipients
-      };
-
-      const res = await fetch('/api/admin/notifications/broadcast', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        showToast('Siaran pengumuman berhasil disebarkan!', 'success');
-        setShowBroadcastSheet(false);
-        handleCloseCreateBroadcast();
-        setBroadcastForm({
-          target_type: 'all',
-          target_plan_code: 'pro',
-          target_id: 0,
-          target_name: '',
-          recipients: [],
-          title: '',
-          category: 'PENGUMUMAN',
-          message: '',
-          notification_action_enabled: false,
-          action_type: 'none',
-          detail_content: '',
-          type: 'info',
-          link_sub_tab: 'settings',
-          link_mobile_settings_tab: 'about',
-          action_label: 'Buka Pengumuman Lengkap →',
-          action_url: '',
-          expires_in_hours: 0,
-        });
-        setTargetRecipientSearch('');
-        setRecipientSuggestions([]);
-        setTargetStoreSearch('');
-        setSelectedStoreTarget(null);
-        setTargetUserSearch('');
-        setSelectedUserTarget(null);
-        fetchBroadcasts(1);
-      } else {
-        const errData = await res.json();
-        showToast(errData.error || 'Gagal mengirim siaran', 'error');
-      }
-    } catch {
-      showToast('Kesalahan jaringan pengiriman siaran', 'error');
-    } finally {
-      setSendingBroadcast(false);
-    }
-  };
-
-  // Broadcast Delete
-  const handleDeleteBroadcast = async (id: string | number) => {
-    if (!window.confirm('Apakah Anda yakin ingin menghapus siaran ini dari riwayat publikasi?')) return;
-    try {
-      const res = await fetch(`/api/admin/notifications/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        showToast('Siaran berhasil dihapus dari riwayat publikasi', 'success');
-        if (selectedBroadcastDetail && (selectedBroadcastDetail.id === id || String(selectedBroadcastDetail.id) === String(id))) {
-          setSelectedBroadcastDetail(null);
-          setBroadcastSubView('list');
-        }
-        fetchBroadcasts(broadcastPage);
-      } else {
-        showToast('Gagal menghapus siaran', 'error');
-      }
-    } catch {
-      showToast('Gagal menghapus siaran', 'error');
-    }
-  };
-
   // Save Google AdSense & Analytics Settings
   const handleSaveGoogleSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3746,7 +3263,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         try {
           localStorage.setItem('catavor_platform_settings_updated', String(Date.now()));
           window.dispatchEvent(new Event('catavor_platform_settings_updated'));
-        } catch {}
+        } catch { }
         showToast('Konfigurasi sistem pembayaran berhasil disimpan!', 'success');
         loadData();
       } else {
@@ -4039,25 +3556,25 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     rbac: { title: 'Staf & RBAC', subtitle: 'Matriks & Izin Akses' },
     stores: { title: 'Tata Kelola Toko', subtitle: `${dormancyMetrics?.active_stores || 1} Toko Terdaftar` },
     reports: { title: 'Laporan Masuk', subtitle: `${pendingReportsCount} Laporan Pending` },
-    support: { 
-      title: 'Helpdesk Tiket', 
-      subtitle: actionRequiredTicketsCount > 0 
-        ? `${actionRequiredTicketsCount} Perlu Respon Tim` 
-        : (totalTicketsCount > 0 
-            ? `${totalTicketsCount} Total Tiket` 
-            : '0 Tiket Aktif')
+    support: {
+      title: 'Helpdesk Tiket',
+      subtitle: actionRequiredTicketsCount > 0
+        ? `${actionRequiredTicketsCount} Perlu Respon Tim`
+        : (totalTicketsCount > 0
+          ? `${totalTicketsCount} Total Tiket`
+          : '0 Tiket Aktif')
     },
     finance: { title: 'Keuangan & Order', subtitle: `${pendingOrdersCount} Order Pending` },
     monetization: { title: 'Monetisasi & Iklan', subtitle: 'Google AdSense & GA4' },
-    broadcast: { title: 'Siaran Broadcast', subtitle: `${broadcasts.length} Siaran Aktif` },
+    broadcast: { title: 'Siaran Broadcast', subtitle: `${broadcastActiveCount} Siaran Aktif` },
     automation: { title: 'Mesin Otomatisasi', subtitle: 'Status dan riwayat pekerjaan' },
     audit: { title: 'Audit Trail', subtitle: `${auditLogs.length} Log Aktivitas` },
-    master_data: { 
-      title: 'Data Master', 
-      subtitle: masterSubView === 'domains' 
-        ? 'Domain Whitelist Ekosistem' 
-        : (masterSubView === 'templates' 
-          ? `${cannedTemplates.length} Template Pesan Cepat CS` 
+    master_data: {
+      title: 'Data Master',
+      subtitle: masterSubView === 'domains'
+        ? 'Domain Whitelist Ekosistem'
+        : (masterSubView === 'templates'
+          ? `${cannedTemplates.length} Template Pesan Cepat CS`
           : (masterSubView === 'rekber' ? 'Integrasi Rekber Syariah (rekbersyariah.com)' : (masterSubView === 'policies' ? 'Kebijakan, Regulasi & Ketentuan Legal Platform' : 'Pusat Konfigurasi Master Data')))
     },
     safe_domains: { title: 'Master Domain Aman', subtitle: 'Whitelist URL & Navigasi Bebas Hambatan' },
@@ -4206,7 +3723,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   ].filter(item => item.visible);
 
   // Cek apakah user sedang berada di sub-halaman/modul sekunder atau detail percakapan
-  const isSubPage = 
+  const isSubPage =
     !['dashboard', 'reports', 'support', 'finance'].includes(activeView) ||
     (activeView === 'reports' && Boolean(moderationModalReport)) ||
     (activeView === 'support' && Boolean(selectedTicket)) ||
@@ -4525,58 +4042,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
     // 5. BROADCAST VIEW
     if (activeView === 'broadcast') {
-      // Subview create: FORM ENTRY (Clean & Focused, NO 3-dots button!)
-      if (broadcastSubView === 'create') {
+      if (broadcastSubViewState === 'create') {
         return {
           showMenu: false,
           items: []
         };
       }
 
-      // Subview detail
-      if (broadcastSubView === 'detail') {
-        return {
-          showMenu: true,
-          title: 'Opsi Siaran Terkirim',
-          subtitle: selectedBroadcastDetail?.title || 'Rincian pengumuman',
-          items: [
-            {
-              id: 'copy_broadcast',
-              label: 'Salin Isi Pengumuman',
-              description: 'Salin judul dan konten siaran ini',
-              icon: <Copy size={18} />,
-              iconBg: 'rgba(56, 189, 248, 0.15)',
-              iconColor: '#38bdf8',
-              onClick: () => {
-                const text = `${selectedBroadcastDetail?.title || ''}\n\n${selectedBroadcastDetail?.message || ''}`;
-                navigator.clipboard.writeText(text);
-                showToast('Konten siaran disalin ke clipboard', 'success');
-              }
-            },
-            {
-              id: 'back_broadcast_list',
-              label: 'Kembali ke Riwayat Siaran',
-              description: 'Lihat daftar semua siaran platform',
-              icon: <ArrowLeft size={18} />,
-              iconBg: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0,0,0,0.06)',
-              iconColor: theme.textPrimary,
-              onClick: () => handleCloseBroadcastDetail()
-            }
-          ],
-          includeGlobalUtilities: true
-        };
-      }
-
-      // Default: broadcastSubView === 'list'
       return {
         showMenu: true,
         title: 'Siaran Platform',
-        subtitle: 'Pengumuman serentak untuk merchant',
-        primaryAction: (broadcasts.length > 0 && canSendBroadcast) ? {
-          icon: <Plus size={17} />,
-          title: 'Buat Siaran',
-          onClick: () => handleOpenCreateBroadcast()
-        } : undefined,
+        subtitle: 'Pengumuman & lifecycle notifikasi merchant',
         items: [
           {
             id: 'refresh_broadcast',
@@ -4586,7 +4062,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             iconBg: 'rgba(56, 189, 248, 0.15)',
             iconColor: '#38bdf8',
             onClick: () => {
-              loadData();
+              setBroadcastRefreshRev(n => n + 1);
               showToast('Riwayat siaran diperbarui', 'success');
             }
           }
@@ -4853,10 +4329,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   }, [
     activeView,
     masterSubView,
-    broadcastSubView,
+    broadcastSubViewState,
     selectedTicket,
     selectedProofOrder,
-    selectedBroadcastDetail,
     isDark,
     loading,
     tickets,
@@ -4938,16 +4413,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             zIndex: 1000,
             boxSizing: 'border-box',
             borderRadius: 0,
-            backgroundColor: isDark 
-              ? 'rgba(15, 23, 42, 0.96)' 
+            backgroundColor: isDark
+              ? 'rgba(15, 23, 42, 0.96)'
               : 'rgba(255, 255, 255, 0.96)',
             borderTop: 'none',
             borderLeft: 'none',
             borderRight: 'none',
             borderBottom: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
             padding: '0.72rem 1rem',
-            boxShadow: isDark 
-              ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' 
+            boxShadow: isDark
+              ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)'
               : '0 8px 25px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0,0,0,0.04)',
             backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
@@ -5098,16 +4573,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {activeView !== 'dashboard' && (() => {
         const currentItem = allModules[activeView];
         const isFooterTab = ['reports', 'support', 'finance'].includes(activeView);
-        const subStatusText = 
+        const subStatusText =
           activeView === 'monetization' ? 'Google AdSense & GA4' :
-          activeView === 'rbac' ? 'Matriks & Izin Staf' :
-          activeView === 'stores' ? `${dormancyMetrics?.active_stores || 1} Toko Terdaftar` :
-          activeView === 'reports' ? `${pendingReportsCount} Laporan Pending` :
-          activeView === 'support' ? (actionRequiredTicketsCount > 0 ? `${actionRequiredTicketsCount} Perlu Respon Tim` : (tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length > 0 ? `${tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length} Tiket Aktif` : `${tickets.length} Total Tiket`)) :
-          activeView === 'finance' ? `${pendingOrdersCount} Order Pending` :
-          activeView === 'broadcast' ? `${broadcasts.length} Siaran Aktif` :
-          activeView === 'audit' ? `${auditLogs.length} Log Aktivitas` :
-          currentItem?.subtitle || '';
+            activeView === 'rbac' ? 'Matriks & Izin Staf' :
+              activeView === 'stores' ? `${dormancyMetrics?.active_stores || 1} Toko Terdaftar` :
+                activeView === 'reports' ? `${pendingReportsCount} Laporan Pending` :
+                  activeView === 'support' ? (actionRequiredTicketsCount > 0 ? `${actionRequiredTicketsCount} Perlu Respon Tim` : (tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length > 0 ? `${tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length} Tiket Aktif` : `${tickets.length} Total Tiket`)) :
+                    activeView === 'finance' ? `${pendingOrdersCount} Order Pending` :
+                      activeView === 'broadcast' ? `${broadcastActiveCount} Siaran Aktif` :
+                        activeView === 'audit' ? `${auditLogs.length} Log Aktivitas` :
+                          currentItem?.subtitle || '';
 
         return (
           <>
@@ -5120,16 +4595,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               zIndex: 1000,
               boxSizing: 'border-box',
               borderRadius: 0,
-              backgroundColor: isDark 
-                ? 'rgba(15, 23, 42, 0.96)' 
+              backgroundColor: isDark
+                ? 'rgba(15, 23, 42, 0.96)'
                 : 'rgba(255, 255, 255, 0.96)',
               borderTop: 'none',
               borderLeft: 'none',
               borderRight: 'none',
               borderBottom: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#cbd5e1'}`,
               padding: '0.72rem 1rem',
-              boxShadow: isDark 
-                ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)' 
+              boxShadow: isDark
+                ? '0 12px 35px rgba(0, 0, 0, 0.65), 0 0 18px rgba(56, 189, 248, 0.18)'
                 : '0 8px 25px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0,0,0,0.04)',
               backdropFilter: 'blur(24px)',
               WebkitBackdropFilter: 'blur(24px)',
@@ -5144,116 +4619,118 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   width: '38px',
                   height: '38px',
                   borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
-                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                padding: '3px',
-                flexShrink: 0,
-                boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 6px rgba(0,0,0,0.05)'
-              }}>
-                <img
-                  src={appLogoImg || APP_LOGO_BASE64}
-                  alt="Catavor Logo"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    borderRadius: '0.6rem'
-                  }}
-                />
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  if (activeView === 'reports' && moderationModalReport) {
-                    handleCloseModerationPage();
-                  } else if (activeView === 'support' && selectedTicket) {
-                    handleCloseTicketChat();
-                  } else if (activeView === 'broadcast' && broadcastSubView === 'create') {
-                    handleCloseCreateBroadcast();
-                  } else if (activeView === 'broadcast' && broadcastSubView === 'detail') {
-                    handleCloseBroadcastDetail();
-                  } else if (activeView === 'master_data' && masterSubView !== 'menu') {
-                    setMasterSubView('menu');
-                    updatePlatformUrl('master_data', null, null);
-                  } else {
-                    handleSwitchView('dashboard');
-                  }
-                }}
-                title={
-                  activeView === 'reports' && moderationModalReport
-                    ? "Kembali ke Antrean Laporan"
-                    : activeView === 'support' && selectedTicket 
-                      ? "Kembali ke Daftar Tiket" 
-                      : (activeView === 'broadcast' && broadcastSubView !== 'list')
-                        ? "Kembali ke Riwayat Siaran"
-                        : (activeView === 'master_data' && masterSubView !== 'menu')
-                          ? "Kembali ke Menu Master"
-                          : "Kembali ke Dashboard"
-                }
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '0.75rem',
-                  backgroundColor: (activeView === 'broadcast' && broadcastSubView !== 'list') 
-                    ? (isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)') 
-                    : (isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)'),
-                  border: `1px solid ${(activeView === 'broadcast' && broadcastSubView !== 'list') 
-                    ? (isDark ? 'rgba(245, 158, 11, 0.35)' : 'rgba(245, 158, 11, 0.25)') 
-                    : (isDark ? 'rgba(56, 189, 248, 0.28)' : 'rgba(2, 132, 199, 0.2)')}`,
-                  color: (activeView === 'broadcast' && broadcastSubView !== 'list') ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
-                  cursor: 'pointer',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
+                  border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  overflow: 'hidden',
+                  padding: '3px',
                   flexShrink: 0,
-                  transition: 'transform 0.15s ease'
-                }}
-              >
-                <ChevronLeft size={19} />
-              </button>
-            )}
+                  boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 6px rgba(0,0,0,0.05)'
+                }}>
+                  <img
+                    src={appLogoImg || APP_LOGO_BASE64}
+                    alt="Catavor Logo"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      borderRadius: '0.6rem'
+                    }}
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    if (activeView === 'reports' && moderationModalReport) {
+                      handleCloseModerationPage();
+                    } else if (activeView === 'support' && selectedTicket) {
+                      handleCloseTicketChat();
+                    } else if (activeView === 'broadcast' && broadcastSubViewState !== 'list') {
+                      const backEvent = new CustomEvent('catavor:broadcast-request-back', { cancelable: true });
+                      window.dispatchEvent(backEvent);
+                      if (!backEvent.defaultPrevented) {
+                        smartBack(() => handleSwitchView('broadcast'));
+                      }
+                    } else if (activeView === 'master_data' && masterSubView !== 'menu') {
+                      setMasterSubView('menu');
+                      updatePlatformUrl('master_data', null, null);
+                    } else {
+                      handleSwitchView('dashboard');
+                    }
+                  }}
+                  title={
+                    activeView === 'reports' && moderationModalReport
+                      ? "Kembali ke Antrean Laporan"
+                      : activeView === 'support' && selectedTicket
+                        ? "Kembali ke Daftar Tiket"
+                        : (activeView === 'broadcast' && broadcastSubViewState !== 'list')
+                          ? "Kembali ke Riwayat Siaran"
+                          : (activeView === 'master_data' && masterSubView !== 'menu')
+                            ? "Kembali ke Menu Master"
+                            : "Kembali ke Dashboard"
+                  }
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '0.75rem',
+                    backgroundColor: (activeView === 'broadcast' && broadcastSubViewState !== 'list')
+                      ? (isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)')
+                      : (isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.08)'),
+                    border: `1px solid ${(activeView === 'broadcast' && broadcastSubViewState !== 'list')
+                      ? (isDark ? 'rgba(245, 158, 11, 0.35)' : 'rgba(245, 158, 11, 0.25)')
+                      : (isDark ? 'rgba(56, 189, 248, 0.28)' : 'rgba(2, 132, 199, 0.2)')}`,
+                    color: (activeView === 'broadcast' && broadcastSubViewState !== 'list') ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'transform 0.15s ease'
+                  }}
+                >
+                  <ChevronLeft size={19} />
+                </button>
+              )}
 
-            {/* Center: Module Title & Status (Clean, No Entity Icon) */}
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, paddingLeft: '0.15rem' }}>
-              <h2 style={{
-                fontSize: '0.92rem',
-                fontWeight: 800,
-                margin: 0,
-                color: theme.textPrimary,
-                letterSpacing: '-0.01em',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                {activeView === 'reports' && moderationModalReport
-                  ? 'Kelola Laporan'
-                  : activeView === 'support' && selectedTicket 
-                    ? (selectedTicket.ticket_number || `#TCK-${selectedTicket.id}`) 
-                    : (activeView === 'broadcast' && broadcastSubView === 'create')
-                      ? 'Buat Siaran Baru'
-                      : (activeView === 'broadcast' && broadcastSubView === 'detail')
-                        ? (selectedBroadcastDetail?.title || 'Rincian Siaran')
-                        : (activeView === 'master_data' && masterSubView === 'domains')
-                          ? 'Master Domain Aman'
-                          : (activeView === 'master_data' && masterSubView === 'templates')
-                            ? 'Template Pesan Cepat'
-                            : (activeView === 'master_data' && masterSubView === 'rekber')
-                              ? 'Mitra Rekber Syariah'
-                              : (currentItem?.title || 'Panel Modul')}
-              </h2>
-              {(() => {
-                const subText = activeView === 'reports' && moderationModalReport
-                  ? (moderationModalReport.report_number || `#RPT-${moderationModalReport.id}`)
-                  : activeView === 'support' && selectedTicket
-                    ? (getStoreDisplayName(selectedTicket) || 'Bantuan Merchant')
-                    : (activeView === 'broadcast' && broadcastSubView === 'create')
-                      ? ''
-                      : (activeView === 'broadcast' && broadcastSubView === 'detail')
-                        ? (selectedBroadcastDetail?.category || 'PENGUMUMAN')
+              {/* Center: Module Title & Status (Clean, No Entity Icon) */}
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, paddingLeft: '0.15rem' }}>
+                <h2 style={{
+                  fontSize: '0.92rem',
+                  fontWeight: 800,
+                  margin: 0,
+                  color: theme.textPrimary,
+                  letterSpacing: '-0.01em',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {activeView === 'reports' && moderationModalReport
+                    ? 'Kelola Laporan'
+                    : activeView === 'support' && selectedTicket
+                      ? (selectedTicket.ticket_number || `#TCK-${selectedTicket.id}`)
+                      : (activeView === 'broadcast' && broadcastSubViewState === 'create')
+                        ? 'Buat Siaran Baru'
+                        : (activeView === 'broadcast' && broadcastSubViewState === 'edit')
+                          ? 'Edit Siaran'
+                          : (activeView === 'broadcast' && broadcastSubViewState === 'detail')
+                            ? 'Rincian Siaran'
+                            : (activeView === 'master_data' && masterSubView === 'domains')
+                              ? 'Master Domain Aman'
+                              : (activeView === 'master_data' && masterSubView === 'templates')
+                                ? 'Template Pesan Cepat'
+                                : (activeView === 'master_data' && masterSubView === 'rekber')
+                                  ? 'Mitra Rekber Syariah'
+                                  : (currentItem?.title || 'Panel Modul')}
+                </h2>
+                {(() => {
+                  const subText = activeView === 'reports' && moderationModalReport
+                    ? (moderationModalReport.report_number || `#RPT-${moderationModalReport.id}`)
+                    : activeView === 'support' && selectedTicket
+                      ? (getStoreDisplayName(selectedTicket) || 'Bantuan Merchant')
+                      : (activeView === 'broadcast' && broadcastSubViewState !== 'list')
+                        ? ''
                         : (activeView === 'master_data' && masterSubView === 'domains')
                           ? 'Whitelist URL'
                           : (activeView === 'master_data' && masterSubView === 'templates')
@@ -5264,76 +4741,76 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                 ? ''
                                 : subStatusText;
 
-                return subText ? (
-                  <span style={{
-                    fontSize: '0.67rem',
-                    color: theme.textSecondary,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    fontWeight: 600
-                  }}>
-                    {subText}
-                  </span>
-                ) : null;
-              })()}
-            </div>
-
-            {/* Right: Contextual Quick Actions + Options Menu Button */}
-            {(headerConfig.primaryAction || headerConfig.showMenu) ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                {headerConfig.primaryAction && (
-                  <button
-                    type="button"
-                    onClick={headerConfig.primaryAction.onClick}
-                    title={headerConfig.primaryAction.title}
-                    style={{
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '0.75rem',
-                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
-                      border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(56, 189, 248, 0.3)'}`,
-                      color: isDark ? '#38bdf8' : '#0284c7',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {headerConfig.primaryAction.icon}
-                  </button>
-                )}
-                {headerConfig.showMenu && (
-                  <button
-                    type="button"
-                    onClick={() => setShowOptionsMenu(true)}
-                    title={headerConfig.title || "Menu Opsi"}
-                    style={{
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '0.75rem',
-                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
-                      border: `1px solid ${theme.border}`,
-                      color: theme.textPrimary,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <MoreVertical size={17} />
-                  </button>
-                )}
+                  return subText ? (
+                    <span style={{
+                      fontSize: '0.67rem',
+                      color: theme.textSecondary,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      fontWeight: 600
+                    }}>
+                      {subText}
+                    </span>
+                  ) : null;
+                })()}
               </div>
-            ) : null}
-          </div>
-          {/* Header Spacer for Fixed Float & Ideal Content Separation */}
-          <div style={{ height: '62px', marginBottom: '0.5rem', flexShrink: 0 }} aria-hidden="true" />
-        </>
-      );
-    })()}
+
+              {/* Right: Contextual Quick Actions + Options Menu Button */}
+              {(headerConfig.primaryAction || headerConfig.showMenu) ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                  {headerConfig.primaryAction && (
+                    <button
+                      type="button"
+                      onClick={headerConfig.primaryAction.onClick}
+                      title={headerConfig.primaryAction.title}
+                      style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '0.75rem',
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                        border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(56, 189, 248, 0.3)'}`,
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {headerConfig.primaryAction.icon}
+                    </button>
+                  )}
+                  {headerConfig.showMenu && (
+                    <button
+                      type="button"
+                      onClick={() => setShowOptionsMenu(true)}
+                      title={headerConfig.title || "Menu Opsi"}
+                      style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '0.75rem',
+                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
+                        border: `1px solid ${theme.border}`,
+                        color: theme.textPrimary,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <MoreVertical size={17} />
+                    </button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            {/* Header Spacer for Fixed Float & Ideal Content Separation */}
+            <div style={{ height: '62px', marginBottom: '0.5rem', flexShrink: 0 }} aria-hidden="true" />
+          </>
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* 2.1 EXECUTIVE OPTIONS MENU BOTTOM SHEET (Consolidated Theme, Refresh, etc) */}
@@ -5431,7 +4908,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     justifyContent: 'space-between',
                     padding: '0.75rem 0.9rem',
                     borderRadius: '0.9rem',
-                    backgroundColor: item.variant === 'danger' 
+                    backgroundColor: item.variant === 'danger'
                       ? (isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.06)')
                       : theme.cardAlt,
                     border: item.variant === 'danger'
@@ -6129,9 +5606,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {moderationModalReport.target_type === 'item' ? (
                   <div>
                     <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Jenis / Tipe Katalog</span>
-                    <span style={{ 
-                      fontSize: '0.76rem', 
-                      fontWeight: 800, 
+                    <span style={{
+                      fontSize: '0.76rem',
+                      fontWeight: 800,
                       color: isDark ? '#38bdf8' : '#0284c7',
                       backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(14, 165, 233, 0.1)',
                       padding: '0.12rem 0.5rem',
@@ -6528,54 +6005,54 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           label: string;
                           desc: string;
                         }> = [
-                          {
-                            value: 'none',
-                            label: 'Tanpa Sanksi Otomatis',
-                            desc: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis pada profil katalog maupun item'
-                          },
-                          {
-                            value: 'warning_issued',
-                            label: 'Terbitkan Peringatan Resmi',
-                            desc: 'Kirim surat notifikasi peringatan resmi kepatuhan ke pengelola katalog'
-                          },
-                          ...(isItem ? [
                             {
-                              value: 'item_needs_fix',
-                              label: 'Nonaktifkan: Beri Kesempatan Edit & Perbaiki',
-                              desc: 'Sembunyikan dari publik namun pengelola diizinkan mengedit foto/deskripsi/spesifikasi untuk diajukan ulang'
+                              value: 'none',
+                              label: 'Tanpa Sanksi Otomatis',
+                              desc: 'Catat temuan investigasi & perbarui status tanpa sanksi otomatis pada profil katalog maupun item'
                             },
                             {
-                              value: 'item_locked',
-                              label: 'Nonaktifkan & Kunci: Pelanggaran Kebijakan Keras',
-                              desc: 'Sembunyikan dari publik dan kunci fitur edit (read-only) karena indikasi pelanggaran kebijakan keras/fatal. Hanya banding atau hapus'
+                              value: 'warning_issued',
+                              label: 'Terbitkan Peringatan Resmi',
+                              desc: 'Kirim surat notifikasi peringatan resmi kepatuhan ke pengelola katalog'
+                            },
+                            ...(isItem ? [
+                              {
+                                value: 'item_needs_fix',
+                                label: 'Nonaktifkan: Beri Kesempatan Edit & Perbaiki',
+                                desc: 'Sembunyikan dari publik namun pengelola diizinkan mengedit foto/deskripsi/spesifikasi untuk diajukan ulang'
+                              },
+                              {
+                                value: 'item_locked',
+                                label: 'Nonaktifkan & Kunci: Pelanggaran Kebijakan Keras',
+                                desc: 'Sembunyikan dari publik dan kunci fitur edit (read-only) karena indikasi pelanggaran kebijakan keras/fatal. Hanya banding atau hapus'
+                              },
+                              {
+                                value: 'item_banned',
+                                label: 'Blokir atau Hapus Item (Banned Permanen)',
+                                desc: 'Hapus permanen dari inventaris katalog & pulihkan kuota pengelola seketika. Bukti forensik disimpan 90 hari tanpa hak banding'
+                              },
+                              {
+                                value: 'item_restored',
+                                label: 'Pulihkan / Aktifkan Item',
+                                desc: 'Memulihkan item agar dapat kembali dilihat dan diakses publik secara normal'
+                              }
+                            ] : []),
+                            {
+                              value: 'catalog_suspended',
+                              label: 'Bekukan / Suspend Profil Katalog',
+                              desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time'
                             },
                             {
-                              value: 'item_banned',
-                              label: 'Blokir atau Hapus Item (Banned Permanen)',
-                              desc: 'Hapus permanen dari inventaris katalog & pulihkan kuota pengelola seketika. Bukti forensik disimpan 90 hari tanpa hak banding'
+                              value: 'catalog_banned',
+                              label: 'Blokir / Banned Permanen Profil Katalog',
+                              desc: 'Nonaktifkan akses publik profil katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding'
                             },
                             {
-                              value: 'item_restored',
-                              label: 'Pulihkan / Aktifkan Item',
-                              desc: 'Memulihkan item agar dapat kembali dilihat dan diakses publik secara normal'
+                              value: 'catalog_reactivated',
+                              label: 'Pulihkan / Aktifkan Profil Katalog',
+                              desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase profil katalog'
                             }
-                          ] : []),
-                          {
-                            value: 'catalog_suspended',
-                            label: 'Bekukan / Suspend Profil Katalog',
-                            desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time'
-                          },
-                          {
-                            value: 'catalog_banned',
-                            label: 'Blokir / Banned Permanen Profil Katalog',
-                            desc: 'Nonaktifkan akses publik profil katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding'
-                          },
-                          {
-                            value: 'catalog_reactivated',
-                            label: 'Pulihkan / Aktifkan Profil Katalog',
-                            desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase profil katalog'
-                          }
-                        ];
+                          ];
 
                         setCrudDropdownPicker({
                           title: 'Tindakan Penegakan Sistem',
@@ -6805,124 +6282,82 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* 3B. ANTREAN & DAFTAR LAPORAN PELANGGARAN                                  */
           /* ========================================================================= */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
-          {/* Quick Metrics Bar (4 Columns with Dedicated Banned Metric) */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.45rem' }}>
-            <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-              <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Menunggu</span>
-              <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f59e0b' }}>
-                {reports.filter(r => r.status === 'pending').length}
-              </span>
+            {/* Quick Metrics Bar (4 Columns with Dedicated Banned Metric) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.45rem' }}>
+              <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Menunggu</span>
+                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f59e0b' }}>
+                  {reports.filter(r => r.status === 'pending').length}
+                </span>
+              </div>
+              <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Investigasi</span>
+                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#38bdf8' }}>
+                  {reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length}
+                </span>
+              </div>
+              <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Sanksi Aktif</span>
+                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f43f5e' }}>
+                  {reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.status !== 'banned' && r.action_taken !== 'catalog_banned').length}
+                </span>
+              </div>
+              <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Banned</span>
+                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ef4444' }}>
+                  {reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length}
+                </span>
+              </div>
             </div>
-            <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-              <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Investigasi</span>
-              <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#38bdf8' }}>
-                {reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length}
-              </span>
-            </div>
-            <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-              <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Sanksi Aktif</span>
-              <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f43f5e' }}>
-                {reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.status !== 'banned' && r.action_taken !== 'catalog_banned').length}
-              </span>
-            </div>
-            <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-              <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Banned</span>
-              <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ef4444' }}>
-                {reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length}
-              </span>
-            </div>
-          </div>
 
-          {/* Search Box */}
-          <div style={{ position: 'relative', width: '100%' }}>
-            <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
-            <input
-              type="text"
-              placeholder="Cari nomor tiket (#RPT-...), toko, item, atau email..."
-              value={reportsSearchQuery}
-              onChange={(e) => setReportsSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.65rem 0.85rem 0.65rem 2.35rem',
-                borderRadius: '0.75rem',
-                border: `1px solid ${theme.border}`,
-                backgroundColor: theme.surface,
-                color: theme.textPrimary,
-                fontSize: '0.78rem',
-                fontFamily: 'inherit',
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
-
-          {/* Mobile Native Dropdowns for Reports */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-            <MobileCustomSelect
-              value={reportsFilter}
-              onChange={(val) => setReportsFilter(val as any)}
-              options={mobileReportStatusOptions}
-              title="Status Laporan Kepatuhan"
-              subtitle="Filter berdasarkan status penanganan"
-              placeholder="Filter Status Laporan"
-              icon={<ShieldAlert size={15} />}
-            />
-
-            <MobileCustomSelect
-              value={reportsTargetFilter}
-              onChange={(val) => setReportsTargetFilter(val as any)}
-              options={mobileReportTargetOptions}
-              title="Target Laporan"
-              subtitle="Filter item atau katalog toko"
-              placeholder="Filter Target"
-              icon={<Layers size={15} />}
-            />
-          </div>
-
-          {/* Filtered Reports Feed */}
-          {reports
-            .filter(r => {
-              if (reportsFilter !== 'all') {
-                if (reportsFilter === 'investigating') {
-                  if (r.status !== 'investigating') return false;
-                } else if (reportsFilter === 're_review') {
-                  if (r.status !== 're_review') return false;
-                } else if (reportsFilter === 'banned') {
-                  if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
-                } else if (reportsFilter === 'action_taken') {
-                  if (r.status !== 'action_taken' || r.action_taken === 'catalog_banned' || r.status === 'banned') return false;
-                } else if (r.status !== reportsFilter) {
-                  return false;
-                }
-              }
-              if (reportsTargetFilter !== 'all') {
-                const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
-                if (reportsTargetFilter === 'catalog' && !isCatalog) return false;
-                if (reportsTargetFilter === 'item' && isCatalog) return false;
-              }
-              if (reportsSearchQuery.trim()) {
-                const q = reportsSearchQuery.toLowerCase();
-                const num = (r.report_number || '').toLowerCase();
-                const store = (r.store_title || r.store_slug || '').toLowerCase();
-                const item = (r.item_name || '').toLowerCase();
-                const reason = (r.reason_label || r.reason_category || '').toLowerCase();
-                const email = (r.reporter_email || '').toLowerCase();
-                if (!num.includes(q) && !store.includes(q) && !item.includes(q) && !reason.includes(q) && !email.includes(q)) {
-                  return false;
-                }
-              }
-              return true;
-            })
-            .length === 0 ? (
-            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
-              <ShieldCheck size={36} color="#10b981" style={{ margin: '0 auto 0.65rem' }} />
-              <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>Tidak Ada Laporan Ditemukan</h4>
-              <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>
-                {reportsSearchQuery ? 'Tidak ada laporan yang sesuai dengan kriteria pencarian.' : 'Seluruh toko dan item mematuhi aturan kepatuhan platform.'}
-              </p>
+            {/* Search Box */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Search size={16} style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
+              <input
+                type="text"
+                placeholder="Cari nomor tiket (#RPT-...), toko, item, atau email..."
+                value={reportsSearchQuery}
+                onChange={(e) => setReportsSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.65rem 0.85rem 0.65rem 2.35rem',
+                  borderRadius: '0.75rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.surface,
+                  color: theme.textPrimary,
+                  fontSize: '0.78rem',
+                  fontFamily: 'inherit',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
             </div>
-          ) : (
-            reports
+
+            {/* Mobile Native Dropdowns for Reports */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              <MobileCustomSelect
+                value={reportsFilter}
+                onChange={(val) => setReportsFilter(val as any)}
+                options={mobileReportStatusOptions}
+                title="Status Laporan Kepatuhan"
+                subtitle="Filter berdasarkan status penanganan"
+                placeholder="Filter Status Laporan"
+                icon={<ShieldAlert size={15} />}
+              />
+
+              <MobileCustomSelect
+                value={reportsTargetFilter}
+                onChange={(val) => setReportsTargetFilter(val as any)}
+                options={mobileReportTargetOptions}
+                title="Target Laporan"
+                subtitle="Filter item atau katalog toko"
+                placeholder="Filter Target"
+                icon={<Layers size={15} />}
+              />
+            </div>
+
+            {/* Filtered Reports Feed */}
+            {reports
               .filter(r => {
                 if (reportsFilter !== 'all') {
                   if (reportsFilter === 'investigating') {
@@ -6955,329 +6390,371 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 }
                 return true;
               })
-              .map(r => {
-                const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
-                const statusBadgeMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
-                  pending: { label: 'Menunggu Review', bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', border: 'rgba(245, 158, 11, 0.35)' },
-                  investigating: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
-                  in_review: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
-                  re_review: { label: 'Revisi Masuk', bg: 'rgba(16, 185, 129, 0.18)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.45)' },
-                  action_taken: { label: 'Ditindak Sanksi', bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.35)' },
-                  banned: { label: 'Banned Permanen', bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.55)' },
-                  dismissed: { label: 'Laporan Ditolak', bg: isDark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(100, 116, 139, 0.1)', text: isDark ? '#94a3b8' : '#64748b', border: 'rgba(148, 163, 184, 0.25)' },
-                  resolved: { label: 'Selesai', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' }
-                };
-                const currentBadge = (r.status === 'banned' || r.action_taken === 'catalog_banned')
-                  ? statusBadgeMap.banned
-                  : (statusBadgeMap[r.status] || statusBadgeMap.pending);
+              .length === 0 ? (
+              <div style={{ padding: '2.5rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '1.15rem', border: `1px solid ${theme.border}`, boxShadow: theme.cardShadow }}>
+                <ShieldCheck size={36} color="#10b981" style={{ margin: '0 auto 0.65rem' }} />
+                <h4 style={{ margin: 0, color: theme.textPrimary, fontSize: '0.92rem', fontWeight: 800 }}>Tidak Ada Laporan Ditemukan</h4>
+                <p style={{ margin: '0.25rem 0 0', color: theme.textSecondary, fontSize: '0.76rem' }}>
+                  {reportsSearchQuery ? 'Tidak ada laporan yang sesuai dengan kriteria pencarian.' : 'Seluruh toko dan item mematuhi aturan kepatuhan platform.'}
+                </p>
+              </div>
+            ) : (
+              reports
+                .filter(r => {
+                  if (reportsFilter !== 'all') {
+                    if (reportsFilter === 'investigating') {
+                      if (r.status !== 'investigating') return false;
+                    } else if (reportsFilter === 're_review') {
+                      if (r.status !== 're_review') return false;
+                    } else if (reportsFilter === 'banned') {
+                      if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
+                    } else if (reportsFilter === 'action_taken') {
+                      if (r.status !== 'action_taken' || r.action_taken === 'catalog_banned' || r.status === 'banned') return false;
+                    } else if (r.status !== reportsFilter) {
+                      return false;
+                    }
+                  }
+                  if (reportsTargetFilter !== 'all') {
+                    const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
+                    if (reportsTargetFilter === 'catalog' && !isCatalog) return false;
+                    if (reportsTargetFilter === 'item' && isCatalog) return false;
+                  }
+                  if (reportsSearchQuery.trim()) {
+                    const q = reportsSearchQuery.toLowerCase();
+                    const num = (r.report_number || '').toLowerCase();
+                    const store = (r.store_title || r.store_slug || '').toLowerCase();
+                    const item = (r.item_name || '').toLowerCase();
+                    const reason = (r.reason_label || r.reason_category || '').toLowerCase();
+                    const email = (r.reporter_email || '').toLowerCase();
+                    if (!num.includes(q) && !store.includes(q) && !item.includes(q) && !reason.includes(q) && !email.includes(q)) {
+                      return false;
+                    }
+                  }
+                  return true;
+                })
+                .map(r => {
+                  const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
+                  const statusBadgeMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
+                    pending: { label: 'Menunggu Review', bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', border: 'rgba(245, 158, 11, 0.35)' },
+                    investigating: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
+                    in_review: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
+                    re_review: { label: 'Revisi Masuk', bg: 'rgba(16, 185, 129, 0.18)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.45)' },
+                    action_taken: { label: 'Ditindak Sanksi', bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.35)' },
+                    banned: { label: 'Banned Permanen', bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.55)' },
+                    dismissed: { label: 'Laporan Ditolak', bg: isDark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(100, 116, 139, 0.1)', text: isDark ? '#94a3b8' : '#64748b', border: 'rgba(148, 163, 184, 0.25)' },
+                    resolved: { label: 'Selesai', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' }
+                  };
+                  const currentBadge = (r.status === 'banned' || r.action_taken === 'catalog_banned')
+                    ? statusBadgeMap.banned
+                    : (statusBadgeMap[r.status] || statusBadgeMap.pending);
 
-                const hasAction = r.action_taken && r.action_taken !== 'none';
-                const isRestored = hasAction && (r.action_taken.includes('restored') || r.action_taken.includes('reactivated'));
-                const actionLabel = r.action_taken === 'item_banned'
-                  ? 'Item Dibanned Permanen'
-                  : r.action_taken === 'item_needs_fix'
-                  ? 'Perlu Perbaikan'
-                  : (r.action_taken === 'item_locked' || r.action_taken === 'item_hidden')
-                  ? 'Item Dikunci'
-                  : r.action_taken === 'catalog_suspended' 
-                  ? 'Katalog Dibekukan' 
-                  : r.action_taken === 'catalog_banned'
-                  ? 'Katalog Dibanned Permanen'
-                  : r.action_taken === 'warning_issued' 
-                  ? 'Diberi Peringatan' 
-                  : r.action_taken === 'item_restored'
-                  ? 'Item Dipulihkan'
-                  : (r.action_taken || '');
+                  const hasAction = r.action_taken && r.action_taken !== 'none';
+                  const isRestored = hasAction && (r.action_taken.includes('restored') || r.action_taken.includes('reactivated'));
+                  const actionLabel = r.action_taken === 'item_banned'
+                    ? 'Item Dibanned Permanen'
+                    : r.action_taken === 'item_needs_fix'
+                      ? 'Perlu Perbaikan'
+                      : (r.action_taken === 'item_locked' || r.action_taken === 'item_hidden')
+                        ? 'Item Dikunci'
+                        : r.action_taken === 'catalog_suspended'
+                          ? 'Katalog Dibekukan'
+                          : r.action_taken === 'catalog_banned'
+                            ? 'Katalog Dibanned Permanen'
+                            : r.action_taken === 'warning_issued'
+                              ? 'Diberi Peringatan'
+                              : r.action_taken === 'item_restored'
+                                ? 'Item Dipulihkan'
+                                : (r.action_taken || '');
 
-                const isItemBanned = r.status === 'banned' || r.action_taken === 'catalog_banned' || r.action_taken === 'item_banned';
+                  const isItemBanned = r.status === 'banned' || r.action_taken === 'catalog_banned' || r.action_taken === 'item_banned';
 
-                return (
-                  <div
-                    key={r.id}
-                    style={{
-                      padding: '0.85rem 1rem',
-                      borderRadius: '0.95rem',
-                      backgroundColor: theme.surface,
-                      border: isItemBanned
-                        ? '1px solid rgba(239, 68, 68, 0.55)'
-                        : (r.status === 're_review'
+                  return (
+                    <div
+                      key={r.id}
+                      style={{
+                        padding: '0.85rem 1rem',
+                        borderRadius: '0.95rem',
+                        backgroundColor: theme.surface,
+                        border: isItemBanned
+                          ? '1px solid rgba(239, 68, 68, 0.55)'
+                          : (r.status === 're_review'
                             ? '1px solid rgba(16, 185, 129, 0.65)'
-                            : (r.status === 'pending' 
-                                ? '1px solid rgba(245, 158, 11, 0.4)' 
-                                : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.4)' : `1px solid ${theme.border}`))),
-                      boxShadow: isItemBanned 
-                        ? '0 4px 14px rgba(239, 68, 68, 0.12)' 
-                        : (r.status === 're_review' ? '0 4px 14px rgba(16, 185, 129, 0.12)' : theme.cardShadow),
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.65rem',
-                      transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
-                    }}
-                  >
-                    {/* Header Row: Ticket # + Target Type Pill + Date & Status Badge */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        <span style={{
-                          fontFamily: 'monospace',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          color: theme.textPrimary,
-                          backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '0.4rem',
-                          border: `1px solid ${theme.border}`
-                        }}>
-                          {r.report_number || `#RPT-${r.id}`}
-                        </span>
-
-                        <span style={{
-                          fontSize: '0.62rem',
-                          fontWeight: 800,
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '0.4rem',
-                          backgroundColor: isCatalog ? 'rgba(168, 85, 247, 0.12)' : 'rgba(14, 165, 233, 0.12)',
-                          color: isCatalog ? (isDark ? '#c084fc' : '#9333ea') : (isDark ? '#38bdf8' : '#0284c7'),
-                          border: `1px solid ${isCatalog ? 'rgba(168, 85, 247, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`
-                        }}>
-                          {isCatalog ? 'PROFIL KATALOG' : 'ITEM KATALOG'}
-                        </span>
-
-                        {!isCatalog && (
+                            : (r.status === 'pending'
+                              ? '1px solid rgba(245, 158, 11, 0.4)'
+                              : (r.status === 'action_taken' ? '1px solid rgba(244, 63, 94, 0.4)' : `1px solid ${theme.border}`))),
+                        boxShadow: isItemBanned
+                          ? '0 4px 14px rgba(239, 68, 68, 0.12)'
+                          : (r.status === 're_review' ? '0 4px 14px rgba(16, 185, 129, 0.12)' : theme.cardShadow),
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.65rem',
+                        transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
+                      }}
+                    >
+                      {/* Header Row: Ticket # + Target Type Pill + Date & Status Badge */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                           <span style={{
-                            fontSize: '0.62rem',
-                            fontWeight: 700,
+                            fontFamily: 'monospace',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            color: theme.textPrimary,
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
                             padding: '0.15rem 0.45rem',
                             borderRadius: '0.4rem',
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                            color: theme.textSecondary,
                             border: `1px solid ${theme.border}`
                           }}>
-                            {formatCatalogType(r.item_type || r.fauna?.product_type)}
+                            {r.report_number || `#RPT-${r.id}`}
                           </span>
-                        )}
 
-                        <span style={{ fontSize: '0.66rem', color: theme.textMuted }}>
-                          • {r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : 'Baru'}
-                        </span>
-                      </div>
+                          <span style={{
+                            fontSize: '0.62rem',
+                            fontWeight: 800,
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '0.4rem',
+                            backgroundColor: isCatalog ? 'rgba(168, 85, 247, 0.12)' : 'rgba(14, 165, 233, 0.12)',
+                            color: isCatalog ? (isDark ? '#c084fc' : '#9333ea') : (isDark ? '#38bdf8' : '#0284c7'),
+                            border: `1px solid ${isCatalog ? 'rgba(168, 85, 247, 0.25)' : 'rgba(14, 165, 233, 0.25)'}`
+                          }}>
+                            {isCatalog ? 'PROFIL KATALOG' : 'ITEM KATALOG'}
+                          </span>
 
-                      <span style={{
-                        padding: '0.2rem 0.55rem',
-                        borderRadius: '999px',
-                        fontSize: '0.66rem',
-                        fontWeight: 800,
-                        backgroundColor: currentBadge.bg,
-                        color: currentBadge.text,
-                        border: `1px solid ${currentBadge.border}`,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}>
-                        {currentBadge.label}
-                      </span>
-                    </div>
+                          {!isCatalog && (
+                            <span style={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '0.4rem',
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                              color: theme.textSecondary,
+                              border: `1px solid ${theme.border}`
+                            }}>
+                              {formatCatalogType(r.item_type || r.fauna?.product_type)}
+                            </span>
+                          )}
 
-                    {/* Middle Row: Entity Target & Violation Tags */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '160px' }}>
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '0.55rem',
-                          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0
-                        }}>
-                          {isCatalog ? <Store size={16} color="var(--primary)" /> : <Package size={16} color="var(--primary)" />}
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.86rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.25 }}>
-                            {isCatalog 
-                              ? (r.store_title || `Katalog /${r.store_slug}`) 
-                              : (r.item_name || 'Item Produk')}
-                          </h4>
-                          <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                            {isCatalog ? `/${r.store_slug || '-'}` : (r.store_title ? `${r.store_title} (/${r.store_slug || '-'})` : `/${r.store_slug || '-'}`)}
+                          <span style={{ fontSize: '0.66rem', color: theme.textMuted }}>
+                            • {r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : 'Baru'}
                           </span>
                         </div>
-                      </div>
 
-                      {/* Chips / Pills: Violation Reason & Active Action */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                         <span style={{
-                          padding: '0.2rem 0.5rem',
-                          borderRadius: '0.45rem',
-                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                          border: '1px solid rgba(239, 68, 68, 0.25)',
-                          fontSize: '0.7rem',
-                          fontWeight: 700,
-                          color: '#ef4444',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '999px',
+                          fontSize: '0.66rem',
+                          fontWeight: 800,
+                          backgroundColor: currentBadge.bg,
+                          color: currentBadge.text,
+                          border: `1px solid ${currentBadge.border}`,
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.3rem'
+                          gap: '0.25rem'
                         }}>
-                          <ShieldAlert size={12} color="#ef4444" />
-                          <span>{r.reason_label || r.reason_category || 'Pelanggaran Aturan'}</span>
+                          {currentBadge.label}
                         </span>
+                      </div>
 
-                        {hasAction && (
+                      {/* Middle Row: Entity Target & Violation Tags */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '160px' }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '0.55rem',
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            {isCatalog ? <Store size={16} color="var(--primary)" /> : <Package size={16} color="var(--primary)" />}
+                          </div>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: '0.86rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.25 }}>
+                              {isCatalog
+                                ? (r.store_title || `Katalog /${r.store_slug}`)
+                                : (r.item_name || 'Item Produk')}
+                            </h4>
+                            <span style={{ fontSize: '0.68rem', color: theme.textMuted }}>
+                              {isCatalog ? `/${r.store_slug || '-'}` : (r.store_title ? `${r.store_title} (/${r.store_slug || '-'})` : `/${r.store_slug || '-'}`)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Chips / Pills: Violation Reason & Active Action */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                           <span style={{
                             padding: '0.2rem 0.5rem',
                             borderRadius: '0.45rem',
-                            backgroundColor: isRestored 
-                              ? 'rgba(16, 185, 129, 0.12)' 
-                              : (r.action_taken === 'catalog_banned' ? 'rgba(239, 68, 68, 0.18)' : 'rgba(244, 63, 94, 0.12)'),
-                            border: `1px solid ${isRestored 
-                              ? 'rgba(16, 185, 129, 0.3)' 
-                              : (r.action_taken === 'catalog_banned' ? 'rgba(239, 68, 68, 0.45)' : 'rgba(244, 63, 94, 0.3)')}`,
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
                             fontSize: '0.7rem',
-                            fontWeight: 800,
-                            color: isRestored 
-                              ? (isDark ? '#34d399' : '#059669') 
-                              : (r.action_taken === 'catalog_banned' ? '#ef4444' : '#f43f5e'),
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem'
-                          }}>
-                            <span>{actionLabel}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {r.status === 're_review' && (
-                      <div style={{
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '0.65rem',
-                        backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.45rem'
-                      }}>
-                        <RefreshCw size={13} color="#10b981" />
-                        <span style={{ fontSize: '0.72rem', color: isDark ? '#34d399' : '#059669', fontWeight: 600 }}>
-                          Pemilik toko telah mengajukan perbaikan item/katalog dan siap ditinjau ulang.
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Footer Row: Clean Action Buttons */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'flex-end',
-                      alignItems: 'center',
-                      paddingTop: '0.5rem',
-                      borderTop: `1px solid ${theme.border}`,
-                      gap: '0.45rem'
-                    }}>
-                      {r.store_slug && (
-                        <a
-                          href={`/${r.store_slug}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            padding: '0.35rem 0.65rem',
-                            borderRadius: '0.55rem',
-                            backgroundColor: isDark ? '#334155' : '#f1f5f9',
-                            border: `1px solid ${theme.border}`,
-                            color: theme.textPrimary,
-                            fontSize: '0.72rem',
                             fontWeight: 700,
-                            textDecoration: 'none',
+                            color: '#ef4444',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.3rem',
-                            transition: 'opacity 0.15s ease'
-                          }}
-                        >
-                          <ExternalLink size={12} />
-                          <span>Inspeksi</span>
-                        </a>
+                            gap: '0.3rem'
+                          }}>
+                            <ShieldAlert size={12} color="#ef4444" />
+                            <span>{r.reason_label || r.reason_category || 'Pelanggaran Aturan'}</span>
+                          </span>
+
+                          {hasAction && (
+                            <span style={{
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '0.45rem',
+                              backgroundColor: isRestored
+                                ? 'rgba(16, 185, 129, 0.12)'
+                                : (r.action_taken === 'catalog_banned' ? 'rgba(239, 68, 68, 0.18)' : 'rgba(244, 63, 94, 0.12)'),
+                              border: `1px solid ${isRestored
+                                ? 'rgba(16, 185, 129, 0.3)'
+                                : (r.action_taken === 'catalog_banned' ? 'rgba(239, 68, 68, 0.45)' : 'rgba(244, 63, 94, 0.3)')}`,
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              color: isRestored
+                                ? (isDark ? '#34d399' : '#059669')
+                                : (r.action_taken === 'catalog_banned' ? '#ef4444' : '#f43f5e'),
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem'
+                            }}>
+                              <span>{actionLabel}</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {r.status === 're_review' && (
+                        <div style={{
+                          padding: '0.45rem 0.65rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.45rem'
+                        }}>
+                          <RefreshCw size={13} color="#10b981" />
+                          <span style={{ fontSize: '0.72rem', color: isDark ? '#34d399' : '#059669', fontWeight: 600 }}>
+                            Pemilik toko telah mengajukan perbaikan item/katalog dan siap ditinjau ulang.
+                          </span>
+                        </div>
                       )}
 
-                      <button
-                        onClick={() => handleOpenModerationPage(r)}
-                        style={{
-                          padding: '0.35rem 0.75rem',
-                          borderRadius: '0.55rem',
-                          backgroundColor: '#f43f5e',
-                          border: '1px solid #f43f5e',
-                          color: '#ffffff',
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          boxShadow: '0 2px 8px rgba(244, 63, 94, 0.25)',
-                          transition: 'transform 0.15s ease, box-shadow 0.15s ease'
-                        }}
-                      >
-                        <Sliders size={12} />
-                        <span>Kelola Tindakan</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-          )}
+                      {/* Footer Row: Clean Action Buttons */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        alignItems: 'center',
+                        paddingTop: '0.5rem',
+                        borderTop: `1px solid ${theme.border}`,
+                        gap: '0.45rem'
+                      }}>
+                        {r.store_slug && (
+                          <a
+                            href={`/${r.store_slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              padding: '0.35rem 0.65rem',
+                              borderRadius: '0.55rem',
+                              backgroundColor: isDark ? '#334155' : '#f1f5f9',
+                              border: `1px solid ${theme.border}`,
+                              color: theme.textPrimary,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              transition: 'opacity 0.15s ease'
+                            }}
+                          >
+                            <ExternalLink size={12} />
+                            <span>Inspeksi</span>
+                          </a>
+                        )}
 
-          {/* Compliance Reports Pagination */}
-          {reportsPagination && reportsPagination.total_pages > 1 && (
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '0.8rem 1rem',
-              backgroundColor: theme.surface,
-              borderRadius: '0.9rem',
-              border: `1px solid ${theme.border}`,
-              marginTop: '0.5rem'
-            }}>
-              <button
-                type="button"
-                disabled={reportsPagination.page <= 1}
-                onClick={() => fetchReportsList(reportsPagination.page - 1)}
-                style={{
-                  padding: '0.4rem 0.8rem',
-                  borderRadius: '0.55rem',
-                  border: `1px solid ${theme.border}`,
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
-                  color: theme.textPrimary,
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  cursor: reportsPagination.page <= 1 ? 'not-allowed' : 'pointer',
-                  opacity: reportsPagination.page <= 1 ? 0.4 : 1
-                }}
-              >
-                Sebelumnya
-              </button>
-              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: theme.textSecondary }}>
-                Halaman <strong>{reportsPagination.page}</strong> dari {reportsPagination.total_pages} ({reportsPagination.total} Laporan)
-              </span>
-              <button
-                type="button"
-                disabled={reportsPagination.page >= reportsPagination.total_pages}
-                onClick={() => fetchReportsList(reportsPagination.page + 1)}
-                style={{
-                  padding: '0.4rem 0.8rem',
-                  borderRadius: '0.55rem',
-                  border: `1px solid ${theme.border}`,
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
-                  color: theme.textPrimary,
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  cursor: reportsPagination.page >= reportsPagination.total_pages ? 'not-allowed' : 'pointer',
-                  opacity: reportsPagination.page >= reportsPagination.total_pages ? 0.4 : 1
-                }}
-              >
-                Selanjutnya
-              </button>
-            </div>
-          )}
+                        <button
+                          onClick={() => handleOpenModerationPage(r)}
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            backgroundColor: '#f43f5e',
+                            border: '1px solid #f43f5e',
+                            color: '#ffffff',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            boxShadow: '0 2px 8px rgba(244, 63, 94, 0.25)',
+                            transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                          }}
+                        >
+                          <Sliders size={12} />
+                          <span>Kelola Tindakan</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+
+            {/* Compliance Reports Pagination */}
+            {reportsPagination && reportsPagination.total_pages > 1 && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '0.8rem 1rem',
+                backgroundColor: theme.surface,
+                borderRadius: '0.9rem',
+                border: `1px solid ${theme.border}`,
+                marginTop: '0.5rem'
+              }}>
+                <button
+                  type="button"
+                  disabled={reportsPagination.page <= 1}
+                  onClick={() => fetchReportsList(reportsPagination.page - 1)}
+                  style={{
+                    padding: '0.4rem 0.8rem',
+                    borderRadius: '0.55rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+                    color: theme.textPrimary,
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: reportsPagination.page <= 1 ? 'not-allowed' : 'pointer',
+                    opacity: reportsPagination.page <= 1 ? 0.4 : 1
+                  }}
+                >
+                  Sebelumnya
+                </button>
+                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: theme.textSecondary }}>
+                  Halaman <strong>{reportsPagination.page}</strong> dari {reportsPagination.total_pages} ({reportsPagination.total} Laporan)
+                </span>
+                <button
+                  type="button"
+                  disabled={reportsPagination.page >= reportsPagination.total_pages}
+                  onClick={() => fetchReportsList(reportsPagination.page + 1)}
+                  style={{
+                    padding: '0.4rem 0.8rem',
+                    borderRadius: '0.55rem',
+                    border: `1px solid ${theme.border}`,
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+                    color: theme.textPrimary,
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: reportsPagination.page >= reportsPagination.total_pages ? 'not-allowed' : 'pointer',
+                    opacity: reportsPagination.page >= reportsPagination.total_pages ? 0.4 : 1
+                  }}
+                >
+                  Selanjutnya
+                </button>
+              </div>
+            )}
           </div>
         )
       )}
@@ -7365,18 +6842,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     fontSize: '0.55rem',
                     padding: '0.06rem 0.35rem',
                     borderRadius: '4px',
-                    background: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' 
-                      ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' 
-                      : getStorePlanBadge(selectedTicket) === 'PRO' 
-                        ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                    background: getStorePlanBadge(selectedTicket) === 'ENTERPRISE'
+                      ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)'
+                      : getStorePlanBadge(selectedTicket) === 'PRO'
+                        ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
                         : (isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(100, 116, 139, 0.15)'),
                     color: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' || getStorePlanBadge(selectedTicket) === 'PRO' ? '#ffffff' : (isDark ? '#94a3b8' : '#475569'),
                     fontWeight: 800,
                     letterSpacing: '0.03em',
-                    boxShadow: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' 
-                      ? '0 1px 3px rgba(124, 58, 237, 0.3)' 
-                      : getStorePlanBadge(selectedTicket) === 'PRO' 
-                        ? '0 1px 3px rgba(217, 119, 6, 0.35)' 
+                    boxShadow: getStorePlanBadge(selectedTicket) === 'ENTERPRISE'
+                      ? '0 1px 3px rgba(124, 58, 237, 0.3)'
+                      : getStorePlanBadge(selectedTicket) === 'PRO'
+                        ? '0 1px 3px rgba(217, 119, 6, 0.35)'
                         : 'none'
                   }}>
                     {getStorePlanBadge(selectedTicket)}
@@ -7416,9 +6893,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 }}>
                   {
                     selectedTicket.category === 'billing' ? 'Keuangan & Langganan' :
-                    selectedTicket.category === 'technical' ? 'Kendala Teknis & Bug' :
-                    selectedTicket.category === 'catalog_help' ? 'Bantuan Katalog & Produk' :
-                    selectedTicket.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'
+                      selectedTicket.category === 'technical' ? 'Kendala Teknis & Bug' :
+                        selectedTicket.category === 'catalog_help' ? 'Bantuan Katalog & Produk' :
+                          selectedTicket.category === 'account' ? 'Akun & Keamanan' : 'Pertanyaan Umum'
                   }
                 </span>
 
@@ -7781,20 +7258,20 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               overflowWrap: 'anywhere',
                               wordBreak: 'break-word',
                               padding: '0.95rem 1.1rem',
-                              borderRadius: isInitialInquiry 
-                                ? '1.15rem' 
-                                : isAgent 
-                                  ? '1.1rem 1.1rem 0.25rem 1.1rem' 
+                              borderRadius: isInitialInquiry
+                                ? '1.15rem'
+                                : isAgent
+                                  ? '1.1rem 1.1rem 0.25rem 1.1rem'
                                   : '1.1rem 1.1rem 1.1rem 0.25rem',
                               backgroundColor: isInitialInquiry
                                 ? (isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.05)')
-                                : isAgent 
+                                : isAgent
                                   ? (isDark ? 'rgba(6, 182, 212, 0.18)' : 'rgba(2, 132, 199, 0.12)')
                                   : theme.surface,
                               color: theme.textPrimary,
                               border: isInitialInquiry
                                 ? (isDark ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
-                                : isAgent 
+                                : isAgent
                                   ? (isDark ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(2, 132, 199, 0.25)')
                                   : `1px solid ${theme.border}`,
                               boxShadow: isInitialInquiry ? (isDark ? '0 4px 16px rgba(0,0,0,0.3)' : '0 4px 16px rgba(2, 132, 199, 0.08)') : theme.cardShadow
@@ -7830,21 +7307,21 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
                               {/* Attached Files & Documents */}
                               {msg.attachments && msg.attachments.length > 0 && (
-                                <div style={{ 
-                                  marginTop: msg.message ? '0.65rem' : '0.2rem', 
-                                  paddingTop: msg.message ? '0.5rem' : '0', 
-                                  borderTop: msg.message ? `1px solid ${theme.border}` : 'none' 
+                                <div style={{
+                                  marginTop: msg.message ? '0.65rem' : '0.2rem',
+                                  paddingTop: msg.message ? '0.5rem' : '0',
+                                  borderTop: msg.message ? `1px solid ${theme.border}` : 'none'
                                 }}>
                                   <div style={{ fontSize: '0.67rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                     <Paperclip size={11} color={isAgent ? '#06b6d4' : '#38bdf8'} /> {msg.attachments.length} Lampiran Berkas:
                                   </div>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
                                     {msg.attachments.map((att: any, aIdx: number) => {
-                                      const isPDF = (att.file_type || '').includes('pdf') || 
-                                        (att.file_name || '').toLowerCase().endsWith('.pdf') || 
+                                      const isPDF = (att.file_type || '').includes('pdf') ||
+                                        (att.file_name || '').toLowerCase().endsWith('.pdf') ||
                                         (att.file_url || '').toLowerCase().endsWith('.pdf');
-                                      const isImage = (att.file_type && att.file_type.startsWith('image/')) || 
-                                        /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') || 
+                                      const isImage = (att.file_type && att.file_type.startsWith('image/')) ||
+                                        /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_name || '') ||
                                         /\.(jpe?g|png|webp|gif|svg|avif|bmp|ico|heic)(\?.*)?$/i.test(att.file_url || '');
 
                                       return (
@@ -7858,7 +7335,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                             gap: '0.55rem',
                                             padding: '0.65rem 0.75rem',
                                             borderRadius: '0.8rem',
-                                            backgroundColor: isDark 
+                                            backgroundColor: isDark
                                               ? (isAgent ? 'rgba(15, 23, 42, 0.75)' : 'rgba(255, 255, 255, 0.05)')
                                               : (isAgent ? '#ffffff' : '#f8fafc'),
                                             border: isDark
@@ -7885,7 +7362,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                               width: '36px',
                                               height: '36px',
                                               borderRadius: '0.5rem',
-                                              backgroundColor: isPDF 
+                                              backgroundColor: isPDF
                                                 ? (isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2')
                                                 : (isDark ? 'rgba(14, 165, 233, 0.18)' : '#e0f2fe'),
                                               border: isPDF
@@ -7972,14 +7449,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                                 gap: '0.3rem',
                                                 padding: '0.38rem 0.5rem',
                                                 borderRadius: '0.45rem',
-                                                backgroundColor: isDark 
-                                                  ? 'rgba(255, 255, 255, 0.08)' 
+                                                backgroundColor: isDark
+                                                  ? 'rgba(255, 255, 255, 0.08)'
                                                   : (isAgent ? 'rgba(2, 132, 199, 0.06)' : '#ffffff'),
-                                                color: isDark 
-                                                  ? '#f8fafc' 
+                                                color: isDark
+                                                  ? '#f8fafc'
                                                   : (isAgent ? '#0369a1' : '#334155'),
-                                                border: isDark 
-                                                  ? '1px solid rgba(255, 255, 255, 0.2)' 
+                                                border: isDark
+                                                  ? '1px solid rgba(255, 255, 255, 0.2)'
                                                   : (isAgent ? '1px solid rgba(2, 132, 199, 0.3)' : '1px solid #cbd5e1'),
                                                 fontSize: '0.72rem',
                                                 fontWeight: 700,
@@ -8289,12 +7766,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.45rem',
-                      backgroundColor: isInternalNote 
+                      backgroundColor: isInternalNote
                         ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)')
                         : (isDark ? '#1e293b' : '#ffffff'),
                       borderRadius: '0.85rem',
                       padding: '0.35rem 0.45rem 0.35rem 0.65rem',
-                      border: isInternalNote 
+                      border: isInternalNote
                         ? `1.5px solid ${isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`
                         : `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.12)' : '#cbd5e1'}`,
                       boxShadow: isDark ? '0 2px 10px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.04)'
@@ -8387,9 +7864,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   </>
                 )}
               </div>
-          )}
-        </div>
-      ) : (
+            )}
+          </div>
+        ) : (
           /* ----------------------------------------------------------------------- */
           /* 4B. SUPPORT TICKETS QUEUE                                               */
           /* ----------------------------------------------------------------------- */
@@ -8780,7 +8257,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {activeView === 'finance' && canAccessFinance && (
         <div className="finance-workspace" style={{ ...financeColors(isDark, theme), display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
           <FinanceNav section={financeSubTab} select={setFinanceSubTab} settings={canManagePaymentSettings}
-            coupons={canManageCoupons} pending={pendingOrdersCount}/>
+            coupons={canManageCoupons} pending={pendingOrdersCount} />
 
           {financeSubTab === 'orders' && (
             <>
@@ -8852,7 +8329,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </div>
 
               <OrderFilters Picker={MobileCustomSelect} status={orderPage.status} channel={orderPage.kind}
-                    facets={orderPage.facets} ready={orderPage.ready} onStatus={orderPage.setStatus} onChannel={orderPage.setKind}/>
+                facets={orderPage.facets} ready={orderPage.ready} onStatus={orderPage.setStatus} onChannel={orderPage.setKind} />
 
               {/* Orders Feed */}
               {(() => {
@@ -9247,7 +8724,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   );
                 });
               })()}
-              <FinancePager list={orderPage} device="mobile"/>
+              <FinancePager list={orderPage} device="mobile" />
             </>
           )}
 
@@ -9255,7 +8732,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           {financeSubTab === 'settings' && canManagePaymentSettings && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <PaymentModePicker value={googleSettings.payment_system_mode || 'gateway_aulaa'}
-                select={payment_system_mode => setGoogleSettings(prev => ({ ...prev, payment_system_mode }))}/>
+                select={payment_system_mode => setGoogleSettings(prev => ({ ...prev, payment_system_mode }))} />
               {/* 2. Focused Configuration Panel (Only Shows Settings for Selected Tab) */}
               {(() => {
                 const activeMode = googleSettings.payment_system_mode || 'gateway_aulaa';
@@ -9358,7 +8835,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                 <input
                                   type="checkbox"
                                   checked={isEnabled}
-                                  onChange={() => {}}
+                                  onChange={() => { }}
                                   style={{ accentColor: '#10b981', cursor: 'pointer', width: '18px', height: '18px' }}
                                 />
                               </div>
@@ -9929,7 +9406,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               })()}
               <div className="finance-save-bar">
                 <button type="button" className="finance-action" onClick={handleSavePaymentSettings} disabled={savingSettings}>
-                  {savingSettings ? <Loader2 size={16} className="animate-spin"/> : <CheckCircle2 size={16}/>}
+                  {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                   {savingSettings ? 'Menyimpan…' : 'Simpan pengaturan'}
                 </button>
               </div>
@@ -10008,7 +9485,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </div>
 
               <CouponFilters Picker={MobileCustomSelect} facets={couponPage.facets} ready={couponPage.ready} status={couponPage.status} kind={couponPage.kind}
-                onStatus={couponPage.setStatus} onKind={couponPage.setKind}/>
+                onStatus={couponPage.setStatus} onKind={couponPage.setKind} />
               {/* Coupons Card List */}
               {couponPage.error ? null : loadingCoupons ? (
                 <div style={{ textAlign: 'center', padding: '2rem 1rem', color: theme.textSecondary, fontSize: '0.8rem' }}>
@@ -10036,8 +9513,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         {couponSearchFilter ? 'Kupon Tidak Ditemukan' : 'Belum Ada Kupon'}
                       </div>
                       <p style={{ fontSize: '0.74rem', color: theme.textSecondary, margin: 0, maxWidth: '280px', lineHeight: 1.4 }}>
-                        {couponSearchFilter 
-                          ? `Tidak ada kupon yang cocok dengan kata kunci "${couponSearchFilter}".` 
+                        {couponSearchFilter
+                          ? `Tidak ada kupon yang cocok dengan kata kunci "${couponSearchFilter}".`
                           : 'Buat kupon promosi atau kupon uji coba gratis untuk merchant pertama Anda.'}
                       </p>
                       {!couponSearchFilter && (
@@ -10229,7 +9706,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   </div>
                 );
               })()}
-              <FinancePager list={couponPage} device="mobile"/>
+              <FinancePager list={couponPage} device="mobile" />
             </div>
           )}
 
@@ -10549,1870 +10026,32 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       )}
 
       {/* ========================================================================= */}
+      {/* ========================================================================= */}
       {/* 4. MODULE 7: SIARAN BROADCAST                                             */}
       {/* ========================================================================= */}
       {activeView === 'broadcast' && canAccessBroadcast && (
-        broadcastSubView === 'create' ? (
-          /* ===================================================================== */
-          /* 4A. DEDICATED FULL SUB-PAGE: BUAT SIARAN PENGUMUMAN BARU             */
-          /* ===================================================================== */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', animation: 'fadeIn 0.25s ease-out', paddingBottom: '4.5rem' }}>
-            {/* Header / Intro Card */}
-            <div style={{
-              padding: '0.95rem 1.1rem',
-              borderRadius: '1.1rem',
-              background: isDark 
-                ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)' 
-                : 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, #ffffff 100%)',
-              border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.2)'}`,
-              boxShadow: theme.cardShadow,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.85rem'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '0.85rem',
-                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                  border: '1px solid rgba(245, 158, 11, 0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#f59e0b',
-                  flexShrink: 0
-                }}>
-                  <Megaphone size={20} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary }}>
-                    Publikasikan Siaran Platform
-                  </h4>
-                  <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary, lineHeight: 1.35 }}>
-                    Kirim pengumuman langsung ke banner &amp; bilah lonceng notifikasi pengguna
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Broadcast Creation Form */}
-            <form onSubmit={handleSendBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-              {/* SECTION 1: TARGET PENERIMA SIARAN */}
-              <div style={{
-                padding: '1.1rem',
-                borderRadius: '1.15rem',
-                backgroundColor: theme.surface,
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.85rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <Users size={16} color="#f59e0b" />
-                  <span style={{ fontSize: '0.82rem', fontWeight: 800, color: theme.textPrimary }}>
-                    1. Target Audiens Penerima
-                  </span>
-                </div>
-
-                {/* Target Type Dropdown Trigger */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem' }}>
-                    Segmentasi Penerima Siaran
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCrudDropdownPicker({
-                        title: 'Target Penerima Siaran',
-                        subtitle: 'Pilih cakupan penerima pengumuman',
-                        icon: Users,
-                        selectedValue: broadcastForm.target_type,
-                        options: [
-                          { value: 'all', label: 'Semua Merchant & Pengguna (Global)', desc: 'Siaran broadcast massal untuk seluruh ekosistem Catavor', badge: 'GLOBAL', icon: Globe },
-                          { value: 'plan', label: 'Berdasarkan Paket Langganan Toko', desc: 'Filter target berdasarkan tier langganan toko aktif', badge: 'PAKET', icon: Award },
-                          { value: 'specific', label: 'Spesifik ke Beberapa Merchant / User', desc: 'Pilih dan tambahkan satu atau banyak toko/user spesifik', badge: 'SPESIFIK', icon: Users },
-                        ],
-                        onSelect: (val) => {
-                          setBroadcastForm(prev => ({ ...prev, target_type: val, target_id: 0, target_name: '' }));
-                          setTargetRecipientSearch('');
-                          setRecipientSuggestions([]);
-                        }
-                      });
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem 0.85rem',
-                      borderRadius: '0.85rem',
-                      backgroundColor: theme.inputBg,
-                      border: `1px solid ${theme.inputBorder}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      textAlign: 'left'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
-                      {broadcastForm.target_type === 'all' && <Globe size={16} color="#8b5cf6" />}
-                      {broadcastForm.target_type === 'plan' && <Award size={16} color="#f59e0b" />}
-                      {['specific', 'single_store', 'single_user'].includes(broadcastForm.target_type) && <Users size={16} color="#3b82f6" />}
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {broadcastForm.target_type === 'all' && 'Semua Merchant & Pengguna (Global)'}
-                        {broadcastForm.target_type === 'plan' && 'Berdasarkan Paket Langganan Toko'}
-                        {['specific', 'single_store', 'single_user'].includes(broadcastForm.target_type) && 'Spesifik ke Beberapa Merchant / User'}
-                      </span>
-                    </div>
-                    <ChevronDown size={16} color={theme.textMuted} style={{ flexShrink: 0 }} />
-                  </button>
-                </div>
-
-                {/* Conditional Target: Plan Tier Dropdown */}
-                {broadcastForm.target_type === 'plan' && (
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem' }}>
-                      Pilih Paket Target Langganan
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCrudDropdownPicker({
-                          title: 'Pilih Paket Target',
-                          subtitle: 'Hanya toko dengan paket ini yang menerima siaran',
-                          icon: Award,
-                          selectedValue: broadcastForm.target_plan_code,
-                          options: [
-                            { value: 'free', label: 'Paket Gratis (Free / Starter)', desc: 'Toko pemula dengan paket standard bawaan', badge: 'FREE', badgeColor: '#94a3b8' },
-                            { value: 'pro', label: 'Paket Pro (Aktif)', desc: 'Toko aktif berlangganan paket Pro', badge: 'PRO', badgeColor: '#f59e0b' },
-                            { value: 'enterprise', label: 'Paket Enterprise', desc: 'Toko mitra korporat prioritas', badge: 'ENTERPRISE', badgeColor: '#8b5cf6' },
-                          ],
-                          onSelect: (val) => setBroadcastForm(prev => ({ ...prev, target_plan_code: val }))
-                        });
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem 0.85rem',
-                        borderRadius: '0.85rem',
-                        backgroundColor: theme.inputBg,
-                        border: `1px solid ${theme.inputBorder}`,
-                        color: theme.textPrimary,
-                        fontSize: '0.82rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                        <Award size={16} color="#f59e0b" />
-                        <span>
-                          {broadcastForm.target_plan_code === 'free' && 'Paket Gratis (Free / Starter)'}
-                          {broadcastForm.target_plan_code === 'pro' && 'Paket Pro (Aktif)'}
-                          {broadcastForm.target_plan_code === 'enterprise' && 'Paket Enterprise'}
-                        </span>
-                      </div>
-                      <ChevronDown size={16} color={theme.textMuted} />
-                    </button>
-                  </div>
-                )}
-
-                {/* Conditional Target: Multiple Specific Recipients Search & Chip List */}
-                {['specific', 'single_store', 'single_user'].includes(broadcastForm.target_type) && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.1rem' }}>
-                      Pencarian &amp; Tambah Penerima Spesifik
-                    </label>
-
-                    {/* Search Bar with Autocomplete */}
-                    <div style={{ position: 'relative' }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        backgroundColor: theme.inputBg,
-                        border: `1px solid ${theme.inputBorder}`,
-                        borderRadius: '0.85rem',
-                        padding: '0.55rem 0.85rem',
-                        gap: '0.45rem'
-                      }}>
-                        <Search size={15} color={theme.textMuted} />
-                        <input
-                          type="text"
-                          placeholder="Ketik ID Toko, nama, @slug, atau email..."
-                          value={targetRecipientSearch}
-                          onChange={e => setTargetRecipientSearch(e.target.value)}
-                          style={{
-                            border: 'none',
-                            background: 'none',
-                            outline: 'none',
-                            color: theme.textPrimary,
-                            fontSize: '0.82rem',
-                            width: '100%'
-                          }}
-                        />
-                        {isSearchingRecipients && (
-                          <RefreshCw size={13} className="animate-spin" color="#f59e0b" />
-                        )}
-                        {targetRecipientSearch && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTargetRecipientSearch('');
-                              setRecipientSuggestions([]);
-                            }}
-                            style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: 0 }}
-                          >
-                            <X size={14} />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Suggestions Dropdown */}
-                      {recipientSuggestions.length > 0 && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          backgroundColor: theme.modalBg,
-                          border: `1px solid ${theme.borderStrong}`,
-                          borderRadius: '0.85rem',
-                          marginTop: '0.35rem',
-                          boxShadow: theme.shadow,
-                          zIndex: 20,
-                          maxHeight: '220px',
-                          overflowY: 'auto'
-                        }}>
-                          {recipientSuggestions.map((item, idx) => {
-                            const isAlreadySelected = broadcastForm.recipients.some(r => r.type === item.type && r.id === item.id);
-                            return (
-                              <div
-                                key={`${item.type}-${item.id}-${idx}`}
-                                onClick={() => {
-                                  if (isAlreadySelected) {
-                                    showToast('Penerima sudah ada dalam daftar', 'info');
-                                    return;
-                                  }
-                                  setBroadcastForm(prev => ({
-                                    ...prev,
-                                    recipients: [...prev.recipients, item]
-                                  }));
-                                  setTargetRecipientSearch('');
-                                  setRecipientSuggestions([]);
-                                  showToast(`${item.name} ditambahkan ke daftar`, 'success');
-                                }}
-                                style={{
-                                  padding: '0.65rem 0.85rem',
-                                  borderBottom: `1px solid ${theme.border}`,
-                                  cursor: isAlreadySelected ? 'default' : 'pointer',
-                                  opacity: isAlreadySelected ? 0.6 : 1,
-                                  backgroundColor: isAlreadySelected ? (isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9') : 'transparent',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between'
-                                }}
-                              >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
-                                  {item.type === 'store' ? (
-                                    <Store size={16} color="#3b82f6" style={{ flexShrink: 0 }} />
-                                  ) : (
-                                    <User size={16} color="#ec4899" style={{ flexShrink: 0 }} />
-                                  )}
-                                  <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: theme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      {item.name}
-                                    </div>
-                                    <div style={{ fontSize: '0.68rem', color: theme.textMuted }}>
-                                      {item.type === 'store' ? (item.slug ? `@${item.slug}` : `ID: #${item.id}`) : (item.email || `ID: #${item.id}`)}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
-                                  <span style={{
-                                    fontSize: '0.62rem',
-                                    padding: '0.12rem 0.45rem',
-                                    borderRadius: '0.35rem',
-                                    fontWeight: 800,
-                                    backgroundColor: item.type === 'store' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(236, 72, 153, 0.15)',
-                                    color: item.type === 'store' ? '#3b82f6' : '#ec4899'
-                                  }}>
-                                    {item.type === 'store' ? 'TOKO' : 'USER'}
-                                  </span>
-                                  {isAlreadySelected ? (
-                                    <span style={{ fontSize: '0.66rem', color: '#10b981', fontWeight: 700 }}>✓ Ditambahkan</span>
-                                  ) : (
-                                    <span style={{ fontSize: '0.68rem', color: '#f59e0b', fontWeight: 800 }}>+ Tambah</span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Selected Recipients Chips List */}
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: theme.textSecondary }}>
-                          Penerima Terpilih ({broadcastForm.recipients.length}):
-                        </span>
-                        {broadcastForm.recipients.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setBroadcastForm(prev => ({ ...prev, recipients: [] }))}
-                            style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
-                          >
-                            Hapus Semua
-                          </button>
-                        )}
-                      </div>
-
-                      {broadcastForm.recipients.length === 0 ? (
-                        <div style={{
-                          padding: '0.85rem',
-                          borderRadius: '0.85rem',
-                          border: `1px dashed ${theme.borderStrong}`,
-                          backgroundColor: theme.cardAlt,
-                          textAlign: 'center',
-                          color: theme.textMuted,
-                          fontSize: '0.74rem'
-                        }}>
-                          Belum ada penerima spesifik. Cari ID merchant/user pada kolom di atas untuk menambahkannya.
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                          {broadcastForm.recipients.map((rec, rIdx) => (
-                            <div
-                              key={`${rec.type}-${rec.id}-${rIdx}`}
-                              style={{
-                                padding: '0.55rem 0.75rem',
-                                borderRadius: '0.75rem',
-                                backgroundColor: theme.cardAlt,
-                                border: `1px solid ${theme.border}`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                gap: '0.5rem'
-                              }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-                                <div style={{
-                                  width: '26px',
-                                  height: '26px',
-                                  borderRadius: '0.45rem',
-                                  backgroundColor: rec.type === 'store' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(236, 72, 153, 0.15)',
-                                  color: rec.type === 'store' ? '#3b82f6' : '#ec4899',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0
-                                }}>
-                                  {rec.type === 'store' ? <Store size={14} /> : <User size={14} />}
-                                </div>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {rec.name}
-                                  </div>
-                                  <div style={{ fontSize: '0.66rem', color: theme.textMuted }}>
-                                    ID: #{rec.id} {rec.slug ? `• @${rec.slug}` : ''} {rec.email ? `• ${rec.email}` : ''}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => setBroadcastForm(prev => ({
-                                  ...prev,
-                                  recipients: prev.recipients.filter((_, idx) => idx !== rIdx)
-                                }))}
-                                style={{
-                                  padding: '0.22rem 0.5rem',
-                                  borderRadius: '0.45rem',
-                                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)',
-                                  border: isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.2)',
-                                  color: '#ef4444',
-                                  fontSize: '0.68rem',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.2rem',
-                                  flexShrink: 0
-                                }}
-                              >
-                                <Trash2 size={11} />
-                                <span>Hapus</span>
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* SECTION 2: KLASIFIKASI & TINGKAT URGENSI */}
-              <div style={{
-                padding: '1.1rem',
-                borderRadius: '1.15rem',
-                backgroundColor: theme.surface,
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.85rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <Tag size={16} color="#f59e0b" />
-                  <span style={{ fontSize: '0.82rem', fontWeight: 800, color: theme.textPrimary }}>
-                    2. Klasifikasi &amp; Tampilan Visual
-                  </span>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                  {/* Category Dropdown Trigger */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem' }}>
-                      Kategori Siaran
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCrudDropdownPicker({
-                          title: 'Pilih Kategori Siaran',
-                          subtitle: 'Klasifikasi jenis pengumuman platform',
-                          icon: Megaphone,
-                          selectedValue: broadcastForm.category,
-                          options: [
-                            { value: 'PENGUMUMAN', label: 'PENGUMUMAN', desc: 'Informasi umum & berita pembaruan platform', badge: 'Umum', icon: Megaphone },
-                            { value: 'SISTEM', label: 'SISTEM', desc: 'Pemberitahuan perubahan atau patch sistem', badge: 'Sistem', icon: Settings },
-                            { value: 'PROMOSI', label: 'PROMOSI', desc: 'Penawaran diskon, voucher, dan event promo', badge: 'Promo', icon: Tag },
-                            { value: 'PEMELIHARAAN', label: 'PEMELIHARAAN', desc: 'Jadwal maintenance & perawatan server', badge: 'Maintenance', icon: Activity },
-                            { value: 'PANDUAN', label: 'PANDUAN', desc: 'Tutorial penggunaan dan tips fitur baru', badge: 'Edukasi', icon: HelpCircle },
-                            { value: 'KEAMANAN', label: 'KEAMANAN', desc: 'Pemberitahuan keamanan & privasi', badge: 'Security', icon: Shield },
-                          ],
-                          onSelect: (val) => setBroadcastForm(prev => ({ ...prev, category: val }))
-                        });
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '0.7rem 0.75rem',
-                        borderRadius: '0.85rem',
-                        backgroundColor: theme.inputBg,
-                        border: `1px solid ${theme.inputBorder}`,
-                        color: theme.textPrimary,
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {broadcastForm.category}
-                      </span>
-                      <ChevronDown size={15} color={theme.textMuted} style={{ flexShrink: 0 }} />
-                    </button>
-                  </div>
-
-                  {/* Urgency Dropdown Trigger */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem' }}>
-                      Tingkat Urgensi
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCrudDropdownPicker({
-                          title: 'Tingkat Urgensi Notifikasi',
-                          subtitle: 'Menentukan warna aksen dan prioritas visual',
-                          icon: AlertTriangle,
-                          selectedValue: broadcastForm.type,
-                          options: [
-                            { value: 'info', label: 'Informasi (Biru)', desc: 'Notifikasi standar bersifat informatif santai', badge: 'Info', badgeColor: '#38bdf8', icon: Info },
-                            { value: 'warning', label: 'Peringatan / Urgent (Oranye)', desc: 'Pemberitahuan penting butuh perhatian segera', badge: 'Urgent', badgeColor: '#f59e0b', icon: AlertTriangle },
-                            { value: 'success', label: 'Rilis & Sukses (Hijau)', desc: 'Fitur baru atau kabar pencapaian positif', badge: 'Sukses', badgeColor: '#10b981', icon: CheckCircle2 },
-                            { value: 'system', label: 'Sistem (Ungu)', desc: 'Pemberitahuan arsitektur dan teknis', badge: 'Sistem', badgeColor: '#8b5cf6', icon: Code },
-                          ],
-                          onSelect: (val) => setBroadcastForm(prev => ({ ...prev, type: val }))
-                        });
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '0.7rem 0.75rem',
-                        borderRadius: '0.85rem',
-                        backgroundColor: theme.inputBg,
-                        border: `1px solid ${theme.inputBorder}`,
-                        color: theme.textPrimary,
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {broadcastForm.type === 'info' && 'Informasi (Biru)'}
-                        {broadcastForm.type === 'warning' && 'Urgent (Oranye)'}
-                        {broadcastForm.type === 'success' && 'Sukses (Hijau)'}
-                        {broadcastForm.type === 'system' && 'Sistem (Ungu)'}
-                      </span>
-                      <ChevronDown size={15} color={theme.textMuted} style={{ flexShrink: 0 }} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 3: KONTEN PESAN SIARAN */}
-              <div style={{
-                padding: '1.1rem',
-                borderRadius: '1.15rem',
-                backgroundColor: theme.surface,
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.85rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <FileText size={16} color="#f59e0b" />
-                  <span style={{ fontSize: '0.82rem', fontWeight: 800, color: theme.textPrimary }}>
-                    3. Konten &amp; Rincian Pengumuman
-                  </span>
-                </div>
-
-                {/* Judul Pengumuman */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary }}>
-                      Judul Pengumuman <span style={{ color: '#ef4444' }}>*</span>
-                    </label>
-                    <span style={{ fontSize: '0.66rem', color: theme.textMuted }}>
-                      {broadcastForm.title.length}/100
-                    </span>
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    maxLength={100}
-                    placeholder="Contoh: Pemeliharaan Server & Pembaruan Fitur"
-                    value={broadcastForm.title}
-                    onChange={e => setBroadcastForm(prev => ({ ...prev, title: e.target.value }))}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem 0.85rem',
-                      borderRadius: '0.85rem',
-                      backgroundColor: theme.inputBg,
-                      border: `1px solid ${theme.inputBorder}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.82rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
-
-                {/* Pesan Ringkas Notifikasi */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <label style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary }}>
-                      Pesan Ringkas Notifikasi <span style={{ color: '#ef4444' }}>*</span>
-                    </label>
-                    <span style={{ fontSize: '0.66rem', color: theme.textMuted }}>
-                      {broadcastForm.message.length}/250
-                    </span>
-                  </div>
-                  <textarea
-                    rows={3}
-                    required
-                    maxLength={250}
-                    placeholder="Tuliskan pesan singkat yang akan tampil di bilah lonceng notifikasi & banner toko..."
-                    value={broadcastForm.message}
-                    onChange={e => setBroadcastForm(prev => ({ ...prev, message: e.target.value }))}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem 0.85rem',
-                      borderRadius: '0.85rem',
-                      backgroundColor: theme.inputBg,
-                      border: `1px solid ${theme.inputBorder}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.82rem',
-                      boxSizing: 'border-box',
-                      resize: 'none',
-                      lineHeight: 1.45
-                    }}
-                  />
-                </div>
-
-                {/* TOGGLE: Aksi Notifikasi Saat Diklik Pengguna */}
-                <div style={{
-                  padding: '0.75rem 0.85rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: theme.cardAlt,
-                  border: `1px solid ${theme.border}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.75rem'
-                }}>
-                  <div>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 800, color: theme.textPrimary }}>
-                      Aksi Notifikasi Saat Diklik Pengguna
-                    </div>
-                    <div style={{ fontSize: '0.68rem', color: theme.textSecondary, marginTop: '0.1rem' }}>
-                      {broadcastForm.notification_action_enabled
-                        ? 'ON — Notifikasi memiliki artikel detail / tindakan lanjutan saat diklik'
-                        : 'OFF — Hanya notifikasi info biasa tanpa tindakan lanjutan'}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setBroadcastForm(prev => {
-                      const nextState = !prev.notification_action_enabled;
-                      return {
-                        ...prev,
-                        notification_action_enabled: nextState,
-                        action_type: nextState ? (prev.action_type === 'none' ? 'detail' : prev.action_type) : 'none'
-                      };
-                    })}
-                    style={{
-                      width: '46px',
-                      height: '26px',
-                      borderRadius: '999px',
-                      backgroundColor: broadcastForm.notification_action_enabled ? '#f59e0b' : (isDark ? 'rgba(255,255,255,0.18)' : '#cbd5e1'),
-                      border: 'none',
-                      position: 'relative',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.2s ease',
-                      flexShrink: 0
-                    }}
-                  >
-                    <span style={{
-                      position: 'absolute',
-                      top: '3px',
-                      left: broadcastForm.notification_action_enabled ? '23px' : '3px',
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '50%',
-                      backgroundColor: '#ffffff',
-                      transition: 'left 0.2s ease',
-                      boxShadow: '0 2px 5px rgba(0,0,0,0.25)'
-                    }} />
-                  </button>
-                </div>
-
-                {/* Conditional Action Fields when Toggle is ON */}
-                {broadcastForm.notification_action_enabled && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.2rem' }}>
-                    {/* Aksi Saat Notifikasi Diklik (Dropdown Trigger) */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem' }}>
-                        Pilih Jenis Aksi Notifikasi
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCrudDropdownPicker({
-                            title: 'Aksi Saat Notifikasi Diklik',
-                            subtitle: 'Tentukan respon aplikasi saat kartu disentuh',
-                            icon: Layers,
-                            selectedValue: broadcastForm.action_type,
-                            options: [
-                              { value: 'detail', label: 'Buka Artikel Detail (Rich Text Editor)', desc: 'Membuka pop-up baca artikel rincian dengan teks terformat', badge: 'Artikel', icon: FileText },
-                              { value: 'navigate', label: 'Buka Menu Aplikasi Internal', desc: 'Mengarahkan langsung ke tab/menu internal aplikasi', badge: 'Navigasi', icon: Layers },
-                              { value: 'external_link', label: 'Tautan Luar / URL Eksternal', desc: 'Membuka tautan web luar di browser baru', badge: 'URL Link', icon: ExternalLink },
-                            ],
-                            onSelect: (val) => setBroadcastForm(prev => ({ ...prev, action_type: val }))
-                          });
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '0.75rem 0.85rem',
-                          borderRadius: '0.85rem',
-                          backgroundColor: theme.inputBg,
-                          border: `1px solid ${theme.inputBorder}`,
-                          color: theme.textPrimary,
-                          fontSize: '0.82rem',
-                          fontWeight: 700,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                          {broadcastForm.action_type === 'detail' && <FileText size={16} color="#f59e0b" />}
-                          {broadcastForm.action_type === 'navigate' && <Layers size={16} color="#3b82f6" />}
-                          {broadcastForm.action_type === 'external_link' && <ExternalLink size={16} color="#10b981" />}
-                          {broadcastForm.action_type === 'none' && <CheckCheck size={16} color={theme.textMuted} />}
-                          <span>
-                            {broadcastForm.action_type === 'detail' && 'Buka Artikel Detail (Rich Text)'}
-                            {broadcastForm.action_type === 'navigate' && 'Buka Menu Aplikasi Internal'}
-                            {broadcastForm.action_type === 'external_link' && 'Tautan Luar / URL Eksternal'}
-                            {broadcastForm.action_type === 'none' && 'Pilih Jenis Aksi'}
-                          </span>
-                        </div>
-                        <ChevronDown size={16} color={theme.textMuted} />
-                      </button>
-                    </div>
-
-                    {/* Sub-Field: RichTextarea for 'detail' */}
-                    {broadcastForm.action_type === 'detail' && (
-                      <div>
-                        <RichTextarea
-                          value={broadcastForm.detail_content}
-                          onChange={val => setBroadcastForm(prev => ({ ...prev, detail_content: val }))}
-                          placeholder="Tuliskan penjelasan detail, panduan, rincian poin, atau artikel siaran di sini..."
-                          minHeight="170px"
-                          label="Detail Artikel"
-                          showPreviewTab={true}
-                          showZenFullscreen={true}
-                          theme={theme}
-                          isDark={isDark}
-                        />
-                      </div>
-                    )}
-
-                    {/* Sub-Field: Navigation Target for 'navigate' */}
-                    {broadcastForm.action_type === 'navigate' && (
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem' }}>
-                          Menu Tujuan Dalam Aplikasi
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCrudDropdownPicker({
-                              title: 'Pilih Menu Tujuan Aplikasi',
-                              subtitle: 'Menu yang otomatis dibuka saat notifikasi diklik',
-                              icon: Layers,
-                              selectedValue: broadcastForm.link_sub_tab,
-                              options: [
-                                { value: 'settings', label: 'Pengaturan Toko', desc: 'Tab konfigurasi profil & tampilan toko', badge: 'Settings', icon: Settings },
-                                { value: 'items', label: 'Inventaris & Produk', desc: 'Manajemen katalog produk toko', badge: 'Items', icon: Layers },
-                                { value: 'subscription', label: 'Paket & Langganan Pro', desc: 'Halaman billing & upgrade paket toko', badge: 'Pro', icon: Award },
-                                { value: 'help', label: 'Pusat Bantuan & Tiket', desc: 'Helpdesk support & tiket pelanggan', badge: 'Help', icon: HelpCircle },
-                                { value: 'share', label: 'Bagikan Katalog & QR', desc: 'Halaman share & QR code toko', badge: 'Share', icon: ExternalLink },
-                                { value: 'analytics', label: 'Dashboard Analitik', desc: 'Grafik kunjungan & performa toko', badge: 'Analytics', icon: BarChart3 },
-                              ],
-                              onSelect: (val) => setBroadcastForm(prev => ({ ...prev, link_sub_tab: val }))
-                            });
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem 0.85rem',
-                            borderRadius: '0.85rem',
-                            backgroundColor: theme.inputBg,
-                            border: `1px solid ${theme.inputBorder}`,
-                            color: theme.textPrimary,
-                            fontSize: '0.82rem',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <span>
-                            {broadcastForm.link_sub_tab === 'settings' && 'Pengaturan Toko'}
-                            {broadcastForm.link_sub_tab === 'items' && 'Inventaris & Produk'}
-                            {broadcastForm.link_sub_tab === 'subscription' && 'Paket & Langganan Pro'}
-                            {broadcastForm.link_sub_tab === 'help' && 'Pusat Bantuan & Tiket'}
-                            {broadcastForm.link_sub_tab === 'share' && 'Bagikan Katalog & QR'}
-                            {broadcastForm.link_sub_tab === 'analytics' && 'Dashboard Analitik'}
-                          </span>
-                          <ChevronDown size={16} color={theme.textMuted} />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Sub-Field: URL for 'external_link' */}
-                    {broadcastForm.action_type === 'external_link' && (
-                      <div>
-                        <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem' }}>
-                          URL Tautan Eksternal
-                        </label>
-                        <input
-                          type="url"
-                          placeholder="https://..."
-                          value={broadcastForm.action_url}
-                          onChange={e => setBroadcastForm(prev => ({ ...prev, action_url: e.target.value }))}
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem 0.85rem',
-                            borderRadius: '0.85rem',
-                            backgroundColor: theme.inputBg,
-                            border: `1px solid ${theme.inputBorder}`,
-                            color: theme.textPrimary,
-                            fontSize: '0.82rem',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-
-                        {/* Live Domain Whitelist Validation Feedback */}
-                        {broadcastForm.action_url.trim() && (() => {
-                          const sec = checkUrlSecurity(broadcastForm.action_url);
-                          const host = sec.domain || cleanDomainString(broadcastForm.action_url);
-                          const isWhitelisted = sec.isMasterTrusted;
-
-                          return (
-                            <div style={{
-                              marginTop: '0.55rem',
-                              padding: '0.65rem 0.85rem',
-                              borderRadius: '0.75rem',
-                              backgroundColor: isWhitelisted
-                                ? (isDark ? 'rgba(16, 185, 129, 0.1)' : '#ecfdf5')
-                                : (isDark ? 'rgba(245, 158, 11, 0.1)' : '#fffbeb'),
-                              border: isWhitelisted
-                                ? (isDark ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid #a7f3d0')
-                                : (isDark ? '1px solid rgba(245, 158, 11, 0.25)' : '1px solid #fde68a'),
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.35rem'
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-                                  {isWhitelisted ? (
-                                    <CheckCircle2 size={15} color="#10b981" />
-                                  ) : (
-                                    <AlertTriangle size={15} color="#f59e0b" />
-                                  )}
-                                  <span style={{
-                                    fontSize: '0.76rem',
-                                    fontWeight: 800,
-                                    color: isWhitelisted ? (isDark ? '#34d399' : '#047857') : (isDark ? '#fbbf24' : '#b45309'),
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap'
-                                  }}>
-                                    {isWhitelisted ? `Domain Terdaftar di Whitelist (${host})` : `Domain Belum di Whitelist (${host})`}
-                                  </span>
-                                </div>
-                                <span style={{
-                                  fontSize: '0.62rem',
-                                  fontWeight: 800,
-                                  padding: '0.12rem 0.45rem',
-                                  borderRadius: '999px',
-                                  backgroundColor: isWhitelisted ? '#10b981' : '#f59e0b',
-                                  color: '#ffffff',
-                                  flexShrink: 0
-                                }}>
-                                  {isWhitelisted ? 'WHITELIST' : 'POP-UP WARNING'}
-                                </span>
-                              </div>
-
-                              <div style={{
-                                fontSize: '0.7rem',
-                                color: isWhitelisted ? (isDark ? '#a7f3d0' : '#065f46') : (isDark ? '#fde68a' : '#92400e'),
-                                lineHeight: 1.35
-                              }}>
-                                {isWhitelisted
-                                  ? 'Tautan ini aman dan akan langsung dibuka bagi pengguna tanpa dialog peringatan.'
-                                  : 'Pengguna akan melihat dialog konfirmasi keamanan sebelum dialihkan ke situs ini.'}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Expiration Dropdown Trigger */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 700, color: theme.textSecondary, marginBottom: '0.35rem' }}>
-                    Masa Berlaku Notifikasi
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCrudDropdownPicker({
-                        title: 'Masa Berlaku Notifikasi',
-                        subtitle: 'Batas waktu aktif sebelum otomatis diarsipkan',
-                        icon: Clock,
-                        selectedValue: broadcastForm.expires_in_hours,
-                        options: [
-                          { value: 0, label: 'Selamanya (Tidak Kedaluwarsa)', desc: 'Tetap aktif dan tersimpan di riwayat toko', badge: 'Permanen' },
-                          { value: 24, label: '24 Jam (1 Hari)', desc: 'Kedaluwarsa otomatis dalam 1 hari', badge: '1 Hari' },
-                          { value: 72, label: '3 Hari (72 Jam)', desc: 'Kedaluwarsa otomatis dalam 3 hari', badge: '3 Hari' },
-                          { value: 168, label: '7 Hari (1 Minggu)', desc: 'Kedaluwarsa otomatis dalam 7 hari', badge: '7 Hari' },
-                          { value: 720, label: '30 Hari (1 Bulan)', desc: 'Kedaluwarsa otomatis dalam 30 hari', badge: '30 Hari' },
-                        ],
-                        onSelect: (val) => setBroadcastForm(prev => ({ ...prev, expires_in_hours: val }))
-                      });
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem 0.85rem',
-                      borderRadius: '0.85rem',
-                      backgroundColor: theme.inputBg,
-                      border: `1px solid ${theme.inputBorder}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                      <Clock size={16} color={theme.textSecondary} />
-                      <span>
-                        {broadcastForm.expires_in_hours === 0 && 'Selamanya (Tidak Kedaluwarsa)'}
-                        {broadcastForm.expires_in_hours === 24 && '24 Jam (1 Hari)'}
-                        {broadcastForm.expires_in_hours === 72 && '3 Hari (72 Jam)'}
-                        {broadcastForm.expires_in_hours === 168 && '7 Hari (1 Minggu)'}
-                        {broadcastForm.expires_in_hours === 720 && '30 Hari (1 Bulan)'}
-                      </span>
-                    </div>
-                    <ChevronDown size={16} color={theme.textMuted} />
-                  </button>
-                </div>
-              </div>
-
-              {/* SECTION 4: LIVE PREVIEW CARD */}
-              <div style={{
-                padding: '1.1rem',
-                borderRadius: '1.15rem',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                border: `1px dashed ${theme.border}`,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.65rem'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Pratinjau Kartu Siaran Merchant:
-                  </span>
-                  <span style={{ fontSize: '0.66rem', color: '#f59e0b', fontWeight: 700 }}>
-                    Live Real-Time
-                  </span>
-                </div>
-
-                <div style={{
-                  padding: '0.85rem 0.95rem',
-                  borderRadius: '0.95rem',
-                  backgroundColor: theme.surface,
-                  border: `1px solid ${theme.border}`,
-                  boxShadow: theme.cardShadow,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.35rem'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{
-                      fontSize: '0.64rem',
-                      padding: '0.12rem 0.5rem',
-                      borderRadius: '0.4rem',
-                      backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                      color: isDark ? '#fbbf24' : '#d97706',
-                      fontWeight: 800
-                    }}>
-                      {broadcastForm.category || 'PENGUMUMAN'}
-                    </span>
-                    <span style={{ fontSize: '0.66rem', color: theme.textMuted }}>Baru saja</span>
-                  </div>
-
-                  <h5 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary, lineHeight: 1.35 }}>
-                    {broadcastForm.title || 'Judul Pengumuman'}
-                  </h5>
-
-                  <p style={{ margin: 0, fontSize: '0.76rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                    {broadcastForm.message || 'Ringkasan pesan siaran yang akan diterima oleh para merchant dan pengguna...'}
-                  </p>
-
-                  {broadcastForm.notification_action_enabled && broadcastForm.action_type === 'detail' && broadcastForm.detail_content && (
-                    <div style={{
-                      marginTop: '0.35rem',
-                      paddingTop: '0.35rem',
-                      borderTop: `1px solid ${theme.border}`,
-                      fontSize: '0.7rem',
-                      color: '#f59e0b',
-                      fontWeight: 700,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.25rem'
-                    }}>
-                      <FileText size={12} />
-                      <span>Ketuk untuk membaca artikel lengkap →</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Sticky Bottom Actions Bar */}
-              <div style={{
-                position: 'fixed',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                padding: '0.75rem 1rem',
-                backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                borderTop: `1px solid ${theme.border}`,
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                zIndex: 998,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.65rem'
-              }}>
-                <button
-                  type="button"
-                  onClick={handleCloseCreateBroadcast}
-                  style={{
-                    flex: 1,
-                    padding: '0.8rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: theme.surface,
-                    border: `1px solid ${theme.border}`,
-                    color: theme.textSecondary,
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    textAlign: 'center'
-                  }}
-                >
-                  Batal
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={sendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()}
-                  style={{
-                    flex: 2,
-                    padding: '0.8rem 1.2rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: '#f59e0b',
-                    color: '#000000',
-                    border: 'none',
-                    fontSize: '0.82rem',
-                    fontWeight: 800,
-                    cursor: (sendingBroadcast || !broadcastForm.title.trim() || !broadcastForm.message.trim()) ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.45rem',
-                    boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)'
-                  }}
-                >
-                  {sendingBroadcast ? (
-                    <>
-                      <RefreshCw size={16} className="animate-spin" />
-                      <span>Memproses...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={16} />
-                      <span>Publikasikan</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        ) : broadcastSubView === 'detail' ? (
-          isFetchingBroadcastDetail ? (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '3.5rem 1.5rem',
-              borderRadius: '1.15rem',
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              gap: '0.85rem'
-            }}>
-              <Loader2 size={32} className="animate-spin" color={isDark ? '#38bdf8' : '#0284c7'} />
-              <span style={{ fontSize: '0.84rem', color: theme.textSecondary, fontWeight: 700 }}>
-                Memuat rincian siaran...
-              </span>
-            </div>
-          ) : selectedBroadcastDetail ? (
-            /* ===================================================================== */
-            /* 4B. DEDICATED FULL SUB-PAGE: RINCIAN & DETAIL SIARAN PLATFORM         */
-            /* ===================================================================== */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', animation: 'fadeIn 0.25s ease-out', paddingBottom: '4.5rem' }}>
-            {/* Main Content Article Panel */}
-            <div style={{
-              padding: '1.25rem',
-              borderRadius: '1.15rem',
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem'
-            }}>
-              {/* Category, Target, Status & Read Stats Row */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', borderBottom: `1px solid ${theme.border}`, paddingBottom: '0.85rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  <span style={{
-                    fontSize: '0.66rem',
-                    padding: '0.15rem 0.55rem',
-                    borderRadius: '0.4rem',
-                    fontWeight: 800,
-                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                    color: isDark ? '#fbbf24' : '#d97706',
-                    textTransform: 'uppercase'
-                  }}>
-                    {selectedBroadcastDetail.category || 'PENGUMUMAN'}
-                  </span>
-
-                  <span style={{
-                    fontSize: '0.66rem',
-                    padding: '0.15rem 0.55rem',
-                    borderRadius: '0.4rem',
-                    fontWeight: 800,
-                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                    color: isDark ? '#a5b4fc' : '#4f46e5'
-                  }}>
-                    TARGET: {selectedBroadcastDetail.target_type === 'all' 
-                      ? 'SEMUA MERCHANT (GLOBAL)' 
-                      : selectedBroadcastDetail.target_type === 'plan' 
-                        ? `PAKET ${(selectedBroadcastDetail.target_plan_code || 'PRO').toUpperCase()}` 
-                        : (selectedBroadcastDetail.target_name || 'PENERIMA SPESIFIK')}
-                  </span>
-
-                  <span style={{
-                    fontSize: '0.66rem',
-                    padding: '0.15rem 0.55rem',
-                    borderRadius: '0.4rem',
-                    fontWeight: 800,
-                    backgroundColor: (selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) 
-                      ? 'rgba(148, 163, 184, 0.15)' 
-                      : 'rgba(16, 185, 129, 0.15)',
-                    color: (selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) 
-                      ? '#94a3b8' 
-                      : '#10b981'
-                  }}>
-                    {(selectedBroadcastDetail.expires_at && new Date(selectedBroadcastDetail.expires_at) <= new Date()) ? '● Kedaluwarsa' : '● Sedang Tayang'}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', color: '#3b82f6', fontWeight: 700 }}>
-                  <Eye size={14} />
-                  <span>{selectedBroadcastDetail.read_count || 0} Toko Telah Membaca</span>
-                </div>
-              </div>
-
-              {/* Title */}
-              <h3 style={{
-                margin: 0,
-                fontSize: '1.18rem',
-                fontWeight: 800,
-                color: theme.textPrimary,
-                lineHeight: 1.35
-              }}>
-                {selectedBroadcastDetail.title}
-              </h3>
-
-              {/* Metadata Info Bar */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                gap: '0.5rem',
-                padding: '0.75rem',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                border: `1px solid ${theme.border}`
-              }}>
-                <div>
-                  <div style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase' }}>
-                    Waktu Terbit
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: theme.textSecondary, fontWeight: 600, marginTop: '0.1rem' }}>
-                    {selectedBroadcastDetail.created_at ? new Date(selectedBroadcastDetail.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : '-'}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase' }}>
-                    Batas Kedaluwarsa
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: theme.textSecondary, fontWeight: 600, marginTop: '0.1rem' }}>
-                    {selectedBroadcastDetail.expires_at ? new Date(selectedBroadcastDetail.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : 'Permanen / Tanpa Batas'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Specific Recipients List if applicable */}
-              {(() => {
-                let recipients: any[] = [];
-                if (selectedBroadcastDetail.target_recipients) {
-                  try {
-                    recipients = JSON.parse(selectedBroadcastDetail.target_recipients);
-                  } catch (e) {
-                    recipients = [];
-                  }
-                }
-                if (recipients.length > 0) {
-                  return (
-                    <div style={{
-                      padding: '0.75rem',
-                      borderRadius: '0.85rem',
-                      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)',
-                      border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)'}`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.45rem'
-                    }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Users size={13} color="#3b82f6" />
-                        <span>Daftar Penerima Spesifik ({recipients.length}):</span>
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                        {recipients.map((rec: any, rIdx: number) => (
-                          <span
-                            key={rIdx}
-                            style={{
-                              fontSize: '0.68rem',
-                              padding: '0.22rem 0.55rem',
-                              borderRadius: '0.5rem',
-                              backgroundColor: rec.type === 'store' ? (isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)') : (isDark ? 'rgba(236, 72, 153, 0.2)' : 'rgba(236, 72, 153, 0.1)'),
-                              color: rec.type === 'store' ? (isDark ? '#93c5fd' : '#1d4ed8') : (isDark ? '#f472b6' : '#be185d'),
-                              fontWeight: 700,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem'
-                            }}
-                          >
-                            {rec.name}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-
-              {/* Message Summary Box */}
-              <div style={{
-                padding: '0.85rem',
-                borderRadius: '0.85rem',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                border: `1px solid ${theme.border}`,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.35rem'
-              }}>
-                <div style={{ fontSize: '0.66rem', fontWeight: 800, color: theme.textMuted, textTransform: 'uppercase' }}>
-                  Ringkasan Notifikasi Masuk:
-                </div>
-                <div style={{ fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.55 }}>
-                  {selectedBroadcastDetail.message}
-                </div>
-              </div>
-
-              {/* Detail Article Content (Rich) - Matched to Merchant Notification View */}
-              {(selectedBroadcastDetail.detail_content || selectedBroadcastDetail.message) && (
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.5rem'
-                }}>
-                  <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <FileText size={16} />
-                    <span>Isi Rincian Pengumuman &amp; Artikel Siaran:</span>
-                  </div>
-                  <div style={{
-                    fontSize: '0.86rem',
-                    color: theme.textPrimary,
-                    lineHeight: 1.7,
-                    padding: '1.25rem',
-                    borderRadius: '0.95rem',
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                    border: `1px solid ${theme.border}`,
-                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04)'
-                  }}>
-                    <FormattedText text={selectedBroadcastDetail.detail_content || selectedBroadcastDetail.message} />
-                  </div>
-                </div>
-              )}
-
-              {/* Action CTA Button Preview based on active action_type */}
-              {(() => {
-                const actionType = selectedBroadcastDetail.action_type;
-                if (!actionType || actionType === 'none' || (!selectedBroadcastDetail.action_enabled && !selectedBroadcastDetail.detail_content && !selectedBroadcastDetail.action_url)) {
-                  return null;
-                }
-
-                // If action is purely 'detail', the rich content is already presented in the detail box above
-                if (actionType === 'detail') {
-                  return (
-                    <div style={{
-                      padding: '0.85rem 1rem',
-                      borderRadius: '0.85rem',
-                      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.05)',
-                      border: `1px solid ${isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.18)'}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.65rem'
-                    }}>
-                      <FileText size={18} color="#f59e0b" style={{ flexShrink: 0 }} />
-                      <div>
-                        <div style={{ fontSize: '0.74rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706' }}>
-                          Aksi Sentuh Notifikasi: Buka Rincian Artikel
-                        </div>
-                        <div style={{ fontSize: '0.72rem', color: theme.textSecondary, marginTop: '0.1rem' }}>
-                          Saat notifikasi disentuh oleh merchant, aplikasi akan membuka popup modal rincian artikel lengkap seperti di atas.
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                if (actionType === 'navigate') {
-                  const getMenuLabel = (tab: string) => {
-                    switch (tab) {
-                      case 'settings': return 'Pengaturan Profil & Tampilan Toko (settings)';
-                      case 'items': return 'Manajemen Inventaris & Produk (items)';
-                      case 'subscription': return 'Paket Langganan & Billing (subscription)';
-                      case 'help': return 'Pusat Bantuan & Tiket (help)';
-                      case 'share': return 'Bagikan Katalog & QR Toko (share)';
-                      case 'analytics': return 'Dashboard Analitik Toko (analytics)';
-                      default: return tab ? `Menu ${tab}` : 'Pengaturan Toko';
-                    }
-                  };
-
-                  return (
-                    <div style={{
-                      padding: '0.95rem 1.1rem',
-                      borderRadius: '0.95rem',
-                      backgroundColor: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)',
-                      border: `1px solid ${isDark ? 'rgba(59, 130, 246, 0.28)' : 'rgba(59, 130, 246, 0.2)'}`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.45rem'
-                    }}>
-                      <div style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#93c5fd' : '#2563eb', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                        Aksi Navigasi Internal (Tampil di Merchant):
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.75rem',
-                        backgroundColor: '#3b82f6',
-                        color: '#ffffff',
-                        fontWeight: 800,
-                        fontSize: '0.84rem',
-                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)'
-                      }}>
-                        <span>{selectedBroadcastDetail.action_label || 'Buka Menu Terkait →'}</span>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, opacity: 0.9 }}>
-                          Navigasi Menu
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.72rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
-                        Menu Tujuan: <strong style={{ color: theme.textPrimary }}>{getMenuLabel(selectedBroadcastDetail.link_sub_tab || 'settings')}</strong>
-                      </span>
-                    </div>
-                  );
-                }
-
-                if (actionType === 'external_link') {
-                  return (
-                    <div style={{
-                      padding: '0.95rem 1.1rem',
-                      borderRadius: '0.95rem',
-                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.05)',
-                      border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.2)'}`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.45rem'
-                    }}>
-                      <div style={{ fontSize: '0.68rem', fontWeight: 800, color: isDark ? '#6ee7b7' : '#059669', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                        Aksi Tautan Eksternal (Tampil di Merchant):
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0.75rem 1rem',
-                        borderRadius: '0.75rem',
-                        backgroundColor: '#10b981',
-                        color: '#ffffff',
-                        fontWeight: 800,
-                        fontSize: '0.84rem',
-                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
-                      }}>
-                        <span>{selectedBroadcastDetail.action_label || 'Buka Tautan Luar →'}</span>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, opacity: 0.9 }}>
-                          Tautan Luar
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.72rem', color: theme.textSecondary, marginTop: '0.15rem' }}>
-                        URL Target: <a href={selectedBroadcastDetail.action_url?.startsWith('http') ? selectedBroadcastDetail.action_url : `https://${selectedBroadcastDetail.action_url || '#'}`} target="_blank" rel="noopener noreferrer" style={{ color: '#10b981', textDecoration: 'underline', fontWeight: 700 }}>{selectedBroadcastDetail.action_url || '-'}</a>
-                      </span>
-                    </div>
-                  );
-                }
-
-                return null;
-              })()}
-
-              {/* Bottom Danger Action: Hapus Siaran (Replaces redundant back button) */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.45rem',
-                marginTop: '0.5rem',
-                paddingTop: '1rem',
-                borderTop: `1px solid ${theme.border}`
-              }}>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteBroadcast(selectedBroadcastDetail.id)}
-                  style={{
-                    width: '100%',
-                    padding: '0.85rem 1rem',
-                    borderRadius: '0.85rem',
-                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.08)',
-                    border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.25)'}`,
-                    color: '#ef4444',
-                    fontSize: '0.84rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.45rem',
-                    boxShadow: '0 2px 8px rgba(239, 68, 68, 0.08)',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Trash2 size={16} />
-                  <span>Hapus Publikasi Siaran Ini</span>
-                </button>
-                <span style={{ fontSize: '0.68rem', color: theme.textMuted, textAlign: 'center' }}>
-                  Menghapus siaran akan mencabut pengumuman ini dari riwayat notifikasi penerima.
-                </span>
-              </div>
-            </div>
-          </div>
-          ) : (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '3.5rem 1.5rem',
-              borderRadius: '1.15rem',
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              textAlign: 'center',
-              gap: '1rem'
-            }}>
-              <div style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ef4444'
-              }}>
-                <AlertCircle size={24} />
-              </div>
-              <div>
-                <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
-                  Rincian Siaran Tidak Ditemukan
-                </h4>
-                <p style={{ margin: 0, fontSize: '0.78rem', color: theme.textSecondary }}>
-                  Siaran ini mungkin telah dihapus atau URL tidak valid.
-                </p>
-              </div>
-              <button
-                onClick={handleCloseBroadcastDetail}
-                style={{
-                  padding: '0.6rem 1.25rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                  border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
-                  color: isDark ? '#38bdf8' : '#0284c7',
-                  fontWeight: 800,
-                  fontSize: '0.8rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Kembali ke Riwayat Siaran
-              </button>
-            </div>
-          )
-        ) : (
-          /* ===================================================================== */
-          /* 4C. BROADCAST LIST VIEW (CLEAN & DEDICATED)                           */
-          /* ===================================================================== */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            {/* Header Action Bar: Title & Dynamic Single "Buat Siaran Baru" button (shown only when data exists) */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '0 0.1rem'
-            }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Megaphone size={16} color="#f59e0b" />
-                  <span>Siaran Pengumuman</span>
-                </h4>
-                <p style={{ margin: '0.1rem 0 0', fontSize: '0.72rem', color: theme.textSecondary }}>
-                  Kirim pengumuman massal &amp; notifikasi merchant
-                </p>
-              </div>
-            </div>
-
-            {/* Quick Metrics Bar */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.55rem' }}>
-              <div style={{ padding: '0.75rem 0.6rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, textAlign: 'center' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#f59e0b' }}>
-                  {broadcastMetrics.total_broadcasts || broadcasts.length}
-                </div>
-                <div style={{ fontSize: '0.66rem', fontWeight: 700, color: theme.textSecondary }}>
-                  Total Siaran
-                </div>
-                <div style={{ fontSize: '0.58rem', color: theme.textMuted, marginTop: '0.1rem' }}>
-                  Semua Riwayat
-                </div>
-              </div>
-
-              <div style={{ padding: '0.75rem 0.6rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, textAlign: 'center' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#10b981' }}>
-                  {broadcastMetrics.active_broadcasts}
-                </div>
-                <div style={{ fontSize: '0.66rem', fontWeight: 700, color: theme.textSecondary }}>
-                  Siaran Aktif
-                </div>
-                <div style={{ fontSize: '0.58rem', color: theme.textMuted, marginTop: '0.1rem' }}>
-                  Tayang Realtime
-                </div>
-              </div>
-
-              <div style={{ padding: '0.75rem 0.6rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, textAlign: 'center' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#6366f1' }}>
-                  {broadcastMetrics.targeted_broadcasts ?? broadcasts.filter(b => b.target_type && b.target_type !== 'all').length}
-                </div>
-                <div style={{ fontSize: '0.66rem', fontWeight: 700, color: theme.textSecondary }}>
-                  Target Khusus
-                </div>
-                <div style={{ fontSize: '0.58rem', color: theme.textMuted, marginTop: '0.1rem' }}>
-                  Paket / Spesifik
-                </div>
-              </div>
-            </div>
-
-            {/* Filter & Search Bar */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.65rem',
-              padding: '0.85rem',
-              borderRadius: '0.95rem',
-              backgroundColor: theme.surface,
-              border: `1px solid ${theme.border}`,
-              boxShadow: theme.cardShadow
-            }}>
-              {/* Status Filter Chips */}
-              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.15rem' }}>
-                {(['all', 'active', 'expired'] as const).map(st => (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => setBroadcastStatusFilter(st)}
-                    style={{
-                      padding: '0.35rem 0.75rem',
-                      borderRadius: '0.65rem',
-                      fontSize: '0.74rem',
-                      fontWeight: broadcastStatusFilter === st ? 800 : 600,
-                      border: `1px solid ${broadcastStatusFilter === st ? '#f59e0b' : theme.border}`,
-                      backgroundColor: broadcastStatusFilter === st ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
-                      color: broadcastStatusFilter === st ? (isDark ? '#fbbf24' : '#d97706') : theme.textSecondary,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {st === 'all' && `Semua (${broadcasts.length})`}
-                    {st === 'active' && `Aktif (${broadcastMetrics.active_broadcasts || 0})`}
-                    {st === 'expired' && 'Kedaluwarsa'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Search Box */}
-              <div style={{ position: 'relative' }}>
-                <Search size={14} color={theme.textMuted} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="text"
-                  placeholder="Cari judul, pesan, atau kategori..."
-                  value={broadcastSearchQuery}
-                  onChange={e => setBroadcastSearchQuery(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.55rem 0.75rem 0.55rem 2.2rem',
-                    borderRadius: '0.7rem',
-                    border: `1px solid ${theme.inputBorder}`,
-                    backgroundColor: theme.inputBg,
-                    color: theme.textPrimary,
-                    fontSize: '0.78rem',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Broadcast Cards List */}
-            {isFetchingBroadcasts ? (
-              <div style={{ padding: '3rem 1rem', textAlign: 'center', backgroundColor: theme.surface, borderRadius: '0.95rem', border: `1px solid ${theme.border}` }}>
-                <Loader2 size={24} className="spin" color="#f59e0b" style={{ margin: '0 auto 0.5rem' }} />
-                <p style={{ margin: 0, fontSize: '0.78rem', color: theme.textSecondary }}>Memuat daftar siaran...</p>
-              </div>
-            ) : broadcasts.length === 0 ? (
-              <div style={{
-                padding: '3rem 1.5rem',
-                textAlign: 'center',
-                backgroundColor: theme.surface,
-                borderRadius: '0.95rem',
-                border: `1px solid ${theme.border}`,
-                boxShadow: theme.cardShadow
-              }}>
-                <Megaphone size={38} color="#f59e0b" style={{ margin: '0 auto 0.75rem', opacity: 0.85 }} />
-                <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
-                  {broadcastSearchQuery || broadcastStatusFilter !== 'all' ? 'Siaran Tidak Ditemukan' : 'Belum Ada Siaran Notifikasi'}
-                </h4>
-                <p style={{ margin: '0 0 1.15rem 0', fontSize: '0.76rem', color: theme.textSecondary, maxWidth: '280px', marginInline: 'auto' }}>
-                  {broadcastSearchQuery || broadcastStatusFilter !== 'all'
-                    ? 'Tidak ada siaran yang cocok dengan kata kunci atau filter saat ini.'
-                    : 'Kirim pengumuman penting atau notifikasi massal ke semua atau grup merchant tertentu sekarang.'}
-                </p>
-                {broadcastSearchQuery || broadcastStatusFilter !== 'all' ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBroadcastSearchQuery('');
-                      setBroadcastStatusFilter('all');
-                    }}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      borderRadius: '0.7rem',
-                      backgroundColor: theme.surface,
-                      border: `1px solid ${theme.border}`,
-                      color: theme.textPrimary,
-                      fontWeight: 700,
-                      fontSize: '0.76rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Reset Filter
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateBroadcast}
-                    style={{
-                      padding: '0.6rem 1.25rem',
-                      borderRadius: '0.75rem',
-                      backgroundColor: '#f59e0b',
-                      color: '#000000',
-                      fontWeight: 800,
-                      fontSize: '0.8rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      boxShadow: '0 2px 10px rgba(245, 158, 11, 0.3)'
-                    }}
-                  >
-                    <Plus size={15} />
-                    <span>+ Buat Siaran Baru</span>
-                  </button>
-                )}
-              </div>
-            ) : (
-              broadcasts.map(b => {
-                const isTargetAll = !b.target_type || b.target_type === 'all';
-                const isTargetSpecific = b.target_type === 'single_store' || b.target_type === 'single_user';
-                const isTargetTier = b.target_type === 'tier_free' || b.target_type === 'tier_pro';
-
-                return (
-                  <div
-                    key={b.id}
-                    style={{
-                      padding: '0.95rem 1rem',
-                      borderRadius: '1rem',
-                      backgroundColor: theme.surface,
-                      border: `1px solid ${theme.border}`,
-                      boxShadow: theme.cardShadow,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.55rem'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                        <span style={{
-                          fontSize: '0.62rem',
-                          padding: '0.12rem 0.5rem',
-                          borderRadius: '0.4rem',
-                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                          color: isDark ? '#fbbf24' : '#d97706',
-                          fontWeight: 800
-                        }}>
-                          {b.category || 'PENGUMUMAN'}
-                        </span>
-
-                        <span style={{
-                          fontSize: '0.62rem',
-                          padding: '0.12rem 0.5rem',
-                          borderRadius: '0.4rem',
-                          backgroundColor: isTargetAll ? 'rgba(16, 185, 129, 0.12)' : (isTargetTier ? 'rgba(99, 102, 241, 0.12)' : 'rgba(236, 72, 153, 0.12)'),
-                          color: isTargetAll ? '#10b981' : (isTargetTier ? '#6366f1' : '#ec4899'),
-                          fontWeight: 800
-                        }}>
-                          {isTargetAll && 'SEMUA'}
-                          {b.target_type === 'tier_free' && 'FREE TIER'}
-                          {b.target_type === 'tier_pro' && 'PRO TIER'}
-                          {b.target_type === 'single_store' && (b.target_name || 'TOKO')}
-                          {b.target_type === 'single_user' && (b.target_name || 'USER')}
-                        </span>
-                      </div>
-
-                      <span style={{ fontSize: '0.66rem', color: theme.textMuted, whiteSpace: 'nowrap' }}>
-                        {formatSupportDateTime(b.created_at)}
-                      </span>
-                    </div>
-
-                    <h5 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: theme.textPrimary }}>
-                      {b.title}
-                    </h5>
-
-                    <p style={{
-                      margin: 0,
-                      fontSize: '0.74rem',
-                      color: theme.textSecondary,
-                      lineHeight: 1.45,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}>
-                      {b.message}
-                    </p>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.35rem', borderTop: `1px solid ${theme.border}` }}>
-                      <div style={{ fontSize: '0.68rem', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span>Status: <strong style={{ color: b.is_active !== false ? '#10b981' : '#94a3b8' }}>{b.is_active !== false ? 'Tayang' : 'Nonaktif'}</strong></span>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                        <button
-                          onClick={() => handleOpenBroadcastDetail(b)}
-                          style={{
-                            padding: '0.28rem 0.65rem',
-                            borderRadius: '0.55rem',
-                            backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                            border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(2, 132, 199, 0.25)'}`,
-                            color: isDark ? '#38bdf8' : '#0284c7',
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.2rem'
-                          }}
-                        >
-                          <FileText size={12} />
-                          <span>Rincian</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleDeleteBroadcast(b.id)}
-                          style={{
-                            padding: '0.28rem 0.55rem',
-                            borderRadius: '0.55rem',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                            border: '1px solid rgba(239, 68, 68, 0.25)',
-                            color: '#ef4444',
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.2rem'
-                          }}
-                        >
-                          <Trash2 size={12} />
-                          <span>Hapus</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-
-            {/* Pagination Controls */}
-            {broadcastTotalPages > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.4rem', padding: '0.35rem 0' }}>
-                <button
-                  disabled={broadcastPage <= 1 || isFetchingBroadcasts}
-                  onClick={() => fetchBroadcasts(broadcastPage - 1)}
-                  style={{
-                    padding: '0.45rem 0.85rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: theme.surface,
-                    border: `1px solid ${theme.border}`,
-                    color: broadcastPage <= 1 ? theme.textMuted : theme.textPrimary,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                    cursor: broadcastPage <= 1 ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  ← Sebelumnya
-                </button>
-
-                <span style={{ fontSize: '0.74rem', color: theme.textSecondary, fontWeight: 700 }}>
-                  Halaman {broadcastPage} dari {broadcastTotalPages}
-                </span>
-
-                <button
-                  disabled={broadcastPage >= broadcastTotalPages || isFetchingBroadcasts}
-                  onClick={() => fetchBroadcasts(broadcastPage + 1)}
-                  style={{
-                    padding: '0.45rem 0.85rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: theme.surface,
-                    border: `1px solid ${theme.border}`,
-                    color: broadcastPage >= broadcastTotalPages ? theme.textMuted : theme.textPrimary,
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                    cursor: broadcastPage >= broadcastTotalPages ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  Selanjutnya →
-                </button>
-              </div>
-            )}
-          </div>
-        )
+        <ErrorBoundary sectionName="Siaran Broadcast">
+          <AdminBroadcastConsole
+            device="mobile"
+            token={token}
+            isDark={isDark}
+            theme={theme}
+            refreshRevision={broadcastRefreshRev}
+            onToast={(msg, type) => showToast(msg, type || 'info')}
+            SelectComponent={MobileCustomSelect}
+            RichTextareaComponent={RichTextarea}
+            FormattedTextComponent={FormattedText}
+            checkUrlSecurity={checkUrlSecurity}
+            cleanDomainString={cleanDomainString}
+            useModalBackHandlerHook={useModalBackHandler}
+            onSummaryChange={(count, sub) => {
+              setBroadcastActiveCount(count);
+              setBroadcastSubViewState(sub);
+            }}
+          />
+        </ErrorBoundary>
       )}
 
-      {/* ========================================================================= */}
       {/* MODULE: MARKET INTELLIGENCE & B2B RESEARCH                                */}
       {/* ========================================================================= */}
       {activeView === 'market_intel' && canAccessMarketIntel && (
@@ -12431,7 +10070,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {activeView === 'automation' && canAccessAutomation && (
         <ErrorBoundary sectionName="Mesin otomasi">
           <AutomationConsole token={token} canManage={hasPermission(currentUser, 'system:automation:manage') || isSuperAdmin(currentUser)}
-            device="mobile" theme={theme} isDark={isDark} revision={automationRevision} Catalog={AutomationCatalog}/>
+            device="mobile" theme={theme} isDark={isDark} revision={automationRevision} Catalog={AutomationCatalog} />
         </ErrorBoundary>
       )}
 
@@ -13907,142 +11546,142 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                   {cannedTemplates.map(tmpl => {
-                      const catColors: Record<string, { bg: string; text: string; label: string }> = {
-                        general: { bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', label: 'Umum' },
-                        billing: { bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', label: 'Keuangan' },
-                        technical: { bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', label: 'Teknis' },
-                        closing: { bg: 'rgba(168, 85, 247, 0.15)', text: isDark ? '#c084fc' : '#9333ea', label: 'Penutupan' },
-                        account: { bg: 'rgba(244, 63, 94, 0.15)', text: isDark ? '#fb7185' : '#e11d48', label: 'Akun' }
-                      };
-                      const catInfo = catColors[tmpl.category] || { bg: 'rgba(148, 163, 184, 0.15)', text: '#94a3b8', label: tmpl.category };
+                    const catColors: Record<string, { bg: string; text: string; label: string }> = {
+                      general: { bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', label: 'Umum' },
+                      billing: { bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', label: 'Keuangan' },
+                      technical: { bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', label: 'Teknis' },
+                      closing: { bg: 'rgba(168, 85, 247, 0.15)', text: isDark ? '#c084fc' : '#9333ea', label: 'Penutupan' },
+                      account: { bg: 'rgba(244, 63, 94, 0.15)', text: isDark ? '#fb7185' : '#e11d48', label: 'Akun' }
+                    };
+                    const catInfo = catColors[tmpl.category] || { bg: 'rgba(148, 163, 184, 0.15)', text: '#94a3b8', label: tmpl.category };
 
-                      return (
-                        <div
-                          key={tmpl.id}
-                          style={{
-                            backgroundColor: theme.surface,
-                            border: `1px solid ${tmpl.is_active !== false ? theme.border : 'rgba(148, 163, 184, 0.2)'}`,
-                            borderRadius: '0.95rem',
-                            padding: '0.95rem',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.65rem',
-                            opacity: tmpl.is_active !== false ? 1 : 0.65,
-                            boxShadow: theme.cardShadow
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0, flex: 1 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    return (
+                      <div
+                        key={tmpl.id}
+                        style={{
+                          backgroundColor: theme.surface,
+                          border: `1px solid ${tmpl.is_active !== false ? theme.border : 'rgba(148, 163, 184, 0.2)'}`,
+                          borderRadius: '0.95rem',
+                          padding: '0.95rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.65rem',
+                          opacity: tmpl.is_active !== false ? 1 : 0.65,
+                          boxShadow: theme.cardShadow
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0, flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                              <span style={{
+                                fontSize: '0.62rem',
+                                fontWeight: 800,
+                                padding: '0.1rem 0.45rem',
+                                borderRadius: '999px',
+                                backgroundColor: catInfo.bg,
+                                color: catInfo.text
+                              }}>
+                                {catInfo.label}
+                              </span>
+
+                              {tmpl.shortcut && (
                                 <span style={{
                                   fontSize: '0.62rem',
                                   fontWeight: 800,
-                                  padding: '0.1rem 0.45rem',
-                                  borderRadius: '999px',
-                                  backgroundColor: catInfo.bg,
-                                  color: catInfo.text
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '0.35rem',
+                                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
+                                  color: isDark ? '#38bdf8' : '#0284c7'
                                 }}>
-                                  {catInfo.label}
+                                  /{tmpl.shortcut}
                                 </span>
+                              )}
 
-                                {tmpl.shortcut && (
-                                  <span style={{
-                                    fontSize: '0.62rem',
-                                    fontWeight: 800,
-                                    padding: '0.1rem 0.4rem',
-                                    borderRadius: '0.35rem',
-                                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.1)',
-                                    color: isDark ? '#38bdf8' : '#0284c7'
-                                  }}>
-                                    /{tmpl.shortcut}
-                                  </span>
-                                )}
-
-                                <span style={{
-                                  fontSize: '0.58rem',
-                                  fontWeight: 700,
-                                  padding: '0.08rem 0.35rem',
-                                  borderRadius: '0.3rem',
-                                  backgroundColor: tmpl.is_active !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                                  color: tmpl.is_active !== false ? (isDark ? '#34d399' : '#059669') : '#94a3b8'
-                                }}>
-                                  {tmpl.is_active !== false ? 'Aktif' : 'Nonaktif'}
-                                </span>
-                              </div>
-
-                              <strong style={{ fontSize: '0.86rem', color: theme.textPrimary, fontWeight: 800, marginTop: '0.15rem' }}>
-                                {tmpl.title}
-                              </strong>
+                              <span style={{
+                                fontSize: '0.58rem',
+                                fontWeight: 700,
+                                padding: '0.08rem 0.35rem',
+                                borderRadius: '0.3rem',
+                                backgroundColor: tmpl.is_active !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+                                color: tmpl.is_active !== false ? (isDark ? '#34d399' : '#059669') : '#94a3b8'
+                              }}>
+                                {tmpl.is_active !== false ? 'Aktif' : 'Nonaktif'}
+                              </span>
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleTemplateActive(tmpl)}
-                                style={{
-                                  padding: '0.35rem',
-                                  borderRadius: '0.4rem',
-                                  backgroundColor: theme.cardAlt,
-                                  border: `1px solid ${theme.border}`,
-                                  color: tmpl.is_active !== false ? '#10b981' : '#94a3b8',
-                                  cursor: 'pointer'
-                                }}
-                                title={tmpl.is_active !== false ? 'Nonaktifkan' : 'Aktifkan'}
-                              >
-                                {tmpl.is_active !== false ? <Check size={12} /> : <X size={12} />}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditTemplate(tmpl)}
-                                style={{
-                                  padding: '0.35rem',
-                                  borderRadius: '0.4rem',
-                                  backgroundColor: theme.cardAlt,
-                                  border: `1px solid ${theme.border}`,
-                                  color: isDark ? '#38bdf8' : '#0284c7',
-                                  cursor: 'pointer'
-                                }}
-                                title="Edit Template"
-                              >
-                                <Sliders size={12} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteTemplate(tmpl.id, tmpl.title)}
-                                style={{
-                                  padding: '0.35rem',
-                                  borderRadius: '0.4rem',
-                                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                  border: '1px solid rgba(239, 68, 68, 0.25)',
-                                  color: '#ef4444',
-                                  cursor: 'pointer'
-                                }}
-                                title="Hapus Template"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
+                            <strong style={{ fontSize: '0.86rem', color: theme.textPrimary, fontWeight: 800, marginTop: '0.15rem' }}>
+                              {tmpl.title}
+                            </strong>
                           </div>
 
-                          {/* Template Content Box */}
-                          <div style={{
-                            padding: '0.65rem 0.75rem',
-                            borderRadius: '0.65rem',
-                            backgroundColor: theme.cardAlt,
-                            border: `1px solid ${theme.border}`,
-                            fontSize: '0.78rem',
-                            color: theme.textSecondary,
-                            lineHeight: 1.45,
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
-                            maxHeight: '120px',
-                            overflowY: 'auto'
-                          }}>
-                            {tmpl.content}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleTemplateActive(tmpl)}
+                              style={{
+                                padding: '0.35rem',
+                                borderRadius: '0.4rem',
+                                backgroundColor: theme.cardAlt,
+                                border: `1px solid ${theme.border}`,
+                                color: tmpl.is_active !== false ? '#10b981' : '#94a3b8',
+                                cursor: 'pointer'
+                              }}
+                              title={tmpl.is_active !== false ? 'Nonaktifkan' : 'Aktifkan'}
+                            >
+                              {tmpl.is_active !== false ? <Check size={12} /> : <X size={12} />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditTemplate(tmpl)}
+                              style={{
+                                padding: '0.35rem',
+                                borderRadius: '0.4rem',
+                                backgroundColor: theme.cardAlt,
+                                border: `1px solid ${theme.border}`,
+                                color: isDark ? '#38bdf8' : '#0284c7',
+                                cursor: 'pointer'
+                              }}
+                              title="Edit Template"
+                            >
+                              <Sliders size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTemplate(tmpl.id, tmpl.title)}
+                              style={{
+                                padding: '0.35rem',
+                                borderRadius: '0.4rem',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: '#ef4444',
+                                cursor: 'pointer'
+                              }}
+                              title="Hapus Template"
+                            >
+                              <Trash2 size={12} />
+                            </button>
                           </div>
                         </div>
-                      );
-                    })}
+
+                        {/* Template Content Box */}
+                        <div style={{
+                          padding: '0.65rem 0.75rem',
+                          borderRadius: '0.65rem',
+                          backgroundColor: theme.cardAlt,
+                          border: `1px solid ${theme.border}`,
+                          fontSize: '0.78rem',
+                          color: theme.textSecondary,
+                          lineHeight: 1.45,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          maxHeight: '120px',
+                          overflowY: 'auto'
+                        }}>
+                          {tmpl.content}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -14535,7 +12174,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         { code: '{rekber_website_url}', icon: <Globe size={10} /> },
                         { code: '{rekber_website_domain}', icon: <LinkIcon size={10} /> },
                         { code: '{rekber_wa_number}', icon: <PhoneCall size={10} /> },
-                                                { code: '{rekber_wa_section}', icon: <ShieldCheck size={10} /> },
+                        { code: '{rekber_wa_section}', icon: <ShieldCheck size={10} /> },
                       ].map((item, idx) => (
                         <span
                           key={idx}
@@ -14772,7 +12411,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       let websiteDomain = 'rekbersyariah.com';
                       try {
                         websiteDomain = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname || 'rekbersyariah.com';
-                      } catch {}
+                      } catch { }
                       const waNumber = (googleSettings.rekber_wa_number || '62811220227').trim();
                       const cleanWANum = waNumber.replace(/\D/g, '') || '62811220227';
                       const waLink = `https://wa.me/${cleanWANum}`;
@@ -15129,17 +12768,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
       {/* LUXURY MOBILE BOTTOM SHEET: CRUD FORM DROPDOWN PICKER */}
       {crudDropdownPicker && (
-        <div 
-          className="bottom-sheet-backdrop" 
-          style={{ 
+        <div
+          className="bottom-sheet-backdrop"
+          style={{
             zIndex: 11000,
             backgroundColor: isDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.5)',
             backdropFilter: 'blur(4px)'
           }}
           onClick={() => setCrudDropdownPicker(null)}
         >
-          <div 
-            className="bottom-sheet-content" 
+          <div
+            className="bottom-sheet-content"
             onClick={(e) => e.stopPropagation()}
             style={{
               backgroundColor: theme.surface,
@@ -15150,7 +12789,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             }}
           >
             {/* Smooth Drag Handle Bar */}
-            <div 
+            <div
               className="bottom-sheet-handle-bar"
               onTouchStart={(e) => handleDropdownDragStart(e.touches[0].clientY)}
               onTouchMove={(e) => handleDropdownDragMove(e.touches[0].clientY)}
@@ -15163,7 +12802,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
 
             {/* Header (No Close X button as per design spec - dismiss by drag, click outside, or selection) */}
-            <div 
+            <div
               className="bottom-sheet-header"
               onTouchStart={(e) => handleDropdownDragStart(e.touches[0].clientY)}
               onTouchMove={(e) => handleDropdownDragMove(e.touches[0].clientY)}
@@ -15200,15 +12839,15 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     type="button"
                     className={`bottom-sheet-item ${isSelected ? 'active' : ''}`}
                     style={{
-                      backgroundColor: isSelected 
+                      backgroundColor: isSelected
                         ? (isDark ? 'rgba(245, 158, 11, 0.14)' : 'rgba(245, 158, 11, 0.08)')
-                        : opt.isAction 
+                        : opt.isAction
                           ? (isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.04)')
                           : (isDark ? 'rgba(255,255,255,0.02)' : '#ffffff'),
-                      borderColor: isSelected 
-                        ? 'var(--primary, #f59e0b)' 
-                        : opt.isAction 
-                          ? 'var(--primary, #f59e0b)' 
+                      borderColor: isSelected
+                        ? 'var(--primary, #f59e0b)'
+                        : opt.isAction
+                          ? 'var(--primary, #f59e0b)'
                           : theme.border,
                       borderStyle: opt.isAction ? 'dashed' : 'solid',
                       color: theme.textPrimary,
@@ -15246,8 +12885,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         </div>
                       )}
                       <div className="bottom-sheet-item-col" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', flex: 1, minWidth: 0, gap: '0.2rem' }}>
-                        <span className="bottom-sheet-item-name" style={{ 
-                          color: opt.isAction ? 'var(--primary, #f59e0b)' : (isSelected ? 'var(--primary, #f59e0b)' : theme.textPrimary), 
+                        <span className="bottom-sheet-item-name" style={{
+                          color: opt.isAction ? 'var(--primary, #f59e0b)' : (isSelected ? 'var(--primary, #f59e0b)' : theme.textPrimary),
                           fontWeight: isSelected || opt.isAction ? 800 : 700,
                           fontSize: '0.88rem',
                           lineHeight: 1.35,
@@ -15259,9 +12898,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           {opt.label}
                         </span>
                         {opt.desc && (
-                          <span className="bottom-sheet-item-desc" style={{ 
-                            color: theme.textSecondary, 
-                            fontSize: '0.74rem', 
+                          <span className="bottom-sheet-item-desc" style={{
+                            color: theme.textSecondary,
+                            fontSize: '0.74rem',
                             lineHeight: 1.4,
                             whiteSpace: 'normal',
                             wordBreak: 'break-word'
@@ -15271,7 +12910,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         )}
                       </div>
                       {opt.badge && (
-                        <span 
+                        <span
                           className="bottom-sheet-item-badge"
                           style={{
                             backgroundColor: opt.badgeColor ? `${opt.badgeColor}22` : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'),
@@ -15288,7 +12927,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         </span>
                       )}
                     </div>
-                    <div 
+                    <div
                       className={`bottom-sheet-radio ${isSelected ? 'selected' : ''}`}
                       style={{
                         width: '20px',
@@ -16899,10 +14538,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       justifyContent: 'space-between',
                       padding: '0.85rem 1rem',
                       borderRadius: '0.95rem',
-                      backgroundColor: isSelected 
+                      backgroundColor: isSelected
                         ? (isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(2, 132, 199, 0.07)')
                         : (isDark ? 'rgba(255, 255, 255, 0.03)' : '#f8fafc'),
-                      border: isSelected 
+                      border: isSelected
                         ? `1.5px solid ${isDark ? '#38bdf8' : '#0284c7'}`
                         : `1px solid ${theme.border}`,
                       cursor: 'pointer',
@@ -17594,7 +15233,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* MODAL KONFIRMASI AKSI BANNED PERMANEN (Standard Mobile Bottom Sheet)       */}
       {/* ========================================================================= */}
       {showModerationConfirmModal && (
-        <div 
+        <div
           className="animate-fade-in"
           style={{
             position: 'fixed',
@@ -17614,7 +15253,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             }
           }}
         >
-          <div 
+          <div
             onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%',
@@ -17625,8 +15264,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               borderTopRightRadius: '1.6rem',
               backgroundColor: isDark ? '#0f172a' : '#ffffff',
               borderTop: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.45)' : 'rgba(239, 68, 68, 0.25)'}`,
-              boxShadow: isDark 
-                ? '0 -14px 48px rgba(0, 0, 0, 0.65), 0 -4px 20px rgba(239, 68, 68, 0.2)' 
+              boxShadow: isDark
+                ? '0 -14px 48px rgba(0, 0, 0, 0.65), 0 -4px 20px rgba(239, 68, 68, 0.2)'
                 : '0 -10px 40px rgba(0, 0, 0, 0.16)',
               display: 'flex',
               flexDirection: 'column',
@@ -17662,11 +15301,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             </div>
 
             {/* Modal Header Bar (Professional & Elegant Enterprise Grade) */}
-            <div 
+            <div
               style={{
                 padding: '0.65rem 1.25rem 0.9rem',
-                background: isDark 
-                  ? 'linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%)' 
+                background: isDark
+                  ? 'linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%)'
                   : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
                 borderBottom: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(226, 232, 240, 0.9)'}`,
                 display: 'flex',
@@ -17685,16 +15324,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       width: '42px',
                       height: '42px',
                       borderRadius: '0.85rem',
-                      background: isDark 
-                        ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.15) 100%)' 
+                      background: isDark
+                        ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(185, 28, 28, 0.15) 100%)'
                         : 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
                       border: `1px solid ${isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)'}`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       color: '#ef4444',
-                      boxShadow: isDark 
-                        ? '0 4px 14px rgba(239, 68, 68, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)' 
+                      boxShadow: isDark
+                        ? '0 4px 14px rgba(239, 68, 68, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
                         : '0 4px 12px rgba(239, 68, 68, 0.15)',
                       flexShrink: 0
                     }}>
@@ -17738,8 +15377,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         lineHeight: 1.3,
                         fontWeight: 500
                       }}>
-                        {isItemConfirm 
-                          ? 'Penghapusan seketika & brankas forensik 90 hari (tanpa banding)' 
+                        {isItemConfirm
+                          ? 'Penghapusan seketika & brankas forensik 90 hari (tanpa banding)'
                           : 'Tindakan sanksi fatal, tidak dapat dibatalkan kembali'}
                       </p>
                     </div>
@@ -17756,10 +15395,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               const storeSlug = bannedConfirmModalReport?.store_slug || moderationModalReport?.store_slug;
 
               return (
-                <div style={{ 
-                  padding: '1.15rem 1.25rem', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
+                <div style={{
+                  padding: '1.15rem 1.25rem',
+                  display: 'flex',
+                  flexDirection: 'column',
                   gap: '1rem',
                   overflowY: 'auto',
                   flex: 1
@@ -17778,12 +15417,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       <span style={{ fontSize: '0.7rem', color: theme.textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         {isItemConfirm ? 'Profil Item Terlapor' : 'Profil Katalog Terlapor'}
                       </span>
-                      <span style={{ 
-                        fontSize: '0.68rem', 
-                        padding: '0.15rem 0.5rem', 
-                        borderRadius: '0.35rem', 
-                        backgroundColor: 'rgba(239, 68, 68, 0.12)', 
-                        color: '#ef4444', 
+                      <span style={{
+                        fontSize: '0.68rem',
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '0.35rem',
+                        backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                        color: '#ef4444',
                         fontWeight: 800,
                         letterSpacing: '0.02em',
                         fontFamily: 'monospace',
@@ -17809,11 +15448,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       }}>
                         {isItemConfirm ? <Package size={17} /> : <Store size={17} />}
                       </div>
-                      
+
                       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                        <div style={{ 
-                          fontSize: '0.94rem', 
-                          fontWeight: 800, 
+                        <div style={{
+                          fontSize: '0.94rem',
+                          fontWeight: 800,
                           color: theme.textPrimary,
                           lineHeight: 1.35,
                           wordBreak: 'break-word',
@@ -17828,9 +15467,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             Dari Toko: <strong>{storeTitle}</strong> {storeSlug && <span style={{ fontFamily: 'monospace' }}>({storeSlug})</span>}
                           </div>
                         ) : storeSlug && (
-                          <div style={{ 
-                            fontSize: '0.74rem', 
-                            color: theme.textSecondary, 
+                          <div style={{
+                            fontSize: '0.74rem',
+                            color: theme.textSecondary,
                             fontFamily: 'monospace',
                             wordBreak: 'break-all',
                             lineHeight: 1.3
@@ -17887,7 +15526,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   </div>
 
                   {/* Acknowledgment Checkbox */}
-                  <label 
+                  <label
                     style={{
                       display: 'flex',
                       alignItems: 'flex-start',
@@ -17907,7 +15546,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       style={{ marginTop: '3px', accentColor: '#ef4444', cursor: 'pointer' }}
                     />
                     <span style={{ fontSize: '0.73rem', fontWeight: 700, color: theme.textPrimary, lineHeight: 1.4 }}>
-                      {isItemConfirm 
+                      {isItemConfirm
                         ? 'Saya telah memeriksa bukti investigasi dan mengonfirmasi tindakan Banned Permanen pada item ini.'
                         : 'Saya telah memeriksa bukti investigasi dan mengonfirmasi tindakan Banned Permanen katalog ini.'}
                     </span>
@@ -17917,10 +15556,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             })()}
 
             {/* Modal Bottom Buttons (Clean footer without X icon on top) */}
-            <div style={{ 
-              display: 'flex', 
-              gap: '0.65rem', 
-              padding: '0.85rem 1.25rem calc(0.85rem + env(safe-area-inset-bottom, 0px))', 
+            <div style={{
+              display: 'flex',
+              gap: '0.65rem',
+              padding: '0.85rem 1.25rem calc(0.85rem + env(safe-area-inset-bottom, 0px))',
               borderTop: `1px solid ${theme.border}`,
               backgroundColor: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
               flexShrink: 0
@@ -17993,7 +15632,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       )}
 
       {/* Floating Scroll to Top Button (Intent-Based: Hanya muncul saat intensi scroll ke atas, sembunyi saat scroll ke bawah) */}
-      {showScrollTop && !isAnyOverlayActive && !selectedTicket && activeView !== 'master_data' && !(activeView === 'broadcast' && broadcastSubView === 'create') && (
+      {showScrollTop && !isAnyOverlayActive && !selectedTicket && activeView !== 'master_data' && !(activeView === 'broadcast' && (broadcastSubViewState === 'create' || broadcastSubViewState === 'edit')) && (
         <button
           type="button"
           onClick={scrollToTop}

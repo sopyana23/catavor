@@ -451,7 +451,79 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
 };
 
 /**
- * Link Insertion Dialog Modal
+ * Shared slide-up bottom sheet drag-to-dismiss physics helper (AGENTS.md Rule 7.A.3)
+ */
+function useMobileBottomSheetDrag(isOpen: boolean, onClose: () => void) {
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const touchStartY = useRef<number | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setDragY(0);
+      setIsDragging(false);
+      setIsClosing(false);
+      touchStartY.current = null;
+    }
+    return () => {
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+    };
+  }, [isOpen]);
+
+  const closeWithAnimation = useCallback(() => {
+    setIsDragging(false);
+    setIsClosing(true);
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      setIsClosing(false);
+      setDragY(0);
+      onClose();
+    }, 240);
+  }, [onClose]);
+
+  const handleDragStart = useCallback((clientY: number) => {
+    touchStartY.current = clientY;
+    setIsDragging(true);
+  }, []);
+
+  const handleDragMove = useCallback((clientY: number) => {
+    if (touchStartY.current === null) return;
+    const delta = clientY - touchStartY.current;
+    setDragY(delta > 0 ? delta : delta * 0.16);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    if (touchStartY.current === null) return;
+    touchStartY.current = null;
+    setIsDragging(false);
+    if (dragY >= 70) {
+      closeWithAnimation();
+    } else {
+      setDragY(0);
+    }
+  }, [dragY, closeWithAnimation]);
+
+  return {
+    dragY,
+    isDragging,
+    isClosing,
+    closeWithAnimation,
+    handleDragStart,
+    handleDragMove,
+    handleDragEnd,
+  };
+}
+
+/**
+ * Link Insertion Mobile Bottom Sheet Modal (AGENTS.md Rule 7.A.3)
  */
 export const LinkInsertModal: React.FC<{
   isOpen: boolean;
@@ -478,9 +550,19 @@ export const LinkInsertModal: React.FC<{
   const [url, setUrl] = useState(initialUrl);
   const [previewExternalUrl, setPreviewExternalUrl] = useState<string | null>(null);
 
+  const {
+    dragY,
+    isDragging,
+    isClosing,
+    closeWithAnimation,
+    handleDragStart,
+    handleDragMove,
+    handleDragEnd,
+  } = useMobileBottomSheetDrag(isOpen, onClose);
+
   useModalBackHandler({
     isOpen,
-    onClose,
+    onClose: closeWithAnimation,
     modalId: 'rich-link-insert-modal-mobile'
   });
 
@@ -495,11 +577,11 @@ export const LinkInsertModal: React.FC<{
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') closeWithAnimation();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, closeWithAnimation]);
 
   if (!isOpen) return null;
 
@@ -518,81 +600,112 @@ export const LinkInsertModal: React.FC<{
     onClose();
   };
 
-  const bgModal = theme?.modalBg || 'var(--bg-card, #ffffff)';
-  const borderCol = theme?.borderStrong || 'var(--border-light, #e2e8f0)';
+  const bgModal = theme?.modalBg || theme?.surface || 'var(--bg-card, #ffffff)';
+  const borderCol = theme?.borderStrong || theme?.border || 'var(--border-light, #e2e8f0)';
   const textPrimary = theme?.textPrimary || 'var(--text-primary, #0f172a)';
   const textSecondary = theme?.textSecondary || 'var(--text-secondary, #334155)';
-  const inputBg = theme?.inputBg || 'var(--bg-deep, #f8fafc)';
-  const inputBorder = theme?.inputBorder || 'var(--border-light, #e2e8f0)';
+  const inputBg = theme?.inputBg || theme?.cardAlt || 'var(--bg-deep, #f8fafc)';
+  const inputBorder = theme?.inputBorder || borderCol;
 
   return createPortal(
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={isEditing ? 'Edit Tautan (Link)' : 'Sisipkan Tautan (Link)'}
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
+        inset: 0,
         backgroundColor: 'rgba(0, 0, 0, 0.72)',
-        backdropFilter: 'blur(8px)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
         zIndex: 9999999,
         display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.25rem'
+        padding: 0
       }}
       onClick={(e) => {
         e.stopPropagation();
-        onClose();
+        closeWithAnimation();
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: '400px',
           width: '100%',
+          maxWidth: '560px',
+          maxHeight: '90vh',
           backgroundColor: bgModal,
-          borderRadius: '1.25rem',
+          borderTopLeftRadius: '1.5rem',
+          borderTopRightRadius: '1.5rem',
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
           border: `1px solid ${borderCol}`,
-          boxShadow: 'var(--shadow-premium, 0 20px 50px rgba(0,0,0,0.25))',
-          padding: '1.35rem',
+          borderBottom: 'none',
+          boxShadow: '0 -12px 40px rgba(0, 0, 0, 0.38)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '1rem',
-          animation: 'fadeIn 0.2s ease-out'
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+          transform: isClosing ? 'translateY(100%)' : `translateY(${Math.max(0, dragY)}px)`,
+          transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '0.65rem',
-              backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.15))',
+        {/* Drag Handle Bar + Clean Header (NO Close/X button per AGENTS.md Rule 7.A.3) */}
+        <div
+          style={{ touchAction: 'none', userSelect: 'none', flexShrink: 0, cursor: 'grab' }}
+          onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
+          onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
+          onTouchEnd={handleDragEnd}
+          onMouseDown={(e) => handleDragStart(e.clientY)}
+          onMouseMove={(e) => isDragging && handleDragMove(e.clientY)}
+          onMouseUp={handleDragEnd}
+        >
+          <div style={{ width: '100%', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div
+              style={{
+                width: '44px',
+                height: '5px',
+                borderRadius: '999px',
+                backgroundColor: isDark ? 'rgba(203, 213, 225, 0.55)' : 'rgba(71, 85, 105, 0.45)',
+                transform: isDragging ? 'scaleX(1.12)' : 'scaleX(1)',
+                transition: 'transform 0.15s ease'
+              }}
+            />
+          </div>
+          <div
+            style={{
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--primary, #1e3a8a)'
-            }}>
-              <Link size={16} />
+              gap: '0.35rem',
+              padding: '0 1.15rem 0.85rem',
+              borderBottom: `1px solid ${borderCol}`
+            }}
+          >
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '0.75rem',
+                backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.14))',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary, #3b82f6)'
+              }}
+            >
+              <Link size={19} />
             </div>
-            <h4 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: textPrimary }}>
+            <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: textPrimary, textAlign: 'center' }}>
               {isEditing ? 'Edit Tautan (Link)' : 'Sisipkan Tautan (Link)'}
             </h4>
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onClose();
-            }}
-            style={{ background: 'none', border: 'none', color: textSecondary, cursor: 'pointer', padding: '0.2rem' }}
-          >
-            <X size={16} />
-          </button>
         </div>
 
+        {/* Scrollable Sheet Body */}
         <div
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -601,10 +714,21 @@ export const LinkInsertModal: React.FC<{
               handleConfirm(e);
             }
           }}
-          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            padding: '0.95rem 1.1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.85rem',
+            boxSizing: 'border-box'
+          }}
         >
           <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.3rem' }}>
               Teks Tautan
             </label>
             <input
@@ -614,12 +738,13 @@ export const LinkInsertModal: React.FC<{
               onChange={e => setText(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.55rem 0.75rem',
-                borderRadius: '0.65rem',
+                minHeight: '44px',
+                padding: '0.6rem 0.8rem',
+                borderRadius: '0.7rem',
                 backgroundColor: inputBg,
                 border: `1px solid ${inputBorder}`,
                 color: textPrimary,
-                fontSize: '0.8rem',
+                fontSize: '0.84rem',
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
@@ -627,7 +752,7 @@ export const LinkInsertModal: React.FC<{
           </div>
 
           <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.3rem' }}>
               URL Tujuan (Web atau Rute Internal)
             </label>
             <input
@@ -637,21 +762,22 @@ export const LinkInsertModal: React.FC<{
               onChange={e => setUrl(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.55rem 0.75rem',
-                borderRadius: '0.65rem',
+                minHeight: '44px',
+                padding: '0.6rem 0.8rem',
+                borderRadius: '0.7rem',
                 backgroundColor: inputBg,
                 border: `1px solid ${url ? (!urlSec.isSafe ? '#ef4444' : !urlSec.isExternal ? '#10b981' : urlSec.isMasterTrusted ? '#3b82f6' : '#f59e0b') : inputBorder}`,
                 color: textPrimary,
-                fontSize: '0.8rem',
+                fontSize: '0.84rem',
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
             />
             {url.trim() && (
               <div style={{
-                marginTop: '0.45rem',
-                padding: '0.65rem 0.85rem',
-                borderRadius: '0.75rem',
+                marginTop: '0.55rem',
+                padding: '0.75rem 0.85rem',
+                borderRadius: '0.85rem',
                 backgroundColor: !urlSec.isSafe
                   ? 'rgba(239, 68, 68, 0.08)'
                   : !urlSec.isExternal
@@ -670,95 +796,36 @@ export const LinkInsertModal: React.FC<{
                 }`,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.35rem'
+                gap: '0.45rem',
+                width: '100%',
+                boxSizing: 'border-box',
+                overflow: 'hidden'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.74rem', fontWeight: 800 }}>
-                    {!urlSec.isSafe ? (
-                      <>
-                        <AlertTriangle size={14} color="#ef4444" />
-                        <span style={{ color: '#ef4444' }}>Protokol Dilarang (XSS Protection)</span>
-                      </>
-                    ) : !urlSec.isExternal ? (
-                      <>
-                        <Check size={14} color="#10b981" />
-                        <span style={{ color: '#10b981' }}>Rute Internal Platform</span>
-                      </>
-                    ) : urlSec.isMasterTrusted ? (
-                      <>
-                        <ShieldCheck size={14} color="#3b82f6" />
-                        <span style={{ color: '#3b82f6' }}>Master Safe Domain ({urlSec.domain})</span>
-                      </>
-                    ) : (
-                      <>
-                        <Globe size={14} color="#d97706" />
-                        <span style={{ color: '#d97706' }}>Domain Pihak Ketiga ({urlSec.domain || 'Eksternal'})</span>
-                      </>
-                    )}
-                  </div>
-
-                  {urlSec.isExternal && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          safeOpenUrl(urlSec.sanitizedUrl);
-                        }}
-                        style={{
-                          padding: '0.22rem 0.55rem',
-                          borderRadius: '0.45rem',
-                          backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.12))',
-                          border: '1px solid var(--primary, #1e3a8a)',
-                          color: 'var(--primary, #1e3a8a)',
-                          fontSize: '0.68rem',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          flexShrink: 0
-                        }}
-                        title="Buka atau tes tautan ini langsung dengan alur keamanan sistem"
-                      >
-                        <ExternalLink size={12} />
-                        <span>Buka Tautan</span>
-                      </button>
-
-                      {!urlSec.isMasterTrusted && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setPreviewExternalUrl(urlSec.sanitizedUrl);
-                          }}
-                          style={{
-                            padding: '0.22rem 0.55rem',
-                            borderRadius: '0.45rem',
-                            backgroundColor: 'rgba(245, 158, 11, 0.16)',
-                            border: '1px solid rgba(245, 158, 11, 0.35)',
-                            color: '#d97706',
-                            fontSize: '0.68rem',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            flexShrink: 0
-                          }}
-                          title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
-                        >
-                          <Eye size={12} />
-                          <span>Uji Modal Konfirmasi</span>
-                        </button>
-                      )}
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', fontSize: '0.76rem', fontWeight: 800, minWidth: 0 }}>
+                  {!urlSec.isSafe ? (
+                    <>
+                      <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0, marginTop: '1px' }} />
+                      <span style={{ color: '#ef4444', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Protokol Dilarang (XSS Protection)</span>
+                    </>
+                  ) : !urlSec.isExternal ? (
+                    <>
+                      <Check size={15} color="#10b981" style={{ flexShrink: 0, marginTop: '1px' }} />
+                      <span style={{ color: '#10b981', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Rute Internal Platform</span>
+                    </>
+                  ) : urlSec.isMasterTrusted ? (
+                    <>
+                      <ShieldCheck size={15} color="#3b82f6" style={{ flexShrink: 0, marginTop: '1px' }} />
+                      <span style={{ color: '#3b82f6', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Master Safe Domain ({urlSec.domain})</span>
+                    </>
+                  ) : (
+                    <>
+                      <Globe size={15} color="#d97706" style={{ flexShrink: 0, marginTop: '1px' }} />
+                      <span style={{ color: '#d97706', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Domain Pihak Ketiga ({urlSec.domain || 'Eksternal'})</span>
+                    </>
                   )}
                 </div>
 
-                <div style={{ fontSize: '0.68rem', color: textSecondary, lineHeight: 1.45 }}>
+                <div style={{ fontSize: '0.72rem', color: textSecondary, lineHeight: 1.48, wordBreak: 'break-word' }}>
                   {!urlSec.isSafe
                     ? 'Protokol tidak aman dicegah demi keamanan sistem. Gunakan https:// atau rute internal (/...).'
                     : !urlSec.isExternal
@@ -767,55 +834,107 @@ export const LinkInsertModal: React.FC<{
                         ? 'Domain ini terdaftar resmi dalam Master Whitelist Sistem Catavor. Pengunjung langsung diarahkan ke halaman tujuan tanpa modal peringatan.'
                         : 'Domain ini berada di luar Master Safe Domain. Pengunjung toko akan melihat modal konfirmasi peringatan keamanan sebelum dialihkan.'}
                 </div>
+
+                {urlSec.isSafe && urlSec.sanitizedUrl !== '#' && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', paddingTop: '0.2rem' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const newWin = window.open(urlSec.sanitizedUrl, '_blank', 'noopener,noreferrer');
+                        if (newWin) newWin.opener = null;
+                      }}
+                      style={{
+                        minHeight: '38px',
+                        padding: '0.4rem 0.8rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.12))',
+                        border: '1px solid var(--primary, #1e3a8a)',
+                        color: 'var(--primary, #1e3a8a)',
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="Buka tautan tujuan secara langsung di tab baru"
+                    >
+                      <ExternalLink size={13} />
+                      <span>Buka Tautan</span>
+                    </button>
+
+                    {urlSec.isExternal && !urlSec.isMasterTrusted && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setPreviewExternalUrl(urlSec.sanitizedUrl);
+                        }}
+                        style={{
+                          minHeight: '38px',
+                          padding: '0.4rem 0.8rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                          border: '1px solid rgba(245, 158, 11, 0.35)',
+                          color: '#d97706',
+                          fontSize: '0.74rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
+                      >
+                        <Eye size={13} />
+                        <span>Uji Modal Konfirmasi</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
+        </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', marginTop: '0.5rem' }}>
-            {isEditing && onDelete && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onDelete();
-                  onClose();
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.5rem 0.85rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.28)',
-                  color: '#ef4444',
-                  fontSize: '0.76rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  marginRight: 'auto'
-                }}
-              >
-                <Trash2 size={13} />
-                <span>Hapus Tautan</span>
-              </button>
-            )}
+        {/* Structured Mobile Action Footer */}
+        <div
+          style={{
+            flexShrink: 0,
+            borderTop: `1px solid ${borderCol}`,
+            padding: '0.85rem 1.1rem 1.05rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.55rem',
+            backgroundColor: bgModal,
+            boxSizing: 'border-box'
+          }}
+        >
+          <div style={{ display: 'flex', gap: '0.6rem', width: '100%' }}>
             <button
               type="button"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onClose();
+                closeWithAnimation();
               }}
               style={{
-                padding: '0.5rem 0.85rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'transparent',
+                flex: 1,
+                minHeight: '44px',
+                padding: '0.6rem 0.9rem',
+                borderRadius: '0.75rem',
+                backgroundColor: inputBg,
                 border: `1px solid ${borderCol}`,
-                color: textSecondary,
-                fontSize: '0.76rem',
+                color: textPrimary,
+                fontSize: '0.82rem',
                 fontWeight: 700,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
               }}
             >
               Batal
@@ -825,24 +944,59 @@ export const LinkInsertModal: React.FC<{
               onClick={handleConfirm}
               disabled={!text.trim() || !url.trim() || !urlSec.isSafe}
               style={{
+                flex: 1.5,
+                minHeight: '44px',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.3rem',
-                padding: '0.5rem 1.1rem',
-                borderRadius: '0.65rem',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                padding: '0.6rem 1.1rem',
+                borderRadius: '0.75rem',
                 background: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
                 color: '#ffffff',
-                boxShadow: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
                 border: 'none',
-                fontSize: '0.76rem',
+                fontSize: '0.82rem',
                 fontWeight: 800,
-                cursor: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'not-allowed' : 'pointer'
+                cursor: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'not-allowed' : 'pointer',
+                whiteSpace: 'nowrap'
               }}
             >
-              {isEditing && <Check size={13} />}
+              {isEditing && <Check size={14} />}
               <span>{isEditing ? 'Simpan' : 'Sisipkan'}</span>
             </button>
           </div>
+
+          {isEditing && onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete();
+                onClose();
+              }}
+              style={{
+                width: '100%',
+                minHeight: '42px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                padding: '0.5rem 0.9rem',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.28)',
+                color: '#ef4444',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <Trash2 size={14} />
+              <span>Hapus Tautan</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -861,7 +1015,7 @@ export const LinkInsertModal: React.FC<{
 };
 
 /**
- * CTA Button Insertion Dialog Modal
+ * CTA Button Insertion Mobile Bottom Sheet Modal (AGENTS.md Rule 7.A.3)
  */
 export const ButtonInsertModal: React.FC<{
   isOpen: boolean;
@@ -894,9 +1048,19 @@ export const ButtonInsertModal: React.FC<{
   const [size, setSize] = useState<'sm' | 'md' | 'lg' | 'xl'>(initialSize);
   const [previewExternalUrl, setPreviewExternalUrl] = useState<string | null>(null);
 
+  const {
+    dragY,
+    isDragging,
+    isClosing,
+    closeWithAnimation,
+    handleDragStart,
+    handleDragMove,
+    handleDragEnd,
+  } = useMobileBottomSheetDrag(isOpen, onClose);
+
   useModalBackHandler({
     isOpen,
-    onClose,
+    onClose: closeWithAnimation,
     modalId: 'rich-button-insert-modal-mobile'
   });
 
@@ -913,11 +1077,11 @@ export const ButtonInsertModal: React.FC<{
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') closeWithAnimation();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, closeWithAnimation]);
 
   if (!isOpen) return null;
 
@@ -936,81 +1100,112 @@ export const ButtonInsertModal: React.FC<{
     onClose();
   };
 
-  const bgModal = theme?.modalBg || 'var(--bg-card, #ffffff)';
-  const borderCol = theme?.borderStrong || 'var(--border-light, #e2e8f0)';
+  const bgModal = theme?.modalBg || theme?.surface || 'var(--bg-card, #ffffff)';
+  const borderCol = theme?.borderStrong || theme?.border || 'var(--border-light, #e2e8f0)';
   const textPrimary = theme?.textPrimary || 'var(--text-primary, #0f172a)';
   const textSecondary = theme?.textSecondary || 'var(--text-secondary, #334155)';
-  const inputBg = theme?.inputBg || 'var(--bg-deep, #f8fafc)';
-  const inputBorder = theme?.inputBorder || 'var(--border-light, #e2e8f0)';
+  const inputBg = theme?.inputBg || theme?.cardAlt || 'var(--bg-deep, #f8fafc)';
+  const inputBorder = theme?.inputBorder || borderCol;
 
   return createPortal(
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={isEditing ? 'Edit Tombol Aksi (CTA)' : 'Sisipkan Tombol Aksi (CTA Button)'}
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
-        backdropFilter: 'blur(8px)',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.72)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
         zIndex: 9999999,
         display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.25rem'
+        padding: 0
       }}
       onClick={(e) => {
         e.stopPropagation();
-        onClose();
+        closeWithAnimation();
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: '430px',
           width: '100%',
+          maxWidth: '560px',
+          maxHeight: '90vh',
           backgroundColor: bgModal,
-          borderRadius: '1.25rem',
+          borderTopLeftRadius: '1.5rem',
+          borderTopRightRadius: '1.5rem',
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
           border: `1px solid ${borderCol}`,
-          boxShadow: 'var(--shadow-premium, 0 20px 50px rgba(0,0,0,0.25))',
-          padding: '1.35rem',
+          borderBottom: 'none',
+          boxShadow: '0 -12px 40px rgba(0, 0, 0, 0.38)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '1rem',
-          animation: 'fadeIn 0.2s ease-out'
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+          transform: isClosing ? 'translateY(100%)' : `translateY(${Math.max(0, dragY)}px)`,
+          transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '0.65rem',
-              backgroundColor: 'rgba(245, 158, 11, 0.15)',
+        {/* Drag Handle Bar + Clean Header (NO Close/X button per AGENTS.md Rule 7.A.3) */}
+        <div
+          style={{ touchAction: 'none', userSelect: 'none', flexShrink: 0, cursor: 'grab' }}
+          onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
+          onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
+          onTouchEnd={handleDragEnd}
+          onMouseDown={(e) => handleDragStart(e.clientY)}
+          onMouseMove={(e) => isDragging && handleDragMove(e.clientY)}
+          onMouseUp={handleDragEnd}
+        >
+          <div style={{ width: '100%', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div
+              style={{
+                width: '44px',
+                height: '5px',
+                borderRadius: '999px',
+                backgroundColor: isDark ? 'rgba(203, 213, 225, 0.55)' : 'rgba(71, 85, 105, 0.45)',
+                transform: isDragging ? 'scaleX(1.12)' : 'scaleX(1)',
+                transition: 'transform 0.15s ease'
+              }}
+            />
+          </div>
+          <div
+            style={{
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              color: '#f59e0b'
-            }}>
-              <Sparkles size={16} />
+              gap: '0.35rem',
+              padding: '0 1.15rem 0.85rem',
+              borderBottom: `1px solid ${borderCol}`
+            }}
+          >
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                border: '1px solid rgba(245, 158, 11, 0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#f59e0b'
+              }}
+            >
+              <Sparkles size={19} />
             </div>
-            <h4 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: textPrimary }}>
+            <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: textPrimary, textAlign: 'center' }}>
               {isEditing ? 'Edit Tombol Aksi (CTA)' : 'Sisipkan Tombol Aksi (CTA Button)'}
             </h4>
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onClose();
-            }}
-            style={{ background: 'none', border: 'none', color: textSecondary, cursor: 'pointer', padding: '0.2rem' }}
-          >
-            <X size={16} />
-          </button>
         </div>
 
+        {/* Scrollable Body */}
         <div
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -1019,10 +1214,21 @@ export const ButtonInsertModal: React.FC<{
               handleConfirm(e);
             }
           }}
-          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            padding: '0.95rem 1.1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.85rem',
+            boxSizing: 'border-box'
+          }}
         >
           <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.3rem' }}>
               Label Tombol
             </label>
             <input
@@ -1032,12 +1238,13 @@ export const ButtonInsertModal: React.FC<{
               onChange={e => setLabel(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.55rem 0.75rem',
-                borderRadius: '0.65rem',
+                minHeight: '44px',
+                padding: '0.6rem 0.8rem',
+                borderRadius: '0.7rem',
                 backgroundColor: inputBg,
                 border: `1px solid ${inputBorder}`,
                 color: textPrimary,
-                fontSize: '0.8rem',
+                fontSize: '0.84rem',
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
@@ -1045,7 +1252,7 @@ export const ButtonInsertModal: React.FC<{
           </div>
 
           <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.3rem' }}>
               URL / Rute Aksi
             </label>
             <input
@@ -1055,21 +1262,22 @@ export const ButtonInsertModal: React.FC<{
               onChange={e => setUrl(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.55rem 0.75rem',
-                borderRadius: '0.65rem',
+                minHeight: '44px',
+                padding: '0.6rem 0.8rem',
+                borderRadius: '0.7rem',
                 backgroundColor: inputBg,
                 border: `1px solid ${url ? (!urlSec.isSafe ? '#ef4444' : !urlSec.isExternal ? '#10b981' : urlSec.isMasterTrusted ? '#3b82f6' : '#f59e0b') : inputBorder}`,
                 color: textPrimary,
-                fontSize: '0.8rem',
+                fontSize: '0.84rem',
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
             />
             {url.trim() && (
               <div style={{
-                marginTop: '0.45rem',
-                padding: '0.65rem 0.85rem',
-                borderRadius: '0.75rem',
+                marginTop: '0.55rem',
+                padding: '0.75rem 0.85rem',
+                borderRadius: '0.85rem',
                 backgroundColor: !urlSec.isSafe
                   ? 'rgba(239, 68, 68, 0.08)'
                   : !urlSec.isExternal
@@ -1088,95 +1296,36 @@ export const ButtonInsertModal: React.FC<{
                 }`,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.35rem'
+                gap: '0.45rem',
+                width: '100%',
+                boxSizing: 'border-box',
+                overflow: 'hidden'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.74rem', fontWeight: 800 }}>
-                    {!urlSec.isSafe ? (
-                      <>
-                        <AlertTriangle size={14} color="#ef4444" />
-                        <span style={{ color: '#ef4444' }}>Protokol Dilarang (XSS Protection)</span>
-                      </>
-                    ) : !urlSec.isExternal ? (
-                      <>
-                        <Check size={14} color="#10b981" />
-                        <span style={{ color: '#10b981' }}>Rute Internal Platform</span>
-                      </>
-                    ) : urlSec.isMasterTrusted ? (
-                      <>
-                        <ShieldCheck size={14} color="#3b82f6" />
-                        <span style={{ color: '#3b82f6' }}>Master Safe Domain ({urlSec.domain})</span>
-                      </>
-                    ) : (
-                      <>
-                        <Globe size={14} color="#d97706" />
-                        <span style={{ color: '#d97706' }}>Domain Pihak Ketiga ({urlSec.domain || 'Eksternal'})</span>
-                      </>
-                    )}
-                  </div>
-
-                  {urlSec.isExternal && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          safeOpenUrl(urlSec.sanitizedUrl);
-                        }}
-                        style={{
-                          padding: '0.22rem 0.55rem',
-                          borderRadius: '0.45rem',
-                          backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.12))',
-                          border: '1px solid var(--primary, #1e3a8a)',
-                          color: 'var(--primary, #1e3a8a)',
-                          fontSize: '0.68rem',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          flexShrink: 0
-                        }}
-                        title="Buka atau tes tautan ini langsung dengan alur keamanan sistem"
-                      >
-                        <ExternalLink size={12} />
-                        <span>Buka Tautan</span>
-                      </button>
-
-                      {!urlSec.isMasterTrusted && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setPreviewExternalUrl(urlSec.sanitizedUrl);
-                          }}
-                          style={{
-                            padding: '0.22rem 0.55rem',
-                            borderRadius: '0.45rem',
-                            backgroundColor: 'rgba(245, 158, 11, 0.16)',
-                            border: '1px solid rgba(245, 158, 11, 0.35)',
-                            color: '#d97706',
-                            fontSize: '0.68rem',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            flexShrink: 0
-                          }}
-                          title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
-                        >
-                          <Eye size={12} />
-                          <span>Uji Modal Konfirmasi</span>
-                        </button>
-                      )}
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', fontSize: '0.76rem', fontWeight: 800, minWidth: 0 }}>
+                  {!urlSec.isSafe ? (
+                    <>
+                      <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0, marginTop: '1px' }} />
+                      <span style={{ color: '#ef4444', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Protokol Dilarang (XSS Protection)</span>
+                    </>
+                  ) : !urlSec.isExternal ? (
+                    <>
+                      <Check size={15} color="#10b981" style={{ flexShrink: 0, marginTop: '1px' }} />
+                      <span style={{ color: '#10b981', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Rute Internal Platform</span>
+                    </>
+                  ) : urlSec.isMasterTrusted ? (
+                    <>
+                      <ShieldCheck size={15} color="#3b82f6" style={{ flexShrink: 0, marginTop: '1px' }} />
+                      <span style={{ color: '#3b82f6', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Master Safe Domain ({urlSec.domain})</span>
+                    </>
+                  ) : (
+                    <>
+                      <Globe size={15} color="#d97706" style={{ flexShrink: 0, marginTop: '1px' }} />
+                      <span style={{ color: '#d97706', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Domain Pihak Ketiga ({urlSec.domain || 'Eksternal'})</span>
+                    </>
                   )}
                 </div>
 
-                <div style={{ fontSize: '0.68rem', color: textSecondary, lineHeight: 1.45 }}>
+                <div style={{ fontSize: '0.72rem', color: textSecondary, lineHeight: 1.48, wordBreak: 'break-word' }}>
                   {!urlSec.isSafe
                     ? 'Protokol tidak aman dicegah demi keamanan sistem. Gunakan https:// atau rute internal (/...).'
                     : !urlSec.isExternal
@@ -1185,20 +1334,83 @@ export const ButtonInsertModal: React.FC<{
                         ? 'Domain ini terdaftar resmi dalam Master Whitelist Sistem Catavor. Pengunjung langsung diarahkan ke halaman tujuan tanpa modal peringatan.'
                         : 'Domain ini berada di luar Master Safe Domain. Pengunjung toko akan melihat modal konfirmasi peringatan keamanan sebelum dialihkan.'}
                 </div>
+
+                {urlSec.isSafe && urlSec.sanitizedUrl !== '#' && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem', paddingTop: '0.2rem' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const newWin = window.open(urlSec.sanitizedUrl, '_blank', 'noopener,noreferrer');
+                        if (newWin) newWin.opener = null;
+                      }}
+                      style={{
+                        minHeight: '38px',
+                        padding: '0.4rem 0.8rem',
+                        borderRadius: '0.55rem',
+                        backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.12))',
+                        border: '1px solid var(--primary, #1e3a8a)',
+                        color: 'var(--primary, #1e3a8a)',
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="Buka tautan tujuan secara langsung di tab baru"
+                    >
+                      <ExternalLink size={13} />
+                      <span>Buka Tautan</span>
+                    </button>
+
+                    {urlSec.isExternal && !urlSec.isMasterTrusted && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setPreviewExternalUrl(urlSec.sanitizedUrl);
+                        }}
+                        style={{
+                          minHeight: '38px',
+                          padding: '0.4rem 0.8rem',
+                          borderRadius: '0.55rem',
+                          backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                          border: '1px solid rgba(245, 158, 11, 0.35)',
+                          color: '#d97706',
+                          fontSize: '0.74rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
+                      >
+                        <Eye size={13} />
+                        <span>Uji Modal Konfirmasi</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
+            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
               Ukuran Tombol
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.35rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.4rem' }}>
               {[
-                { id: 'sm', label: 'Kecil', hint: 'sm' },
-                { id: 'md', label: 'Sedang', hint: 'md (default)' },
-                { id: 'lg', label: 'Besar', hint: 'lg' },
-                { id: 'xl', label: 'Sangat Besar', hint: 'xl' }
+                { id: 'sm', label: 'Kecil' },
+                { id: 'md', label: 'Sedang' },
+                { id: 'lg', label: 'Besar' },
+                { id: 'xl', label: 'XL' }
               ].map(opt => (
                 <button
                   key={opt.id}
@@ -1209,12 +1421,13 @@ export const ButtonInsertModal: React.FC<{
                     setSize(opt.id as any);
                   }}
                   style={{
+                    minHeight: '46px',
                     padding: '0.45rem 0.25rem',
-                    borderRadius: '0.55rem',
+                    borderRadius: '0.65rem',
                     border: size === opt.id ? '2px solid var(--primary, #1e3a8a)' : `1px solid ${borderCol}`,
                     backgroundColor: size === opt.id ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
                     color: size === opt.id ? 'var(--primary, #1e3a8a)' : textPrimary,
-                    fontSize: '0.72rem',
+                    fontSize: '0.74rem',
                     fontWeight: size === opt.id ? 800 : 600,
                     cursor: 'pointer',
                     display: 'flex',
@@ -1226,22 +1439,22 @@ export const ButtonInsertModal: React.FC<{
                   }}
                 >
                   <span>{opt.label}</span>
-                  <span style={{ fontSize: '0.62rem', opacity: 0.75 }}>{opt.id.toUpperCase()}</span>
+                  <span style={{ fontSize: '0.64rem', opacity: 0.75 }}>{opt.id.toUpperCase()}</span>
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
+            <label style={{ fontSize: '0.74rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
               Gaya Desain Tombol
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.4rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.45rem' }}>
               {[
-                { id: 'primary', label: 'Warna Tema (Primary)', color: 'var(--primary, #1e3a8a)' },
-                { id: 'amber', label: 'Amber Emas (Warning)', color: '#f59e0b' },
-                { id: 'emerald', label: 'Hijau Sukses (Success)', color: '#10b981' },
-                { id: 'outline', label: 'Garis Tepi (Outline)', color: 'var(--primary, #1e3a8a)' }
+                { id: 'primary', label: 'Warna Tema', color: 'var(--primary, #1e3a8a)' },
+                { id: 'amber', label: 'Amber Emas', color: '#f59e0b' },
+                { id: 'emerald', label: 'Hijau Sukses', color: '#10b981' },
+                { id: 'outline', label: 'Garis Tepi', color: 'var(--primary, #1e3a8a)' }
               ].map(opt => (
                 <button
                   key={opt.id}
@@ -1252,40 +1465,40 @@ export const ButtonInsertModal: React.FC<{
                     setVariant(opt.id as any);
                   }}
                   style={{
-                    padding: '0.45rem 0.6rem',
-                    borderRadius: '0.55rem',
+                    minHeight: '44px',
+                    padding: '0.5rem 0.7rem',
+                    borderRadius: '0.65rem',
                     border: variant === opt.id ? `2px solid ${opt.color}` : `1px solid ${borderCol}`,
                     backgroundColor: variant === opt.id ? 'var(--primary-glow, rgba(30, 58, 138, 0.12))' : 'transparent',
                     color: textPrimary,
-                    fontSize: '0.72rem',
+                    fontSize: '0.76rem',
                     fontWeight: variant === opt.id ? 800 : 600,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.35rem'
+                    gap: '0.45rem'
                   }}
                 >
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color }} />
-                  <span>{opt.label.split(' ')[0]}</span>
+                  <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: opt.color, flexShrink: 0 }} />
+                  <span>{opt.label}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Live Preview of Button */}
           {label.trim() && (
             <div style={{
-              padding: '0.65rem',
-              borderRadius: '0.65rem',
+              padding: '0.75rem',
+              borderRadius: '0.75rem',
               backgroundColor: 'var(--bg-card-hover, var(--bg-deep, #f8fafc))',
               border: `1px dashed ${borderCol}`,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '0.3rem'
+              gap: '0.35rem'
             }}>
-              <span style={{ fontSize: '0.65rem', color: textSecondary, fontWeight: 600 }}>Pratinjau Tombol:</span>
+              <span style={{ fontSize: '0.68rem', color: textSecondary, fontWeight: 700 }}>Pratinjau Tombol:</span>
               <div
                 style={{
                   display: 'inline-flex',
@@ -1301,60 +1514,50 @@ export const ButtonInsertModal: React.FC<{
                     : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
                   color: variant === 'amber' ? '#000000' : variant === 'outline' ? 'var(--primary, #1e3a8a)' : '#ffffff',
                   border: variant === 'outline' ? '1px solid var(--primary, #1e3a8a)' : 'none',
-                  boxShadow: variant === 'outline' ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))'
+                  boxShadow: variant === 'outline' ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
+                  maxWidth: '100%'
                 }}
               >
-                <span>{label.trim()}</span>
-                {urlSec.isExternal ? <ExternalLink size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} /> : <MousePointer size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} />}
+                <span style={{ overflowWrap: 'anywhere' }}>{label.trim()}</span>
+                {urlSec.isExternal ? <ExternalLink size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} style={{ flexShrink: 0 }} /> : <MousePointer size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} style={{ flexShrink: 0 }} />}
               </div>
             </div>
           )}
+        </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', marginTop: '0.5rem' }}>
-            {isEditing && onDelete && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onDelete();
-                  onClose();
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  padding: '0.5rem 0.85rem',
-                  borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.28)',
-                  color: '#ef4444',
-                  fontSize: '0.76rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  marginRight: 'auto'
-                }}
-              >
-                <Trash2 size={13} />
-                <span>Hapus Tombol</span>
-              </button>
-            )}
+        {/* Structured Mobile Action Footer */}
+        <div
+          style={{
+            flexShrink: 0,
+            borderTop: `1px solid ${borderCol}`,
+            padding: '0.85rem 1.1rem 1.05rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.55rem',
+            backgroundColor: bgModal,
+            boxSizing: 'border-box'
+          }}
+        >
+          <div style={{ display: 'flex', gap: '0.6rem', width: '100%' }}>
             <button
               type="button"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onClose();
+                closeWithAnimation();
               }}
               style={{
-                padding: '0.5rem 0.85rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'transparent',
+                flex: 1,
+                minHeight: '44px',
+                padding: '0.6rem 0.9rem',
+                borderRadius: '0.75rem',
+                backgroundColor: inputBg,
                 border: `1px solid ${borderCol}`,
-                color: textSecondary,
-                fontSize: '0.76rem',
+                color: textPrimary,
+                fontSize: '0.82rem',
                 fontWeight: 700,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
               }}
             >
               Batal
@@ -1364,24 +1567,59 @@ export const ButtonInsertModal: React.FC<{
               onClick={handleConfirm}
               disabled={!label.trim() || !url.trim() || !urlSec.isSafe}
               style={{
+                flex: 1.5,
+                minHeight: '44px',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.3rem',
-                padding: '0.5rem 1.1rem',
-                borderRadius: '0.65rem',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                padding: '0.6rem 1.1rem',
+                borderRadius: '0.75rem',
                 background: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
                 color: '#ffffff',
-                boxShadow: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
                 border: 'none',
-                fontSize: '0.76rem',
+                fontSize: '0.82rem',
                 fontWeight: 800,
-                cursor: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'not-allowed' : 'pointer'
+                cursor: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'not-allowed' : 'pointer',
+                whiteSpace: 'nowrap'
               }}
             >
-              {isEditing && <Check size={13} />}
+              {isEditing && <Check size={14} />}
               <span>{isEditing ? 'Simpan' : 'Sisipkan Tombol'}</span>
             </button>
           </div>
+
+          {isEditing && onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete();
+                onClose();
+              }}
+              style={{
+                width: '100%',
+                minHeight: '42px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                padding: '0.5rem 0.9rem',
+                borderRadius: '0.75rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.28)',
+                color: '#ef4444',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <Trash2 size={14} />
+              <span>Hapus Tombol</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1408,76 +1646,31 @@ export const HeadingDropdown: React.FC<{
   activeHeading?: 1 | 2 | 3 | null;
 }> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = false, activeHeading = null }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
 
-  const calculateCoords = () => {
-    if (!buttonRef.current) return { top: 0, left: 0 };
-    const rect = buttonRef.current.getBoundingClientRect();
-    const menuWidth = isZen ? 205 : 190;
-    const menuHeight = 150;
-    let top = rect.bottom + 5;
-    if (top + menuHeight > window.innerHeight - 8 && rect.top > menuHeight + 10) {
-      top = Math.max(10, rect.top - menuHeight - 5);
-    }
-    let left = rect.left;
-    if (left + menuWidth > window.innerWidth - 10) {
-      left = Math.max(10, rect.right - menuWidth);
-    }
-    if (left < 10) left = 10;
-    return { top, left };
-  };
+  const {
+    dragY,
+    isDragging,
+    isClosing,
+    closeWithAnimation,
+    handleDragStart,
+    handleDragMove,
+    handleDragEnd,
+  } = useMobileBottomSheetDrag(isOpen, () => setIsOpen(false));
 
-  const handleToggle = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isOpen) {
-      setCoords(calculateCoords());
-    }
-    setIsOpen(prev => !prev);
-  };
+  useModalBackHandler({
+    isOpen,
+    onClose: closeWithAnimation,
+    modalId: `rich-heading-picker-mobile-${isZen ? 'zen' : 'std'}`
+  });
 
   useEffect(() => {
     if (!isOpen) return;
-    const handleScrollOrResize = () => {
-      if (!buttonRef.current) return;
-      const rect = buttonRef.current.getBoundingClientRect();
-      if (rect.bottom < 0 || rect.top > window.innerHeight) {
-        setIsOpen(false);
-        return;
-      }
-      setCoords(calculateCoords());
-    };
-
-    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as Node;
-      if (
-        buttonRef.current && !buttonRef.current.contains(target) &&
-        menuRef.current && !menuRef.current.contains(target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
+      if (e.key === 'Escape') closeWithAnimation();
     };
-
-    window.addEventListener('resize', handleScrollOrResize);
-    window.addEventListener('scroll', handleScrollOrResize, true);
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('resize', handleScrollOrResize);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, isZen]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, closeWithAnimation]);
 
   const handleSelect = (level: 1 | 2 | 3) => {
     onSelect(level);
@@ -1485,20 +1678,30 @@ export const HeadingDropdown: React.FC<{
   };
 
   const isHighlighted = isOpen || Boolean(activeHeading);
-  const bgCard = theme?.card || 'var(--bg-card, #ffffff)';
-  const borderCol = theme?.border || 'var(--border-light, #e2e8f0)';
+  const bgCard = theme?.modalBg || theme?.surface || theme?.card || 'var(--bg-card, #ffffff)';
+  const borderCol = theme?.borderStrong || theme?.border || 'var(--border-light, #e2e8f0)';
   const textCol = theme?.textPrimary || 'var(--text-primary, #0f172a)';
   const textMutedCol = theme?.textMuted || 'var(--text-muted, #64748b)';
+  const deepBg = theme?.cardAlt || theme?.inputBg || 'var(--bg-deep, #f8fafc)';
+
+  const headingItems: Array<{ level: 1 | 2 | 3; tag: string; label: string; syntax: string; fontSize: string }> = [
+    { level: 1, tag: 'H1', label: 'Judul Utama', syntax: '#', fontSize: '0.96rem' },
+    { level: 2, tag: 'H2', label: 'Judul Bab', syntax: '##', fontSize: '0.9rem' },
+    { level: 3, tag: 'H3', label: 'Sub-Judul', syntax: '###', fontSize: '0.84rem' },
+  ];
 
   return (
     <>
       <button
-        ref={buttonRef}
         type="button"
         className={btnClassName}
         title="Pilih Ukuran Judul (Heading H1, H2, H3)"
         onMouseDown={(e) => e.preventDefault()}
-        onClick={handleToggle}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOpen(true);
+        }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -1522,111 +1725,132 @@ export const HeadingDropdown: React.FC<{
 
       {isOpen && createPortal(
         <div
-          ref={menuRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Pilih Ukuran Judul"
           style={{
             position: 'fixed',
-            top: coords.top,
-            left: coords.left,
+            inset: 0,
             zIndex: 9999999,
-            minWidth: isZen ? '205px' : '190px',
-            maxWidth: 'calc(100vw - 20px)',
-            backgroundColor: bgCard,
-            border: `1px solid ${borderCol}`,
-            borderRadius: '0.65rem',
-            boxShadow: 'var(--shadow-premium, 0 14px 35px rgba(0,0,0,0.18))',
-            padding: '0.4rem',
+            backgroundColor: 'rgba(0, 0, 0, 0.72)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.25rem',
-            boxSizing: 'border-box'
+            justifyContent: 'flex-end',
+            alignItems: 'center'
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            closeWithAnimation();
           }}
         >
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleSelect(1)}
+          <div
+            onClick={(e) => e.stopPropagation()}
             style={{
+              width: '100%',
+              maxWidth: '560px',
+              backgroundColor: bgCard,
+              borderTopLeftRadius: '1.5rem',
+              borderTopRightRadius: '1.5rem',
+              border: `1px solid ${borderCol}`,
+              borderBottom: 'none',
+              boxShadow: '0 -12px 40px rgba(0, 0, 0, 0.38)',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.65rem',
-              padding: '0.45rem 0.65rem',
-              borderRadius: '0.45rem',
-              border: 'none',
-              backgroundColor: activeHeading === 1 ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
-              color: activeHeading === 1 ? 'var(--primary, #1e3a8a)' : textCol,
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxSizing: 'border-box',
+              transform: isClosing ? 'translateY(100%)' : `translateY(${Math.max(0, dragY)}px)`,
+              transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
-            onMouseEnter={(e) => { if (activeHeading !== 1) e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, #f1f5f9)'; }}
-            onMouseLeave={(e) => { if (activeHeading !== 1) e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
-              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--primary, #1e3a8a)', width: '20px' }}>H1</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: activeHeading === 1 ? 800 : 700 }}>Judul Utama</span>
-              {activeHeading === 1 && <Check size={13} style={{ color: 'var(--primary, #1e3a8a)', marginLeft: 'auto' }} />}
+            <div
+              style={{ touchAction: 'none', userSelect: 'none', cursor: 'grab' }}
+              onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleDragEnd}
+              onMouseDown={(e) => handleDragStart(e.clientY)}
+              onMouseMove={(e) => isDragging && handleDragMove(e.clientY)}
+              onMouseUp={handleDragEnd}
+            >
+              <div style={{ width: '100%', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    width: '44px',
+                    height: '5px',
+                    borderRadius: '999px',
+                    backgroundColor: isDark ? 'rgba(203, 213, 225, 0.55)' : 'rgba(71, 85, 105, 0.45)'
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.35rem', padding: '0 1.15rem 0.85rem', borderBottom: `1px solid ${borderCol}` }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '0.75rem', backgroundColor: 'rgba(37, 99, 235, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary, #2563eb)' }}>
+                  <Type size={19} />
+                </div>
+                <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: textCol, textAlign: 'center' }}>
+                  Pilih Ukuran Judul
+                </h4>
+              </div>
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, #f8fafc)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>#</code>
-          </button>
 
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleSelect(2)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.65rem',
-              padding: '0.45rem 0.65rem',
-              borderRadius: '0.45rem',
-              border: 'none',
-              backgroundColor: activeHeading === 2 ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
-              color: activeHeading === 2 ? 'var(--primary, #1e3a8a)' : textCol,
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => { if (activeHeading !== 2) e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, #f1f5f9)'; }}
-            onMouseLeave={(e) => { if (activeHeading !== 2) e.currentTarget.style.backgroundColor = 'transparent'; }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
-              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary, #1e3a8a)', width: '20px' }}>H2</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: activeHeading === 2 ? 800 : 600 }}>Judul Bab</span>
-              {activeHeading === 2 && <Check size={13} style={{ color: 'var(--primary, #1e3a8a)', marginLeft: 'auto' }} />}
-            </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, #f8fafc)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>##</code>
-          </button>
+            <div style={{ padding: '0.85rem 1.1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {headingItems.map((item) => {
+                const selected = activeHeading === item.level;
+                return (
+                  <button
+                    key={item.level}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSelect(item.level)}
+                    style={{
+                      minHeight: '50px',
+                      width: '100%',
+                      padding: '0.7rem 0.9rem',
+                      borderRadius: '0.85rem',
+                      border: selected ? '1.5px solid var(--primary, #2563eb)' : `1px solid ${borderCol}`,
+                      backgroundColor: selected ? 'var(--primary-glow, rgba(37, 99, 235, 0.12))' : deepBg,
+                      color: selected ? 'var(--primary, #2563eb)' : textCol,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.65rem',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <span style={{ fontWeight: 800, fontSize: item.fontSize, color: 'var(--primary, #2563eb)', minWidth: '28px' }}>{item.tag}</span>
+                      <span style={{ fontSize: '0.86rem', fontWeight: selected ? 800 : 600 }}>{item.label}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <code style={{ fontSize: '0.74rem', color: textMutedCol, backgroundColor: bgCard, padding: '0.15rem 0.45rem', borderRadius: '6px', border: `1px solid ${borderCol}` }}>{item.syntax}</code>
+                      {selected && <Check size={15} strokeWidth={2.5} color="var(--primary, #2563eb)" />}
+                    </div>
+                  </button>
+                );
+              })}
 
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleSelect(3)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.65rem',
-              padding: '0.45rem 0.65rem',
-              borderRadius: '0.45rem',
-              border: 'none',
-              backgroundColor: activeHeading === 3 ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
-              color: activeHeading === 3 ? 'var(--primary, #1e3a8a)' : textCol,
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => { if (activeHeading !== 3) e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, #f1f5f9)'; }}
-            onMouseLeave={(e) => { if (activeHeading !== 3) e.currentTarget.style.backgroundColor = 'transparent'; }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
-              <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--primary, #1e3a8a)', width: '20px' }}>H3</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: activeHeading === 3 ? 800 : 500 }}>Sub-Judul</span>
-              {activeHeading === 3 && <Check size={13} style={{ color: 'var(--primary, #1e3a8a)', marginLeft: 'auto' }} />}
+              <button
+                type="button"
+                onClick={closeWithAnimation}
+                style={{
+                  marginTop: '0.25rem',
+                  minHeight: '44px',
+                  width: '100%',
+                  borderRadius: '0.75rem',
+                  border: `1px solid ${borderCol}`,
+                  backgroundColor: deepBg,
+                  color: textCol,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, #f8fafc)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>###</code>
-          </button>
+          </div>
         </div>,
         document.body
       )}
@@ -1643,76 +1867,31 @@ export const ListDropdown: React.FC<{
   activeList?: 'bullet' | 'number' | null;
 }> = ({ onSelect, btnClassName = "rich-btn-format", isZen = false, theme, isDark = false, activeList = null }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
 
-  const calculateCoords = () => {
-    if (!buttonRef.current) return { top: 0, left: 0 };
-    const rect = buttonRef.current.getBoundingClientRect();
-    const menuWidth = isZen ? 205 : 190;
-    const menuHeight = 110;
-    let top = rect.bottom + 5;
-    if (top + menuHeight > window.innerHeight - 8 && rect.top > menuHeight + 10) {
-      top = Math.max(10, rect.top - menuHeight - 5);
-    }
-    let left = rect.left;
-    if (left + menuWidth > window.innerWidth - 10) {
-      left = Math.max(10, rect.right - menuWidth);
-    }
-    if (left < 10) left = 10;
-    return { top, left };
-  };
+  const {
+    dragY,
+    isDragging,
+    isClosing,
+    closeWithAnimation,
+    handleDragStart,
+    handleDragMove,
+    handleDragEnd,
+  } = useMobileBottomSheetDrag(isOpen, () => setIsOpen(false));
 
-  const handleToggle = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isOpen) {
-      setCoords(calculateCoords());
-    }
-    setIsOpen(prev => !prev);
-  };
+  useModalBackHandler({
+    isOpen,
+    onClose: closeWithAnimation,
+    modalId: `rich-list-picker-mobile-${isZen ? 'zen' : 'std'}`
+  });
 
   useEffect(() => {
     if (!isOpen) return;
-    const handleScrollOrResize = () => {
-      if (!buttonRef.current) return;
-      const rect = buttonRef.current.getBoundingClientRect();
-      if (rect.bottom < 0 || rect.top > window.innerHeight) {
-        setIsOpen(false);
-        return;
-      }
-      setCoords(calculateCoords());
-    };
-
-    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as Node;
-      if (
-        buttonRef.current && !buttonRef.current.contains(target) &&
-        menuRef.current && !menuRef.current.contains(target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
+      if (e.key === 'Escape') closeWithAnimation();
     };
-
-    window.addEventListener('resize', handleScrollOrResize);
-    window.addEventListener('scroll', handleScrollOrResize, true);
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('resize', handleScrollOrResize);
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, isZen]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, closeWithAnimation]);
 
   const handleSelect = (type: 'bullet' | 'number') => {
     onSelect(type);
@@ -1720,20 +1899,29 @@ export const ListDropdown: React.FC<{
   };
 
   const isHighlighted = isOpen || Boolean(activeList);
-  const bgCard = theme?.modalBg || theme?.surface || 'var(--bg-card, #ffffff)';
+  const bgCard = theme?.modalBg || theme?.surface || theme?.card || 'var(--bg-card, #ffffff)';
   const borderCol = theme?.borderStrong || theme?.border || 'var(--border-light, #e2e8f0)';
   const textCol = theme?.textPrimary || 'var(--text-primary, #0f172a)';
   const textMutedCol = theme?.textMuted || 'var(--text-muted, #64748b)';
+  const deepBg = theme?.cardAlt || theme?.inputBg || 'var(--bg-deep, #f8fafc)';
+
+  const listItems: Array<{ type: 'bullet' | 'number'; glyph: string; label: string; syntax: string }> = [
+    { type: 'bullet', glyph: '•', label: 'Daftar Poin', syntax: '-' },
+    { type: 'number', glyph: '1.', label: 'Daftar Nomor', syntax: '1.' },
+  ];
 
   return (
     <>
       <button
-        ref={buttonRef}
         type="button"
         className={btnClassName}
         title="Pilih Format Daftar (Daftar Poin, Nomor)"
         onMouseDown={(e) => e.preventDefault()}
-        onClick={handleToggle}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOpen(true);
+        }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -1757,82 +1945,132 @@ export const ListDropdown: React.FC<{
 
       {isOpen && createPortal(
         <div
-          ref={menuRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Pilih Format Daftar"
           style={{
             position: 'fixed',
-            top: coords.top,
-            left: coords.left,
+            inset: 0,
             zIndex: 9999999,
-            minWidth: isZen ? '205px' : '190px',
-            maxWidth: 'calc(100vw - 20px)',
-            backgroundColor: bgCard,
-            border: `1px solid ${borderCol}`,
-            borderRadius: '0.65rem',
-            boxShadow: 'var(--shadow-premium, 0 14px 35px rgba(0,0,0,0.18))',
-            padding: '0.4rem',
+            backgroundColor: 'rgba(0, 0, 0, 0.72)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.25rem',
-            boxSizing: 'border-box'
+            justifyContent: 'flex-end',
+            alignItems: 'center'
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            closeWithAnimation();
           }}
         >
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleSelect('bullet')}
+          <div
+            onClick={(e) => e.stopPropagation()}
             style={{
+              width: '100%',
+              maxWidth: '560px',
+              backgroundColor: bgCard,
+              borderTopLeftRadius: '1.5rem',
+              borderTopRightRadius: '1.5rem',
+              border: `1px solid ${borderCol}`,
+              borderBottom: 'none',
+              boxShadow: '0 -12px 40px rgba(0, 0, 0, 0.38)',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.65rem',
-              padding: '0.45rem 0.65rem',
-              borderRadius: '0.45rem',
-              border: 'none',
-              backgroundColor: activeList === 'bullet' ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
-              color: activeList === 'bullet' ? 'var(--primary, #1e3a8a)' : textCol,
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxSizing: 'border-box',
+              transform: isClosing ? 'translateY(100%)' : `translateY(${Math.max(0, dragY)}px)`,
+              transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
-            onMouseEnter={(e) => { if (activeList !== 'bullet') e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, #f1f5f9)'; }}
-            onMouseLeave={(e) => { if (activeList !== 'bullet') e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
-              <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary, #1e3a8a)', width: '20px', textAlign: 'center', lineHeight: 1 }}>•</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: activeList === 'bullet' ? 800 : 600 }}>Daftar Poin</span>
-              {activeList === 'bullet' && <Check size={13} style={{ color: 'var(--primary, #1e3a8a)', marginLeft: 'auto' }} />}
+            <div
+              style={{ touchAction: 'none', userSelect: 'none', cursor: 'grab' }}
+              onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleDragEnd}
+              onMouseDown={(e) => handleDragStart(e.clientY)}
+              onMouseMove={(e) => isDragging && handleDragMove(e.clientY)}
+              onMouseUp={handleDragEnd}
+            >
+              <div style={{ width: '100%', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    width: '44px',
+                    height: '5px',
+                    borderRadius: '999px',
+                    backgroundColor: isDark ? 'rgba(203, 213, 225, 0.55)' : 'rgba(71, 85, 105, 0.45)'
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.35rem', padding: '0 1.15rem 0.85rem', borderBottom: `1px solid ${borderCol}` }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '0.75rem', backgroundColor: 'rgba(37, 99, 235, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary, #2563eb)' }}>
+                  <FileText size={19} />
+                </div>
+                <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: textCol, textAlign: 'center' }}>
+                  Pilih Format Daftar
+                </h4>
+              </div>
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, #f8fafc)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>-</code>
-          </button>
 
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => handleSelect('number')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.65rem',
-              padding: '0.45rem 0.65rem',
-              borderRadius: '0.45rem',
-              border: 'none',
-              backgroundColor: activeList === 'number' ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
-              color: activeList === 'number' ? 'var(--primary, #1e3a8a)' : textCol,
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => { if (activeList !== 'number') e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, #f1f5f9)'; }}
-            onMouseLeave={(e) => { if (activeList !== 'number') e.currentTarget.style.backgroundColor = 'transparent'; }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1 }}>
-              <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary, #1e3a8a)', width: '20px', textAlign: 'center' }}>1.</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: activeList === 'number' ? 800 : 600 }}>Daftar Nomor</span>
-              {activeList === 'number' && <Check size={13} style={{ color: 'var(--primary, #1e3a8a)', marginLeft: 'auto' }} />}
+            <div style={{ padding: '0.85rem 1.1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {listItems.map((item) => {
+                const selected = activeList === item.type;
+                return (
+                  <button
+                    key={item.type}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSelect(item.type)}
+                    style={{
+                      minHeight: '50px',
+                      width: '100%',
+                      padding: '0.7rem 0.9rem',
+                      borderRadius: '0.85rem',
+                      border: selected ? '1.5px solid var(--primary, #2563eb)' : `1px solid ${borderCol}`,
+                      backgroundColor: selected ? 'var(--primary-glow, rgba(37, 99, 235, 0.12))' : deepBg,
+                      color: selected ? 'var(--primary, #2563eb)' : textCol,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.65rem',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--primary, #2563eb)', minWidth: '24px', textAlign: 'center' }}>{item.glyph}</span>
+                      <span style={{ fontSize: '0.86rem', fontWeight: selected ? 800 : 600 }}>{item.label}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <code style={{ fontSize: '0.74rem', color: textMutedCol, backgroundColor: bgCard, padding: '0.15rem 0.45rem', borderRadius: '6px', border: `1px solid ${borderCol}` }}>{item.syntax}</code>
+                      {selected && <Check size={15} strokeWidth={2.5} color="var(--primary, #2563eb)" />}
+                    </div>
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={closeWithAnimation}
+                style={{
+                  marginTop: '0.25rem',
+                  minHeight: '44px',
+                  width: '100%',
+                  borderRadius: '0.75rem',
+                  border: `1px solid ${borderCol}`,
+                  backgroundColor: deepBg,
+                  color: textCol,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
             </div>
-            <code style={{ fontSize: '0.72rem', color: textMutedCol, backgroundColor: 'var(--bg-deep, #f8fafc)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem' }}>1.</code>
-          </button>
+          </div>
         </div>,
         document.body
       )}

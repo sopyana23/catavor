@@ -4475,6 +4475,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const searchParam = encodeURIComponent(searchToUse.trim());
 
       const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=20&filter=${filterParam}&category=${categoryParam}${searchParam ? `&q=${searchParam}` : ''}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`, {
+        credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -4553,6 +4554,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const slug = storeSlug || getStoreSlug() || '';
       await fetch(`/api/notifications/${encodeURIComponent(notifId)}/read`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -4562,6 +4564,23 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
     } catch (err) {
       console.warn('Failed to mark read on server:', err);
     }
+  }, [storeSlug]);
+
+  const handleTrackNotifClick = useCallback(async (notifId: string | number) => {
+    try {
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      if (!token) return;
+      const slug = storeSlug || getStoreSlug() || '';
+      await fetch(`/api/notifications/${encodeURIComponent(notifId)}/click`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+    } catch {}
   }, [storeSlug]);
 
   const handleMarkAllAsRead = useCallback(async () => {
@@ -4574,6 +4593,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const slug = storeSlug || getStoreSlug() || '';
       await fetch('/api/notifications/read-all', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -4594,6 +4614,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const slug = storeSlug || getStoreSlug() || '';
       await fetch('/api/notifications/clear-read', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -4801,7 +4822,10 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
           const tRes = await fetch('/api/notifications/ticket', {
             method: 'POST',
             credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
           });
           if (tRes.ok) {
             const tJson = await tRes.json();
@@ -5044,6 +5068,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
                 }
               }
             }
+          } else if (payload && payload.event === 'notification_deleted' && payload.notification_id) {
+            const delId = String(payload.notification_id);
+            setNotifications(prev => {
+              const existed = prev.find(n => String(n.id) === delId);
+              if (existed) {
+                if (!existed.read) setNotifUnreadCount(c => Math.max(0, c - 1));
+                setNotifTotal(c => Math.max(0, c - 1));
+              }
+              return prev.filter(n => String(n.id) !== delId);
+            });
+            setSelectedNotificationDetail((prev: any) => (prev && String(prev.id) === delId ? null : prev));
           } else if (payload && payload.notification) {
             const newNotif = payload.notification;
             const notifIdStr = String(newNotif.id || '');
@@ -5063,7 +5098,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
               }, 15000);
             }
 
-            const isTicketNotif = newNotif.type === 'ticket' || newNotif.linkSubTab === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
+            const isTicketNotif = newNotif.type === 'ticket' || (newNotif.link_sub_tab || newNotif.linkSubTab) === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
             const isStoreStatusNotif = newNotif.category === 'KEAMANAN' && (
               newNotif.title?.includes('Ditangguhkan') || newNotif.title?.includes('Dibekukan') || newNotif.title?.includes('Permanen') || newNotif.title?.includes('Pemulihan')
             );
@@ -6020,6 +6055,38 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
     }
   }, [storeSlug]);
 
+  const handleDismissNotification = useCallback(async (notifId: string | number) => {
+    const targetId = String(notifId);
+    setNotifications(prev => {
+      const removed = prev.find(n => String(n.id) === targetId);
+      if (removed) {
+        if (!removed.read) setNotifUnreadCount(c => Math.max(0, c - 1));
+        setNotifTotal(c => Math.max(0, c - 1));
+      }
+      return prev.filter(n => String(n.id) !== targetId);
+    });
+    if (selectedNotificationDetail && String(selectedNotificationDetail.id) === targetId) {
+      handleClearSelectedNotification(true);
+    }
+    showToast('Notifikasi diabaikan dari daftar');
+    try {
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      if (!token) return;
+      const slug = storeSlug || getStoreSlug() || '';
+      await fetch(`/api/notifications/${encodeURIComponent(notifId)}/dismiss`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+    } catch (err) {
+      console.warn('Failed to dismiss notification on server:', err);
+    }
+  }, [selectedNotificationDetail, storeSlug, handleClearSelectedNotification]);
+
   // Helper: Navigasi tab admin dengan pembersihan otomatis state detail notifikasi
   const handleSelectAdminTab = useCallback((tab: any) => {
     if (tab === 'notifications' || adminTab === 'notifications') {
@@ -6080,6 +6147,7 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
           desktopFetchingNotifIdRef.current = notifId;
           const slug = storeSlug || getStoreSlug() || '';
           fetch(`/api/notifications/${encodeURIComponent(notifId)}`, {
+            credentials: 'include',
             headers: {
               'Accept': 'application/json',
               'Authorization': `Bearer ${token}`,
@@ -21798,20 +21866,24 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   return;
                 }
                 if (norm.isTicketNotif) {
+                  handleTrackNotifClick(n.id);
                   handleNavigateToTicketFromNotif(n);
                   return;
                 }
                 if (norm.isDirectNav && norm.subTab) {
+                  handleTrackNotifClick(n.id);
                   setAdminTab(norm.subTab as any);
                   if (norm.settingsTab) setSettingsSubTab(norm.settingsTab as any);
                   const slug = getStoreSlug();
                   if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
                 } else if (norm.isDetail) {
+                  handleTrackNotifClick(n.id);
                   setSelectedNotificationDetail(n);
                   setAdminTab('notifications');
                   const slug = storeSlug || getStoreSlug();
                   if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${n.id}`);
                 } else if (norm.isExternal && norm.actionUrl) {
+                  handleTrackNotifClick(n.id);
                   handleSafeExternalRedirect(norm.actionUrl);
                 } else {
                   showToast('Notifikasi ditandai dibaca');
@@ -26989,7 +27061,29 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             }
 
                             return (
-                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDismissNotification(selectedNotificationDetail.id)}
+                                  style={{
+                                    padding: '0.6rem 1.05rem',
+                                    borderRadius: '0.65rem',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 700,
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                    color: '#ef4444',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem'
+                                  }}
+                                >
+                                  <Trash2 size={14} />
+                                  <span>Abaikan</span>
+                                </button>
+
+                                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                                 <button
                                   type="button"
                                   className="btn-secondary"
@@ -27010,6 +27104,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     type="button"
                                     className="btn-primary"
                                     onClick={() => {
+                                      handleTrackNotifClick(selectedNotificationDetail.id);
                                       if (norm.isTicketNotif) {
                                         handleNavigateToTicketFromNotif(selectedNotificationDetail);
                                         return;
@@ -27043,6 +27138,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     type="button"
                                     className="btn-primary"
                                     onClick={() => {
+                                      handleTrackNotifClick(selectedNotificationDetail.id);
                                       if (norm.actionUrl) {
                                         handleSafeExternalRedirect(norm.actionUrl);
                                       }
@@ -27062,6 +27158,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     <span>{norm.btnLabel}</span>
                                   </button>
                                 )}
+                                </div>
                               </div>
                             );
                           })()}
@@ -27480,13 +27577,34 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                       </span>
                                       {item.read ? (
                                         <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 700, backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '0.1rem 0.45rem', borderRadius: '0.3rem' }}>
-                                          ✓ Terbaca
+                                          Terbaca
                                         </span>
                                       ) : (
                                         <span style={{ fontSize: '0.68rem', color: 'var(--primary)', fontWeight: 800, backgroundColor: 'var(--primary-glow)', padding: '0.1rem 0.45rem', borderRadius: '0.3rem' }}>
                                           Baru
                                         </span>
                                       )}
+                                      <button
+                                        type="button"
+                                        title="Abaikan notifikasi"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDismissNotification(item.id);
+                                        }}
+                                        style={{
+                                          padding: '0.25rem 0.4rem',
+                                          borderRadius: '0.4rem',
+                                          border: '1px solid var(--border-light)',
+                                          backgroundColor: 'transparent',
+                                          color: 'var(--text-muted)',
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center'
+                                        }}
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
                                     </div>
                                   </div>
 
@@ -27592,6 +27710,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
+                                            handleTrackNotifClick(item.id);
                                             setAdminTab(norm.subTab as any);
                                             if (norm.settingsTab) setSettingsSubTab(norm.settingsTab as any);
                                             const slug = getStoreSlug();
@@ -27620,6 +27739,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
+                                            handleTrackNotifClick(item.id);
                                             handleSafeExternalRedirect(norm.actionUrl);
                                           }}
                                           style={{
@@ -27652,6 +27772,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           handleMarkAsRead(item.id);
+                                          handleTrackNotifClick(item.id);
                                           setSelectedNotificationDetail(item);
                                           try {
                                             sessionStorage.setItem('catavor_active_desktop_notification_id', String(item.id));

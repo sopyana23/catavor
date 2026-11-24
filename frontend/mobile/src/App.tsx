@@ -4565,6 +4565,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const searchParam = encodeURIComponent(searchToUse.trim());
 
       const res = await fetch(`/api/notifications?page=${pageToFetch}&limit=15&filter=${filterParam}&category=${categoryParam}${searchParam ? `&q=${searchParam}` : ''}${slug ? `&slug=${encodeURIComponent(slug)}` : ''}`, {
+        credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -4647,6 +4648,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const slug = storeSlug || getStoreSlug() || '';
       await fetch(`/api/notifications/${encodeURIComponent(notifId)}/read`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Accept': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -4655,6 +4657,51 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       });
     } catch (err) {
       console.warn('Failed to mark read on server:', err);
+    }
+  }, [storeSlug]);
+
+  const handleTrackNotifClick = useCallback(async (notifId: string | number) => {
+    try {
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      const slug = storeSlug || getStoreSlug() || '';
+      await fetch(`/api/notifications/${encodeURIComponent(notifId)}/click`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+    } catch {}
+  }, [storeSlug]);
+
+  const handleDismissNotification = useCallback(async (notifId: string | number) => {
+    const targetId = String(notifId);
+    setNotifications(prev => {
+      const removed = prev.find(n => String(n.id) === targetId);
+      if (removed) {
+        if (!removed.read) setNotifUnreadCount(c => Math.max(0, c - 1));
+        setNotifTotal(c => Math.max(0, c - 1));
+      }
+      return prev.filter(n => String(n.id) !== targetId);
+    });
+    setSelectedNotification(prev => (prev && String(prev.id) === targetId ? null : prev));
+    showToast('Notifikasi diabaikan');
+    try {
+      const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      const slug = storeSlug || getStoreSlug() || '';
+      await fetch(`/api/notifications/${encodeURIComponent(notifId)}/dismiss`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(slug ? { 'X-Store-Slug': slug } : {})
+        }
+      });
+    } catch (err) {
+      console.warn('Failed to dismiss notification on server:', err);
     }
   }, [storeSlug]);
 
@@ -4667,6 +4714,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const slug = storeSlug || getStoreSlug() || '';
       await fetch('/api/notifications/read-all', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Accept': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -4686,6 +4734,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
       const slug = storeSlug || getStoreSlug() || '';
       await fetch('/api/notifications/clear-read', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Accept': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -4975,6 +5024,17 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
                   }));
                 }
               }
+            } else if (payload && payload.event === 'notification_deleted' && payload.notification_id) {
+              const delId = String(payload.notification_id);
+              setNotifications(prev => {
+                const existed = prev.find(n => String(n.id) === delId);
+                if (existed) {
+                  if (!existed.read) setNotifUnreadCount(c => Math.max(0, c - 1));
+                  setNotifTotal(c => Math.max(0, c - 1));
+                }
+                return prev.filter(n => String(n.id) !== delId);
+              });
+              setSelectedNotification(prev => (prev && String(prev.id) === delId ? null : prev));
             } else if (payload && payload.notification) {
               const newNotif = payload.notification;
               const notifIdStr = String(newNotif.id || '');
@@ -4994,7 +5054,7 @@ Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
                 }, 15000);
               }
 
-              const isTicketNotif = newNotif.type === 'ticket' || newNotif.linkSubTab === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
+              const isTicketNotif = newNotif.type === 'ticket' || (newNotif.link_sub_tab || newNotif.linkSubTab) === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
               const isStoreStatusNotif = newNotif.category === 'KEAMANAN' && (
                 newNotif.title?.includes('Ditangguhkan') || newNotif.title?.includes('Dibekukan') || newNotif.title?.includes('Permanen') || newNotif.title?.includes('Pemulihan')
               );
@@ -6085,6 +6145,7 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
           if (!token) return;
           const slug = storeSlug || getStoreSlug() || '';
           fetch(`/api/notifications/${encodeURIComponent(notifId)}`, {
+            credentials: 'include',
             headers: {
               'Accept': 'application/json',
               'Authorization': `Bearer ${token}`,
@@ -30546,6 +30607,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                         if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
                                                       }}
                                                       style={{
+                                                        minHeight: '44px',
                                                         padding: '0.7rem 1rem',
                                                         borderRadius: '0.75rem',
                                                         fontSize: '0.84rem',
@@ -30557,7 +30619,30 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                         backgroundColor: 'rgba(255, 255, 255, 0.04)'
                                                       }}
                                                     >
-                                                      ← Kembali ke Daftar Notifikasi
+                                                      Tutup
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => handleDismissNotification(selectedNotification.id)}
+                                                      style={{
+                                                        minHeight: '44px',
+                                                        padding: '0.7rem 1rem',
+                                                        borderRadius: '0.75rem',
+                                                        fontSize: '0.84rem',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                        width: '100%',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '0.4rem',
+                                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                                        color: '#ef4444'
+                                                      }}
+                                                    >
+                                                      <Trash2 size={15} />
+                                                      <span>Abaikan Notifikasi</span>
                                                     </button>
                                                   </div>
                                                 );
@@ -30577,6 +30662,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                       type="button"
                                                       className="btn-primary"
                                                       onClick={() => {
+                                                        handleTrackNotifClick(selectedNotification.id);
                                                         if (norm.isTicketNotif) {
                                                           handleNavigateToTicketFromNotif(selectedNotification);
                                                           return;
@@ -30612,6 +30698,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                       type="button"
                                                       className="btn-primary"
                                                       onClick={() => {
+                                                        handleTrackNotifClick(selectedNotification.id);
                                                         const url = norm.actionUrl;
                                                         if (url) {
                                                           handleSafeExternalRedirect(url);
@@ -30644,6 +30731,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                       if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications`);
                                                     }}
                                                     style={{
+                                                      minHeight: '44px',
                                                       padding: '0.7rem 1rem',
                                                       borderRadius: '0.75rem',
                                                       fontSize: '0.84rem',
@@ -30656,6 +30744,29 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                     }}
                                                   >
                                                     ← Kembali ke Daftar Notifikasi
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleDismissNotification(selectedNotification.id)}
+                                                    style={{
+                                                      minHeight: '44px',
+                                                      padding: '0.7rem 1rem',
+                                                      borderRadius: '0.75rem',
+                                                      fontSize: '0.84rem',
+                                                      fontWeight: 700,
+                                                      cursor: 'pointer',
+                                                      width: '100%',
+                                                      display: 'flex',
+                                                      alignItems: 'center',
+                                                      justifyContent: 'center',
+                                                      gap: '0.4rem',
+                                                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                                      color: '#ef4444'
+                                                    }}
+                                                  >
+                                                    <Trash2 size={15} />
+                                                    <span>Abaikan Notifikasi</span>
                                                   </button>
                                                 </div>
                                               );
@@ -31107,9 +31218,33 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                       </span>
                                                     </div>
 
-                                                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                                                      {item.timestamp || item.time}
-                                                    </span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                      <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                                        {item.timestamp || item.time}
+                                                      </span>
+                                                      <button
+                                                        type="button"
+                                                        aria-label="Abaikan notifikasi"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          handleDismissNotification(item.id);
+                                                        }}
+                                                        style={{
+                                                          minWidth: '36px',
+                                                          minHeight: '36px',
+                                                          display: 'inline-flex',
+                                                          alignItems: 'center',
+                                                          justifyContent: 'center',
+                                                          borderRadius: '0.5rem',
+                                                          border: '1px solid var(--border-light)',
+                                                          backgroundColor: 'transparent',
+                                                          color: 'var(--text-muted)',
+                                                          cursor: 'pointer'
+                                                        }}
+                                                      >
+                                                        <Trash2 size={13} />
+                                                      </button>
+                                                    </div>
                                                   </div>
 
                                                   {/* Full Title (Never truncated) */}
@@ -31248,6 +31383,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                         onClick={(e) => {
                                                           e.stopPropagation();
                                                           handleMarkAsRead(item.id);
+                                                          handleTrackNotifClick(item.id);
                                                           if (norm.isDirectNav && norm.subTab) {
                                                             if ((settings.is_suspended || settings.dormancy_status === 'suspended') && norm.subTab !== 'help') {
                                                               showToast('Aksi dinonaktifkan sementara karena status operasional toko sedang dibekukan.', 'error');

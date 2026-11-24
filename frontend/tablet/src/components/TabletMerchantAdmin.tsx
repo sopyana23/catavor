@@ -2624,7 +2624,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (searchToUse.trim()) {
         query.set('q', searchToUse.trim());
       }
-      const res = await fetch(`/api/notifications?${query.toString()}`, { headers: getHeaders() });
+      const res = await fetch(`/api/notifications?${query.toString()}`, {
+        credentials: 'include',
+        headers: getHeaders()
+      });
       if (res.ok) {
         const json = await res.json();
         const dataList = Array.isArray(json.data) ? json.data : [];
@@ -2696,7 +2699,46 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         return prev.map(n => n.id === id ? { ...n, read: true } : n);
       });
       setSelectedNotif((prev: any) => (prev && prev.id === id ? { ...prev, read: true } : prev));
-      await fetch(`/api/notifications/${id}/read`, { method: 'POST', headers: getHeaders() });
+      await fetch(`/api/notifications/${encodeURIComponent(String(id))}/read${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: getHeaders()
+      });
+    } catch {}
+  };
+
+  const handleTrackNotifClick = async (id: number | string) => {
+    try {
+      await fetch(`/api/notifications/${encodeURIComponent(String(id))}/click${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: getHeaders()
+      });
+    } catch {}
+  };
+
+  const handleDismissNotif = async (id: number | string) => {
+    const targetId = String(id);
+    try {
+      setNotifications(prev => {
+        const target = prev.find(n => String(n.id) === targetId);
+        if (target) {
+          if (target.read) {
+            setNotifReadCount(c => Math.max(0, c - 1));
+          } else {
+            setNotifUnreadCount(c => Math.max(0, c - 1));
+          }
+          setNotifTotal(c => Math.max(0, c - 1));
+        }
+        return prev.filter(n => String(n.id) !== targetId);
+      });
+      setSelectedNotif((prev: any) => (prev && String(prev.id) === targetId ? null : prev));
+      showToast('Notifikasi diabaikan dari daftar');
+      await fetch(`/api/notifications/${encodeURIComponent(targetId)}/dismiss${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: getHeaders()
+      });
     } catch {}
   };
 
@@ -2707,7 +2749,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       setNotifReadCount(prev => prev + notifUnreadCount);
       setNotifUnreadCount(0);
       showToast('Semua notifikasi ditandai telah dibaca');
-      await fetch('/api/notifications/read-all', { method: 'POST', headers: getHeaders() });
+      await fetch(`/api/notifications/read-all${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: getHeaders()
+      });
     } catch {}
   };
 
@@ -2718,7 +2764,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         setSelectedNotif(null);
       }
       showToast('Riwayat notifikasi terbaca telah dibersihkan');
-      await fetch('/api/notifications/clear-read', { method: 'POST', headers: getHeaders() });
+      await fetch(`/api/notifications/clear-read${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: getHeaders()
+      });
       fetchNotifications(1, notifFilter, notifDebouncedSearch);
     } catch {}
   };
@@ -3098,10 +3148,46 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           retryCount = 0;
         };
 
+        const recentNotifIds = new Set<string>();
         eventSource.onmessage = (e) => {
           try {
             const payload = JSON.parse(e.data);
-            if (payload && payload.event === 'quota_updated') {
+            if (payload && payload.event === 'notification_deleted' && payload.notification_id) {
+              const delId = String(payload.notification_id);
+              setNotifications(prev => {
+                const existed = prev.find(n => String(n.id) === delId);
+                if (existed) {
+                  if (!existed.read) setNotifUnreadCount(c => Math.max(0, c - 1));
+                  else setNotifReadCount(c => Math.max(0, c - 1));
+                  setNotifTotal(c => Math.max(0, c - 1));
+                }
+                return prev.filter(n => String(n.id) !== delId);
+              });
+              setSelectedNotif((prev: any) => (prev && String(prev.id) === delId ? null : prev));
+            } else if (payload && payload.notification) {
+              const newNotif = payload.notification;
+              const notifIdStr = String(newNotif.id || '');
+              if (notifIdStr && recentNotifIds.has(notifIdStr)) {
+                return;
+              }
+              if (notifIdStr) {
+                recentNotifIds.add(notifIdStr);
+                setTimeout(() => recentNotifIds.delete(notifIdStr), 15000);
+              }
+              const isTicketNotif = newNotif.type === 'ticket' || (newNotif.link_sub_tab || newNotif.linkSubTab) === 'help' || (newNotif.title && (newNotif.title.includes('CS Catavor') || newNotif.title.includes('Balasan Baru')));
+              if (!isTicketNotif && newNotif.title) {
+                showToast(`Notifikasi Baru: ${newNotif.title}`);
+              }
+              setNotifications(prev => {
+                const isAlreadyPresent = prev.some(n => String(n.id) === notifIdStr);
+                const filtered = prev.filter(n => String(n.id) !== notifIdStr);
+                if (!isAlreadyPresent) {
+                  setNotifUnreadCount(c => c + 1);
+                  setNotifTotal(c => c + 1);
+                }
+                return [newNotif, ...filtered];
+              });
+            } else if (payload && payload.event === 'quota_updated') {
               if (payload.quota) {
                 setQuota(payload.quota);
               }
@@ -11971,7 +12057,30 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   </div>
 
                   {/* Action Buttons */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-light)' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleDismissNotif(selectedNotif.id)}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0.65rem 1.15rem',
+                        borderRadius: '0.65rem',
+                        border: '1px solid rgba(239, 68, 68, 0.35)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                        color: '#ef4444',
+                        fontWeight: 700,
+                        fontSize: '0.84rem',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.45rem'
+                      }}
+                    >
+                      <Trash2 size={15} />
+                      <span>Abaikan</span>
+                    </button>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       onClick={() => {
@@ -11996,7 +12105,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     {norm.isTicketNotif && (
                       <button
                         type="button"
-                        onClick={() => handleNavigateTicketFromNotif(selectedNotif)}
+                        onClick={() => {
+                          handleTrackNotifClick(selectedNotif.id);
+                          handleNavigateTicketFromNotif(selectedNotif);
+                        }}
                         style={{
                           minHeight: '44px',
                           padding: '0.65rem 1.35rem',
@@ -12022,7 +12134,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     {norm.isDirectNav && norm.subTab && !norm.isTicketNotif && (
                       <button
                         type="button"
-                        onClick={() => handleNavigateSubTabFromNotif(norm.subTab, selectedNotif)}
+                        onClick={() => {
+                          handleTrackNotifClick(selectedNotif.id);
+                          handleNavigateSubTabFromNotif(norm.subTab, selectedNotif);
+                        }}
                         style={{
                           minHeight: '44px',
                           padding: '0.65rem 1.35rem',
@@ -12047,7 +12162,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     {norm.isExternal && norm.actionUrl && (
                       <button
                         type="button"
-                        onClick={() => safeOpenUrl(norm.actionUrl)}
+                        onClick={() => {
+                          handleTrackNotifClick(selectedNotif.id);
+                          safeOpenUrl(norm.actionUrl);
+                        }}
                         style={{
                           minHeight: '44px',
                           padding: '0.65rem 1.35rem',
@@ -12068,6 +12186,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         <span>{norm.btnLabel || norm.displayLabel || 'Kunjungi Tautan Luar'}</span>
                       </button>
                     )}
+                    </div>
                   </div>
                 </div>
               );
@@ -12360,13 +12479,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           onClick={() => {
                             handleMarkNotifRead(rawNotif.id);
                             if (norm.hasDetailArticle) {
+                              handleTrackNotifClick(rawNotif.id);
                               setSelectedNotif(rawNotif);
                               if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/notifications?id=${rawNotif.id}`);
                             } else if (norm.isTicketNotif) {
+                              handleTrackNotifClick(rawNotif.id);
                               handleNavigateTicketFromNotif(rawNotif);
                             } else if (norm.isDirectNav && norm.subTab) {
+                              handleTrackNotifClick(rawNotif.id);
                               handleNavigateSubTabFromNotif(norm.subTab, rawNotif);
                             } else if (norm.isExternal && norm.actionUrl) {
+                              handleTrackNotifClick(rawNotif.id);
                               safeOpenUrl(norm.actionUrl);
                             }
                           }}
@@ -12425,13 +12548,35 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                               </span>
                               {norm.read ? (
                                 <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 700, backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '0.1rem 0.45rem', borderRadius: '0.3rem' }}>
-                                  ✓ Terbaca
+                                  Terbaca
                                 </span>
                               ) : (
                                 <span style={{ fontSize: '0.68rem', color: isBannedNotif ? '#ef4444' : 'var(--primary)', fontWeight: 800, backgroundColor: isBannedNotif ? 'rgba(239, 68, 68, 0.1)' : 'var(--primary-glow)', padding: '0.1rem 0.45rem', borderRadius: '0.3rem' }}>
                                   Baru
                                 </span>
                               )}
+                              <button
+                                type="button"
+                                title="Abaikan notifikasi"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDismissNotif(rawNotif.id);
+                                }}
+                                style={{
+                                  minWidth: '44px',
+                                  minHeight: '44px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  borderRadius: '0.5rem',
+                                  border: '1px solid var(--border-light)',
+                                  backgroundColor: 'transparent',
+                                  color: 'var(--text-muted)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Trash2 size={14} />
+                              </button>
                             </div>
                           </div>
 
@@ -12537,6 +12682,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    handleTrackNotifClick(rawNotif.id);
                                     handleNavigateSubTabFromNotif(norm.subTab, rawNotif);
                                   }}
                                   style={{
@@ -12562,6 +12708,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    handleTrackNotifClick(rawNotif.id);
                                     safeOpenUrl(norm.actionUrl);
                                   }}
                                   style={{
@@ -12594,6 +12741,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleMarkNotifRead(rawNotif.id);
+                                  handleTrackNotifClick(rawNotif.id);
                                   setSelectedNotif(rawNotif);
                                   if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/notifications?id=${rawNotif.id}`);
                                 }}

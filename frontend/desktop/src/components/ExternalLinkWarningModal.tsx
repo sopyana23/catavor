@@ -86,7 +86,7 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
         backgroundColor: 'rgba(0, 0, 0, 0.68)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
-        zIndex: 9999999,
+        zIndex: 10000050,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

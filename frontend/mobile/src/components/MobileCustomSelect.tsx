@@ -123,7 +123,15 @@ export const MobileCustomSelect: React.FC<MobileCustomSelectProps> = ({
       setDragY(0);
       setIsDragging(false);
       setSearchQuery('');
+      return;
     }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
   const handleSelect = (val: string) => {

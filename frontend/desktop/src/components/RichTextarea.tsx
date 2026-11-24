@@ -507,259 +507,275 @@ export const LinkInsertModal: React.FC<{
   theme,
   isDark = false
 }) => {
-  const [text, setText] = useState(initialText);
-  const [url, setUrl] = useState(initialUrl);
-  const [previewExternalUrl, setPreviewExternalUrl] = useState<string | null>(null);
+    const [text, setText] = useState(initialText);
+    const [url, setUrl] = useState(initialUrl);
+    const [previewExternalUrl, setPreviewExternalUrl] = useState<string | null>(null);
 
-  useModalBackHandler({
-    isOpen,
-    onClose,
-    modalId: 'rich-link-insert-modal-desktop'
-  });
+    useModalBackHandler({
+      isOpen,
+      onClose,
+      modalId: 'rich-link-insert-modal-desktop'
+    });
 
-  useEffect(() => {
-    if (isOpen) {
-      setText(initialText || '');
-      setUrl(initialUrl || '');
-      setPreviewExternalUrl(null);
-    }
-  }, [isOpen, initialText, initialUrl]);
+    useEffect(() => {
+      if (isOpen) {
+        setText(initialText || '');
+        setUrl(initialUrl || '');
+        setPreviewExternalUrl(null);
+      }
+    }, [isOpen, initialText, initialUrl]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+    useEffect(() => {
+      if (!isOpen) return;
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose();
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+    if (!isOpen) return null;
 
-  const urlSec = checkUrlSecurity(url);
+    const urlSec = checkUrlSecurity(url);
 
-  const handleConfirm = (e?: React.SyntheticEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    if (!text.trim() || !url.trim() || !urlSec.isSafe) return;
-    const finalUrl = urlSec.sanitizedUrl !== '#' ? urlSec.sanitizedUrl : url.trim();
-    onInsert(text.trim(), finalUrl);
-    setText('');
-    setUrl('');
-    onClose();
-  };
-
-  const bgModal = theme?.modalBg || 'var(--bg-card, #ffffff)';
-  const borderCol = theme?.borderStrong || 'var(--border-light, #e2e8f0)';
-  const textPrimary = theme?.textPrimary || 'var(--text-primary, #0f172a)';
-  const textSecondary = theme?.textSecondary || 'var(--text-secondary, #334155)';
-  const inputBg = theme?.inputBg || 'var(--bg-deep, #f8fafc)';
-  const inputBorder = theme?.inputBorder || 'var(--border-light, #e2e8f0)';
-
-  return createPortal(
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: 'rgba(0, 0, 0, 0.72)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 9999999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.25rem'
-      }}
-      onClick={(e) => {
+    const handleConfirm = (e?: React.SyntheticEvent) => {
+      if (e) {
+        e.preventDefault();
         e.stopPropagation();
-        onClose();
-      }}
-    >
+      }
+      if (!text.trim() || !url.trim() || !urlSec.isSafe) return;
+      const finalUrl = urlSec.sanitizedUrl !== '#' ? urlSec.sanitizedUrl : url.trim();
+      onInsert(text.trim(), finalUrl);
+      setText('');
+      setUrl('');
+      onClose();
+    };
+
+    const bgModal = theme?.modalBg || 'var(--bg-card, #ffffff)';
+    const borderCol = theme?.borderStrong || 'var(--border-light, #e2e8f0)';
+    const textPrimary = theme?.textPrimary || 'var(--text-primary, #0f172a)';
+    const textSecondary = theme?.textSecondary || 'var(--text-secondary, #334155)';
+    const inputBg = theme?.inputBg || 'var(--bg-deep, #f8fafc)';
+    const inputBorder = theme?.inputBorder || 'var(--border-light, #e2e8f0)';
+
+    return createPortal(
       <div
-        onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: '400px',
-          width: '100%',
-          backgroundColor: bgModal,
-          borderRadius: '1.25rem',
-          border: `1px solid ${borderCol}`,
-          boxShadow: 'var(--shadow-premium, 0 20px 50px rgba(0,0,0,0.25))',
-          padding: '1.35rem',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.72)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 9999999,
           display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
-          animation: 'fadeIn 0.2s ease-out'
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.25rem'
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '0.65rem',
-              backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.15))',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--primary, #1e3a8a)'
-            }}>
-              <Link size={16} />
-            </div>
-            <h4 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: textPrimary }}>
-              {isEditing ? 'Edit Tautan (Link)' : 'Sisipkan Tautan (Link)'}
-            </h4>
-          </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onClose();
-            }}
-            style={{ background: 'none', border: 'none', color: textSecondary, cursor: 'pointer', padding: '0.2rem' }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-
         <div
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              e.stopPropagation();
-              handleConfirm(e);
-            }
+          onClick={e => e.stopPropagation()}
+          style={{
+            maxWidth: '460px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            backgroundColor: bgModal,
+            borderRadius: '1.25rem',
+            border: `1px solid ${borderCol}`,
+            boxShadow: 'var(--shadow-premium, 0 20px 50px rgba(0,0,0,0.25))',
+            padding: '1.35rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            boxSizing: 'border-box',
+            animation: 'fadeIn 0.2s ease-out'
           }}
-          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
         >
-          <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
-              Teks Tautan
-            </label>
-            <input
-              type="text"
-              placeholder="Contoh: Baca Panduan Merchant"
-              value={text}
-              onChange={e => setText(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.55rem 0.75rem',
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
                 borderRadius: '0.65rem',
-                backgroundColor: inputBg,
-                border: `1px solid ${inputBorder}`,
-                color: textPrimary,
-                fontSize: '0.8rem',
-                outline: 'none',
-                boxSizing: 'border-box'
+                backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.15))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary, #1e3a8a)'
+              }}>
+                <Link size={16} />
+              </div>
+              <h4 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: textPrimary }}>
+                {isEditing ? 'Edit Tautan (Link)' : 'Sisipkan Tautan (Link)'}
+              </h4>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
               }}
-            />
+              style={{ background: 'none', border: 'none', color: textSecondary, cursor: 'pointer', padding: '0.2rem' }}
+            >
+              <X size={16} />
+            </button>
           </div>
 
-          <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
-              URL Tujuan (Web atau Rute Internal)
-            </label>
-            <input
-              type="text"
-              placeholder="https://example.com atau /admin/settings"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.55rem 0.75rem',
-                borderRadius: '0.65rem',
-                backgroundColor: inputBg,
-                border: `1px solid ${url ? (!urlSec.isSafe ? '#ef4444' : !urlSec.isExternal ? '#10b981' : urlSec.isMasterTrusted ? '#3b82f6' : '#f59e0b') : inputBorder}`,
-                color: textPrimary,
-                fontSize: '0.8rem',
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
-            />
-            {url.trim() && (
-              <div style={{
-                marginTop: '0.45rem',
-                padding: '0.65rem 0.85rem',
-                borderRadius: '0.75rem',
-                backgroundColor: !urlSec.isSafe
-                  ? 'rgba(239, 68, 68, 0.08)'
-                  : !urlSec.isExternal
-                    ? 'rgba(16, 185, 129, 0.08)'
-                    : urlSec.isMasterTrusted
-                      ? 'rgba(59, 130, 246, 0.08)'
-                      : 'rgba(245, 158, 11, 0.08)',
-                border: `1px solid ${
-                  !urlSec.isSafe
+          <div
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                handleConfirm(e);
+              }
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+          >
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+                Teks Tautan
+              </label>
+              <input
+                type="text"
+                placeholder="Contoh: Baca Panduan Merchant"
+                value={text}
+                onChange={e => setText(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: inputBg,
+                  border: `1px solid ${inputBorder}`,
+                  color: textPrimary,
+                  fontSize: '0.8rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+                URL Tujuan (Web atau Rute Internal)
+              </label>
+              <input
+                type="text"
+                placeholder="https://example.com atau /admin/settings"
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: inputBg,
+                  border: `1px solid ${url ? (!urlSec.isSafe ? '#ef4444' : !urlSec.isExternal ? '#10b981' : urlSec.isMasterTrusted ? '#3b82f6' : '#f59e0b') : inputBorder}`,
+                  color: textPrimary,
+                  fontSize: '0.8rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              {url.trim() && (
+                <div style={{
+                  marginTop: '0.45rem',
+                  padding: '0.7rem 0.85rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: !urlSec.isSafe
+                    ? 'rgba(239, 68, 68, 0.08)'
+                    : !urlSec.isExternal
+                      ? 'rgba(16, 185, 129, 0.08)'
+                      : urlSec.isMasterTrusted
+                        ? 'rgba(59, 130, 246, 0.08)'
+                        : 'rgba(245, 158, 11, 0.08)',
+                  border: `1px solid ${!urlSec.isSafe
                     ? 'rgba(239, 68, 68, 0.25)'
                     : !urlSec.isExternal
                       ? 'rgba(16, 185, 129, 0.25)'
                       : urlSec.isMasterTrusted
                         ? 'rgba(59, 130, 246, 0.25)'
                         : 'rgba(245, 158, 11, 0.25)'
-                }`,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.35rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.74rem', fontWeight: 800 }}>
+                    }`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.45rem',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', fontSize: '0.75rem', fontWeight: 800, minWidth: 0 }}>
                     {!urlSec.isSafe ? (
                       <>
-                        <AlertTriangle size={14} color="#ef4444" />
-                        <span style={{ color: '#ef4444' }}>Protokol Dilarang (XSS Protection)</span>
+                        <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0, marginTop: '1px' }} />
+                        <span style={{ color: '#ef4444', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Protokol Dilarang (XSS Protection)</span>
                       </>
                     ) : !urlSec.isExternal ? (
                       <>
-                        <Check size={14} color="#10b981" />
-                        <span style={{ color: '#10b981' }}>Rute Internal Platform</span>
+                        <Check size={15} color="#10b981" style={{ flexShrink: 0, marginTop: '1px' }} />
+                        <span style={{ color: '#10b981', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Rute Internal Platform</span>
                       </>
                     ) : urlSec.isMasterTrusted ? (
                       <>
-                        <ShieldCheck size={14} color="#3b82f6" />
-                        <span style={{ color: '#3b82f6' }}>Master Safe Domain ({urlSec.domain})</span>
+                        <ShieldCheck size={15} color="#3b82f6" style={{ flexShrink: 0, marginTop: '1px' }} />
+                        <span style={{ color: '#3b82f6', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Master Safe Domain ({urlSec.domain})</span>
                       </>
                     ) : (
                       <>
-                        <Globe size={14} color="#d97706" />
-                        <span style={{ color: '#d97706' }}>Domain Pihak Ketiga ({urlSec.domain || 'Eksternal'})</span>
+                        <Globe size={15} color="#d97706" style={{ flexShrink: 0, marginTop: '1px' }} />
+                        <span style={{ color: '#d97706', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Domain Pihak Ketiga ({urlSec.domain || 'Eksternal'})</span>
                       </>
                     )}
                   </div>
 
-                  {urlSec.isExternal && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: textSecondary, lineHeight: 1.45, wordBreak: 'break-word' }}>
+                    {!urlSec.isSafe
+                      ? 'Protokol tidak aman dicegah demi keamanan sistem. Gunakan https:// atau rute internal (/...).'
+                      : !urlSec.isExternal
+                        ? 'Tautan internal sistem Catavor. Pengunjung bernavigasi langsung di dalam aplikasi tanpa konfirmasi eksternal.'
+                        : urlSec.isMasterTrusted
+                          ? 'Domain ini terdaftar resmi dalam Master Whitelist Sistem Catavor. Pengunjung langsung diarahkan ke halaman tujuan tanpa modal peringatan.'
+                          : 'Domain ini berada di luar Master Safe Domain. Pengunjung toko akan melihat modal konfirmasi peringatan keamanan sebelum dialihkan.'}
+                  </div>
+
+                  {urlSec.isSafe && urlSec.sanitizedUrl !== '#' && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.45rem', paddingTop: '0.15rem' }}>
                       <button
                         type="button"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          safeOpenUrl(urlSec.sanitizedUrl);
+                          const newWin = window.open(urlSec.sanitizedUrl, '_blank', 'noopener,noreferrer');
+                          if (newWin) newWin.opener = null;
                         }}
                         style={{
-                          padding: '0.22rem 0.55rem',
-                          borderRadius: '0.45rem',
+                          padding: '0.35rem 0.7rem',
+                          borderRadius: '0.5rem',
                           backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.12))',
                           border: '1px solid var(--primary, #1e3a8a)',
                           color: 'var(--primary, #1e3a8a)',
-                          fontSize: '0.68rem',
+                          fontSize: '0.72rem',
                           fontWeight: 800,
                           cursor: 'pointer',
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.3rem',
-                          flexShrink: 0
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
                         }}
-                        title="Buka atau tes tautan ini langsung dengan alur keamanan sistem"
+                        title="Buka tautan tujuan secara langsung di tab baru"
                       >
-                        <ExternalLink size={12} />
+                        <ExternalLink size={13} />
                         <span>Buka Tautan</span>
                       </button>
 
-                      {!urlSec.isMasterTrusted && (
+                      {urlSec.isExternal && !urlSec.isMasterTrusted && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -768,130 +784,119 @@ export const LinkInsertModal: React.FC<{
                             setPreviewExternalUrl(urlSec.sanitizedUrl);
                           }}
                           style={{
-                            padding: '0.22rem 0.55rem',
-                            borderRadius: '0.45rem',
+                            padding: '0.35rem 0.7rem',
+                            borderRadius: '0.5rem',
                             backgroundColor: 'rgba(245, 158, 11, 0.16)',
                             border: '1px solid rgba(245, 158, 11, 0.35)',
                             color: '#d97706',
-                            fontSize: '0.68rem',
+                            fontSize: '0.72rem',
                             fontWeight: 800,
                             cursor: 'pointer',
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.3rem',
-                            flexShrink: 0
+                            gap: '0.35rem',
+                            whiteSpace: 'nowrap'
                           }}
                           title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
                         >
-                          <Eye size={12} />
+                          <Eye size={13} />
                           <span>Uji Modal Konfirmasi</span>
                         </button>
                       )}
                     </div>
                   )}
                 </div>
+              )}
+            </div>
 
-                <div style={{ fontSize: '0.68rem', color: textSecondary, lineHeight: 1.45 }}>
-                  {!urlSec.isSafe
-                    ? 'Protokol tidak aman dicegah demi keamanan sistem. Gunakan https:// atau rute internal (/...).'
-                    : !urlSec.isExternal
-                      ? 'Tautan internal sistem Catavor. Pengunjung bernavigasi langsung di dalam aplikasi tanpa konfirmasi eksternal.'
-                      : urlSec.isMasterTrusted
-                        ? 'Domain ini terdaftar resmi dalam Master Whitelist Sistem Catavor. Pengunjung langsung diarahkan ke halaman tujuan tanpa modal peringatan.'
-                        : 'Domain ini berada di luar Master Safe Domain. Pengunjung toko akan melihat modal konfirmasi peringatan keamanan sebelum dialihkan.'}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', marginTop: '0.5rem' }}>
-            {isEditing && onDelete && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', marginTop: '0.5rem' }}>
+              {isEditing && onDelete && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onDelete();
+                    onClose();
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    padding: '0.5rem 0.85rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.28)',
+                    color: '#ef4444',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    marginRight: 'auto'
+                  }}
+                >
+                  <Trash2 size={13} />
+                  <span>Hapus Tautan</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  onDelete();
                   onClose();
                 }}
+                style={{
+                  padding: '0.5rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'transparent',
+                  border: `1px solid ${borderCol}`,
+                  color: textSecondary,
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirm}
+                disabled={!text.trim() || !url.trim() || !urlSec.isSafe}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.3rem',
-                  padding: '0.5rem 0.85rem',
+                  padding: '0.5rem 1.1rem',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.28)',
-                  color: '#ef4444',
+                  background: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
+                  color: '#ffffff',
+                  boxShadow: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
+                  border: 'none',
                   fontSize: '0.76rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  marginRight: 'auto'
+                  fontWeight: 800,
+                  cursor: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'not-allowed' : 'pointer'
                 }}
               >
-                <Trash2 size={13} />
-                <span>Hapus Tautan</span>
+                {isEditing && <Check size={13} />}
+                <span>{isEditing ? 'Simpan' : 'Sisipkan'}</span>
               </button>
-            )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onClose();
-              }}
-              style={{
-                padding: '0.5rem 0.85rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'transparent',
-                border: `1px solid ${borderCol}`,
-                color: textSecondary,
-                fontSize: '0.76rem',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              Batal
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={!text.trim() || !url.trim() || !urlSec.isSafe}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.3rem',
-                padding: '0.5rem 1.1rem',
-                borderRadius: '0.65rem',
-                background: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
-                color: '#ffffff',
-                boxShadow: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
-                border: 'none',
-                fontSize: '0.76rem',
-                fontWeight: 800,
-                cursor: (!text.trim() || !url.trim() || !urlSec.isSafe) ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {isEditing && <Check size={13} />}
-              <span>{isEditing ? 'Simpan' : 'Sisipkan'}</span>
-            </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Visualisasi Konfirmasi Keamanan (Preview Modal) */}
-      {previewExternalUrl && (
-        <ExternalLinkWarningModal
-          url={previewExternalUrl}
-          onClose={() => setPreviewExternalUrl(null)}
-          theme={theme}
-          isDark={isDark}
-        />
-      )}
-    </div>,
-    document.body
-  );
-};
+        {/* Visualisasi Konfirmasi Keamanan (Preview Modal) */}
+        {previewExternalUrl && (
+          <ExternalLinkWarningModal
+            url={previewExternalUrl}
+            onClose={() => setPreviewExternalUrl(null)}
+            theme={theme}
+            isDark={isDark}
+          />
+        )}
+      </div>,
+      document.body
+    );
+  };
 
 /**
  * CTA Button Insertion Dialog Modal
@@ -921,263 +926,279 @@ export const ButtonInsertModal: React.FC<{
   theme,
   isDark = false
 }) => {
-  const [label, setLabel] = useState(initialLabel);
-  const [url, setUrl] = useState(initialUrl);
-  const [variant, setVariant] = useState<'primary' | 'amber' | 'emerald' | 'outline'>(initialVariant);
-  const [size, setSize] = useState<'sm' | 'md' | 'lg' | 'xl'>(initialSize);
-  const [previewExternalUrl, setPreviewExternalUrl] = useState<string | null>(null);
+    const [label, setLabel] = useState(initialLabel);
+    const [url, setUrl] = useState(initialUrl);
+    const [variant, setVariant] = useState<'primary' | 'amber' | 'emerald' | 'outline'>(initialVariant);
+    const [size, setSize] = useState<'sm' | 'md' | 'lg' | 'xl'>(initialSize);
+    const [previewExternalUrl, setPreviewExternalUrl] = useState<string | null>(null);
 
-  useModalBackHandler({
-    isOpen,
-    onClose,
-    modalId: 'rich-button-insert-modal-desktop'
-  });
+    useModalBackHandler({
+      isOpen,
+      onClose,
+      modalId: 'rich-button-insert-modal-desktop'
+    });
 
-  useEffect(() => {
-    if (isOpen) {
-      setLabel(initialLabel || '');
-      setUrl(initialUrl || '');
-      setVariant(initialVariant || 'primary');
-      setSize(initialSize || 'md');
-      setPreviewExternalUrl(null);
-    }
-  }, [isOpen, initialLabel, initialUrl, initialVariant, initialSize]);
+    useEffect(() => {
+      if (isOpen) {
+        setLabel(initialLabel || '');
+        setUrl(initialUrl || '');
+        setVariant(initialVariant || 'primary');
+        setSize(initialSize || 'md');
+        setPreviewExternalUrl(null);
+      }
+    }, [isOpen, initialLabel, initialUrl, initialVariant, initialSize]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+    useEffect(() => {
+      if (!isOpen) return;
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose();
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+    if (!isOpen) return null;
 
-  const urlSec = checkUrlSecurity(url);
+    const urlSec = checkUrlSecurity(url);
 
-  const handleConfirm = (e?: React.SyntheticEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    if (!label.trim() || !url.trim() || !urlSec.isSafe) return;
-    const finalUrl = urlSec.sanitizedUrl !== '#' ? urlSec.sanitizedUrl : url.trim();
-    onInsert(label.trim(), finalUrl, variant, size);
-    setLabel('');
-    setUrl('');
-    onClose();
-  };
-
-  const bgModal = theme?.modalBg || 'var(--bg-card, #ffffff)';
-  const borderCol = theme?.borderStrong || 'var(--border-light, #e2e8f0)';
-  const textPrimary = theme?.textPrimary || 'var(--text-primary, #0f172a)';
-  const textSecondary = theme?.textSecondary || 'var(--text-secondary, #334155)';
-  const inputBg = theme?.inputBg || 'var(--bg-deep, #f8fafc)';
-  const inputBorder = theme?.inputBorder || 'var(--border-light, #e2e8f0)';
-
-  return createPortal(
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 9999999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.25rem'
-      }}
-      onClick={(e) => {
+    const handleConfirm = (e?: React.SyntheticEvent) => {
+      if (e) {
+        e.preventDefault();
         e.stopPropagation();
-        onClose();
-      }}
-    >
+      }
+      if (!label.trim() || !url.trim() || !urlSec.isSafe) return;
+      const finalUrl = urlSec.sanitizedUrl !== '#' ? urlSec.sanitizedUrl : url.trim();
+      onInsert(label.trim(), finalUrl, variant, size);
+      setLabel('');
+      setUrl('');
+      onClose();
+    };
+
+    const bgModal = theme?.modalBg || 'var(--bg-card, #ffffff)';
+    const borderCol = theme?.borderStrong || 'var(--border-light, #e2e8f0)';
+    const textPrimary = theme?.textPrimary || 'var(--text-primary, #0f172a)';
+    const textSecondary = theme?.textSecondary || 'var(--text-secondary, #334155)';
+    const inputBg = theme?.inputBg || 'var(--bg-deep, #f8fafc)';
+    const inputBorder = theme?.inputBorder || 'var(--border-light, #e2e8f0)';
+
+    return createPortal(
       <div
-        onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: '430px',
-          width: '100%',
-          backgroundColor: bgModal,
-          borderRadius: '1.25rem',
-          border: `1px solid ${borderCol}`,
-          boxShadow: 'var(--shadow-premium, 0 20px 50px rgba(0,0,0,0.25))',
-          padding: '1.35rem',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.45)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 9999999,
           display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
-          animation: 'fadeIn 0.2s ease-out'
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.25rem'
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '0.65rem',
-              backgroundColor: 'rgba(245, 158, 11, 0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#f59e0b'
-            }}>
-              <Sparkles size={16} />
-            </div>
-            <h4 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: textPrimary }}>
-              {isEditing ? 'Edit Tombol Aksi (CTA)' : 'Sisipkan Tombol Aksi (CTA Button)'}
-            </h4>
-          </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onClose();
-            }}
-            style={{ background: 'none', border: 'none', color: textSecondary, cursor: 'pointer', padding: '0.2rem' }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-
         <div
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              e.stopPropagation();
-              handleConfirm(e);
-            }
+          onClick={e => e.stopPropagation()}
+          style={{
+            maxWidth: '480px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            backgroundColor: bgModal,
+            borderRadius: '1.25rem',
+            border: `1px solid ${borderCol}`,
+            boxShadow: 'var(--shadow-premium, 0 20px 50px rgba(0,0,0,0.25))',
+            padding: '1.35rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            boxSizing: 'border-box',
+            animation: 'fadeIn 0.2s ease-out'
           }}
-          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
         >
-          <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
-              Label Tombol
-            </label>
-            <input
-              type="text"
-              placeholder="Contoh: Klaim Promo Sekarang / Buka Pengaturan"
-              value={label}
-              onChange={e => setLabel(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.55rem 0.75rem',
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
                 borderRadius: '0.65rem',
-                backgroundColor: inputBg,
-                border: `1px solid ${inputBorder}`,
-                color: textPrimary,
-                fontSize: '0.8rem',
-                outline: 'none',
-                boxSizing: 'border-box'
+                backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#f59e0b'
+              }}>
+                <Sparkles size={16} />
+              </div>
+              <h4 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: textPrimary }}>
+                {isEditing ? 'Edit Tombol Aksi (CTA)' : 'Sisipkan Tombol Aksi (CTA Button)'}
+              </h4>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
               }}
-            />
+              style={{ background: 'none', border: 'none', color: textSecondary, cursor: 'pointer', padding: '0.2rem' }}
+            >
+              <X size={16} />
+            </button>
           </div>
 
-          <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
-              URL / Rute Aksi
-            </label>
-            <input
-              type="text"
-              placeholder="https://example.com atau /admin/promotions"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.55rem 0.75rem',
-                borderRadius: '0.65rem',
-                backgroundColor: inputBg,
-                border: `1px solid ${url ? (!urlSec.isSafe ? '#ef4444' : !urlSec.isExternal ? '#10b981' : urlSec.isMasterTrusted ? '#3b82f6' : '#f59e0b') : inputBorder}`,
-                color: textPrimary,
-                fontSize: '0.8rem',
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
-            />
-            {url.trim() && (
-              <div style={{
-                marginTop: '0.45rem',
-                padding: '0.65rem 0.85rem',
-                borderRadius: '0.75rem',
-                backgroundColor: !urlSec.isSafe
-                  ? 'rgba(239, 68, 68, 0.08)'
-                  : !urlSec.isExternal
-                    ? 'rgba(16, 185, 129, 0.08)'
-                    : urlSec.isMasterTrusted
-                      ? 'rgba(59, 130, 246, 0.08)'
-                      : 'rgba(245, 158, 11, 0.08)',
-                border: `1px solid ${
-                  !urlSec.isSafe
+          <div
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                handleConfirm(e);
+              }
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+          >
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+                Label Tombol
+              </label>
+              <input
+                type="text"
+                placeholder="Contoh: Klaim Promo Sekarang / Buka Pengaturan"
+                value={label}
+                onChange={e => setLabel(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: inputBg,
+                  border: `1px solid ${inputBorder}`,
+                  color: textPrimary,
+                  fontSize: '0.8rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.25rem' }}>
+                URL / Rute Aksi
+              </label>
+              <input
+                type="text"
+                placeholder="https://example.com atau /admin/promotions"
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: inputBg,
+                  border: `1px solid ${url ? (!urlSec.isSafe ? '#ef4444' : !urlSec.isExternal ? '#10b981' : urlSec.isMasterTrusted ? '#3b82f6' : '#f59e0b') : inputBorder}`,
+                  color: textPrimary,
+                  fontSize: '0.8rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              {url.trim() && (
+                <div style={{
+                  marginTop: '0.45rem',
+                  padding: '0.7rem 0.85rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: !urlSec.isSafe
+                    ? 'rgba(239, 68, 68, 0.08)'
+                    : !urlSec.isExternal
+                      ? 'rgba(16, 185, 129, 0.08)'
+                      : urlSec.isMasterTrusted
+                        ? 'rgba(59, 130, 246, 0.08)'
+                        : 'rgba(245, 158, 11, 0.08)',
+                  border: `1px solid ${!urlSec.isSafe
                     ? 'rgba(239, 68, 68, 0.25)'
                     : !urlSec.isExternal
                       ? 'rgba(16, 185, 129, 0.25)'
                       : urlSec.isMasterTrusted
                         ? 'rgba(59, 130, 246, 0.25)'
                         : 'rgba(245, 158, 11, 0.25)'
-                }`,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.35rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.74rem', fontWeight: 800 }}>
+                    }`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.45rem',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', fontSize: '0.75rem', fontWeight: 800, minWidth: 0 }}>
                     {!urlSec.isSafe ? (
                       <>
-                        <AlertTriangle size={14} color="#ef4444" />
-                        <span style={{ color: '#ef4444' }}>Protokol Dilarang (XSS Protection)</span>
+                        <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0, marginTop: '1px' }} />
+                        <span style={{ color: '#ef4444', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Protokol Dilarang (XSS Protection)</span>
                       </>
                     ) : !urlSec.isExternal ? (
                       <>
-                        <Check size={14} color="#10b981" />
-                        <span style={{ color: '#10b981' }}>Rute Internal Platform</span>
+                        <Check size={15} color="#10b981" style={{ flexShrink: 0, marginTop: '1px' }} />
+                        <span style={{ color: '#10b981', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Rute Internal Platform</span>
                       </>
                     ) : urlSec.isMasterTrusted ? (
                       <>
-                        <ShieldCheck size={14} color="#3b82f6" />
-                        <span style={{ color: '#3b82f6' }}>Master Safe Domain ({urlSec.domain})</span>
+                        <ShieldCheck size={15} color="#3b82f6" style={{ flexShrink: 0, marginTop: '1px' }} />
+                        <span style={{ color: '#3b82f6', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Master Safe Domain ({urlSec.domain})</span>
                       </>
                     ) : (
                       <>
-                        <Globe size={14} color="#d97706" />
-                        <span style={{ color: '#d97706' }}>Domain Pihak Ketiga ({urlSec.domain || 'Eksternal'})</span>
+                        <Globe size={15} color="#d97706" style={{ flexShrink: 0, marginTop: '1px' }} />
+                        <span style={{ color: '#d97706', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Domain Pihak Ketiga ({urlSec.domain || 'Eksternal'})</span>
                       </>
                     )}
                   </div>
 
-                  {urlSec.isExternal && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: textSecondary, lineHeight: 1.45, wordBreak: 'break-word' }}>
+                    {!urlSec.isSafe
+                      ? 'Protokol tidak aman dicegah demi keamanan sistem. Gunakan https:// atau rute internal (/...).'
+                      : !urlSec.isExternal
+                        ? 'Tautan internal sistem Catavor. Pengunjung bernavigasi langsung di dalam aplikasi tanpa konfirmasi eksternal.'
+                        : urlSec.isMasterTrusted
+                          ? 'Domain ini terdaftar resmi dalam Master Whitelist Sistem Catavor. Pengunjung langsung diarahkan ke halaman tujuan tanpa modal peringatan.'
+                          : 'Domain ini berada di luar Master Safe Domain. Pengunjung toko akan melihat modal konfirmasi peringatan keamanan sebelum dialihkan.'}
+                  </div>
+
+                  {urlSec.isSafe && urlSec.sanitizedUrl !== '#' && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.45rem', paddingTop: '0.15rem' }}>
                       <button
                         type="button"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          safeOpenUrl(urlSec.sanitizedUrl);
+                          const newWin = window.open(urlSec.sanitizedUrl, '_blank', 'noopener,noreferrer');
+                          if (newWin) newWin.opener = null;
                         }}
                         style={{
-                          padding: '0.22rem 0.55rem',
-                          borderRadius: '0.45rem',
+                          padding: '0.35rem 0.7rem',
+                          borderRadius: '0.5rem',
                           backgroundColor: 'var(--primary-glow, rgba(30, 58, 138, 0.12))',
                           border: '1px solid var(--primary, #1e3a8a)',
                           color: 'var(--primary, #1e3a8a)',
-                          fontSize: '0.68rem',
+                          fontSize: '0.72rem',
                           fontWeight: 800,
                           cursor: 'pointer',
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.3rem',
-                          flexShrink: 0
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
                         }}
-                        title="Buka atau tes tautan ini langsung dengan alur keamanan sistem"
+                        title="Buka tautan tujuan secara langsung di tab baru"
                       >
-                        <ExternalLink size={12} />
+                        <ExternalLink size={13} />
                         <span>Buka Tautan</span>
                       </button>
 
-                      {!urlSec.isMasterTrusted && (
+                      {urlSec.isExternal && !urlSec.isMasterTrusted && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1186,251 +1207,240 @@ export const ButtonInsertModal: React.FC<{
                             setPreviewExternalUrl(urlSec.sanitizedUrl);
                           }}
                           style={{
-                            padding: '0.22rem 0.55rem',
-                            borderRadius: '0.45rem',
+                            padding: '0.35rem 0.7rem',
+                            borderRadius: '0.5rem',
                             backgroundColor: 'rgba(245, 158, 11, 0.16)',
                             border: '1px solid rgba(245, 158, 11, 0.35)',
                             color: '#d97706',
-                            fontSize: '0.68rem',
+                            fontSize: '0.72rem',
                             fontWeight: 800,
                             cursor: 'pointer',
-                            display: 'flex',
+                            display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.3rem',
-                            flexShrink: 0
+                            gap: '0.35rem',
+                            whiteSpace: 'nowrap'
                           }}
                           title="Lihat simulasi konfirmasi keamanan yang akan tampil bagi pengunjung"
                         >
-                          <Eye size={12} />
+                          <Eye size={13} />
                           <span>Uji Modal Konfirmasi</span>
                         </button>
                       )}
                     </div>
                   )}
                 </div>
+              )}
+            </div>
 
-                <div style={{ fontSize: '0.68rem', color: textSecondary, lineHeight: 1.45 }}>
-                  {!urlSec.isSafe
-                    ? 'Protokol tidak aman dicegah demi keamanan sistem. Gunakan https:// atau rute internal (/...).'
-                    : !urlSec.isExternal
-                      ? 'Tautan internal sistem Catavor. Pengunjung bernavigasi langsung di dalam aplikasi tanpa konfirmasi eksternal.'
-                      : urlSec.isMasterTrusted
-                        ? 'Domain ini terdaftar resmi dalam Master Whitelist Sistem Catavor. Pengunjung langsung diarahkan ke halaman tujuan tanpa modal peringatan.'
-                        : 'Domain ini berada di luar Master Safe Domain. Pengunjung toko akan melihat modal konfirmasi peringatan keamanan sebelum dialihkan.'}
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
+                Ukuran Tombol
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.35rem' }}>
+                {[
+                  { id: 'sm', label: 'Kecil', hint: 'sm' },
+                  { id: 'md', label: 'Sedang', hint: 'md (default)' },
+                  { id: 'lg', label: 'Besar', hint: 'lg' },
+                  { id: 'xl', label: 'Sangat Besar', hint: 'xl' }
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSize(opt.id as any);
+                    }}
+                    style={{
+                      padding: '0.45rem 0.25rem',
+                      borderRadius: '0.55rem',
+                      border: size === opt.id ? '2px solid var(--primary, #1e3a8a)' : `1px solid ${borderCol}`,
+                      backgroundColor: size === opt.id ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
+                      color: size === opt.id ? 'var(--primary, #1e3a8a)' : textPrimary,
+                      fontSize: '0.72rem',
+                      fontWeight: size === opt.id ? 800 : 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '2px',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span>{opt.label}</span>
+                    <span style={{ fontSize: '0.62rem', opacity: 0.75 }}>{opt.id.toUpperCase()}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
+                Gaya Desain Tombol
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.4rem' }}>
+                {[
+                  { id: 'primary', label: 'Warna Tema (Primary)', color: 'var(--primary, #1e3a8a)' },
+                  { id: 'amber', label: 'Amber Emas (Warning)', color: '#f59e0b' },
+                  { id: 'emerald', label: 'Hijau Sukses (Success)', color: '#10b981' },
+                  { id: 'outline', label: 'Garis Tepi (Outline)', color: 'var(--primary, #1e3a8a)' }
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setVariant(opt.id as any);
+                    }}
+                    style={{
+                      padding: '0.45rem 0.6rem',
+                      borderRadius: '0.55rem',
+                      border: variant === opt.id ? `2px solid ${opt.color}` : `1px solid ${borderCol}`,
+                      backgroundColor: variant === opt.id ? 'var(--primary-glow, rgba(30, 58, 138, 0.12))' : 'transparent',
+                      color: textPrimary,
+                      fontSize: '0.72rem',
+                      fontWeight: variant === opt.id ? 800 : 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color }} />
+                    <span>{opt.label.split(' ')[0]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Live Preview of Button */}
+            {label.trim() && (
+              <div style={{
+                padding: '0.65rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'var(--bg-card-hover, var(--bg-deep, #f8fafc))',
+                border: `1px dashed ${borderCol}`,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.3rem'
+              }}>
+                <span style={{ fontSize: '0.65rem', color: textSecondary, fontWeight: 600 }}>Pratinjau Tombol:</span>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: size === 'sm' ? '0.25rem' : size === 'lg' ? '0.45rem' : size === 'xl' ? '0.55rem' : '0.35rem',
+                    padding: size === 'sm' ? '0.25rem 0.6rem' : size === 'lg' ? '0.45rem 1.1rem' : size === 'xl' ? '0.6rem 1.4rem' : '0.35rem 0.85rem',
+                    borderRadius: size === 'sm' ? '0.45rem' : size === 'lg' ? '0.75rem' : size === 'xl' ? '0.85rem' : '0.6rem',
+                    fontSize: size === 'sm' ? '0.7rem' : size === 'lg' ? '0.88rem' : size === 'xl' ? '0.98rem' : '0.78rem',
+                    fontWeight: 800,
+                    background: variant === 'amber' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                      : variant === 'emerald' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                        : variant === 'outline' ? 'var(--primary-glow, rgba(30, 58, 138, 0.08))'
+                          : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
+                    color: variant === 'amber' ? '#000000' : variant === 'outline' ? 'var(--primary, #1e3a8a)' : '#ffffff',
+                    border: variant === 'outline' ? '1px solid var(--primary, #1e3a8a)' : 'none',
+                    boxShadow: variant === 'outline' ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))'
+                  }}
+                >
+                  <span>{label.trim()}</span>
+                  {urlSec.isExternal ? <ExternalLink size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} /> : <MousePointer size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} />}
                 </div>
               </div>
             )}
-          </div>
 
-          <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
-              Ukuran Tombol
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.35rem' }}>
-              {[
-                { id: 'sm', label: 'Kecil', hint: 'sm' },
-                { id: 'md', label: 'Sedang', hint: 'md (default)' },
-                { id: 'lg', label: 'Besar', hint: 'lg' },
-                { id: 'xl', label: 'Sangat Besar', hint: 'xl' }
-              ].map(opt => (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', marginTop: '0.5rem' }}>
+              {isEditing && onDelete && (
                 <button
-                  key={opt.id}
                   type="button"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    setSize(opt.id as any);
+                    onDelete();
+                    onClose();
                   }}
                   style={{
-                    padding: '0.45rem 0.25rem',
-                    borderRadius: '0.55rem',
-                    border: size === opt.id ? '2px solid var(--primary, #1e3a8a)' : `1px solid ${borderCol}`,
-                    backgroundColor: size === opt.id ? 'var(--primary-glow, rgba(30, 58, 138, 0.15))' : 'transparent',
-                    color: size === opt.id ? 'var(--primary, #1e3a8a)' : textPrimary,
-                    fontSize: '0.72rem',
-                    fontWeight: size === opt.id ? 800 : 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '2px',
-                    transition: 'all 0.15s ease'
+                    gap: '0.3rem',
+                    padding: '0.5rem 0.85rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.28)',
+                    color: '#ef4444',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    marginRight: 'auto'
                   }}
                 >
-                  <span>{opt.label}</span>
-                  <span style={{ fontSize: '0.62rem', opacity: 0.75 }}>{opt.id.toUpperCase()}</span>
+                  <Trash2 size={13} />
+                  <span>Hapus Tombol</span>
                 </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '0.35rem' }}>
-              Gaya Desain Tombol
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.4rem' }}>
-              {[
-                { id: 'primary', label: 'Warna Tema (Primary)', color: 'var(--primary, #1e3a8a)' },
-                { id: 'amber', label: 'Amber Emas (Warning)', color: '#f59e0b' },
-                { id: 'emerald', label: 'Hijau Sukses (Success)', color: '#10b981' },
-                { id: 'outline', label: 'Garis Tepi (Outline)', color: 'var(--primary, #1e3a8a)' }
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setVariant(opt.id as any);
-                  }}
-                  style={{
-                    padding: '0.45rem 0.6rem',
-                    borderRadius: '0.55rem',
-                    border: variant === opt.id ? `2px solid ${opt.color}` : `1px solid ${borderCol}`,
-                    backgroundColor: variant === opt.id ? 'var(--primary-glow, rgba(30, 58, 138, 0.12))' : 'transparent',
-                    color: textPrimary,
-                    fontSize: '0.72rem',
-                    fontWeight: variant === opt.id ? 800 : 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem'
-                  }}
-                >
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color }} />
-                  <span>{opt.label.split(' ')[0]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Live Preview of Button */}
-          {label.trim() && (
-            <div style={{
-              padding: '0.65rem',
-              borderRadius: '0.65rem',
-              backgroundColor: 'var(--bg-card-hover, var(--bg-deep, #f8fafc))',
-              border: `1px dashed ${borderCol}`,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.3rem'
-            }}>
-              <span style={{ fontSize: '0.65rem', color: textSecondary, fontWeight: 600 }}>Pratinjau Tombol:</span>
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: size === 'sm' ? '0.25rem' : size === 'lg' ? '0.45rem' : size === 'xl' ? '0.55rem' : '0.35rem',
-                  padding: size === 'sm' ? '0.25rem 0.6rem' : size === 'lg' ? '0.45rem 1.1rem' : size === 'xl' ? '0.6rem 1.4rem' : '0.35rem 0.85rem',
-                  borderRadius: size === 'sm' ? '0.45rem' : size === 'lg' ? '0.75rem' : size === 'xl' ? '0.85rem' : '0.6rem',
-                  fontSize: size === 'sm' ? '0.7rem' : size === 'lg' ? '0.88rem' : size === 'xl' ? '0.98rem' : '0.78rem',
-                  fontWeight: 800,
-                  background: variant === 'amber' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
-                    : variant === 'emerald' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                    : variant === 'outline' ? 'var(--primary-glow, rgba(30, 58, 138, 0.08))'
-                    : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
-                  color: variant === 'amber' ? '#000000' : variant === 'outline' ? 'var(--primary, #1e3a8a)' : '#ffffff',
-                  border: variant === 'outline' ? '1px solid var(--primary, #1e3a8a)' : 'none',
-                  boxShadow: variant === 'outline' ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))'
-                }}
-              >
-                <span>{label.trim()}</span>
-                {urlSec.isExternal ? <ExternalLink size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} /> : <MousePointer size={size === 'sm' ? 10 : size === 'lg' ? 14 : size === 'xl' ? 16 : 12} />}
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', marginTop: '0.5rem' }}>
-            {isEditing && onDelete && (
+              )}
               <button
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  onDelete();
                   onClose();
                 }}
+                style={{
+                  padding: '0.5rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'transparent',
+                  border: `1px solid ${borderCol}`,
+                  color: textSecondary,
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirm}
+                disabled={!label.trim() || !url.trim() || !urlSec.isSafe}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.3rem',
-                  padding: '0.5rem 0.85rem',
+                  padding: '0.5rem 1.1rem',
                   borderRadius: '0.65rem',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.28)',
-                  color: '#ef4444',
+                  background: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
+                  color: '#ffffff',
+                  boxShadow: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
+                  border: 'none',
                   fontSize: '0.76rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  marginRight: 'auto'
+                  fontWeight: 800,
+                  cursor: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'not-allowed' : 'pointer'
                 }}
               >
-                <Trash2 size={13} />
-                <span>Hapus Tombol</span>
+                {isEditing && <Check size={13} />}
+                <span>{isEditing ? 'Simpan' : 'Sisipkan Tombol'}</span>
               </button>
-            )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onClose();
-              }}
-              style={{
-                padding: '0.5rem 0.85rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'transparent',
-                border: `1px solid ${borderCol}`,
-                color: textSecondary,
-                fontSize: '0.76rem',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              Batal
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={!label.trim() || !url.trim() || !urlSec.isSafe}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.3rem',
-                padding: '0.5rem 1.1rem',
-                borderRadius: '0.65rem',
-                background: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'var(--primary-glow, rgba(30, 58, 138, 0.25))' : 'linear-gradient(135deg, var(--primary, #1e3a8a) 0%, var(--primary-hover, #172554) 100%)',
-                color: '#ffffff',
-                boxShadow: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'none' : '0 2px 8px var(--primary-glow, rgba(30, 58, 138, 0.3))',
-                border: 'none',
-                fontSize: '0.76rem',
-                fontWeight: 800,
-                cursor: (!label.trim() || !url.trim() || !urlSec.isSafe) ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {isEditing && <Check size={13} />}
-              <span>{isEditing ? 'Simpan' : 'Sisipkan Tombol'}</span>
-            </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Visualisasi Konfirmasi Keamanan (Preview Modal) */}
-      {previewExternalUrl && (
-        <ExternalLinkWarningModal
-          url={previewExternalUrl}
-          onClose={() => setPreviewExternalUrl(null)}
-          theme={theme}
-          isDark={isDark}
-        />
-      )}
-    </div>,
-    document.body
-  );
-};
+        {/* Visualisasi Konfirmasi Keamanan (Preview Modal) */}
+        {previewExternalUrl && (
+          <ExternalLinkWarningModal
+            url={previewExternalUrl}
+            onClose={() => setPreviewExternalUrl(null)}
+            theme={theme}
+            isDark={isDark}
+          />
+        )}
+      </div>,
+      document.body
+    );
+  };
 
 export const HeadingDropdown: React.FC<{
   onSelect: (level: 1 | 2 | 3) => void;
@@ -2172,9 +2182,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   // Dynamic Theme Auto-Detection (from localStorage / DOM when not explicitly provided)
   const [detectedIsDark, setDetectedIsDark] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const currentTheme = document.documentElement.getAttribute('data-theme') || 
-                           document.body.getAttribute('data-theme') || 
-                           localStorage.getItem('catavor_theme');
+      const currentTheme = document.documentElement.getAttribute('data-theme') ||
+        document.body.getAttribute('data-theme') ||
+        localStorage.getItem('catavor_theme');
       if (currentTheme) {
         const darkThemes = ['dark', 'emerald', 'cyberpunk', 'ocean', 'nordic'];
         return darkThemes.includes(currentTheme.toLowerCase());
@@ -2189,9 +2199,9 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
   useEffect(() => {
     const checkTheme = () => {
       if (typeof window !== 'undefined') {
-        const currentTheme = document.documentElement.getAttribute('data-theme') || 
-                             document.body.getAttribute('data-theme') || 
-                             localStorage.getItem('catavor_theme');
+        const currentTheme = document.documentElement.getAttribute('data-theme') ||
+          document.body.getAttribute('data-theme') ||
+          localStorage.getItem('catavor_theme');
         if (currentTheme) {
           const darkThemes = ['dark', 'emerald', 'cyberpunk', 'ocean', 'nordic'];
           setDetectedIsDark(darkThemes.includes(currentTheme.toLowerCase()));
@@ -3221,7 +3231,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           {label}
         </label>
       )}
-      
+
       {/* Inline Formatting Helper Toolbar: Single Row Bar */}
       <div className="rich-toolbar-wrapper" style={{
         display: 'flex',
@@ -3253,14 +3263,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           style={{
             padding: '0.25rem 0.5rem',
             borderRadius: '0.35rem',
-            backgroundColor: activeFormats.bold 
-              ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+            backgroundColor: activeFormats.bold
+              ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))'
               : effectiveTheme.card,
-            border: `1px solid ${activeFormats.bold 
-              ? 'var(--primary, #1e3a8a)' 
+            border: `1px solid ${activeFormats.bold
+              ? 'var(--primary, #1e3a8a)'
               : effectiveTheme.border}`,
-            color: activeFormats.bold 
-              ? 'var(--primary, #1e3a8a)' 
+            color: activeFormats.bold
+              ? 'var(--primary, #1e3a8a)'
               : effectiveTheme.textSecondary,
             fontSize: '0.78rem',
             fontWeight: activeFormats.bold ? 800 : 700,
@@ -3287,14 +3297,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           style={{
             padding: '0.25rem 0.5rem',
             borderRadius: '0.35rem',
-            backgroundColor: activeFormats.italic 
-              ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+            backgroundColor: activeFormats.italic
+              ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))'
               : effectiveTheme.card,
-            border: `1px solid ${activeFormats.italic 
-              ? 'var(--primary, #1e3a8a)' 
+            border: `1px solid ${activeFormats.italic
+              ? 'var(--primary, #1e3a8a)'
               : effectiveTheme.border}`,
-            color: activeFormats.italic 
-              ? 'var(--primary, #1e3a8a)' 
+            color: activeFormats.italic
+              ? 'var(--primary, #1e3a8a)'
               : effectiveTheme.textSecondary,
             fontSize: '0.78rem',
             fontWeight: activeFormats.italic ? 800 : 700,
@@ -3339,11 +3349,11 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
           style={{
             padding: '0.25rem 0.5rem',
             borderRadius: '0.35rem',
-            backgroundColor: activeFormats.link 
-              ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+            backgroundColor: activeFormats.link
+              ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))'
               : effectiveTheme.card,
-            border: `1px solid ${activeFormats.link 
-              ? 'var(--primary, #1e3a8a)' 
+            border: `1px solid ${activeFormats.link
+              ? 'var(--primary, #1e3a8a)'
               : effectiveTheme.border}`,
             color: 'var(--primary, #1e3a8a)',
             fontSize: '0.78rem',
@@ -3585,7 +3595,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
       {/* ZEN FULLSCREEN OVERLAY MODAL (Rendered in Portal)                         */}
       {/* ========================================================================= */}
       {isFullscreen && createPortal(
-        <div 
+        <div
           id="rich-textarea-fullscreen-portal"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -3612,7 +3622,7 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
             boxSizing: 'border-box'
           }}
         >
-          <div 
+          <div
             onClick={(e) => e.stopPropagation()}
             style={{
               width: isMobileScreen ? '100vw' : 'min(860px, calc(100vw - 2.5rem))',
@@ -3756,14 +3766,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 style={{
                   padding: '0.28rem 0.6rem',
                   borderRadius: '0.4rem',
-                  backgroundColor: activeFormats.bold 
-                    ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+                  backgroundColor: activeFormats.bold
+                    ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))'
                     : effectiveTheme.card,
-                  border: `1px solid ${activeFormats.bold 
-                    ? 'var(--primary, #1e3a8a)' 
+                  border: `1px solid ${activeFormats.bold
+                    ? 'var(--primary, #1e3a8a)'
                     : effectiveTheme.border}`,
-                  color: activeFormats.bold 
-                    ? 'var(--primary, #1e3a8a)' 
+                  color: activeFormats.bold
+                    ? 'var(--primary, #1e3a8a)'
                     : effectiveTheme.textSecondary,
                   fontSize: '0.78rem',
                   fontWeight: activeFormats.bold ? 800 : 700,
@@ -3786,14 +3796,14 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 style={{
                   padding: '0.28rem 0.6rem',
                   borderRadius: '0.4rem',
-                  backgroundColor: activeFormats.italic 
-                    ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+                  backgroundColor: activeFormats.italic
+                    ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))'
                     : effectiveTheme.card,
-                  border: `1px solid ${activeFormats.italic 
-                    ? 'var(--primary, #1e3a8a)' 
+                  border: `1px solid ${activeFormats.italic
+                    ? 'var(--primary, #1e3a8a)'
                     : effectiveTheme.border}`,
-                  color: activeFormats.italic 
-                    ? 'var(--primary, #1e3a8a)' 
+                  color: activeFormats.italic
+                    ? 'var(--primary, #1e3a8a)'
                     : effectiveTheme.textSecondary,
                   fontSize: '0.78rem',
                   fontWeight: activeFormats.italic ? 800 : 700,
@@ -3832,11 +3842,11 @@ export const RichTextarea: React.FC<RichTextareaProps> = ({
                 style={{
                   padding: '0.28rem 0.6rem',
                   borderRadius: '0.4rem',
-                  backgroundColor: activeFormats.link 
-                    ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))' 
+                  backgroundColor: activeFormats.link
+                    ? 'var(--primary-glow, rgba(30, 58, 138, 0.18))'
                     : effectiveTheme.card,
-                  border: `1px solid ${activeFormats.link 
-                    ? 'var(--primary, #1e3a8a)' 
+                  border: `1px solid ${activeFormats.link
+                    ? 'var(--primary, #1e3a8a)'
                     : effectiveTheme.border}`,
                   color: 'var(--primary, #1e3a8a)',
                   fontSize: '0.78rem',
