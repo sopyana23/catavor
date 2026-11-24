@@ -18640,7 +18640,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           style={{
             position: 'fixed',
             right: '16px',
-            bottom: !isSubPage ? 'calc(72px + env(safe-area-inset-bottom, 0px))' : 'calc(20px + env(safe-area-inset-bottom, 0px))',
+            bottom: !isSubPage
+              ? 'calc(72px + env(safe-area-inset-bottom, 0px))'
+              : activeView === 'rbac'
+                ? 'calc(80px + env(safe-area-inset-bottom, 0px))'
+                : 'calc(20px + env(safe-area-inset-bottom, 0px))',
             zIndex: 40,
             width: '42px',
             height: '42px',

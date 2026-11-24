@@ -1107,17 +1107,22 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                         </div>
 
                         <span style={{
-                          padding: '0.25rem 0.65rem',
-                          borderRadius: '999px',
-                          fontSize: '0.7rem',
-                          fontWeight: 800,
+                          padding: '0.28rem 0.6rem',
+                          borderRadius: '0.45rem',
+                          fontSize: '0.71rem',
+                          fontWeight: 700,
                           backgroundColor: badge.bg,
                           color: badge.color,
                           border: `1px solid ${badge.border}`,
+                          borderLeft: `3px solid ${badge.color}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
                           whiteSpace: 'nowrap',
                           flexShrink: 0
                         }}>
-                          {staff.role_name}
+                          <Shield size={11} />
+                          <span>{staff.role_name}</span>
                         </span>
                       </div>
                     </div>
@@ -1234,7 +1239,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
               <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
                 {roles.map((r) => {
                   const isSelected = selectedRoleSlug === r.slug;
-                  const isSuper = r.slug === 'superadmin';
+                  const roleBadge = getRoleBadge(r.slug);
                   const roleUnsaved = Boolean(hasUnsavedChanges[r.slug]);
 
                   return (
@@ -1244,21 +1249,27 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                       onClick={() => setSelectedRoleSlug(r.slug)}
                       style={{
                         minHeight: '44px',
-                        padding: '0.45rem 0.95rem',
-                        borderRadius: '0.75rem',
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: '0.6rem',
                         backgroundColor: isSelected ? theme.primaryActionBg : theme.cardAlt,
                         color: isSelected ? '#ffffff' : theme.textPrimary,
                         border: `1px solid ${isSelected ? theme.primaryActionBg : theme.border}`,
-                        fontSize: '0.8rem',
-                        fontWeight: 800,
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '0.4rem',
+                        gap: '0.45rem',
                         transition: 'all 0.15s ease'
                       }}
                     >
-                      <Shield size={14} />
+                      <span style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '999px',
+                        backgroundColor: isSelected ? '#ffffff' : roleBadge.color,
+                        flexShrink: 0
+                      }} />
                       <span>{r.name}</span>
                       {roleUnsaved && (
                         <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />

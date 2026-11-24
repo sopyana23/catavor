@@ -1143,15 +1143,17 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                           <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '0.35rem',
-                            padding: '0.3rem 0.75rem',
-                            borderRadius: '999px',
-                            fontSize: '0.74rem',
-                            fontWeight: 800,
+                            gap: '0.4rem',
+                            padding: '0.28rem 0.65rem',
+                            borderRadius: '0.45rem',
+                            fontSize: '0.73rem',
+                            fontWeight: 700,
                             backgroundColor: badge.bg,
                             color: badge.color,
                             border: `1px solid ${badge.border}`,
-                            letterSpacing: '0.02em'
+                            borderLeft: `3px solid ${badge.color}`,
+                            whiteSpace: 'nowrap',
+                            letterSpacing: '0.01em'
                           }}>
                             <Shield size={12} />
                             <span>{staff.role_name}</span>
@@ -1326,45 +1328,86 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                       <th
                         key={r.slug}
                         style={{
-                          padding: '1rem 0.85rem',
+                          padding: '0.85rem 0.75rem',
                           textAlign: 'center',
-                          minWidth: '150px',
+                          minWidth: '176px',
+                          maxWidth: '200px',
+                          verticalAlign: 'top',
                           backgroundColor: colors.stickyHeaderBg,
                           borderLeft: `1px solid ${colors.border}`
                         }}
                       >
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem' }}>
-                          <span style={{
-                            padding: '0.25rem 0.65rem',
-                            borderRadius: '999px',
-                            fontSize: '0.72rem',
-                            fontWeight: 800,
-                            backgroundColor: badge.bg,
-                            color: badge.color,
-                            border: `1px solid ${badge.border}`
-                          }}>
-                            {r.name}
-                          </span>
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          alignItems: 'stretch',
+                          gap: '0.55rem',
+                          minHeight: '92px'
+                        }}>
+                          <div
+                            title={r.name}
+                            style={{
+                              padding: '0.45rem 0.6rem',
+                              borderRadius: '0.5rem',
+                              backgroundColor: badge.bg,
+                              border: `1px solid ${badge.border}`,
+                              borderLeft: `3px solid ${badge.color}`,
+                              textAlign: 'left',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.15rem',
+                              boxSizing: 'border-box'
+                            }}
+                          >
+                            <span style={{
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              color: colors.textPrimary,
+                              lineHeight: 1.25,
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden'
+                            }}>
+                              {r.name}
+                            </span>
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 600,
+                              fontFamily: 'monospace',
+                              color: badge.color,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {r.slug}
+                            </span>
+                          </div>
                           {r.slug !== 'superadmin' ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.35rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem', width: '100%' }}>
                               <button
                                 type="button"
                                 onClick={() => handleSaveMatrix(r.slug)}
                                 disabled={Boolean(savingMatrix) || !canMutate}
                                 style={{
-                                  padding: '0.35rem 0.75rem',
-                                  fontSize: '0.74rem',
-                                  borderRadius: '0.5rem',
+                                  width: '100%',
+                                  height: '30px',
+                                  padding: '0 0.65rem',
+                                  fontSize: '0.72rem',
+                                  borderRadius: '0.45rem',
                                   border: '1px solid #059669',
                                   backgroundColor: isDark ? 'rgba(5, 150, 105, 0.15)' : '#ecfdf5',
                                   color: isDark ? '#34d399' : '#059669',
                                   cursor: !canMutate ? 'not-allowed' : 'pointer',
                                   opacity: !canMutate ? 0.5 : 1,
-                                  fontWeight: 800,
+                                  fontWeight: 700,
                                   display: 'inline-flex',
                                   alignItems: 'center',
+                                  justifyContent: 'center',
                                   gap: '0.35rem',
-                                  transition: 'all 0.15s ease'
+                                  transition: 'all 0.15s ease',
+                                  boxSizing: 'border-box'
                                 }}
                                 title={`Simpan hak akses untuk role ${r.name}`}
                               >
@@ -1372,7 +1415,7 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                 <span>{isSaving ? 'Menyimpan...' : 'Simpan Role'}</span>
                               </button>
                               {!r.is_system && canMutate && (
-                                <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', width: '100%' }}>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -1385,7 +1428,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                       });
                                     }}
                                     style={{
-                                      padding: '0.2rem 0.5rem',
+                                      height: '26px',
+                                      padding: '0 0.45rem',
                                       fontSize: '0.68rem',
                                       borderRadius: '0.4rem',
                                       border: `1px solid ${isDark ? 'rgba(96, 165, 250, 0.35)' : '#bfdbfe'}`,
@@ -1395,7 +1439,9 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                       cursor: 'pointer',
                                       display: 'inline-flex',
                                       alignItems: 'center',
+                                      justifyContent: 'center',
                                       gap: '0.2rem',
+                                      boxSizing: 'border-box'
                                     }}
                                     title={`Edit metadata custom role ${r.name}`}
                                   >
@@ -1406,7 +1452,8 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                     type="button"
                                     onClick={() => setConfirmDialog({ type: 'delete_role', slug: r.slug, name: r.name })}
                                     style={{
-                                      padding: '0.2rem 0.5rem',
+                                      height: '26px',
+                                      padding: '0 0.45rem',
                                       fontSize: '0.68rem',
                                       borderRadius: '0.4rem',
                                       border: '1px solid rgba(239, 68, 68, 0.3)',
@@ -1416,7 +1463,9 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                                       cursor: 'pointer',
                                       display: 'inline-flex',
                                       alignItems: 'center',
+                                      justifyContent: 'center',
                                       gap: '0.2rem',
+                                      boxSizing: 'border-box'
                                     }}
                                     title={`Hapus custom role ${r.name}`}
                                   >
@@ -1427,7 +1476,22 @@ export const AdminRBACManagement: React.FC<AdminRBACManagementProps> = ({
                               )}
                             </div>
                           ) : (
-                            <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                            <span style={{
+                              width: '100%',
+                              height: '30px',
+                              padding: '0 0.65rem',
+                              borderRadius: '0.45rem',
+                              backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5',
+                              border: `1px solid ${isDark ? 'rgba(16, 185, 129, 0.28)' : '#a7f3d0'}`,
+                              fontSize: '0.7rem',
+                              color: isDark ? '#34d399' : '#059669',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.3rem',
+                              boxSizing: 'border-box'
+                            }}>
                               <Lock size={11} />
                               <span>Akses Penuh</span>
                             </span>

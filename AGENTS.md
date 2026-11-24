@@ -154,6 +154,11 @@ Masing-masing codebase wajib memiliki filosofi tampilan dan ergonomi yang mewaki
        3. Intersepsi tombol hardware/browser back (`useModalBackHandler`),
        4. Tombol aksi yang jelas di footer jika ada (misal: "Batal", "Tutup", "Reset", "Terapkan").
      - **Pilihan Opsi Ramah Sentuhan**: Pilihan opsi disajikan dalam touch pills / buttons (touch target $\ge 44\text{px}$) dengan indikator centang (`Check`) dan highlight warna aksen.
+     - **Haram Modal Bertumpuk di Mobile — Wajib In-Sheet Drill-Down (`MobileSheetStack`) (MANDATORY)**:
+       - Dilarang keras menumpuk Modal / Bottom Sheet kedua (beserta backdrop blur tambahan) di atas Bottom Sheet yang sudah terbuka (*anti-nested-modal stacking* & *anti-double-blur*).
+       - Seluruh Bottom Sheet formulir atau multi-langkah di `frontend/mobile` yang memuat pemilih opsi (`MobileCustomSelect`) atau sub-tampilan **WAJIB** membungkus kontennya di dalam `<MobileSheetStack isDark={...}>` (`src/components/MobileCustomSelect.tsx`) dengan `overflow: 'hidden'` pada kontainer sheet luar, sehingga pemilihan opsi bergeser secara horizontal (`translateX(-50%)`, `0.28s cubic-bezier(0.16, 1, 0.3, 1)`) di dalam **satu sheet dan satu backdrop tunggal**.
+       - Pemicu di dalam `MobileSheetStack` wajib memakai ikon `ChevronRight`, halaman opsi wajib menyediakan tombol `< Kembali` (`ChevronLeft`, touch target $\ge 44\text{px}$, tetap tanpa tombol silang di header), seluruh state input form terjaga, dan `useModalBackHandler` menangani stack secara LIFO (Back ke-1 kembali ke panel form, Back ke-2 menutup sheet).
+       - `MobileCustomSelect` yang berdiri langsung di halaman (di luar modal form) tetap membuka satu Bottom Sheet tunggal seperti biasa.
 
 
 ### B. Single Source of Truth & Database Consistency (MANDATORY)
