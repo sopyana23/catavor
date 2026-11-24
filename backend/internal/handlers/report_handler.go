@@ -108,6 +108,106 @@ func GetReportMetrics(db *gorm.DB) map[string]int64 {
 	return metrics
 }
 
+func isValidReportStatus(s string) bool {
+	switch s {
+	case "pending", "investigating", "re_review", "action_taken", "resolved", "rejected", "dismissed", "banned":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidModerationAction(a string) bool {
+	switch a {
+	case "none", "warning_issued", "item_needs_fix", "item_locked", "item_hidden", "item_banned", "item_restored", "catalog_suspended", "catalog_banned", "account_banned", "catalog_reactivated":
+		return true
+	default:
+		return false
+	}
+}
+
+func isEnforcementAction(a string) bool {
+	switch a {
+	case "warning_issued", "item_needs_fix", "item_locked", "item_hidden", "item_banned", "catalog_suspended", "catalog_banned", "account_banned":
+		return true
+	default:
+		return false
+	}
+}
+
+func truncateRunes(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if max <= 0 || s == "" {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	if max <= 3 {
+		return string(r[:max])
+	}
+	return string(r[:max-3]) + "..."
+}
+
+// buildBoundedModerationActionURL constructs a navigation action_url guaranteed to fit
+// within VARCHAR(512) (capped at 480 bytes) by omitting admin_notes and bounding optional labels.
+func buildBoundedModerationActionURL(basePath string, entries ...[2]string) string {
+	const maxURLLen = 480
+	q := url.Values{}
+	for _, pair := range entries {
+		k := pair[0]
+		v := strings.TrimSpace(pair[1])
+		if v == "" || k == "notes" {
+			continue
+		}
+		if k == "target_name" || k == "reason" {
+			v = truncateRunes(v, 80)
+		} else if k == "item_type" {
+			v = truncateRunes(v, 48)
+		}
+		q.Set(k, v)
+	}
+
+	build := func() string {
+		enc := q.Encode()
+		if enc == "" {
+			return basePath
+		}
+		return basePath + "?" + enc
+	}
+
+	res := build()
+	if len(res) <= maxURLLen {
+		return res
+	}
+
+	// Trim lowest-priority display metadata first so routing keys (action, report, item, edit) remain intact
+	for _, dropKey := range []string{"target_name", "reason", "item_type", "target_type"} {
+		q.Del(dropKey)
+		res = build()
+		if len(res) <= maxURLLen {
+			return res
+		}
+	}
+
+	if len(basePath) > maxURLLen {
+		return basePath[:maxURLLen]
+	}
+	return res
+}
+
+func applyModerationFaunasTableUpdate(tx *gorm.DB, productID uint, storeID uint, updates map[string]interface{}) error {
+	if tx == nil || productID == 0 || !tx.Migrator().HasTable("faunas") {
+		return nil
+	}
+	q := tx.Table("faunas").Where("id = ?", productID)
+	if storeID > 0 {
+		q = q.Where("store_id = ?", storeID)
+	}
+	return q.Updates(updates).Error
+}
+
 // CreateReport handles public submission of a Catalog or Item violation report with Anti-Spam deduplication
 func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 	if h.db == nil {
@@ -188,10 +288,15 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 		}
 		if targetItemID != nil && *targetItemID > 0 {
 			var p models.Product
-			if err := h.db.Where("id = ? AND store_id = ?", *targetItemID, store.ID).First(&p).Error; err == nil {
-				product = &p
-				itemName = p.Name
+			if err := h.db.Where("id = ? AND store_id = ?", *targetItemID, store.ID).First(&p).Error; err != nil {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"success": false,
+					"code":    "ITEM_NOT_FOUND",
+					"message": "Item katalog yang dilaporkan tidak ditemukan pada katalog tersebut.",
+				})
 			}
+			product = &p
+			itemName = p.Name
 		}
 		if itemName == "" && req.ItemName != "" {
 			itemName = security.SanitizePlainText(req.ItemName, 255)
@@ -229,11 +334,15 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 	// 7. Anti-Spam & Deduplication Guard: Check recent active report from same IP / Email within 24h
 	var existingActiveCount int64
 	checkQ := h.db.Model(&models.Report{}).
-		Where("store_id = ? AND status IN ('pending', 'investigating')", store.ID).
+		Where("store_id = ? AND status IN ('pending', 'investigating', 're_review')", store.ID).
 		Where("created_at >= ?", time.Now().UTC().Add(-24*time.Hour))
 
-	if req.TargetType == "item" && req.FaunaID != nil {
-		checkQ = checkQ.Where("fauna_id = ?", *req.FaunaID)
+	if req.TargetType == "item" {
+		if product != nil {
+			checkQ = checkQ.Where("target_type = 'item' AND (product_id = ? OR fauna_id = ?)", product.ID, product.ID)
+		} else {
+			checkQ = checkQ.Where("target_type = 'item' AND item_name = ?", itemName)
+		}
 	} else {
 		checkQ = checkQ.Where("target_type = 'catalog'")
 	}
@@ -278,18 +387,6 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 		report.ItemType = product.ProductType
 	} else if req.TargetType == "item" && itemName != "" {
 		report.ItemName = itemName
-		targetItemID := req.ProductID
-		if targetItemID == nil || *targetItemID == 0 {
-			targetItemID = req.FaunaID
-		}
-		if targetItemID != nil && *targetItemID > 0 {
-			report.ProductID = targetItemID
-			report.FaunaID = targetItemID
-			var p models.Product
-			if err := h.db.Select("id, product_type").Where("id = ?", *targetItemID).First(&p).Error; err == nil {
-				report.ItemType = p.ProductType
-			}
-		}
 	}
 
 	if err := h.db.Create(&report).Error; err != nil {
@@ -349,6 +446,9 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 		})
 	}
 	page := c.QueryInt("page", 1)
+	if page < 1 {
+		page = 1
+	}
 	limit := c.QueryInt("limit", 15)
 	if limit <= 0 || limit > 100 {
 		limit = 15
@@ -417,8 +517,11 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 		var activeCount int64
 		subQ := h.db.Model(&models.Report{}).
 			Where("store_id = ? AND status IN ('pending', 'investigating', 're_review')", r.StoreID)
-		if r.TargetType == "item" && r.FaunaID != nil {
-			subQ = subQ.Where("fauna_id = ?", *r.FaunaID)
+		targetPID := r.GetTargetProductID()
+		if r.TargetType == "item" && targetPID != nil && *targetPID > 0 {
+			subQ = subQ.Where("target_type = 'item' AND (product_id = ? OR fauna_id = ?)", *targetPID, *targetPID)
+		} else if r.TargetType == "item" && r.ItemName != "" {
+			subQ = subQ.Where("target_type = 'item' AND item_name = ?", r.ItemName)
 		} else {
 			subQ = subQ.Where("target_type = 'catalog'")
 		}
@@ -478,9 +581,12 @@ func (h *ReportHandler) Show(c *fiber.Ctx) error {
 
 	// 1. Fetch other active reports for the same entity (Multi-Reporter Evidence Timeline)
 	var activeReports []models.Report
+	targetPID := report.GetTargetProductID()
 	actQ := h.db.Where("store_id = ? AND id != ? AND status IN ('pending', 'investigating', 're_review')", report.StoreID, report.ID)
-	if report.TargetType == "item" && report.FaunaID != nil {
-		actQ = actQ.Where("fauna_id = ?", *report.FaunaID)
+	if report.TargetType == "item" && targetPID != nil && *targetPID > 0 {
+		actQ = actQ.Where("target_type = 'item' AND (product_id = ? OR fauna_id = ?)", *targetPID, *targetPID)
+	} else if report.TargetType == "item" && report.ItemName != "" {
+		actQ = actQ.Where("target_type = 'item' AND item_name = ?", report.ItemName)
 	} else {
 		actQ = actQ.Where("target_type = 'catalog'")
 	}
@@ -489,8 +595,10 @@ func (h *ReportHandler) Show(c *fiber.Ctx) error {
 	// 2. Fetch prior review history for this entity (Prior Audit History Ledger)
 	var historyReports []models.Report
 	histQ := h.db.Where("store_id = ? AND id != ? AND status IN ('action_taken', 'dismissed', 'resolved')", report.StoreID, report.ID)
-	if report.TargetType == "item" && report.FaunaID != nil {
-		histQ = histQ.Where("fauna_id = ?", *report.FaunaID)
+	if report.TargetType == "item" && targetPID != nil && *targetPID > 0 {
+		histQ = histQ.Where("target_type = 'item' AND (product_id = ? OR fauna_id = ?)", *targetPID, *targetPID)
+	} else if report.TargetType == "item" && report.ItemName != "" {
+		histQ = histQ.Where("target_type = 'item' AND item_name = ?", report.ItemName)
 	} else {
 		histQ = histQ.Where("target_type = 'catalog'")
 	}
@@ -544,7 +652,14 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 
 	newStatus := report.Status
 	if req.Status != "" {
-		newStatus = security.SanitizePlainText(req.Status, 50)
+		newStatus = strings.ToLower(strings.TrimSpace(security.SanitizePlainText(req.Status, 50)))
+		if !isValidReportStatus(newStatus) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"code":    "INVALID_REPORT_STATUS",
+				"message": "Status laporan tidak valid.",
+			})
+		}
 	}
 
 	adminNotes := report.AdminNotes
@@ -554,10 +669,19 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 
 	actionTaken := report.ActionTaken
 	if req.ActionTaken != "" {
-		actionTaken = security.SanitizePlainText(req.ActionTaken, 100)
+		actionTaken = strings.ToLower(strings.TrimSpace(security.SanitizePlainText(req.ActionTaken, 100)))
+		if !isValidModerationAction(actionTaken) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"code":    "INVALID_MODERATION_ACTION",
+				"message": "Tindakan moderasi tidak valid.",
+			})
+		}
 	}
 
-	if actionTaken == "catalog_banned" && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating" || newStatus == "pending") {
+	targetProductID := report.GetTargetProductID()
+
+	if (actionTaken == "catalog_banned" || actionTaken == "account_banned") && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating" || newStatus == "pending") {
 		newStatus = "banned"
 	}
 	if actionTaken == "item_banned" && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating" || newStatus == "pending") {
@@ -572,19 +696,19 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 
 	// Automatic Failsafe: Promote action_taken if status is banned/resolved/action_taken but action_taken was omitted or none
 	if newStatus == "banned" && (actionTaken == "" || actionTaken == "none") {
-		if report.TargetType == "item" && report.FaunaID != nil && *report.FaunaID > 0 {
+		if report.TargetType == "item" && targetProductID != nil && *targetProductID > 0 {
 			actionTaken = "item_banned"
 		} else {
 			actionTaken = "catalog_banned"
 		}
 	} else if newStatus == "action_taken" && (actionTaken == "" || actionTaken == "none") {
-		if report.TargetType == "item" && report.FaunaID != nil && *report.FaunaID > 0 {
+		if report.TargetType == "item" && targetProductID != nil && *targetProductID > 0 {
 			actionTaken = "item_hidden"
 		} else {
 			actionTaken = "catalog_suspended"
 		}
 	} else if newStatus == "resolved" && (actionTaken == "" || actionTaken == "none") {
-		if report.TargetType == "item" && report.FaunaID != nil && *report.FaunaID > 0 {
+		if report.TargetType == "item" && targetProductID != nil && *targetProductID > 0 {
 			actionTaken = "item_restored"
 		} else {
 			actionTaken = "catalog_reactivated"
@@ -600,7 +724,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	// A staff member with only compliance:reports:manage cannot execute store suspension/ban or reactivation.
 	// They require compliance:stores:suspend or superadmin role.
 	isStoreEnforcement := actionTaken == "catalog_suspended" || actionTaken == "catalog_banned" ||
-		actionTaken == "identity_banned" || actionTaken == "catalog_reactivated" || actionTaken == "account_banned"
+		actionTaken == "catalog_reactivated" || actionTaken == "account_banned"
 	if applyEnforcement && isStoreEnforcement {
 		userVal, _ := c.Locals("user").(*models.User)
 		canSuspendStore := userVal != nil && (userVal.IsSuperadmin() || services.GetRBACService().HasPermission(userVal, "compliance:stores:suspend"))
@@ -610,6 +734,34 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				"code":    "FORBIDDEN_PERMISSION_REQUIRED",
 				"message": "Akses ditolak: Anda memerlukan izin 'compliance:stores:suspend' untuk menerapkan penegakan sanksi toko.",
 			})
+		}
+	}
+
+	// Prevent zombie reactivation or state regression of permanently banned stores/items (CRIT-03)
+	if applyEnforcement {
+		if (actionTaken == "catalog_reactivated" || actionTaken == "catalog_suspended") && report.StoreID > 0 {
+			var targetStore models.Store
+			if err := h.db.Select("id, dormancy_status, is_blacklisted").First(&targetStore, report.StoreID).Error; err == nil {
+				if targetStore.DormancyStatus == "banned" || targetStore.DormancyStatus == "purged" || targetStore.IsBlacklisted {
+					return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+						"success": false,
+						"code":    "STORE_PERMANENTLY_BANNED",
+						"message": "Katalog ini telah diblokir secara permanen dan tidak dapat dipulihkan atau diubah status penangguhannya.",
+					})
+				}
+			}
+		}
+		if (actionTaken == "item_restored" || actionTaken == "item_needs_fix" || actionTaken == "item_locked" || actionTaken == "item_hidden") && targetProductID != nil && *targetProductID > 0 {
+			var targetProd models.Product
+			if err := h.db.Unscoped().Select("id, moderation_status").Where("id = ? AND store_id = ?", *targetProductID, report.StoreID).First(&targetProd).Error; err == nil {
+				if targetProd.ModerationStatus == "banned" {
+					return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+						"success": false,
+						"code":    "ITEM_PERMANENTLY_BANNED",
+						"message": "Item ini telah diblokir permanen dan tidak dapat dipulihkan atau diubah status moderasinya.",
+					})
+				}
+			}
 		}
 	}
 
@@ -670,9 +822,11 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 
 	var relatedReports []models.Report
 	relQ := h.db.Select("id, report_number, reporter_email").
-		Where("store_id = ? AND id != ? AND status IN ('pending', 'investigating')", report.StoreID, report.ID)
-	if report.TargetType == "item" && report.FaunaID != nil {
-		relQ = relQ.Where("fauna_id = ?", *report.FaunaID)
+		Where("store_id = ? AND id != ? AND status IN ('pending', 'investigating', 're_review')", report.StoreID, report.ID)
+	if report.TargetType == "item" && targetProductID != nil && *targetProductID > 0 {
+		relQ = relQ.Where("target_type = 'item' AND (product_id = ? OR fauna_id = ?)", *targetProductID, *targetProductID)
+	} else if report.TargetType == "item" && report.ItemName != "" {
+		relQ = relQ.Where("target_type = 'item' AND item_name = ?", report.ItemName)
 	} else {
 		relQ = relQ.Where("target_type = 'catalog'")
 	}
@@ -700,21 +854,25 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 			return err
 		}
 
-		// B. Bulk-update all other pending/investigating reports for this same entity
+		// B. Bulk-update all other pending/investigating/re_review reports for this same entity
 		bulkUpdateQ := tx.Model(&models.Report{}).
-			Where("store_id = ? AND id != ? AND status IN ('pending', 'investigating')", report.StoreID, report.ID)
-		if report.TargetType == "item" && report.FaunaID != nil {
-			bulkUpdateQ = bulkUpdateQ.Where("fauna_id = ?", *report.FaunaID)
+			Where("store_id = ? AND id != ? AND status IN ('pending', 'investigating', 're_review')", report.StoreID, report.ID)
+		if report.TargetType == "item" && targetProductID != nil && *targetProductID > 0 {
+			bulkUpdateQ = bulkUpdateQ.Where("target_type = 'item' AND (product_id = ? OR fauna_id = ?)", *targetProductID, *targetProductID)
+		} else if report.TargetType == "item" && report.ItemName != "" {
+			bulkUpdateQ = bulkUpdateQ.Where("target_type = 'item' AND item_name = ?", report.ItemName)
 		} else {
 			bulkUpdateQ = bulkUpdateQ.Where("target_type = 'catalog'")
 		}
-		_ = bulkUpdateQ.Updates(map[string]interface{}{
+		if err := bulkUpdateQ.Updates(map[string]interface{}{
 			"status":       newStatus,
 			"action_taken": actionTaken,
 			"reviewed_at":  &now,
 			"reviewed_by":  actorUserID,
 			"admin_notes":  adminNotes,
-		}).Error
+		}).Error; err != nil {
+			return err
+		}
 
 		// C. Execute Technical Enforcement
 		if applyEnforcement {
@@ -722,84 +880,70 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 			case "item_banned":
 				// Immediate soft delete for banned item: releases merchant quota & removes from catalog
 				// Forensic media & metadata preserved 90 days in vault for law enforcement compliance (UU ITE & PP 71/2019)
-				if report.FaunaID != nil && *report.FaunaID > 0 {
-					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
+				if targetProductID != nil && *targetProductID > 0 {
+					updates := map[string]interface{}{
 						"is_active":             false,
 						"moderation_status":     "banned",
 						"moderation_reason":     adminNotes,
 						"moderated_at":          &now,
 						"deleted_at":            &now,
 						"is_shipping_available": false,
-					}).Error; err != nil {
+					}
+					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *targetProductID, report.StoreID).Updates(updates).Error; err != nil {
 						return err
 					}
-					_ = tx.Table("faunas").Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
-						"is_active":             false,
-						"moderation_status":     "banned",
-						"moderation_reason":     adminNotes,
-						"moderated_at":          &now,
-						"deleted_at":            &now,
-						"is_shipping_available": false,
-					}).Error
+					if err := applyModerationFaunasTableUpdate(tx, *targetProductID, report.StoreID, updates); err != nil {
+						return err
+					}
 				}
 			case "item_needs_fix":
-				if report.FaunaID != nil && *report.FaunaID > 0 {
-					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
+				if targetProductID != nil && *targetProductID > 0 {
+					updates := map[string]interface{}{
 						"is_active":             false,
 						"moderation_status":     "needs_fix",
 						"moderation_reason":     adminNotes,
 						"moderated_at":          &now,
 						"is_shipping_available": false,
-					}).Error; err != nil {
+					}
+					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *targetProductID, report.StoreID).Updates(updates).Error; err != nil {
 						return err
 					}
-					_ = tx.Table("faunas").Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
-						"is_active":             false,
-						"moderation_status":     "needs_fix",
-						"moderation_reason":     adminNotes,
-						"moderated_at":          &now,
-						"is_shipping_available": false,
-					}).Error
+					if err := applyModerationFaunasTableUpdate(tx, *targetProductID, report.StoreID, updates); err != nil {
+						return err
+					}
 				}
 			case "item_locked", "item_hidden":
-				if report.FaunaID != nil && *report.FaunaID > 0 {
-					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
+				if targetProductID != nil && *targetProductID > 0 {
+					updates := map[string]interface{}{
 						"is_active":             false,
 						"moderation_status":     "locked",
 						"moderation_reason":     adminNotes,
 						"moderated_at":          &now,
 						"is_shipping_available": false,
-					}).Error; err != nil {
+					}
+					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *targetProductID, report.StoreID).Updates(updates).Error; err != nil {
 						return err
 					}
-					_ = tx.Table("faunas").Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
-						"is_active":             false,
-						"moderation_status":     "locked",
-						"moderation_reason":     adminNotes,
-						"moderated_at":          &now,
-						"is_shipping_available": false,
-					}).Error
+					if err := applyModerationFaunasTableUpdate(tx, *targetProductID, report.StoreID, updates); err != nil {
+						return err
+					}
 				}
 			case "item_restored":
-				if report.FaunaID != nil && *report.FaunaID > 0 {
-					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
+				if targetProductID != nil && *targetProductID > 0 {
+					updates := map[string]interface{}{
 						"is_active":             true,
 						"moderation_status":     "none",
 						"moderation_reason":     "",
 						"moderated_at":          nil,
 						"resubmitted_at":        nil,
 						"is_shipping_available": true,
-					}).Error; err != nil {
+					}
+					if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *targetProductID, report.StoreID).Updates(updates).Error; err != nil {
 						return err
 					}
-					_ = tx.Table("faunas").Where("id = ? AND store_id = ?", *report.FaunaID, report.StoreID).Updates(map[string]interface{}{
-						"is_active":             true,
-						"moderation_status":     "none",
-						"moderation_reason":     "",
-						"moderated_at":          nil,
-						"resubmitted_at":        nil,
-						"is_shipping_available": true,
-					}).Error
+					if err := applyModerationFaunasTableUpdate(tx, *targetProductID, report.StoreID, updates); err != nil {
+						return err
+					}
 				}
 			case "catalog_suspended":
 				if report.StoreID > 0 {
@@ -816,7 +960,9 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				}
 			case "catalog_banned", "account_banned":
 				if report.StoreID > 0 {
-					_ = tx.Model(&models.Store{}).Where("id = ?", report.StoreID).Update("reactivation_token", "").Error
+					if err := tx.Model(&models.Store{}).Where("id = ?", report.StoreID).Update("reactivation_token", "").Error; err != nil {
+						return err
+					}
 					if err := purgeBannedStore(tx, report.StoreID, report.StoreSlug, report.StoreTitle, report.ReportNumber, report.ReasonLabel, actorName); err != nil {
 						return err
 					}
@@ -835,12 +981,14 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 					// Historical compliance audit standard: retain all prior notifications intact
 
 					// Mark any active appeal/compliance tickets from the past suspension as resolved
-					tx.Model(&models.SupportTicket{}).
+					if err := tx.Model(&models.SupportTicket{}).
 						Where("store_id = ? AND status IN ('open', 'in_progress', 'waiting_user', 'waiting_agent') AND (category = 'compliance' OR category = 'catalog_help' OR subject LIKE '%Banding%' OR subject LIKE '%Pembekuan%')", report.StoreID).
 						Updates(map[string]interface{}{
 							"status":      "resolved",
 							"resolved_at": now,
-						})
+						}).Error; err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -854,9 +1002,9 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				if report.ItemName != "" {
 					targetEntityName = report.ItemName
 				}
-				if report.FaunaID != nil && *report.FaunaID > 0 {
+				if targetProductID != nil && *targetProductID > 0 {
 					var p models.Product
-					if err := tx.Select("id, name, product_type").Where("id = ?", *report.FaunaID).First(&p).Error; err == nil {
+					if err := tx.Select("id, name, product_type").Where("id = ?", *targetProductID).First(&p).Error; err == nil {
 						if rawItemType == "" {
 							rawItemType = p.ProductType
 						}
@@ -871,14 +1019,14 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 			notifTitle, notifMsg, notifType, notifActionLabel := buildModerationNotificationContent(actionTaken, targetEntityName, report.ReportNumber, report.TargetType, adminNotes)
 			if notifTitle != "" {
 				detailArticle := buildModerationDetailArticle(actionTaken, report.StoreTitle, targetEntityName, report.TargetType, itemTypeLabel, report.ReportNumber, report.ReasonLabel, adminNotes, now)
-				actionURL := fmt.Sprintf("/%s/admin/help?action=appeal&report=%s&target_type=%s&target_name=%s&item_type=%s&reason=%s&notes=%s",
-					report.StoreSlug,
-					report.ReportNumber,
-					url.QueryEscape(report.TargetType),
-					url.QueryEscape(targetEntityName),
-					url.QueryEscape(itemTypeLabel),
-					url.QueryEscape(report.ReasonLabel),
-					url.QueryEscape(adminNotes),
+				actionURL := buildBoundedModerationActionURL(
+					fmt.Sprintf("/%s/admin/help", report.StoreSlug),
+					[2]string{"action", "appeal"},
+					[2]string{"report", report.ReportNumber},
+					[2]string{"target_type", report.TargetType},
+					[2]string{"target_name", targetEntityName},
+					[2]string{"item_type", itemTypeLabel},
+					[2]string{"reason", report.ReasonLabel},
 				)
 				targetSubTab := ""
 				actionType := "detail"
@@ -886,52 +1034,88 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				actionEnabled := true
 				if actionTaken == "item_banned" {
 					notifCategory = "KEAMANAN"
-					actionURL = fmt.Sprintf("/%s/admin/notifications?action=item_banned&target_type=item&target_name=%s&report=%s&reason=%s&notes=%s", report.StoreSlug, url.QueryEscape(targetEntityName), report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
+					actionURL = buildBoundedModerationActionURL(
+						fmt.Sprintf("/%s/admin/notifications", report.StoreSlug),
+						[2]string{"action", "item_banned"},
+						[2]string{"target_type", "item"},
+						[2]string{"target_name", targetEntityName},
+						[2]string{"report", report.ReportNumber},
+						[2]string{"reason", report.ReasonLabel},
+					)
 					targetSubTab = ""
 					actionType = "detail"
 					actionEnabled = true
-				} else if actionTaken == "catalog_banned" {
+				} else if actionTaken == "catalog_banned" || actionTaken == "account_banned" {
 					notifCategory = "KEAMANAN"
-					actionURL = fmt.Sprintf("/%s/admin/notifications?action=catalog_banned&target_type=store&target_name=%s&report=%s&reason=%s&notes=%s", report.StoreSlug, url.QueryEscape(report.StoreTitle), report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
+					actionURL = buildBoundedModerationActionURL(
+						fmt.Sprintf("/%s/admin/notifications", report.StoreSlug),
+						[2]string{"action", "catalog_banned"},
+						[2]string{"target_type", "store"},
+						[2]string{"target_name", report.StoreTitle},
+						[2]string{"report", report.ReportNumber},
+						[2]string{"reason", report.ReasonLabel},
+					)
 					targetSubTab = ""
 					actionType = "detail"
 					actionEnabled = false
 				} else if actionTaken == "warning_issued" {
 					notifCategory = "PERINGATAN"
-					if report.FaunaID != nil && *report.FaunaID > 0 {
-						actionURL = fmt.Sprintf("/%s/admin/notifications?action=warning_issued&target_type=%s&target_name=%s&report=%s&reason=%s&notes=%s&item_id=%d", report.StoreSlug, url.QueryEscape(report.TargetType), url.QueryEscape(targetEntityName), report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes), *report.FaunaID)
-					} else {
-						actionURL = fmt.Sprintf("/%s/admin/notifications?action=warning_issued&target_type=%s&target_name=%s&report=%s&reason=%s&notes=%s", report.StoreSlug, url.QueryEscape(report.TargetType), url.QueryEscape(targetEntityName), report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
+					entries := [][2]string{
+						{"action", "warning_issued"},
+						{"target_type", report.TargetType},
+						{"target_name", targetEntityName},
+						{"report", report.ReportNumber},
+						{"reason", report.ReasonLabel},
 					}
+					if targetProductID != nil && *targetProductID > 0 {
+						entries = append(entries, [2]string{"item_id", strconv.FormatUint(uint64(*targetProductID), 10)})
+					}
+					actionURL = buildBoundedModerationActionURL(
+						fmt.Sprintf("/%s/admin/notifications", report.StoreSlug),
+						entries...,
+					)
 					targetSubTab = ""
 					actionType = "detail"
 					actionEnabled = true
 				} else if actionTaken == "item_needs_fix" {
 					notifCategory = "PERBAIKAN"
-					if report.FaunaID != nil && *report.FaunaID > 0 {
-						actionURL = fmt.Sprintf("/%s/admin/items?item=%d&edit=%d&report=%s&reason=%s&notes=%s", report.StoreSlug, *report.FaunaID, *report.FaunaID, report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
-					} else {
-						actionURL = fmt.Sprintf("/%s/admin/items?report=%s&reason=%s&notes=%s", report.StoreSlug, report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
+					entries := [][2]string{
+						{"report", report.ReportNumber},
+						{"reason", report.ReasonLabel},
 					}
+					if targetProductID != nil && *targetProductID > 0 {
+						itemStr := strconv.FormatUint(uint64(*targetProductID), 10)
+						entries = append(entries, [2]string{"item", itemStr}, [2]string{"edit", itemStr})
+					}
+					actionURL = buildBoundedModerationActionURL(
+						fmt.Sprintf("/%s/admin/items", report.StoreSlug),
+						entries...,
+					)
 					targetSubTab = "items"
 					actionType = "detail"
 					actionEnabled = true
 				} else if actionTaken == "item_locked" || actionTaken == "item_hidden" {
 					notifCategory = "KEAMANAN"
-					actionURL = fmt.Sprintf("/%s/admin/help?action=appeal&report=%s&target_type=item&target_name=%s&item_type=%s&reason=%s&notes=%s",
-						report.StoreSlug,
-						report.ReportNumber,
-						url.QueryEscape(targetEntityName),
-						url.QueryEscape(itemTypeLabel),
-						url.QueryEscape(report.ReasonLabel),
-						url.QueryEscape(adminNotes),
+					actionURL = buildBoundedModerationActionURL(
+						fmt.Sprintf("/%s/admin/help", report.StoreSlug),
+						[2]string{"action", "appeal"},
+						[2]string{"report", report.ReportNumber},
+						[2]string{"target_type", "item"},
+						[2]string{"target_name", targetEntityName},
+						[2]string{"item_type", itemTypeLabel},
+						[2]string{"reason", report.ReasonLabel},
 					)
 					targetSubTab = "help"
 					actionType = "detail"
 					actionEnabled = true
 				} else if actionTaken == "catalog_reactivated" || actionTaken == "item_restored" {
 					notifCategory = "PEMULIHAN"
-					actionURL = fmt.Sprintf("/%s/admin?action=restored&report=%s&reason=%s&notes=%s", report.StoreSlug, report.ReportNumber, url.QueryEscape(report.ReasonLabel), url.QueryEscape(adminNotes))
+					actionURL = buildBoundedModerationActionURL(
+						fmt.Sprintf("/%s/admin", report.StoreSlug),
+						[2]string{"action", "restored"},
+						[2]string{"report", report.ReportNumber},
+						[2]string{"reason", report.ReasonLabel},
+					)
 					targetSubTab = "items"
 					actionType = "detail"
 					actionEnabled = true
@@ -962,19 +1146,21 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 						"type":           notifType,
 						"updated_at":     now,
 					}
-					if err := tx.Model(&models.Notification{}).Where("id = ?", existingNotif.ID).Updates(updates).Error; err == nil {
-						existingNotif.Message = notifMsg
-						existingNotif.DetailContent = detailArticle
-						existingNotif.ActionURL = actionURL
-						existingNotif.ActionLabel = notifActionLabel
-						existingNotif.ActionEnabled = actionEnabled
-						existingNotif.ActionType = actionType
-						existingNotif.LinkSubTab = targetSubTab
-						existingNotif.Type = notifType
-						existingNotif.UpdatedAt = now
-						notificationCreated = &existingNotif
-						log.Info().Str("report_number", report.ReportNumber).Str("notif_id", existingNotif.ID).Msg("Updated existing in-app notification in-place without duplication")
+					if err := tx.Model(&models.Notification{}).Where("id = ?", existingNotif.ID).Updates(updates).Error; err != nil {
+						log.Error().Err(err).Str("report_number", report.ReportNumber).Str("notif_id", existingNotif.ID).Msg("Failed to update moderation in-app notification")
+						return err
 					}
+					existingNotif.Message = notifMsg
+					existingNotif.DetailContent = detailArticle
+					existingNotif.ActionURL = actionURL
+					existingNotif.ActionLabel = notifActionLabel
+					existingNotif.ActionEnabled = actionEnabled
+					existingNotif.ActionType = actionType
+					existingNotif.LinkSubTab = targetSubTab
+					existingNotif.Type = notifType
+					existingNotif.UpdatedAt = now
+					notificationCreated = &existingNotif
+					log.Info().Str("report_number", report.ReportNumber).Str("notif_id", existingNotif.ID).Msg("Updated existing in-app notification in-place without duplication")
 				} else {
 					// Check if a linked report for the same target entity already sent an identical notification within the last 24h
 					var dupEntityNotifCount int64
@@ -1009,11 +1195,11 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 							CreatedAt:     now,
 							UpdatedAt:     now,
 						}
-						if err := tx.Create(&notif).Error; err == nil {
-							notificationCreated = &notif
-						} else {
+						if err := tx.Create(&notif).Error; err != nil {
 							log.Error().Err(err).Str("report_number", report.ReportNumber).Msg("Failed to create moderation in-app notification")
+							return err
 						}
+						notificationCreated = &notif
 					}
 				}
 			}
@@ -1049,7 +1235,6 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memproses transaksi moderasi. Seluruh perubahan telah dibatalkan dengan aman.",
-			"error":   txErr.Error(),
 		})
 	}
 
@@ -1143,9 +1328,9 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 				report.ReasonLabel,
 				actionTaken,
 			)
-			category := "reporter_enforced"
-			if actionTaken == "none" || newStatus == "rejected" || newStatus == "dismissed" {
-				category = "reporter_dismissed"
+			category := "reporter_dismissed"
+			if isEnforcementAction(actionTaken) && newStatus != "rejected" && newStatus != "dismissed" {
+				category = "reporter_enforced"
 			}
 			_, _ = services.EnqueueEmail(
 				repEmail,
@@ -1238,7 +1423,7 @@ func buildModerationNotificationContent(actionTaken, targetName, reportNumber, t
 			fmt.Sprintf("Operasional profil katalog \"%s\" ditangguhkan sementara (#%s).%s Anda masih diberi kesempatan mengajukan banding kepatuhan resmi.", targetName, reportNumber, notesSuffix),
 			"warning",
 			"Ajukan Banding Kepatuhan →"
-	case "catalog_banned":
+	case "catalog_banned", "account_banned":
 		return "Penonaktifan Permanen Akun & Seluruh Item Katalog",
 			fmt.Sprintf("Akses akun pemilik dan seluruh item katalog pada profil \"%s\" telah dinonaktifkan secara permanen (#%s).%s Sanksi penonaktifan ini bersifat final tanpa pengajuan banding.", targetName, reportNumber, notesSuffix),
 			"danger",
@@ -1283,7 +1468,7 @@ func buildModerationDetailArticle(actionTaken, storeTitle, targetName, targetTyp
 	case "catalog_suspended":
 		actionHeadline = "Penangguhan Operasional Profil Katalog (Suspend Sementara)"
 		actionExplanation = fmt.Sprintf("Operasional profil katalog **%s** telah ditangguhkan sementara sehubungan dengan evaluasi kepatuhan komunitas. Anda masih diberi kesempatan penuh untuk mengajukan permohonan banding kepatuhan resmi sebelum batas waktu 30 hari kerja.", storeTitle)
-	case "catalog_banned":
+	case "catalog_banned", "account_banned":
 		actionHeadline = "Penonaktifan Permanen Akun & Seluruh Item Katalog (Banned)"
 		actionExplanation = fmt.Sprintf("Akses akun pemilik, profil katalog **%s**, dan seluruh item katalog terkait telah dinonaktifkan secara permanen oleh Tim Kepatuhan & Moderasi Catavor karena pelanggaran berat terhadap standar integritas platform. Seluruh item katalog terdampak dan dinonaktifkan. Keputusan sanksi ini bersifat final dan tidak lagi dibuka pengajuan sanggahan banding.", storeTitle)
 	case "catalog_reactivated":
@@ -1294,7 +1479,7 @@ func buildModerationDetailArticle(actionTaken, storeTitle, targetName, targetTyp
 	notesBlock := ""
 	cleanNotes := strings.TrimSpace(adminNotes)
 	if cleanNotes != "" {
-		notesBlock = fmt.Sprintf("\n---\n### Catatan Resmi Tim Kepatuhan:\n> 💬 **Pesan Peninjau:** \"%s\"", cleanNotes)
+		notesBlock = fmt.Sprintf("\n---\n### Catatan Resmi Tim Kepatuhan:\n> **Pesan Peninjau:** \"%s\"", cleanNotes)
 	}
 
 	itemTypeRow := ""
@@ -1399,7 +1584,7 @@ Dokumen Resmi Penegakan Standar Komunitas & Kepatuhan Platform Catavor (Keputusa
 4. **Retensi Bukti Hukum (90 Hari)**: Data arsip digital disimpan secara pasif di brankas bukti hukum platform selama 90 hari untuk pemenuhan kepatuhan UU ITE & PP 71/2019 sebelum pemusnahan permanen.`,
 			actionHeadline, reportNumber, dateStr, storeTitle, targetName, itemTypeRow, reasonLabel, notesBlock, actionExplanation)
 	}
-	if actionTaken == "catalog_banned" {
+	if actionTaken == "catalog_banned" || actionTaken == "account_banned" {
 		return fmt.Sprintf(`### %s
 Dokumen Resmi Penegakan Standar Komunitas & Kepatuhan Platform Catavor (Keputusan Final).
 
@@ -1481,8 +1666,8 @@ func sendModerationEmail(toEmail, storeTitle, targetName, actionTaken, adminNote
 		subject, bodyHTML = services.BuildItemApprovedEmail(storeTitle, targetName, reportNumber, storeSlug)
 		category = "compliance_item_restored"
 	default:
-		subject, bodyHTML = services.BuildWarningEmail(storeTitle, targetName, reasonLabel, adminNotes, reportNumber, storeSlug)
-		category = "compliance_warning"
+		log.Warn().Str("action_taken", actionTaken).Str("report_number", reportNumber).Msg("Skipping moderation email for unhandled action")
+		return
 	}
 
 	_, _ = services.EnqueueEmail(toEmail, storeTitle, "Catavor Trust & Safety", subject, bodyHTML, category, reportNumber)
@@ -1591,10 +1776,6 @@ func purgeBannedStore(tx *gorm.DB, storeID uint, storeSlug, storeTitle, reportNu
 		Str("report", reportNumber).
 		Msg("Permanently banned store, locked slug in blacklisted_slugs, entered 90-day forensic evidence retention.")
 
-	if ownerEmail != "" {
-		go services.SendSingleCatalogBannedEmail(ownerEmail, storeTitle, cleanSlug, reportNumber, reasonLabel, reviewerName)
-	}
-
 	return nil
 }
 
@@ -1649,13 +1830,13 @@ func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
 		product.ModeratedAt = nil
 		product.ResubmittedAt = nil
 		_ = h.db.Save(&product).Error
-		_ = h.db.Table("faunas").Where("id = ?", product.ID).Updates(map[string]interface{}{
+		_ = applyModerationFaunasTableUpdate(h.db, product.ID, product.StoreID, map[string]interface{}{
 			"is_active":         true,
 			"moderation_status": "none",
 			"moderation_reason": "",
 			"moderated_at":      nil,
 			"resubmitted_at":    nil,
-		}).Error
+		})
 
 		// Invalidate cache
 		InvalidateReportMetricsCache()
@@ -1708,12 +1889,12 @@ func (h *ReportHandler) ReviewRemediatedItem(c *fiber.Ctx) error {
 	product.ModerationReason = notes
 	product.ModeratedAt = &now
 	_ = h.db.Save(&product).Error
-	_ = h.db.Table("faunas").Where("id = ?", product.ID).Updates(map[string]interface{}{
+	_ = applyModerationFaunasTableUpdate(h.db, product.ID, product.StoreID, map[string]interface{}{
 		"is_active":         false,
 		"moderation_status": "needs_fix",
 		"moderation_reason": notes,
 		"moderated_at":      &now,
-	}).Error
+	})
 
 	InvalidateReportMetricsCache()
 

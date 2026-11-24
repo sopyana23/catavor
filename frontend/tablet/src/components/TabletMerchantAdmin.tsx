@@ -100,6 +100,7 @@ import { MFAChallengeView, type MFAChallengeFactor } from './MFAChallengeView';
 import { TabletAuditLogsView } from './TabletAuditLogsView';
 import { TabletDangerZoneView } from './TabletDangerZoneView';
 import { TabletHelpdeskView } from './TabletHelpdeskView';
+import { TabletSuspendedLockView } from './TabletSuspendedLockView';
 import { TabletPoliciesView } from './TabletPoliciesView';
 import { ErrorBoundary } from './ErrorBoundary';
 import { TabletProductFilterSheet, type TabletProductFilterValues } from './TabletProductFilterSheet';
@@ -560,11 +561,16 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             localStorage.setItem('catavor_stores', JSON.stringify(mapped));
           } catch {}
           const currentStore = mapped.find((s: CatalogStoreItem) => s.slug.toLowerCase() === storeSlug.toLowerCase());
-          if (currentStore?.store_logo_url) {
+          if (currentStore) {
             setStoreSettings(prev => ({
               ...prev,
+              id: prev.id || currentStore.id,
               logo_url: prev.logo_url || currentStore.store_logo_url || '',
-              name: prev.name || currentStore.store_title || ''
+              name: prev.name || currentStore.store_title || '',
+              dormancy_status: currentStore.dormancy_status || prev.dormancy_status || 'active',
+              is_suspended: Boolean(currentStore.is_suspended || currentStore.dormancy_status === 'suspended'),
+              suspension_reason: currentStore.suspension_reason || prev.suspension_reason || '',
+              is_paused: Boolean(currentStore.is_suspended || currentStore.dormancy_status === 'suspended' || prev.is_paused)
             }));
           }
         }
@@ -759,6 +765,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       } catch {}
     }
     return {
+      id: undefined as number | undefined,
       name: cachedName,
       slogan: '',
       whatsapp_number: '',
@@ -773,8 +780,22 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       instagram: '',
       custom_domain: '',
       show_hours: true,
+      dormancy_status: 'active' as string,
+      is_suspended: false,
+      suspension_reason: '' as string,
+      dormancy_suspended_at: null as string | null,
       is_paused: false
     };
+  });
+  const [suspendedViewMode, setSuspendedViewMode] = useState<'summary' | 'appeal'>(() => {
+    if (typeof window !== 'undefined') {
+      const pName = window.location.pathname.toLowerCase();
+      const sp = new URLSearchParams(window.location.search);
+      if (pName.endsWith('/help') || sp.get('tab') === 'help' || sp.get('action') === 'appeal') {
+        return 'appeal';
+      }
+    }
+    return 'summary';
   });
 
   // Master Categories State (Two-Tier Architecture matching Mobile & Desktop)
@@ -820,6 +841,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         const data = json.data || json.store || json;
         const newTheme = data.store_theme || 'navy';
         setStoreSettings({
+          id: data.id,
           name: data.store_title || data.name || '',
           slogan: data.store_slogan || data.slogan || '',
           whatsapp_number: data.whatsapp_number || data.phone || '',
@@ -834,7 +856,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           instagram: data.social_links?.instagram || '',
           custom_domain: data.custom_domain || '',
           show_hours: data.show_hours !== undefined ? data.show_hours : true,
-          is_paused: Boolean(data.is_suspended || data.is_dormant)
+          dormancy_status: data.dormancy_status || (data.is_suspended ? 'suspended' : 'active'),
+          is_suspended: Boolean(data.is_suspended || data.dormancy_status === 'suspended'),
+          suspension_reason: data.suspension_reason || '',
+          dormancy_suspended_at: data.dormancy_suspended_at || null,
+          is_paused: Boolean(data.is_suspended || data.dormancy_status === 'suspended' || data.is_dormant)
         });
         if (data.master_categories) {
           setMasterCategories(prev => {
@@ -3930,6 +3956,40 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       ]
     }
   ];
+
+  const isStoreSuspended = storeSettings.dormancy_status === 'suspended' || Boolean(storeSettings.is_suspended);
+
+  useEffect(() => {
+    setSuspendedViewMode('summary');
+  }, [storeSlug]);
+
+  if (isStoreSuspended) {
+    return (
+      <TabletSuspendedLockView
+        token={token}
+        storeSlug={storeSlug}
+        storeSettings={storeSettings}
+        currentUser={currentUser}
+        userStores={userStores}
+        suspendedViewMode={suspendedViewMode}
+        setSuspendedViewMode={setSuspendedViewMode}
+        showToast={showToast}
+        toast={toast}
+        openStoreChooserModal={openStoreChooserModal}
+        showStoreChooserModal={showStoreChooserModal}
+        handleCloseStoreChooserModal={handleCloseStoreChooserModal}
+        handleSwitchStore={handleSwitchStore}
+        switchingSlug={switchingSlug}
+        onLogout={onLogout}
+        onRefreshStatus={() => {
+          fetchStoreProfile();
+          fetchUserStores();
+          showToast('Memperbarui status katalog...');
+        }}
+        onUpdateUnreadCount={(cnt) => setSupportUnreadCount(cnt)}
+      />
+    );
+  }
 
   return (
     <div style={{

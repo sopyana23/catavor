@@ -67,6 +67,45 @@ type ProductRequest struct {
 	} `json:"variants"`
 }
 
+func isStorePubliclyBanned(s *models.Store) bool {
+	if s == nil {
+		return false
+	}
+	return s.DormancyStatus == "banned" || s.DormancyStatus == "purged" || s.IsBlacklisted
+}
+
+func isStorePubliclySuspended(s *models.Store) bool {
+	if s == nil {
+		return false
+	}
+	return s.DormancyStatus == "suspended" || s.IsSuspended
+}
+
+func isCallerAuthorizedForStore(c *fiber.Ctx, db *gorm.DB, cfg *config.Config, storeID uint, storeSlug string) bool {
+	if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil && storeVal.ID == storeID {
+		return true
+	}
+	claims := middleware.ExtractVerifiedOptionalClaims(c, db, cfg)
+	if claims == nil {
+		return false
+	}
+	if claims.StoreID == storeID || (storeSlug != "" && strings.EqualFold(claims.StoreSlug, storeSlug)) {
+		return true
+	}
+	if claims.UserID > 0 {
+		var count int64
+		db.Model(&models.Store{}).Where("id = ? AND user_id = ?", storeID, claims.UserID).Count(&count)
+		if count > 0 {
+			return true
+		}
+		var u models.User
+		if err := db.Select("id, platform_role").First(&u, claims.UserID).Error; err == nil && u.IsPlatformStaff() {
+			return true
+		}
+	}
+	return false
+}
+
 // Index returns a list of products with optional search, category, and type filters.
 func (h *ProductHandler) Index(c *fiber.Ctx) error {
 	if h.db == nil {
@@ -101,21 +140,29 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 			})
 		}
 		storeID = store.ID
-		claims := middleware.ExtractVerifiedOptionalClaims(c, h.db, h.cfg)
-		if claims != nil {
-			if claims.StoreID == store.ID || strings.EqualFold(claims.StoreSlug, store.Slug) {
-				isMerchantView = true
-			} else {
-				var count int64
-				h.db.Model(&models.Store{}).Where("id = ? AND user_id = ?", store.ID, claims.UserID).Count(&count)
-				if count > 0 {
-					isMerchantView = true
-				} else {
-					var u models.User
-					if err := h.db.Select("id, platform_role").First(&u, claims.UserID).Error; err == nil && u.IsPlatformStaff() {
-						isMerchantView = true
-					}
-				}
+		isMerchantView = isCallerAuthorizedForStore(c, h.db, h.cfg, store.ID, store.Slug)
+		if !isMerchantView {
+			if isStorePubliclyBanned(&store) {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"success": false,
+					"code":    "STORE_BANNED",
+					"message": "Katalog ini telah dinonaktifkan secara permanen.",
+				})
+			}
+			if isStorePubliclySuspended(&store) {
+				return c.JSON(fiber.Map{
+					"success":      true,
+					"is_suspended": true,
+					"message":      "Katalog ini sedang ditangguhkan sementara oleh platform.",
+					"data":         []models.Product{},
+					"products":     []models.Product{},
+					"meta": fiber.Map{
+						"page":        1,
+						"limit":       15,
+						"total":       0,
+						"total_pages": 1,
+					},
+				})
 			}
 		}
 	} else {
@@ -129,6 +176,10 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 	query := h.db.Model(&models.Product{}).Preload("Category").Preload("Images").Preload("Variants")
 	if storeID > 0 {
 		query = query.Where("products.store_id = ?", storeID)
+	} else if !isMerchantView {
+		// Prevent global public product listing from leaking items belonging to suspended/banned stores (CRIT-02)
+		query = query.Joins("INNER JOIN stores st_vis ON st_vis.id = products.store_id").
+			Where("st_vis.is_suspended = ? AND st_vis.is_blacklisted = ? AND (st_vis.dormancy_status IS NULL OR st_vis.dormancy_status = '' OR st_vis.dormancy_status NOT IN ('suspended', 'banned', 'purged'))", false, false)
 	}
 
 	// Defense-in-depth: Never return banned items in merchant or public catalog view
@@ -274,28 +325,31 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 		})
 	}
 
-	// Inactive item guard for public storefront visitors
-	if !product.IsActive {
-		isAuthorized := false
-		if storeVal, ok := c.Locals("store").(*models.Store); ok && storeVal != nil && storeVal.ID == product.StoreID {
-			isAuthorized = true
-		} else if claims := middleware.ExtractVerifiedOptionalClaims(c, h.db, h.cfg); claims != nil {
-			if claims.StoreID == product.StoreID {
-				isAuthorized = true
-			} else if claims.UserID > 0 {
-				var store models.Store
-				if err := h.db.Where("id = ? AND user_id = ?", product.StoreID, claims.UserID).First(&store).Error; err == nil {
-					isAuthorized = true
-				} else {
-					var user models.User
-					if err := h.db.Select("platform_role").First(&user, claims.UserID).Error; err == nil && user.IsPlatformStaff() {
-						isAuthorized = true
-					}
-				}
-			}
-		}
+	isStoreBanned := isStorePubliclyBanned(product.Store)
+	isStoreSuspended := isStorePubliclySuspended(product.Store)
 
-		if !isAuthorized {
+	// Store suspension/ban & inactive item guard for public storefront visitors (CRIT-02)
+	if !product.IsActive || product.ModerationStatus == "banned" || isStoreBanned || isStoreSuspended {
+		storeSlug := ""
+		if product.Store != nil {
+			storeSlug = product.Store.Slug
+		}
+		if !isCallerAuthorizedForStore(c, h.db, h.cfg, product.StoreID, storeSlug) {
+			if isStoreBanned {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"success": false,
+					"code":    "STORE_BANNED",
+					"message": "Katalog ini telah dinonaktifkan secara permanen.",
+				})
+			}
+			if isStoreSuspended {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"success":      false,
+					"code":         "STORE_SUSPENDED",
+					"is_suspended": true,
+					"message":      "Katalog ini sedang ditangguhkan sementara oleh platform.",
+				})
+			}
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"success":     false,
 				"message":     "Item katalog ini sedang dinonaktifkan atau diturunkan sementara oleh pengelola.",
@@ -304,8 +358,8 @@ func (h *ProductHandler) Show(c *fiber.Ctx) error {
 		}
 	}
 
-	// Increment view count and popularity score only for active items viewed by public
-	if product.IsActive {
+	// Increment view count and popularity score only for active items on active stores
+	if product.IsActive && product.ModerationStatus != "banned" && !isStoreBanned && !isStoreSuspended {
 		h.db.Model(&product).UpdateColumns(map[string]interface{}{
 			"view_count":       gormExpr("view_count + 1"),
 			"popularity_score": gormExpr("popularity_score + 1"),
@@ -940,7 +994,7 @@ func (h *ProductHandler) Update(c *fiber.Ctx) error {
 
 		// 3. Update moderation report statuses if resubmitted
 		if wasInNeedsFix {
-			if err := tx.Where("target_type = 'item' AND fauna_id = ? AND status IN ('action_taken', 'investigating', 'pending')", product.ID).Find(&itemReports).Error; err == nil {
+			if err := tx.Where("target_type = 'item' AND (product_id = ? OR fauna_id = ?) AND status IN ('action_taken', 'investigating', 'pending')", product.ID, product.ID).Find(&itemReports).Error; err == nil {
 				for _, r := range itemReports {
 					noteUpdate := strings.TrimSpace(r.AdminNotes + fmt.Sprintf("\n[%s] Merchant telah memperbarui data produk dan mengajukan peninjauan ulang.", now.Format("02 Jan 2006 15:04 WIB")))
 					if err := tx.Model(&r).Updates(map[string]interface{}{
@@ -1314,15 +1368,43 @@ func formatRupiahInt(n int) string {
 func (h *ProductHandler) GetRecommendations(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var current models.Product
-	if err := h.db.First(&current, id).Error; err != nil {
+	if err := h.db.Preload("Store").First(&current, id).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"message": "Produk tidak ditemukan.",
 		})
 	}
 
+	storeSlug := ""
+	if current.Store != nil {
+		storeSlug = current.Store.Slug
+	}
+	if !isCallerAuthorizedForStore(c, h.db, h.cfg, current.StoreID, storeSlug) {
+		if isStorePubliclyBanned(current.Store) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"code":    "STORE_BANNED",
+				"message": "Katalog ini telah dinonaktifkan secara permanen.",
+			})
+		}
+		if isStorePubliclySuspended(current.Store) {
+			return c.JSON(fiber.Map{
+				"success":      true,
+				"is_suspended": true,
+				"data":         []models.Product{},
+			})
+		}
+		if !current.IsActive || current.ModerationStatus == "banned" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success":     false,
+				"is_inactive": true,
+				"message":     "Produk tidak tersedia.",
+			})
+		}
+	}
+
 	var recs []models.Product
-	recQ := h.db.Where("store_id = ? AND id != ? AND is_active = true", current.StoreID, current.ID)
+	recQ := h.db.Where("store_id = ? AND id != ? AND is_active = ? AND (moderation_status != 'banned' OR moderation_status IS NULL)", current.StoreID, current.ID, true)
 	if current.CategoryID != nil && *current.CategoryID > 0 {
 		recQ = recQ.Where("category_id = ? OR product_type = ?", *current.CategoryID, current.ProductType)
 	} else if current.Class != "" {
@@ -1395,7 +1477,7 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 
 		// Update associated reports to 're_review'
 		var itemReports []models.Report
-		if err := tx.Where("target_type = 'item' AND fauna_id = ? AND status IN ('action_taken', 'investigating', 'pending')", product.ID).Find(&itemReports).Error; err != nil {
+		if err := tx.Where("target_type = 'item' AND (product_id = ? OR fauna_id = ?) AND status IN ('action_taken', 'investigating', 'pending')", product.ID, product.ID).Find(&itemReports).Error; err != nil {
 			return err
 		}
 		for _, r := range itemReports {
@@ -1422,18 +1504,6 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 
 	InvalidateStoreProductsCache(store.ID)
 	InvalidateStoreProfileCache(store.Slug)
-
-	// Update associated reports to 're_review'
-	var itemReports []models.Report
-	h.db.Where("target_type = 'item' AND fauna_id = ? AND status IN ('action_taken', 'investigating', 'pending')", product.ID).Find(&itemReports)
-	for _, r := range itemReports {
-		noteUpdate := strings.TrimSpace(r.AdminNotes + fmt.Sprintf("\n[%s] Merchant telah mengajukan peninjauan ulang produk.", now.Format("02 Jan 2006 15:04 WIB")))
-		h.db.Model(&r).Updates(map[string]interface{}{
-			"status":      "re_review",
-			"admin_notes": noteUpdate,
-			"updated_at":  now,
-		})
-	}
 	InvalidateReportMetricsCache()
 
 	// 1. Broadcast alert to platform admins (Superadmin only)
