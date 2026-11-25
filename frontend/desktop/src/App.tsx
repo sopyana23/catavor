@@ -141,6 +141,9 @@ import {
   Menu
 } from 'lucide-react'
 import './App.css'
+import { getItemModerationMeta } from '../../shared/moderation/itemModerationBadge'
+import { CustomDomainSettingsPanel } from '../../shared/custom-domain/CustomDomainSettingsPanel'
+import { getCustomDomainMeta } from '../../shared/custom-domain/hostContext'
 import logoHeaderImg from './assets/logo-header.png'
 import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
@@ -4112,11 +4115,13 @@ function App() {
     return false;
   };
 
-  // Parse path for store slug: /u/{slug}
+  // Parse path for store slug: /u/{slug} or verified custom domain host
   const getStoreSlug = () => {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    if (parts.length === 0) return null;
+    if (parts.length === 0) {
+      return getCustomDomainMeta().slug;
+    }
     
     if (parts[0] === 'login' && parts.length > 1 && !isReservedStoreSlug(parts[1])) {
       return parts[1];
@@ -4153,6 +4158,10 @@ function App() {
         p === '/moderation' || p === '/standar-moderasi' ||
         p === '/' || p === ''
       ) {
+        const customSlug = getCustomDomainMeta().slug;
+        if ((p === '/' || p === '') && customSlug && !isReservedStoreSlug(customSlug)) {
+          return customSlug;
+        }
         return null;
       }
     }
@@ -11219,7 +11228,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
           }
           const currentP = window.location.pathname.toLowerCase();
-          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTabRef.current === 'register' || portalTabRef.current === 'checkout';
+          const isCustomHost = Boolean(getCustomDomainMeta().slug);
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login' || ((currentP === '/' || currentP === '') && !isCustomHost) || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTabRef.current === 'register' || portalTabRef.current === 'checkout';
           if (isGenericAuthOrRoot) {
             clearRegistrationDrafts();
             const rawUser = localStorage.getItem('catavor_user');
@@ -11325,7 +11335,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
 
           const currentP = window.location.pathname.toLowerCase();
-          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTab === 'register' || portalTab === 'checkout';
+          const isCustomHost = Boolean(getCustomDomainMeta().slug);
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login' || ((currentP === '/' || currentP === '') && !isCustomHost) || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTab === 'register' || portalTab === 'checkout';
           if (isGenericAuthOrRoot) {
             clearRegistrationDrafts();
             const rawUser = localStorage.getItem('catavor_user');
@@ -16249,7 +16260,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Maksimal 15 item produk</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> 100 MB Storage &amp; 5 foto/item</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Halaman "Tentang Kami" profil bisnis</li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Subdomain kustom (catavor.com/toko)</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Tautan toko kustom (catavor.com/toko)</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> WhatsApp Direct Order</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8' }}><X size={16} /> Watermark Catavor aktif</li>
                       </ul>
@@ -23512,26 +23523,31 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     </div>
                                   </td>
                                   <td>
-                                    {(item as any).moderation_status === 'hidden' ? (
-                                      <span
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '0.3rem',
-                                          padding: '0.22rem 0.65rem',
-                                          borderRadius: '6px',
-                                          fontSize: '0.74rem',
-                                          fontWeight: 700,
-                                          backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                                          color: '#ef4444',
-                                          border: '1px solid rgba(239, 68, 68, 0.3)'
-                                        }}
-                                        title="Dinonaktifkan oleh tim moderasi platform"
-                                      >
-                                        <ShieldAlert size={12} strokeWidth={2.5} />
-                                        <span>Dinonaktifkan</span>
-                                      </span>
-                                    ) : (item as any).is_active !== false ? (
+                                    {(() => {
+                                      const modMeta = getItemModerationMeta((item as any).moderation_status);
+                                      if (modMeta) {
+                                        return (
+                                          <span
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '0.3rem',
+                                              padding: '0.22rem 0.65rem',
+                                              borderRadius: '6px',
+                                              fontSize: '0.74rem',
+                                              fontWeight: 700,
+                                              backgroundColor: modMeta.bg,
+                                              color: modMeta.color,
+                                              border: `1px solid ${modMeta.border}`
+                                            }}
+                                            title={modMeta.title}
+                                          >
+                                            <ShieldAlert size={12} strokeWidth={2.5} />
+                                            <span>{modMeta.label}</span>
+                                          </span>
+                                        );
+                                      }
+                                      return (item as any).is_active !== false ? (
                                       <span
                                         style={{
                                           display: 'inline-flex',
@@ -23569,7 +23585,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                         <Archive size={12} strokeWidth={2.5} />
                                         <span>Diarsipkan</span>
                                       </span>
-                                    )}
+                                    );
+                                    })()}
                                   </td>
                                   <td>
                                     <div className="action-buttons" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -23602,26 +23619,78 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                           <Archive size={12} />
                                           Arsipkan
                                         </button>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          className="btn-secondary btn-small"
-                                          onClick={() => openArchiveConfirmModal(item, true)}
-                                          style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '0.25rem',
-                                            padding: '0.3rem 0.6rem',
-                                            fontSize: '0.74rem',
-                                            color: '#10b981',
-                                            borderColor: 'rgba(16, 185, 129, 0.3)'
-                                          }}
-                                          title="Aktifkan Kembali ke Katalog"
-                                        >
-                                          <CheckCircle2 size={12} />
-                                          Aktifkan
-                                        </button>
-                                      )}
+                                      ) : (() => {
+                                        const rowModMeta = getItemModerationMeta((item as any).moderation_status);
+                                        if (rowModMeta && rowModMeta.status === 'needs_fix') {
+                                          return (
+                                            <button
+                                              type="button"
+                                              className="btn-secondary btn-small"
+                                              onClick={() => openEditModal(item)}
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '0.25rem',
+                                                padding: '0.3rem 0.6rem',
+                                                fontSize: '0.74rem',
+                                                color: rowModMeta.color,
+                                                borderColor: rowModMeta.border,
+                                                backgroundColor: rowModMeta.bg
+                                              }}
+                                              title={rowModMeta.title}
+                                            >
+                                              <Edit3 size={12} />
+                                              Perbaiki
+                                            </button>
+                                          );
+                                        }
+                                        if (rowModMeta && rowModMeta.isLocked) {
+                                          return (
+                                            <button
+                                              type="button"
+                                              className="btn-secondary btn-small"
+                                              disabled
+                                              aria-disabled="true"
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '0.25rem',
+                                                padding: '0.3rem 0.6rem',
+                                                fontSize: '0.74rem',
+                                                color: rowModMeta.color,
+                                                borderColor: rowModMeta.border,
+                                                backgroundColor: rowModMeta.bg,
+                                                cursor: 'not-allowed',
+                                                opacity: 0.65
+                                              }}
+                                              title={rowModMeta.title}
+                                            >
+                                              <Lock size={12} />
+                                              {rowModMeta.shortLabel}
+                                            </button>
+                                          );
+                                        }
+                                        return (
+                                          <button
+                                            type="button"
+                                            className="btn-secondary btn-small"
+                                            onClick={() => openArchiveConfirmModal(item, true)}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '0.25rem',
+                                              padding: '0.3rem 0.6rem',
+                                              fontSize: '0.74rem',
+                                              color: '#10b981',
+                                              borderColor: 'rgba(16, 185, 129, 0.3)'
+                                            }}
+                                            title="Aktifkan Kembali ke Katalog"
+                                          >
+                                            <CheckCircle2 size={12} />
+                                            Aktifkan
+                                          </button>
+                                        );
+                                      })()}
                                     </div>
                                   </td>
                                 </tr>
@@ -23759,12 +23828,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                   {/* Desktop Settings Segmented Sub-Tab Bar (Full-Width Responsive Grid) */}
                   {(() => {
-                    const settingsTabs: Array<{ id: 'general' | 'contact' | 'about' | 'theme' | 'domain'; label: string; icon: any; isPro?: boolean }> = [
+                    const isDomainLocked = !storeQuota?.plan?.has_custom_domain;
+                    const settingsTabs: Array<{ id: 'general' | 'contact' | 'about' | 'theme' | 'domain'; label: string; icon: any; isPro?: boolean; isLocked?: boolean }> = [
                       { id: 'general', label: 'Profil & Identitas Utama', icon: Store },
                       { id: 'contact', label: 'Kontak & Saluran Resmi', icon: MessageCircle },
                       { id: 'about', label: 'Halaman Tentang Kami', icon: Sparkles },
                       { id: 'theme', label: 'Tema & Tampilan Visual', icon: Palette },
-                      ...(storeQuota?.plan?.has_custom_domain ? [{ id: 'domain' as const, label: 'Custom Domain', icon: Globe, isPro: true }] : [])
+                      { id: 'domain' as const, label: 'Custom Domain', icon: Globe, isPro: true, isLocked: isDomainLocked }
                     ];
 
                     return (
@@ -23786,15 +23856,22 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               <span className="tab-label">{tab.label}</span>
                               {tab.isPro && (
                                 <span style={{
-                                  fontSize: '0.62rem',
+                                  fontSize: '0.58rem',
                                   fontWeight: 900,
                                   padding: '1px 5px',
                                   borderRadius: '4px',
-                                  backgroundColor: isActive ? 'rgba(255,255,255,0.28)' : 'var(--primary)',
-                                  color: '#ffffff',
+                                  backgroundColor: isActive ? 'rgba(255,255,255,0.28)' : 'rgba(245, 158, 11, 0.16)',
+                                  color: isActive ? '#ffffff' : '#d97706',
+                                  border: isActive ? 'none' : '1px solid rgba(245, 158, 11, 0.35)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
                                   flexShrink: 0,
                                   letterSpacing: '0.03em'
-                                }}>PRO</span>
+                                }}>
+                                  {tab.isLocked && <Lock size={10} />}
+                                  BISNIS
+                                </span>
                               )}
                             </button>
                           );
@@ -24577,153 +24654,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   )}
 
-                  {/* Custom Domain Settings Section */}
-                  {settingsSubTab === 'domain' && storeQuota?.plan?.has_custom_domain && (
-                    <div style={{ maxWidth: '650px', marginTop: '1rem' }} className="animate-fade-in">
-                      <div style={{ paddingBottom: '0.75rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-light)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
-                          <div style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '8px',
-                            backgroundColor: 'var(--primary-glow)',
-                            color: 'var(--primary)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}>
-                            <Globe size={18} style={{ color: 'var(--primary)' }} />
-                          </div>
-                          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                            Konfigurasi Custom Domain Katalog
-                          </h3>
-                          <span style={{
-                            fontSize: '0.65rem',
-                            fontWeight: 900,
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            backgroundColor: 'var(--primary)',
-                            color: '#ffffff'
-                          }}>
-                            PRO BISNIS
-                          </span>
-                        </div>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                          Gunakan domain kustom Anda sendiri (misal: <code>brandanda.com</code> atau <code>katalog.brand.com</code>) sebagai alamat website resmi katalog Anda.
-                        </p>
-                      </div>
-
-                      <form onSubmit={handleCustomDomainSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <div className="form-group">
-                          <label className="form-label" style={{ fontWeight: 800 }}>Nama Domain Kustom</label>
-                          <div style={{ display: 'flex', gap: '0.65rem' }}>
-                            <input
-                              type="text"
-                              className="form-input"
-                              placeholder="Contoh: brandanda.com atau katalog.brand.com"
-                              value={customDomainInput}
-                              onChange={(e) => setCustomDomainInput(e.target.value)}
-                              style={{ flex: 1, fontSize: '0.88rem' }}
-                            />
-                            <button
-                              type="submit"
-                              disabled={customDomainLoading}
-                              className="btn-primary"
-                              style={{
-                                padding: '0 1.5rem',
-                                borderRadius: '0.5rem',
-                                fontWeight: 800,
-                                fontSize: '0.84rem',
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              {customDomainLoading ? 'Menyimpan...' : 'Simpan Domain'}
-                            </button>
-                          </div>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.35rem' }}>
-                            * Masukkan nama domain tanpa http:// atau https://. Kosongkan lalu simpan jika ingin menghapus custom domain.
-                          </span>
-                        </div>
-
-                        {storeQuota?.custom_domain && (
-                          <div style={{
-                            padding: '0.85rem 1rem',
-                            borderRadius: '0.65rem',
-                            background: 'var(--primary-glow)',
-                            border: '1px solid var(--border-light)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '1rem'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                              <CheckCircle2 size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                              <div>
-                                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>Domain Terhubung: </span>
-                                <strong style={{ fontSize: '0.84rem', color: 'var(--primary)' }}>{storeQuota.custom_domain}</strong>
-                              </div>
-                            </div>
-                            <a
-                              href={`https://${storeQuota.custom_domain}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{
-                                fontSize: '0.76rem',
-                                fontWeight: 800,
-                                color: 'var(--primary)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.25rem',
-                                textDecoration: 'none'
-                              }}
-                            >
-                              Buka Domain <ExternalLink size={12} />
-                            </a>
-                          </div>
-                        )}
-
-                        {/* DNS Configuration Guide Card */}
-                        <div style={{
-                          padding: '1.25rem',
-                          borderRadius: '0.75rem',
-                          background: 'var(--card-bg-gradient, var(--bg-card))',
-                          border: '1px solid var(--border-light)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.75rem'
-                        }}>
-                          <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <FileCode size={16} style={{ color: 'var(--primary)' }} />
-                            Petunjuk DNS di Registrar (Niagahoster, DomaiNesia, Cloudflare, dll)
-                          </h4>
-                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                            Buka pengaturan DNS Domain Anda di tempat Anda membeli domain, lalu tambahkan 1 baris record berikut:
-                          </p>
-
-                          <div style={{
-                            background: 'var(--bg-deep)',
-                            padding: '0.75rem 1rem',
-                            borderRadius: '0.5rem',
-                            fontFamily: 'monospace',
-                            fontSize: '0.84rem',
-                            display: 'grid',
-                            gridTemplateColumns: '1fr 1fr 2fr',
-                            gap: '0.5rem',
-                            border: '1px solid var(--border-light)'
-                          }}>
-                            <div><strong style={{ color: 'var(--text-secondary)' }}>Tipe:</strong> <span style={{ color: 'var(--primary)', fontWeight: 800 }}>CNAME</span></div>
-                            <div><strong style={{ color: 'var(--text-secondary)' }}>Host:</strong> <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>@</span> atau <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>katalog</span></div>
-                            <div><strong style={{ color: 'var(--text-secondary)' }}>Target:</strong> <span style={{ color: 'var(--primary)', fontWeight: 800 }}>cname.catavor.com</span></div>
-                          </div>
-
-                          <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
-                            * Setelah DNS diarahkan, domain Anda akan aktif dalam 10-60 menit tergantung propagasi DNS global.
-                          </p>
-                        </div>
-                      </form>
-                    </div>
+                  {/* Custom Domain Settings Section (Visible on all plans: interactive on Pro Bisnis, marketing preview on Free & Pro Starter) */}
+                  {settingsSubTab === 'domain' && (
+                    <CustomDomainSettingsPanel
+                      variant="desktop"
+                      storeSlug={storeSlug || ''}
+                      quota={storeQuota}
+                      apiBase={API_BASE}
+                      authFetch={authFetch}
+                      showToast={showToast}
+                      onRefreshQuota={fetchMyQuota}
+                      onOpenUpgrade={() => setShowSubscriptionModal(true)}
+                    />
                   )}
 
                   {/* End of Settings Content */}
@@ -34438,6 +34380,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             store_id: (settings as any).id || 0,
                             store_slug: storeSlug || '',
                             store_title: settings.store_title || 'Katalog Digital',
+                            product_id: reportModalData.type === 'item' ? reportModalData.item?.id : null,
                             fauna_id: reportModalData.type === 'item' ? reportModalData.item?.id : null,
                             item_name: reportModalData.type === 'item' ? reportModalData.item?.name : null,
                             reason_category: reportReason,
@@ -34451,7 +34394,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           setReportModalData(null);
                           setReportNotes('');
                           setReportEmail('');
-                          showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetTitle}" telah berhasil dikirim ke tim kepatuhan.`);
+                          if (data.duplicate) {
+                            showToast(data.message || `Laporan untuk "${targetTitle}" sudah tercatat dan sedang ditinjau tim kepatuhan.`, 'info');
+                          } else {
+                            showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetTitle}" telah berhasil dikirim ke tim kepatuhan.`);
+                          }
                         } else {
                           showToast(data.message || 'Gagal mengirim laporan. Silakan coba lagi.', 'error');
                         }

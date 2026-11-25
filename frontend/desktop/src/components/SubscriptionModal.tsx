@@ -1347,12 +1347,10 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                           </div>
                         )}
 
-                        {plan.has_custom_domain && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
-                            <Globe size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                            <span><strong>Custom Domain Sendiri</strong> (brand.com)</span>
-                          </div>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: plan.has_custom_domain ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                          <Globe size={16} style={{ color: plan.has_custom_domain ? '#f59e0b' : 'var(--text-muted)', flexShrink: 0 }} />
+                          <span>Custom Domain Sendiri: <strong>{plan.has_custom_domain ? 'Didukung (brand.com)' : 'Eksklusif Pro Bisnis'}</strong></span>
+                        </div>
 
                         {plan.has_priority_support && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>

@@ -1013,9 +1013,6 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			paymentStatus = "paid"
 			exp := now.AddDate(0, durationMonths, 0)
 			planExpiresAt = &exp
-			if requestedPlan == "pro_business" {
-				customDomainStatus = "active"
-			}
 		} else {
 			actualStorePlan = "free"
 			paymentStatus = "pending_verification"
@@ -3360,6 +3357,9 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 	for _, store := range stores {
 		if err := services.RemoveStoreMedia(c.Context(), h.db, driver, cfg, store.ID); err != nil {
 			log.Error().Err(err).Uint("store_id", store.ID).Msg("Account catalog media cleanup incomplete")
+		}
+		if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+			database.InvalidateCustomDomainCache(c.Context(), *store.CustomDomain)
 		}
 	}
 	// Blacklist all user session JTIs + clear browser cookies

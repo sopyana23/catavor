@@ -8,6 +8,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"catavor-backend/internal/config"
+	"catavor-backend/internal/models"
+
 	"github.com/glebarez/sqlite"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -343,5 +346,71 @@ func TestRunMigrationsNoFiles(t *testing.T) {
 	}
 	if !strings.Contains(logs, "tidak ada berkas migrasi") {
 		t.Errorf("log peringatan tidak muncul: %q", logs)
+	}
+}
+
+func TestEnsureN60MFASchema_BackfillByEnv(t *testing.T) {
+	prevCfg := config.AppConfig
+	t.Cleanup(func() { config.AppConfig = prevCfg })
+
+	cases := []struct {
+		name         string
+		cfgEnv       string
+		osEnv        string
+		wantEnforced bool
+	}{
+		{"local_env_preserves_false", "local", "", false},
+		{"development_env_preserves_false", "development", "", false},
+		{"local_via_os_env_when_cfg_nil", "", "local", false},
+		{"unset_env_fails_closed", "", "", true},
+		{"staging_enforces_true", "staging", "", true},
+		{"production_enforces_true", "production", "", true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := migSQLiteDB(t)
+			if err := db.AutoMigrate(
+				&models.User{},
+				&models.TwoFactorRecoveryTicket{},
+				&models.MFAAuthCompletion{},
+				&models.MFAAccountLockout{},
+				&models.MFAChallengeFailure{},
+			); err != nil {
+				t.Fatalf("AutoMigrate: %v", err)
+			}
+
+			u := models.User{
+				Name:              "Staff Test",
+				Email:             tc.name + "@example.invalid",
+				Password:          "hash",
+				PlatformRole:      "superadmin",
+				TwoFactorEnabled:  false,
+				TwoFactorEnforced: false,
+			}
+			if err := db.Create(&u).Error; err != nil {
+				t.Fatalf("create user: %v", err)
+			}
+
+			t.Setenv("APP_ENV", tc.osEnv)
+			if tc.cfgEnv != "" {
+				config.AppConfig = &config.Config{AppEnv: tc.cfgEnv}
+			} else {
+				config.AppConfig = nil
+			}
+
+			if err := EnsureN60MFASchema(db); err != nil {
+				t.Fatalf("EnsureN60MFASchema: %v", err)
+			}
+
+			var refreshed models.User
+			if err := db.First(&refreshed, u.ID).Error; err != nil {
+				t.Fatalf("reload user: %v", err)
+			}
+			if refreshed.TwoFactorEnforced != tc.wantEnforced {
+				t.Fatalf("env=(cfg:%q, os:%q) two_factor_enforced = %v, want %v",
+					tc.cfgEnv, tc.osEnv, refreshed.TwoFactorEnforced, tc.wantEnforced)
+			}
+		})
 	}
 }

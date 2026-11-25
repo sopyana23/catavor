@@ -1274,6 +1274,9 @@ func (h *StoreHandler) UpdateStore(c *fiber.Ctx) error {
 	if slugChanged {
 		InvalidateStoreProfileCache(oldSlug)
 	}
+	if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+		database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
+	}
 
 	// Multi-Layer Rollback: Berkas fisik lama di Cloudflare R2 / storage DIHAPUS HANYA
 	// setelah transaksi basis data berhasil di-commit (AGENTS.md Rule 10).
@@ -2306,6 +2309,10 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 	}
 	if err := services.RemoveStoreMedia(c.Context(), h.db, h.storage, cfg, store.ID); err != nil {
 		log.Error().Err(err).Uint("store_id", store.ID).Msg("Catalog media cleanup incomplete")
+	}
+	InvalidateStoreProfileCache(store.Slug)
+	if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+		database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
 	}
 	// Fetch remaining active stores of user
 	var remainingStores []models.Store

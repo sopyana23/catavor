@@ -38,6 +38,7 @@ import { CookieConsentBanner } from '../../shared/monetization/CookieConsentBann
 import { smartBack } from './utils/navigation';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ExternalLinkWarningModal } from './components/ExternalLinkWarningModal';
+import { getCustomDomainMeta } from '../../shared/custom-domain/hostContext';
 import { MFAChallengeView } from './components/MFAChallengeView';
 import { MFAOnboardingModal } from './components/MFAOnboardingModal';
 
@@ -56,9 +57,9 @@ export const isCatalogChooserRoute = (path: string): boolean => {
 };
 
 export const extractSlugFromPath = (pathname: string): string | null => {
-  if (!pathname) return null;
+  if (!pathname) return getCustomDomainMeta().slug;
   const parts = pathname.split('?')[0].split('/').filter(Boolean);
-  if (parts.length === 0) return null;
+  if (parts.length === 0) return getCustomDomainMeta().slug;
   // Format /login/:slug or /login/:slug/admin
   if (parts[0].toLowerCase() === 'login' && parts.length > 1 && !RESERVED_SLUGS.includes(parts[1].toLowerCase())) {
     return parts[1].toLowerCase();
@@ -1129,7 +1130,7 @@ export const App: React.FC = () => {
           const isGenericAdmin = currentP === '/admin' || currentP.startsWith('/admin/');
           const isLogin = currentP === '/login' || currentP.endsWith('/login');
           const isChooser = currentP === '/catalogs' || isCatalogChooserRoute(currentP);
-          const isHome = currentP === '/' || currentP === '';
+          const isHome = (currentP === '/' || currentP === '') && !getCustomDomainMeta().slug;
 
           if (isLogin || isHome || isChooser || (isGenericAdmin && !isStaff)) {
             const redirectUrl = resolveAuthenticatedRedirect(parsedUser);
@@ -1176,7 +1177,7 @@ export const App: React.FC = () => {
           const isGenericAdmin = currentP === '/admin' || currentP.startsWith('/admin/');
           const isLogin = currentP === '/login' || currentP.endsWith('/login');
           const isChooser = currentP === '/catalogs' || isCatalogChooserRoute(currentP);
-          const isHome = currentP === '/' || currentP === '';
+          const isHome = (currentP === '/' || currentP === '') && !getCustomDomainMeta().slug;
 
           if (isLogin || isHome || isChooser || (isGenericAdmin && !isStaff)) {
             const redirectUrl = resolveAuthenticatedRedirect(parsedUser);

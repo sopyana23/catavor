@@ -951,12 +951,12 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                                 {p.has_verified_badge ? 'Centang Profil Resmi' : 'Tanpa Badge Verifikasi'}
                               </span>
                             </div>
-                            {p.has_custom_domain && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                <Crown size={15} color="#a855f7" />
-                                <span style={{ fontWeight: 600 }}>Dukungan Custom Domain</span>
-                              </div>
-                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: p.has_custom_domain ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                              <Crown size={15} color={p.has_custom_domain ? '#d97706' : 'var(--text-muted)'} />
+                              <span style={{ fontWeight: p.has_custom_domain ? 700 : 500 }}>
+                                Custom Domain: {p.has_custom_domain ? 'Didukung (brand.com)' : 'Eksklusif Pro Bisnis'}
+                              </span>
+                            </div>
                           </div>
                         </div>
 

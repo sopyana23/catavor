@@ -129,9 +129,12 @@ func ReactivateStoreByToken(db *gorm.DB, token string) (*models.Store, error) {
 	delete(activityCache, store.ID)
 	activityCacheMutex.Unlock()
 
-	// Invalidate Redis profile cache to prevent stale suspended status
+	// Invalidate Redis profile and custom domain caches to prevent stale suspended status
 	if database.IsRedisAvailable() && database.RedisClient != nil && store.Slug != "" {
 		_ = database.RedisClient.Del(context.Background(), fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug))).Err()
+	}
+	if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+		database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
 	}
 
 	// Broadcast real-time store lifecycle event to connected clients
@@ -193,9 +196,12 @@ func ReactivateStoreByID(db *gorm.DB, storeID uint) (*models.Store, error) {
 	delete(activityCache, store.ID)
 	activityCacheMutex.Unlock()
 
-	// Invalidate Redis profile cache to prevent stale suspended status
+	// Invalidate Redis profile and custom domain caches to prevent stale suspended status
 	if database.IsRedisAvailable() && database.RedisClient != nil && store.Slug != "" {
 		_ = database.RedisClient.Del(context.Background(), fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug))).Err()
+	}
+	if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+		database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
 	}
 
 	// Broadcast real-time store lifecycle event to connected clients
@@ -331,6 +337,9 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) (int64, error) {
 				"dormancy_suspended_at": suspendedAt,
 				"reactivation_token":    token,
 			})
+			if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+				database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
+			}
 
 			reactivateURL := fmt.Sprintf("%s/api/public/stores/reactivate?token=%s", baseURL, token)
 
@@ -406,6 +415,9 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) (int64, error) {
 		database.InvalidateStoreQuotaCache(context.Background(), store.ID)
 		if database.IsRedisAvailable() && database.RedisClient != nil {
 			database.RedisClient.Del(context.Background(), fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug)))
+		}
+		if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+			database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
 		}
 		if store.User != nil && store.User.Email != "" {
 			sendDormancyEmail(store.ID, store.User.Email, store.StoreTitle, "Pemberitahuan penghapusan katalog "+store.StoreTitle, 4, 0, baseURL)
@@ -527,6 +539,9 @@ func RunModerationEscalationCycle(db *gorm.DB, strg storage.StorageService) {
 			activityCacheMutex.Lock()
 			delete(activityCache, store.ID)
 			activityCacheMutex.Unlock()
+			if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+				database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
+			}
 
 			// Check and sync any existing moderation report for this store
 			var existingReport models.Report

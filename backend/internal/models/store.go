@@ -37,8 +37,12 @@ type Store struct {
 	TrendingScore7D          int64          `gorm:"column:trending_score_7d;default:0;index" json:"trending_score_7d"`
 	PrimaryProductType       string         `gorm:"size:50;default:'general';index" json:"primary_product_type"`
 	IsFeatured               bool           `gorm:"default:false;index" json:"is_featured"`
-	CustomDomain             *string        `gorm:"size:255;index" json:"custom_domain,omitempty"`
-	CustomDomainStatus       string         `gorm:"size:50;default:'none'" json:"custom_domain_status"` // none | pending | active | inactive_expired
+	CustomDomain                  *string        `gorm:"size:255" json:"custom_domain,omitempty"`
+	CustomDomainStatus            string         `gorm:"size:50;default:'none'" json:"custom_domain_status"` // none | pending | verifying | active | failed | inactive_expired
+	CustomDomainVerificationToken string         `gorm:"size:128;default:''" json:"custom_domain_verification_token,omitempty"`
+	CustomDomainVerifiedAt        *time.Time     `json:"custom_domain_verified_at,omitempty"`
+	CustomDomainLastCheckedAt     *time.Time     `json:"custom_domain_last_checked_at,omitempty"`
+	CustomDomainError             string         `gorm:"type:text;default:''" json:"custom_domain_error,omitempty"`
 	PaymentStatus            string         `gorm:"size:50;default:'free_active'" json:"payment_status"`
 	EnableWADirect           bool           `gorm:"default:true" json:"enable_wa_direct"`
 	EnableWARekber           bool           `gorm:"default:true" json:"enable_wa_rekber"`

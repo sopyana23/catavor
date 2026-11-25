@@ -1,4 +1,5 @@
 import { FinancePager, useFinancePage } from '../../../shared/finance/FinancePaging';
+import { formatReportStatusLabel, formatReportActionLabel } from '../../../shared/moderation/itemModerationBadge';
 import { paymentChannel } from '../../../shared/finance/paymentChannel';
 import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColors, useFinanceSection } from '../../../shared/finance/FinanceControls';
 import { AutomationConsole } from '../../../shared/automation/AutomationConsole';
@@ -1445,7 +1446,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       { value: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
       { value: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating').length },
       { value: 're_review', label: 'Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
-      { value: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => r.status === 'action_taken' && r.action_taken !== 'catalog_banned').length },
+      { value: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken || 0) : reports.filter(r => r.status === 'action_taken' && r.action_taken !== 'catalog_banned').length },
       { value: 'banned', label: 'Banned', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
       { value: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
       { value: 'resolved', label: 'Selesai', count: reportMetrics ? reportMetrics.resolved : reports.filter(r => r.status === 'resolved').length }
@@ -1895,6 +1896,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       setIsDropdownDragging(false);
     }
   }, [crudDropdownPicker]);
+
+  useModalBackHandler({
+    isOpen: Boolean(crudDropdownPicker),
+    onClose: () => setCrudDropdownPicker(null),
+    modalId: 'mobile_crud_dropdown_picker',
+  });
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMsg({ text: compactToastMessage(text), type });
@@ -5764,8 +5771,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
                 <div>
                   <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Status Peninjauan</span>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, textTransform: 'capitalize' }}>
-                    {moderationModalReport.status || 'Pending'}
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary }}>
+                    {formatReportStatusLabel(moderationModalReport.status)}
                   </span>
                 </div>
                 <div>
@@ -5891,7 +5898,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontWeight: 700, color: theme.textPrimary }}>
-                            {ph.report_number || `#RPT-${ph.id}`} • Status: <strong style={{ color: ph.status === 'dismissed' ? '#94a3b8' : (ph.status === 'action_taken' ? '#f43f5e' : '#10b981') }}>{ph.status}</strong>
+                            {ph.report_number || `#RPT-${ph.id}`} • Status: <strong style={{ color: ph.status === 'dismissed' ? '#94a3b8' : (ph.status === 'action_taken' ? '#f43f5e' : '#10b981') }}>{formatReportStatusLabel(ph.status)}</strong>
                           </span>
                           <span style={{ fontSize: '0.65rem', color: theme.textMuted }}>
                             {ph.reviewed_at ? new Date(ph.reviewed_at).toLocaleDateString('id-ID') : '-'}
@@ -5899,7 +5906,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         </div>
                         {ph.action_taken && ph.action_taken !== 'none' && (
                           <div style={{ fontSize: '0.68rem', color: '#f43f5e', fontWeight: 700 }}>
-                            Sanksi Diterapkan: {ph.action_taken}
+                            Sanksi Diterapkan: {formatReportActionLabel(ph.action_taken)}
                           </div>
                         )}
                         {ph.admin_notes && (
@@ -6168,17 +6175,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                 label: 'Bekukan / Suspend Profil Katalog',
                                 desc: 'Seluruh etalase profil katalog dan item dibekukan sementara dari akses publik secara real-time'
                               },
-                            ] : []),
-                            {
-                              value: 'catalog_banned',
-                              label: 'Blokir / Banned Permanen Profil Katalog',
-                              desc: 'Nonaktifkan akses publik profil katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding'
-                            },
-                            {
-                              value: 'catalog_reactivated',
-                              label: 'Pulihkan / Aktifkan Profil Katalog',
-                              desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase profil katalog'
-                            }
+                              {
+                                value: 'catalog_banned',
+                                label: 'Blokir / Banned Permanen Profil Katalog',
+                                desc: 'Nonaktifkan akses publik profil katalog dan akun pemilik secara permanen karena pelanggaran berat atau kegagalan banding'
+                              },
+                              {
+                                value: 'catalog_reactivated',
+                                label: 'Pulihkan / Aktifkan Profil Katalog',
+                                desc: 'Cabut status penangguhan dan buka kembali akses publik seluruh etalase profil katalog'
+                              },
+                            ] : [])
                           ];
 
                         setCrudDropdownPicker({
@@ -6273,7 +6280,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               }}>
                 <Info size={15} style={{ color: isDark ? '#38bdf8' : '#0284c7', flexShrink: 0 }} />
                 <span style={{ fontSize: '0.7rem', color: theme.textSecondary, lineHeight: 1.4 }}>
-                  Eksekusi sanksi bersifat seketika (*instant*). Pemilik toko akan melihat status item/katalog terbarui di portal mereka.
+                  Eksekusi sanksi bersifat seketika (instan). Pemilik toko akan melihat status item/katalog terbarui di portal mereka.
                 </span>
               </div>
             </div>
@@ -6411,28 +6418,28 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
             {/* Quick Metrics Bar (4 Columns with Dedicated Banned Metric) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.45rem' }}>
-              <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+              <div data-testid="mobile-metric-pending" style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                 <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Menunggu</span>
                 <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f59e0b' }}>
-                  {reports.filter(r => r.status === 'pending').length}
+                  {reportMetrics ? (reportMetrics.pending || 0) : reports.filter(r => r.status === 'pending').length}
                 </span>
               </div>
-              <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+              <div data-testid="mobile-metric-investigating" style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                 <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Investigasi</span>
                 <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#38bdf8' }}>
-                  {reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length}
+                  {reportMetrics ? ((reportMetrics.investigating || 0) + (reportMetrics.re_review || 0)) : reports.filter(r => r.status === 'investigating' || r.status === 'in_review' || r.status === 're_review').length}
                 </span>
               </div>
-              <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+              <div data-testid="mobile-metric-action" style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                 <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Sanksi Aktif</span>
                 <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f43f5e' }}>
-                  {reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.status !== 'banned' && r.action_taken !== 'catalog_banned').length}
+                  {reportMetrics ? (reportMetrics.action_taken || 0) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.status !== 'banned' && r.action_taken !== 'catalog_banned').length}
                 </span>
               </div>
-              <div style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+              <div data-testid="mobile-metric-banned" style={{ padding: '0.55rem 0.65rem', borderRadius: '0.85rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                 <span style={{ fontSize: '0.62rem', color: theme.textSecondary, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Banned</span>
                 <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ef4444' }}>
-                  {reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length}
+                  {reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length}
                 </span>
               </div>
             </div>
@@ -13139,6 +13146,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             {/* Smooth Drag Handle Bar */}
             <div
               className="bottom-sheet-handle-bar"
+              style={{ touchAction: 'none' }}
               onTouchStart={(e) => handleDropdownDragStart(e.touches[0].clientY)}
               onTouchMove={(e) => handleDropdownDragMove(e.touches[0].clientY)}
               onTouchEnd={handleDropdownDragEnd}
@@ -13158,7 +13166,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               onMouseDown={(e) => handleDropdownDragStart(e.clientY)}
               onMouseMove={(e) => handleDropdownDragMove(e.clientY)}
               onMouseUp={handleDropdownDragEnd}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${theme.border}`, padding: '0.5rem 1rem 0.75rem' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${theme.border}`, padding: '0.5rem 1rem 0.75rem', touchAction: 'none' }}
             >
               <div className="bottom-sheet-title-box">
                 {crudDropdownPicker.icon ? (

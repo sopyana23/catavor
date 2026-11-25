@@ -4,6 +4,11 @@
 # ==============================================================================
 
 {
+	email {$ACME_EMAIL:ops@catavor.com}
+	# Biarkan CUSTOM_DOMAIN_TLS_ASK_SECRET kosong; akses /internal/tls-ask sudah dikunci ke peer loopback (127.0.0.1)
+	on_demand_tls {
+		ask http://127.0.0.1:8000/internal/tls-ask
+	}
 	servers {
 		import cloudflare-ips.caddy
 		protocols h1 h2 h3
@@ -46,6 +51,41 @@ catavor.com, www.catavor.com {
 			header_up X-Forwarded-For {client_ip}
 			header_up X-Forwarded-Proto {scheme}
 		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8000 {
+			header_up Host {host}
+			header_up X-Real-IP {client_ip}
+			header_up X-Forwarded-For {client_ip}
+			header_up X-Forwarded-Proto {scheme}
+			transport http {
+				keepalive 60s
+				keepalive_idle_conns 64
+			}
+		}
+	}
+}
+
+# Custom Domain Multi-Tenant Storefronts (On-Demand TLS terotorisasi via /internal/tls-ask)
+:443 {
+	tls {
+		on_demand
+	}
+
+	request_body {
+		max_size 12MB
+	}
+
+	encode zstd gzip
+
+	header {
+		# Tanpa includeSubDomains/preload agar subdomain unrelated milik merchant tidak terdampak
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
 	}
 
 	handle {

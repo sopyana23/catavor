@@ -418,6 +418,8 @@ func main() {
 	// Health probe untuk load balancer / orchestrator (tanpa auth, tanpa detail internal)
 	app.Get("/healthz", handlers.LivenessHandler)
 	app.Get("/readyz", healthHandler.Readiness)
+	// Caddy On-Demand TLS certificate authorization endpoint (hanya menerima trusted proxy / loopback)
+	app.Get("/internal/tls-ask", subscriptionHandler.CheckTLSAsk)
 	api := app.Group("/api", middleware.GlobalAPIRateLimiter())
 
 	// Catalog Data Portability & Export (Must precede :id wildcard to prevent route shadowing)
@@ -455,6 +457,7 @@ func main() {
 	api.Get("/auth/reactivate-store", dormancyHandler.HandlePublicReactivateStore)
 
 	// Public Subscription Plans & Payment Webhooks
+	api.Get("/domain/resolve", subscriptionHandler.ResolveCustomDomain)
 	api.Get("/subscription/plans", subscriptionHandler.GetPlans)
 	api.Post("/subscription/verify-coupon", subscriptionHandler.VerifyCoupon)
 	api.Post("/auth/verify-coupon", subscriptionHandler.VerifyCoupon)
@@ -629,6 +632,8 @@ func main() {
 		guardedMutations.Post("/subscription/schedule-downgrade", middleware.AuthRateLimiter(), subscriptionHandler.ScheduleDowngrade)
 		guardedMutations.Post("/subscription/cancel-downgrade", middleware.AuthRateLimiter(), subscriptionHandler.CancelDowngrade)
 		guardedMutations.Post("/subscription/custom-domain", subscriptionHandler.UpdateCustomDomain)
+		guardedMutations.Post("/subscription/custom-domain/verify", middleware.AuthRateLimiter(), subscriptionHandler.VerifyCustomDomain)
+		guardedMutations.Delete("/subscription/custom-domain", subscriptionHandler.RemoveCustomDomain)
 		guardedMutations.Post("/subscription/order", subscriptionHandler.CreateOrder)
 		guardedMutations.Post("/subscription/verify-coupon", middleware.AuthRateLimiter(), subscriptionHandler.VerifyCoupon)
 		guardedMutations.Post("/subscription/orders/:id/sync", paymentHandler.SyncOrderStatus)

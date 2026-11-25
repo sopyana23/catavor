@@ -1,4 +1,5 @@
 import { FinancePager, useFinancePage } from '../../../shared/finance/FinancePaging';
+import { formatReportStatusLabel, formatReportActionLabel } from '../../../shared/moderation/itemModerationBadge';
 import { paymentChannel, formatGatewayResponse } from '../../../shared/finance/paymentChannel';
 import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColors, useFinanceSection } from '../../../shared/finance/FinanceControls';
 import { AutomationConsole } from '../../../shared/automation/AutomationConsole';
@@ -642,7 +643,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       { value: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
       { value: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
       { value: 're_review', label: 'Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
-      { value: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
+      { value: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken || 0) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
       { value: 'banned', label: 'Banned', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
       { value: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
       { value: 'resolved', label: 'Selesai', count: reportMetrics ? reportMetrics.resolved : reports.filter(r => r.status === 'resolved').length }
@@ -4204,7 +4205,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     <div style={{ padding: '0.45rem 0.55rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                       <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Sanksi Aktif</span>
                       <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#f43f5e' }}>
-                        {reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.status !== 'banned' && r.action_taken !== 'catalog_banned').length}
+                        {reportMetrics ? (reportMetrics.action_taken || 0) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.status !== 'banned' && r.action_taken !== 'catalog_banned').length}
                       </span>
                     </div>
                     <div style={{ padding: '0.45rem 0.55rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid rgba(239, 68, 68, 0.35)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
@@ -4541,9 +4542,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     { value: 'item_restored', label: 'Pulihkan / Aktifkan Item', description: 'Item dipulihkan dan dapat kembali diakses publik', badge: 'AKTIF', badgeColor: '#10b981' },
                     ...(canSuspendStores ? [
                       { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog', description: 'Seluruh etalase profil katalog dibekukan sementara', badge: 'SUSPEND', badgeColor: '#dc2626' },
-                    ] : []),
-                    { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
-                    { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' }
+                      { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
+                      { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' },
+                    ] : [])
                   ];
 
                   const catalogOptions: TabletSelectOption[] = [
@@ -4551,9 +4552,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     { value: 'warning_issued', label: 'Terbitkan Peringatan Resmi', description: 'Kirim surat peringatan resmi kepatuhan ke pengelola', badge: 'PERINGATAN', badgeColor: '#f59e0b' },
                     ...(canSuspendStores ? [
                       { value: 'catalog_suspended', label: 'Bekukan / Suspend Profil Katalog', description: 'Seluruh etalase profil katalog dibekukan sementara dari publik', badge: 'SUSPEND', badgeColor: '#dc2626' },
-                    ] : []),
-                    { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
-                    { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' }
+                      { value: 'catalog_banned', label: 'Blokir / Banned Permanen Profil Katalog', description: 'Tutup akses publik profil katalog dan akun pemilik permanen', badge: 'BANNED', badgeColor: '#b91c1c' },
+                      { value: 'catalog_reactivated', label: 'Pulihkan / Aktifkan Profil Katalog', description: 'Cabut status penangguhan dan buka kembali etalase profil katalog', badge: 'PULIHKAN', badgeColor: '#10b981' },
+                    ] : [])
                   ];
 
                   return (
@@ -4717,8 +4718,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           </div>
                           <div>
                             <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.15rem' }}>Status Peninjauan</span>
-                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
-                              {activeRep.status || 'Pending'}
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              {formatReportStatusLabel(activeRep.status)}
                             </span>
                           </div>
                           <div>
@@ -4753,34 +4754,36 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           </div>
                         )}
 
-                        {/* Evidence Attachment Image Preview */}
-                        <div style={{ marginTop: '0.25rem' }}>
-                          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                            Lampiran Berkas / Foto Barang Bukti:
+                        {/* Evidence Attachment Image Preview (only rendered when evidence exists) */}
+                        {activeRep.evidence_image_url && (
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                              Lampiran Berkas / Foto Barang Bukti:
+                            </div>
+                            <div style={{ width: '120px', height: '120px', borderRadius: '0.65rem', overflow: 'hidden' }}>
+                              <SafeImage
+                                src={activeRep.evidence_image_url}
+                                alt="Bukti Laporan"
+                                emptyLabel="Tidak Ada Bukti"
+                                emptySubLabel="Foto belum dilampirkan"
+                                errorLabel="Foto Rusak"
+                                errorSubLabel="Tidak terbaca"
+                                showLabel={false}
+                                compact={false}
+                                objectFit="cover"
+                                onPreview={() => {
+                                  if (activeRep.evidence_image_url) {
+                                    openDocumentPreview({
+                                      file_url: activeRep.evidence_image_url,
+                                      file_name: `Bukti_Laporan_${activeRep.report_number || `#RPT-${activeRep.id}`}.jpg`
+                                    });
+                                  }
+                                }}
+                                title="Klik untuk melihat pratinjau bukti"
+                              />
+                            </div>
                           </div>
-                          <div style={{ width: '120px', height: '120px', borderRadius: '0.65rem', overflow: 'hidden' }}>
-                            <SafeImage
-                              src={activeRep.evidence_image_url}
-                              alt="Bukti Laporan"
-                              emptyLabel="Tidak Ada Bukti"
-                              emptySubLabel="Foto belum dilampirkan"
-                              errorLabel="Foto Rusak"
-                              errorSubLabel="Tidak terbaca"
-                              showLabel={false}
-                              compact={false}
-                              objectFit="cover"
-                              onPreview={() => {
-                                if (activeRep.evidence_image_url) {
-                                  openDocumentPreview({
-                                    file_url: activeRep.evidence_image_url,
-                                    file_name: `Bukti_Laporan_${activeRep.report_number || `#RPT-${activeRep.id}`}.jpg`
-                                  });
-                                }
-                              }}
-                              title={activeRep.evidence_image_url ? "Klik untuk melihat pratinjau bukti" : "Foto bukti belum dilampirkan"}
-                            />
-                          </div>
-                        </div>
+                        )}
 
                         {/* Multi-Reporter Active Evidence Timeline */}
                         {reportActiveEvidence && reportActiveEvidence.length > 0 && (
@@ -4873,7 +4876,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                                      {ph.report_number || `#RPT-${ph.id}`} • Status: <strong style={{ color: ph.status === 'dismissed' ? '#94a3b8' : (ph.status === 'action_taken' ? '#f43f5e' : '#10b981') }}>{ph.status}</strong>
+                                      {ph.report_number || `#RPT-${ph.id}`} • Status: <strong style={{ color: ph.status === 'dismissed' ? '#94a3b8' : (ph.status === 'action_taken' ? '#f43f5e' : '#10b981') }}>{formatReportStatusLabel(ph.status)}</strong>
                                     </span>
                                     <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
                                       {ph.reviewed_at ? new Date(ph.reviewed_at).toLocaleDateString('id-ID') : '-'}
@@ -4881,7 +4884,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   </div>
                                   {ph.action_taken && ph.action_taken !== 'none' && (
                                     <div style={{ fontSize: '0.68rem', color: '#f43f5e', fontWeight: 700 }}>
-                                      Sanksi Diterapkan: {ph.action_taken}
+                                      Sanksi Diterapkan: {formatReportActionLabel(ph.action_taken)}
                                     </div>
                                   )}
                                   {ph.admin_notes && (
@@ -5036,7 +5039,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         }}>
                           <Info size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />
                           <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                            Eksekusi sanksi bersifat seketika (*instant*). Pemilik toko akan melihat status item/katalog terbarui di portal mereka.
+                            Eksekusi sanksi bersifat seketika (instan). Pemilik toko akan melihat status item/katalog terbarui di portal mereka.
                           </span>
                         </div>
                       </div>

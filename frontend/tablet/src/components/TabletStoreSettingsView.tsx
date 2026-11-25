@@ -37,6 +37,7 @@ import { RichTextarea } from './RichTextarea';
 import { formatPhoneNumber, parseWAContacts, type WAContactItem } from '../utils/catalogConfig';
 import { useModalBackHandler } from '../utils/navigation';
 import type { StoreQuotaData } from './TabletSubscriptionModal';
+import { CustomDomainSettingsPanel } from '../../../shared/custom-domain/CustomDomainSettingsPanel';
 
 // =========================================================================
 // TYPES & CONSTANTS
@@ -801,6 +802,7 @@ export interface TabletStoreSettingsViewProps {
   onThemeChange?: (theme: string) => void;
   showToast: (msg: string, type?: 'success' | 'error') => void;
   onOpenSubscriptionModal: () => void;
+  onRefreshQuota?: () => Promise<void> | void;
   onViewPublicCatalog?: () => void;
   onUnauthorized?: () => void;
   onSlugChanged?: (newSlug: string) => void;
@@ -816,6 +818,7 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
   onThemeChange,
   showToast,
   onOpenSubscriptionModal,
+  onRefreshQuota,
   onViewPublicCatalog: _onViewPublicCatalog,
   onUnauthorized,
   onSlugChanged,
@@ -1205,18 +1208,20 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
     }
   };
 
+  const isDomainLocked = !quota?.plan?.has_custom_domain;
   const settingsTabs: Array<{ 
     id: TabletSettingsSubTab; 
     label: string; 
     description: string;
     icon: React.ComponentType<{ size?: number | string; strokeWidth?: number; style?: React.CSSProperties; className?: string }>; 
-    isPro?: boolean 
+    isPro?: boolean;
+    isLocked?: boolean;
   }> = [
     { id: 'general', label: 'Profil & Identitas', description: 'Nama katalog, tautan unik, logo, dan slogan bisnis', icon: StoreIcon },
     { id: 'contact', label: 'Kontak Resmi', description: 'WhatsApp CS, telepon, jam operasional, dan lokasi toko', icon: MessageCircle },
     { id: 'about', label: 'Tentang Kami', description: 'Profil cerita bisnis, visi-misi, dan kartu nilai komitmen', icon: Sparkles },
     { id: 'theme', label: 'Tema & Tampilan', description: 'Preset warna estetika, palet brand, dan gaya visual etalase', icon: Palette },
-    ...(quota?.plan?.has_custom_domain ? [{ id: 'domain' as const, label: 'Custom Domain', description: 'Tautkan nama domain pribadi Anda ke etalase katalog', icon: Globe, isPro: true }] : [])
+    { id: 'domain' as const, label: 'Custom Domain', description: 'Tautkan nama domain pribadi Anda ke etalase katalog', icon: Globe, isPro: true, isLocked: isDomainLocked }
   ];
 
   const themePresets = [
@@ -1321,8 +1326,9 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
                 <Icon size={16} strokeWidth={2.2} className="tab-icon" />
                 <span className="tab-label-text">{tab.label}</span>
                 {tab.isPro && (
-                  <span className={`tab-pro-badge ${isActive ? 'active' : ''}`}>
-                    PRO
+                  <span className={`tab-pro-badge ${isActive ? 'active' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                    {tab.isLocked && <Lock size={10} />}
+                    BISNIS
                   </span>
                 )}
               </button>
@@ -1448,210 +1454,28 @@ export const TabletStoreSettingsView: React.FC<TabletStoreSettingsViewProps> = (
       )}
 
       {/* ===================================================================
-          2. CUSTOM DOMAIN SUB-TAB
+          2. CUSTOM DOMAIN SUB-TAB (Visible across all plans)
           =================================================================== */}
       {settingsSubTab === 'domain' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div style={{ paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-light)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                backgroundColor: 'var(--primary-glow)',
-                color: 'var(--primary)',
-                border: '1px solid var(--border-light)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Globe size={18} style={{ color: 'var(--primary)' }} />
-              </div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                Konfigurasi Custom Domain Katalog
-              </h3>
-              <span style={{
-                fontSize: '0.65rem',
-                fontWeight: 900,
-                padding: '2px 8px',
-                borderRadius: '4px',
-                backgroundColor: 'var(--primary)',
-                color: '#ffffff'
-              }}>
-                PRO BISNIS
-              </span>
-            </div>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-              Gunakan domain kustom Anda sendiri (misal: <code>brandanda.com</code> atau <code>katalog.brand.com</code>) sebagai alamat website resmi katalog Anda.
-            </p>
-          </div>
-
-          {quota && !quota.plan?.has_custom_domain && (
-            <div style={{
-              padding: '1.15rem',
-              borderRadius: '0.75rem',
-              backgroundColor: 'rgba(245, 158, 11, 0.1)',
-              border: '1px solid rgba(245, 158, 11, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem',
-              flexWrap: 'wrap'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <AlertCircle size={22} color="#f59e0b" />
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                  Fitur <strong>Custom Domain</strong> membutuhkan paket <strong>Pro</strong> atau <strong>Enterprise</strong>.
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={onOpenSubscriptionModal}
-                style={{
-                  minHeight: '40px',
-                  padding: '0.45rem 1rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: '#f59e0b',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontWeight: 800,
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem'
-                }}
-              >
-                <Sparkles size={14} style={{ flexShrink: 0 }} />
-                <span>Upgrade Paket</span>
-              </button>
-            </div>
-          )}
-
-          <form onSubmit={handleCustomDomainSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
-                Nama Domain Kustom
-              </label>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <input
-                  type="text"
-                  placeholder="Contoh: brandanda.com atau katalog.brand.com"
-                  value={customDomainInput}
-                  onChange={(e) => setCustomDomainInput(e.target.value)}
-                  style={{
-                    flex: 1,
-                    minHeight: '44px',
-                    padding: '0.75rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.88rem',
-                    boxSizing: 'border-box'
-                  }}
-                />
-                <button
-                  type="submit"
-                  disabled={customDomainLoading}
-                  style={{
-                    minHeight: '44px',
-                    padding: '0 1.5rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: 'var(--primary)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 800,
-                    fontSize: '0.84rem',
-                    cursor: customDomainLoading ? 'not-allowed' : 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {customDomainLoading ? 'Menyimpan...' : 'Simpan Domain'}
-                </button>
-              </div>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.35rem' }}>
-                * Masukkan nama domain tanpa http:// atau https://. Kosongkan lalu simpan jika ingin menghapus custom domain.
-              </span>
-            </div>
-
-            {settingsForm.custom_domain && (
-              <div style={{
-                padding: '0.85rem 1.15rem',
-                borderRadius: '0.65rem',
-                backgroundColor: 'var(--primary-glow)',
-                border: '1px solid var(--border-light)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '1rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <CheckCircle2 size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                  <div>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)' }}>Domain Terhubung: </span>
-                    <strong style={{ fontSize: '0.85rem', color: 'var(--primary)' }}>{settingsForm.custom_domain}</strong>
-                  </div>
-                </div>
-                <a
-                  href={`https://${settingsForm.custom_domain}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    fontSize: '0.78rem',
-                    fontWeight: 800,
-                    color: 'var(--primary)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.3rem',
-                    textDecoration: 'none'
-                  }}
-                >
-                  Buka Domain <ExternalLink size={13} />
-                </a>
-              </div>
-            )}
-
-            {/* DNS Configuration Guide Card */}
-            <div style={{
-              padding: '1.25rem',
-              borderRadius: '0.75rem',
-              backgroundColor: 'var(--bg-deep)',
-              border: '1px solid var(--border-light)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.75rem'
-            }}>
-              <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <FileCode size={16} style={{ color: 'var(--primary)' }} />
-                Petunjuk DNS di Registrar (Niagahoster, DomaiNesia, Cloudflare, dll)
-              </h4>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                Buka pengaturan DNS Domain Anda di tempat Anda membeli domain, lalu tambahkan 1 baris record berikut:
-              </p>
-
-              <div style={{
-                backgroundColor: 'var(--bg-card)',
-                padding: '0.85rem 1rem',
-                borderRadius: '0.5rem',
-                fontFamily: 'monospace',
-                fontSize: '0.84rem',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                gap: '0.75rem',
-                border: '1px solid var(--border-light)'
-              }}>
-                <div><strong style={{ color: 'var(--text-secondary)' }}>Tipe:</strong> <span style={{ color: 'var(--primary)', fontWeight: 800 }}>CNAME</span></div>
-                <div><strong style={{ color: 'var(--text-secondary)' }}>Host:</strong> <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>@</span> atau <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>katalog</span></div>
-                <div><strong style={{ color: 'var(--text-secondary)' }}>Target:</strong> <span style={{ color: 'var(--primary)', fontWeight: 800 }}>cname.catavor.com</span></div>
-              </div>
-
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
-                * Setelah DNS diarahkan, domain Anda akan aktif dalam 10-60 menit tergantung propagasi DNS global.
-              </p>
-            </div>
-          </form>
-        </div>
+        <CustomDomainSettingsPanel
+          variant="tablet"
+          storeSlug={storeSlug}
+          quota={quota}
+          apiBase="/api"
+          authFetch={(input, init) =>
+            fetch(input, {
+              ...init,
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                'X-Store-Slug': storeSlug,
+                ...(init?.headers || {}),
+              },
+            })
+          }
+          showToast={(msg, type) => showToast(msg, type === 'error' ? 'error' : 'success')}
+          onRefreshQuota={onRefreshQuota || (() => {})}
+          onOpenUpgrade={onOpenSubscriptionModal}
+        />
       )}
 
       {/* ===================================================================

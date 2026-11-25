@@ -335,7 +335,9 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				}
 
 				// Nullify FK in reports to preserve historical violation records without constraint error
-				if err := tx.Model(&models.Report{}).Where("fauna_id = ?", p.ID).Update("fauna_id", nil).Error; err != nil {
+				if err := tx.Model(&models.Report{}).
+					Where("product_id = ? OR fauna_id = ?", p.ID, p.ID).
+					Updates(map[string]interface{}{"product_id": nil, "fauna_id": nil}).Error; err != nil {
 					return err
 				}
 
@@ -460,7 +462,9 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				}
 
 				// Nullify FK in reports if any archived report references it
-				if err := tx.Model(&models.Report{}).Where("fauna_id = ?", p.ID).Update("fauna_id", nil).Error; err != nil {
+				if err := tx.Model(&models.Report{}).
+					Where("product_id = ? OR fauna_id = ?", p.ID, p.ID).
+					Updates(map[string]interface{}{"product_id": nil, "fauna_id": nil}).Error; err != nil {
 					return err
 				}
 
@@ -553,6 +557,12 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 						if err := tx.Unscoped().Where("fauna_id IN ?", prodIDs).Delete(&models.Sighting{}).Error; err != nil {
 							return err
 						}
+					}
+					// Preserve historical reports and avoid FK 23503 error during banned store hard-purge (MED-06)
+					if err := tx.Model(&models.Report{}).
+						Where("product_id IN ? OR fauna_id IN ?", prodIDs, prodIDs).
+						Updates(map[string]interface{}{"product_id": nil, "fauna_id": nil}).Error; err != nil {
+						return err
 					}
 					if err := tx.Unscoped().Where("id IN ?", prodIDs).Delete(&models.Product{}).Error; err != nil {
 						return err

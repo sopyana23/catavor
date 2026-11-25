@@ -460,7 +460,7 @@ func BuildReporterReceivedEmail(reportNumber, targetType, targetName, storeTitle
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #16a34a; margin-bottom: 18px;">
 		<tr>
 			<td class="inner-card-pad" style="padding: 12px 14px; font-size: 12.5px; line-height: 1.6; color: #166534;">
-				<strong style="display: block; font-size: 12px; margin-bottom: 4px; color: #15803d;">🛡️ Jaminan Perlindungan Privasi Pelapor:</strong>
+				<strong style="display: block; font-size: 12px; margin-bottom: 4px; color: #15803d;">Jaminan Perlindungan Privasi Pelapor:</strong>
 				Identitas dan alamat email Anda sepenuhnya dirahasiakan oleh sistem. Kami tidak akan pernah membagikan data pribadi Anda kepada pihak yang dilaporkan.
 			</td>
 		</tr>
@@ -846,7 +846,7 @@ func BuildItemRetentionReminderEmail(storeTitle, targetEntityName, reportNumber,
 	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 8px; border: 1px solid #fde047; margin-bottom: 18px;">
 		<tr>
 			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #854d0e;">
-				<strong style="color: #713f12; display: block; margin-bottom: 4px;">⚠️ Perhatian:</strong>
+				<strong style="color: #713f12; display: block; margin-bottom: 4px;">Perhatian:</strong>
 				Jika item ini masih memerlukan peninjauan kembali atau Anda telah melengkapi berkas legalitas, mohon segera ajukan klarifikasi melalui formulir Tiket Bantuan sebelum batas waktu retensi berakhir.
 			</td>
 		</tr>
