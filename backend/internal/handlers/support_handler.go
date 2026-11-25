@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"math/big"
 	"mime"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -241,14 +243,14 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 			unreadMap[r.TicketID] = r.Count
 		}
 
-		// 2. Batch fetch ONLY the single latest message per ticket (lean DTO compatibility)
+		// 2. Batch fetch ONLY the single latest public message per ticket (lean DTO compatibility)
 		var latestMessages []models.SupportMessage
 		h.db.Raw(`
 			SELECT sm.* FROM support_messages sm
 			INNER JOIN (
 				SELECT ticket_id, MAX(id) as max_id 
 				FROM support_messages 
-				WHERE ticket_id IN (?) AND is_internal_note = false 
+				WHERE ticket_id IN (?) AND is_internal_note = false AND deleted_at IS NULL 
 				GROUP BY ticket_id
 			) latest ON sm.id = latest.max_id
 		`, ticketIDs).Scan(&latestMessages)
@@ -266,7 +268,7 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 		h.db.Table("support_attachments").
 			Select("support_messages.ticket_id, COUNT(support_attachments.id) as count").
 			Joins("INNER JOIN support_messages ON support_messages.id = support_attachments.message_id").
-			Where("support_messages.ticket_id IN (?) AND support_attachments.deleted_at IS NULL AND support_messages.deleted_at IS NULL", ticketIDs).
+			Where("support_messages.ticket_id IN (?) AND support_messages.is_internal_note = false AND support_attachments.deleted_at IS NULL AND support_messages.deleted_at IS NULL", ticketIDs).
 			Group("support_messages.ticket_id").
 			Scan(&attRows)
 
@@ -350,17 +352,6 @@ func (h *SupportHandler) GetTicketDetails(c *fiber.Ctx) error {
 		})
 	}
 
-	// Mark unread agent messages in this ticket as read by the user
-	now := time.Now().UTC()
-	h.db.Model(&models.SupportMessage{}).
-		Where("ticket_id = ? AND sender_type = ? AND read_at IS NULL", ticket.ID, "agent").
-		Update("read_at", now)
-
-	if ticket.Status == "waiting_user" {
-		h.db.Model(&models.SupportTicket{}).Where("id = ?", ticket.ID).Update("status", "in_progress")
-		ticket.Status = "in_progress"
-	}
-
 	var messages []models.SupportMessage
 	h.db.Where("ticket_id = ? AND is_internal_note = false", ticket.ID).
 		Preload("Attachments").
@@ -420,12 +411,8 @@ func (h *SupportHandler) MarkTicketAsRead(c *fiber.Ctx) error {
 
 	now := time.Now().UTC()
 	h.db.Model(&models.SupportMessage{}).
-		Where("ticket_id = ? AND sender_type = ? AND read_at IS NULL", ticket.ID, "agent").
+		Where("ticket_id = ? AND sender_type = ? AND is_internal_note = false AND read_at IS NULL", ticket.ID, "agent").
 		Update("read_at", now)
-
-	if ticket.Status == "waiting_user" {
-		h.db.Model(&models.SupportTicket{}).Where("id = ?", ticket.ID).Update("status", "in_progress")
-	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -457,17 +444,18 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 		})
 	}
 
-	subject := security.SanitizePlainText(req.Subject, 80)
+	trimmedSubject := strings.TrimSpace(req.Subject)
+	if len([]rune(trimmedSubject)) > 200 {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Judul subjek tiket maksimal 200 karakter. Tuliskan rincian kendala pada kolom isi pesan.",
+		})
+	}
+	subject := security.SanitizePlainText(trimmedSubject, 200)
 	if subject == "" {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"success": false,
 			"message": "Subjek kendala wajib diisi.",
-		})
-	}
-	if len([]rune(strings.TrimSpace(req.Subject))) > 200 {
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"success": false,
-			"message": "Judul subjek tiket maksimal 200 karakter. Tuliskan rincian kendala pada kolom isi pesan.",
 		})
 	}
 
@@ -475,10 +463,22 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	if category == "" {
 		category = "general"
 	}
+	if !isValidSupportCategory(category) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Kategori tiket tidak valid.",
+		})
+	}
 
 	priority := strings.ToLower(strings.TrimSpace(req.Priority))
-	if priority == "" {
+	if priority == "" || priority == "normal" {
 		priority = "medium"
+	}
+	if !isValidSupportPriority(priority) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"message": "Prioritas tiket tidak valid.",
+		})
 	}
 
 	initialMessage := security.SanitizeRichText(req.Message, 5000)
@@ -946,7 +946,7 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 			INNER JOIN (
 				SELECT ticket_id, MAX(id) as max_id 
 				FROM support_messages 
-				WHERE ticket_id IN (?) 
+				WHERE ticket_id IN (?) AND is_internal_note = false AND deleted_at IS NULL 
 				GROUP BY ticket_id
 			) latest ON sm.id = latest.max_id
 		`, ticketIDs).Scan(&latestMessages)
@@ -1190,7 +1190,9 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 			UpdatedAt:   now,
 		}
 	}
-	ticket.LastMessageAt = now
+	if !req.IsInternalNote {
+		ticket.LastMessageAt = now
+	}
 	ticket.UpdatedAt = now
 
 	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
@@ -1285,16 +1287,29 @@ func (h *SupportHandler) ReplyAsAdmin(c *fiber.Ctx) error {
 		}
 	}
 
-	// Broadcast real-time ticket reply event to merchant via SSE (Store-Scoped Isolation)
-	go services.GetNotificationHub().BroadcastTicketEvent("ticket_reply_from_staff", map[string]interface{}{
-		"ticket_id":     ticket.ID,
-		"ticket_number": ticket.TicketNumber,
-		"store_id":      ticket.StoreID,
-		"store_slug":    ticketStoreSlug,
-		"subject":       ticket.Subject,
-		"status":        ticket.Status,
-		"message":       msg,
-	}, ticket.UserID, targetStoreID, "")
+	if req.IsInternalNote {
+		// Catatan internal staf hanya boleh disiarkan ke staf pengelola platform,
+		// DILARANG keras disiarkan ke koneksi SSE milik merchant.
+		go services.GetNotificationHub().BroadcastTicketEvent("ticket_internal_note_added", map[string]interface{}{
+			"ticket_id":        ticket.ID,
+			"ticket_number":    ticket.TicketNumber,
+			"store_id":         ticket.StoreID,
+			"store_slug":       ticketStoreSlug,
+			"status":           ticket.Status,
+			"is_internal_note": true,
+		}, 0, 0, "superadmin")
+	} else {
+		// Broadcast real-time ticket reply event to merchant via SSE (Store-Scoped Isolation)
+		go services.GetNotificationHub().BroadcastTicketEvent("ticket_reply_from_staff", map[string]interface{}{
+			"ticket_id":     ticket.ID,
+			"ticket_number": ticket.TicketNumber,
+			"store_id":      ticket.StoreID,
+			"store_slug":    ticketStoreSlug,
+			"subject":       ticket.Subject,
+			"status":        ticket.Status,
+			"message":       msg,
+		}, ticket.UserID, targetStoreID, "")
+	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
@@ -1339,8 +1354,14 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 
 	now := time.Now().UTC()
 	oldStatus := ticket.Status
-	if req.Status != "" {
+	if strings.TrimSpace(req.Status) != "" {
 		newStatus := strings.ToLower(strings.TrimSpace(req.Status))
+		if !isValidSupportStatus(newStatus) {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Status tiket tidak valid.",
+			})
+		}
 		ticket.Status = newStatus
 
 		if newStatus == "resolved" {
@@ -1357,33 +1378,20 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 			ticket.ClosedAt = nil
 		}
 	}
-	if req.Priority != "" {
-		ticket.Priority = strings.ToLower(strings.TrimSpace(req.Priority))
+	if strings.TrimSpace(req.Priority) != "" {
+		newPriority := strings.ToLower(strings.TrimSpace(req.Priority))
+		if newPriority == "normal" {
+			newPriority = "medium"
+		}
+		if !isValidSupportPriority(newPriority) {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Prioritas tiket tidak valid.",
+			})
+		}
+		ticket.Priority = newPriority
 	}
 	ticket.UpdatedAt = now
-
-	h.db.Save(&ticket)
-	database.InvalidateTicketCache(c.Context(), ticket.ID)
-
-	// 🤖 Automated Resolution Notice (When status transitioned to resolved)
-	if ticket.Status == "resolved" && oldStatus != "resolved" {
-		var merchant models.User
-		h.db.First(&merchant, ticket.UserID)
-		merchantName := merchant.Name
-		if merchantName == "" {
-			merchantName = "Bapak/Ibu Merchant"
-		}
-
-		resolutionMsg := models.SupportMessage{
-			TicketID:       ticket.ID,
-			SenderID:       ticket.UserID,
-			SenderType:     "system",
-			Message:        fmt.Sprintf("Halo %s, kendala pada tiket #%s telah dinyatakan selesai oleh tim Customer Support kami. Jika kendala masih berlanjut atau ada pertanyaan tambahan, Anda dapat membalas pesan ini kapan saja untuk membuka kembali tiket. Terima kasih telah menggunakan Catavor!", merchantName, ticket.TicketNumber),
-			IsInternalNote: false,
-			CreatedAt:      now.Add(time.Second),
-		}
-		h.db.Create(&resolutionMsg)
-	}
 
 	targetStoreID := uint(0)
 	var ticketStoreSlug string
@@ -1395,13 +1403,79 @@ func (h *SupportHandler) UpdateTicketStatus(c *fiber.Ctx) error {
 		}
 	}
 
-	// Broadcast status update event to both merchant (store-scoped) and superadmins
+	var resolvedNotif *models.Notification
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&ticket).Error; err != nil {
+			return err
+		}
+
+		// Automated Resolution Notice & In-App Notification (When status transitioned to resolved)
+		if ticket.Status == "resolved" && oldStatus != "resolved" {
+			var merchant models.User
+			tx.First(&merchant, ticket.UserID)
+			merchantName := merchant.Name
+			if merchantName == "" {
+				merchantName = "Bapak/Ibu Merchant"
+			}
+
+			resolutionMsg := models.SupportMessage{
+				TicketID:       ticket.ID,
+				SenderID:       ticket.UserID,
+				SenderType:     "system",
+				Message:        fmt.Sprintf("Halo %s, kendala pada tiket #%s telah dinyatakan selesai oleh tim Customer Support kami. Jika kendala masih berlanjut atau ada pertanyaan tambahan, Anda dapat membalas pesan ini kapan saja untuk membuka kembali tiket. Terima kasih telah menggunakan Catavor!", merchantName, ticket.TicketNumber),
+				IsInternalNote: false,
+				CreatedAt:      now.Add(time.Second),
+			}
+			if err := tx.Create(&resolutionMsg).Error; err != nil {
+				return err
+			}
+
+			actionURL := "/admin/help?ticket=" + ticket.TicketNumber
+			if ticketStoreSlug != "" {
+				actionURL = "/" + ticketStoreSlug + actionURL
+			}
+			resolvedNotif = &models.Notification{
+				ID:          fmt.Sprintf("notif-supp-res-%d-%d", ticket.ID, time.Now().UnixNano()),
+				Title:       fmt.Sprintf("Tiket #%s Dinyatakan Selesai", ticket.TicketNumber),
+				Category:    "support",
+				Message:     fmt.Sprintf("Kendala '%s' telah selesai ditangani. Anda dapat memberi rating atau membalas dalam 7 hari bila masih butuh bantuan.", ticket.Subject),
+				Type:        "ticket",
+				TargetType:  "single_user",
+				TargetID:    ticket.UserID,
+				ActionType:  "navigate",
+				LinkSubTab:  "help",
+				ActionLabel: "Lihat Tiket",
+				ActionURL:   actionURL,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}
+			if err := tx.Create(resolvedNotif).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		log.Error().Err(err).Uint("ticket_id", ticket.ID).Msg("support: gagal memperbarui status tiket dalam transaksi")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memperbarui status tiket.",
+		})
+	}
+	database.InvalidateTicketCache(c.Context(), ticket.ID)
+
+	if resolvedNotif != nil {
+		services.GetNotificationHub().Broadcast(resolvedNotif)
+	}
+
+	// Broadcast status update event to both merchant (store-scoped) and support-authorized staff
 	go services.GetNotificationHub().BroadcastTicketEvent("ticket_status_updated", map[string]interface{}{
 		"ticket_id":     ticket.ID,
 		"ticket_number": ticket.TicketNumber,
 		"store_id":      ticket.StoreID,
 		"store_slug":    ticketStoreSlug,
 		"status":        ticket.Status,
+		"priority":      ticket.Priority,
 		"old_status":    oldStatus,
 	}, ticket.UserID, targetStoreID, "superadmin")
 
@@ -1450,6 +1524,13 @@ func (h *SupportHandler) RateTicket(c *fiber.Ctx) error {
 		})
 	}
 
+	if ticket.RatedAt != nil {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"success": false,
+			"message": "Penilaian untuk tiket ini sudah pernah dikirim.",
+		})
+	}
+
 	var req struct {
 		Rating  int    `json:"rating"`
 		Comment string `json:"comment"`
@@ -1475,10 +1556,18 @@ func (h *SupportHandler) RateTicket(c *fiber.Ctx) error {
 	ticket.RatedAt = &now
 	ticket.UpdatedAt = now
 
-	// Associate rating with targeted agent or last responding agent
+	// Associate rating only with an agent who actually replied publicly to this ticket
+	ticket.RatedAgentID = nil
 	if req.AgentID != nil && *req.AgentID > 0 {
-		ticket.RatedAgentID = req.AgentID
-	} else {
+		var agentParticipantCount int64
+		h.db.Model(&models.SupportMessage{}).
+			Where("ticket_id = ? AND sender_type = ? AND is_internal_note = false AND sender_id = ?", ticket.ID, "agent", *req.AgentID).
+			Count(&agentParticipantCount)
+		if agentParticipantCount > 0 {
+			ticket.RatedAgentID = req.AgentID
+		}
+	}
+	if ticket.RatedAgentID == nil {
 		var lastAgentMsg models.SupportMessage
 		if err := h.db.Where("ticket_id = ? AND sender_type = ? AND is_internal_note = false", ticket.ID, "agent").
 			Order("id DESC").First(&lastAgentMsg).Error; err == nil && lastAgentMsg.SenderID > 0 {
@@ -1486,7 +1575,13 @@ func (h *SupportHandler) RateTicket(c *fiber.Ctx) error {
 		}
 	}
 
-	h.db.Save(&ticket)
+	if err := h.db.Save(&ticket).Error; err != nil {
+		log.Error().Err(err).Uint("ticket_id", ticket.ID).Msg("support: gagal menyimpan penilaian CSAT")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menyimpan penilaian layanan.",
+		})
+	}
 	database.InvalidateTicketCache(c.Context(), ticket.ID)
 
 	return c.JSON(fiber.Map{
@@ -1544,7 +1639,7 @@ func (h *SupportHandler) UpdatePresence(c *fiber.Ctx) error {
 
 	if database.IsRedisAvailable() {
 		if b, err := json.Marshal(info); err == nil {
-			database.SetTicketPresence(c.Context(), ticketID, user.ID, string(b), 15*time.Second)
+			database.SetTicketPresence(c.Context(), ticketID, user.ID, string(b), 35*time.Second)
 		}
 	}
 
@@ -2262,12 +2357,16 @@ func (h *SupportHandler) GetSupportTicketsPing(c *fiber.Ctx) error {
 	}
 
 	isStaff := user.IsPlatformStaff()
+	canReadSupportStaff := isStaff && (user.IsSuperadmin() || services.GetRBACService().HasPermission(user, "support:tickets:read"))
 
 	var unreadTicketsCount int64
-	if isStaff {
+	if canReadSupportStaff {
 		h.db.Model(&models.SupportTicket{}).
 			Where("status IN (?)", []string{"open", "waiting_agent"}).
 			Count(&unreadTicketsCount)
+	} else if isStaff {
+		// Staf platform non-support (tanpa izin support:tickets:read) tidak menerima metrik antrean support global
+		unreadTicketsCount = 0
 	} else {
 		// Scoped by store context if provided
 		storeSlug := strings.TrimSpace(c.Query("store_slug"))
@@ -2300,9 +2399,9 @@ func (h *SupportHandler) GetSupportTicketsPing(c *fiber.Ctx) error {
 	}
 
 	var latestTime time.Time
-	if isStaff {
+	if canReadSupportStaff {
 		h.db.Model(&models.SupportTicket{}).Select("MAX(last_message_at)").Scan(&latestTime)
-	} else {
+	} else if !isStaff {
 		h.db.Model(&models.SupportTicket{}).Where("user_id = ?", user.ID).Select("MAX(last_message_at)").Scan(&latestTime)
 	}
 
@@ -2449,28 +2548,26 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	}
 
 	var (
-		fileData            []byte
+		streamReader        io.ReadCloser
+		streamSize          int64
 		resolvedContentType string
 		localFilePath       string
 		contentFound        bool
 	)
 
-	// A. Try retrieving from configured StorageService (Cloudflare R2 / S3 / MinIO)
+	// A. Try retrieving from configured StorageService (Cloudflare R2 / S3 / MinIO) via true streaming
 	if h.storage != nil {
 		for _, key := range candidateKeys {
 			if strings.Contains(key, "..") || filepath.IsAbs(key) || strings.Contains(key, ":") {
 				continue
 			}
-			rc, cType, _, err := h.storage.Get(c.Context(), key)
+			rc, cType, cSize, err := h.storage.Get(c.Context(), key)
 			if err == nil && rc != nil {
-				data, readErr := io.ReadAll(io.LimitReader(rc, 15*1024*1024))
-				_ = rc.Close()
-				if readErr == nil && len(data) > 0 {
-					fileData = data
-					resolvedContentType = cType
-					contentFound = true
-					break
-				}
+				streamReader = rc
+				streamSize = cSize
+				resolvedContentType = cType
+				contentFound = true
+				break
 			}
 		}
 	}
@@ -2530,13 +2627,12 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 
 	isDownload := c.Query("download") == "1" || strings.EqualFold(c.Query("download"), "true")
 
-	// SECURITY (ST-08, UU PDP & N-47): Hanya berkas gambar yang diizinkan inline untuk preview in-app.
-	// Dokumen PDF dipaksa attachment dan diberi CSP sandbox demi mencegah eksekusi skrip / PDF viewer bypass.
-	// In-app DocumentPreviewModal menggunakan fetch() + PDF.js canvas sehingga tetap bekerja sempurna dengan attachment.
+	// SECURITY (ST-08, UU PDP & N-47): Hanya berkas gambar raster aman (PNG/JPEG/WebP/GIF)
+	// yang diizinkan inline untuk preview in-app. Semua selain itu (PDF, SVG, HTML, dll.)
+	// dipaksa attachment dan diberi CSP sandbox demi mencegah Stored XSS.
 	dispositionType := "attachment"
-	lowerType := strings.ToLower(contentType)
-	isPDF := lowerType == "application/pdf" || strings.EqualFold(filepath.Ext(fileName), ".pdf")
-	if !isDownload && strings.HasPrefix(lowerType, "image/") && !isPDF {
+	isSafeInline := isSafeInlineRasterImageType(contentType, fileName)
+	if !isDownload && isSafeInline {
 		dispositionType = "inline"
 	}
 
@@ -2545,7 +2641,7 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	c.Set("Content-Type", contentType)
 	c.Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, dispositionType, safeFileName))
 	c.Set("X-Content-Type-Options", "nosniff")
-	if isPDF {
+	if !isSafeInline {
 		c.Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	}
 	// SECURITY (ST-01): Lampiran tiket bersifat privat per-pengguna (UU PDP). Cache
@@ -2553,11 +2649,20 @@ func (h *SupportHandler) ServeAttachment(c *fiber.Ctx) error {
 	c.Set("Cache-Control", "private, no-store")
 	c.Set("Pragma", "no-cache")
 
+	if streamReader != nil {
+		if streamSize > 0 {
+			return c.SendStream(streamReader, int(streamSize))
+		}
+		return c.SendStream(streamReader)
+	}
 	if localFilePath != "" {
 		return c.SendFile(localFilePath)
 	}
 
-	return c.Send(fileData)
+	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+		"success": false,
+		"message": "File fisik lampiran tidak tersedia.",
+	})
 }
 
 // resolveAttachmentPath memetakan storage key lampiran ke path fisik di disk.
@@ -2634,11 +2739,56 @@ func validateSupportAttachmentKey(rawKey, cleanURL string) (string, error) {
 	return storageKey, nil
 }
 
+func isValidSupportCategory(cat string) bool {
+	switch cat {
+	case "general", "technical", "billing", "catalog_help", "account", "compliance", "appeal", "report":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidSupportPriority(priority string) bool {
+	switch priority {
+	case "low", "medium", "high", "urgent":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidSupportStatus(status string) bool {
+	switch status {
+	case "open", "in_progress", "waiting_agent", "waiting_user", "resolved", "closed":
+		return true
+	default:
+		return false
+	}
+}
+
+func isSafeInlineRasterImageType(contentType, fileName string) bool {
+	ct := strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	ext := strings.ToLower(filepath.Ext(strings.TrimSpace(fileName)))
+	if ct == "image/svg+xml" || ext == ".svg" || ext == ".svgz" {
+		return false
+	}
+	switch ct {
+	case "image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif":
+		return true
+	default:
+		return false
+	}
+}
+
 // validateSupportAttachmentsBatch memvalidasi sekumpulan lampiran tiket terhadap:
-// 1. Whitelist namespace (validateSupportAttachmentKey),
-// 2. Isolasi peran (non-staff DILARANG mengikat prefix private/support/staff/),
-// 3. Anti-rebinding / anti-duplikasi (storage_key yang sudah terikat ke tiket lain ditolak).
+// 1. Batas maksimal 5 lampiran per pesan,
+// 2. Whitelist namespace (validateSupportAttachmentKey),
+// 3. Isolasi peran (non-staff DILARANG mengikat prefix private/support/staff/),
+// 4. Anti-rebinding / anti-duplikasi (storage_key yang sudah terikat ke tiket lain ditolak).
 func (h *SupportHandler) validateSupportAttachmentsBatch(attachments []AttachmentPayload, isStaff bool) error {
+	if len(attachments) > 5 {
+		return errors.New("maksimal 5 lampiran diperbolehkan per pengiriman")
+	}
 	seenInRequest := make(map[string]struct{}, len(attachments))
 	for _, att := range attachments {
 		storageKey, err := validateSupportAttachmentKey(att.StorageKey, att.FileURL)
@@ -2665,11 +2815,8 @@ func (h *SupportHandler) validateSupportAttachmentsBatch(attachments []Attachmen
 	return nil
 }
 
-// buildSupportAttachment menyusun record lampiran dari payload klien.
-//
-// SECURITY (ST-01, N-65): berkas privat tidak lagi punya URL publik, sehingga
-// FileURL bisa kosong sementara storage_key terisi. Lampiran sah divalidasi
-// terhadap whitelist namespace sebelum disimpan.
+// buildSupportAttachment menyusun record lampiran dengan memverifikasi ukuran dan tipe MIME riil
+// dari penyimpanan server bila berkas fisik tersedia, alih-alih mempercayai penuh metadata klien.
 func (h *SupportHandler) buildSupportAttachment(msgID uint, att AttachmentPayload, now time.Time) (models.SupportAttachment, bool) {
 	cleanURL := security.SanitizeURL(att.FileURL)
 	storageKey, err := validateSupportAttachmentKey(att.StorageKey, cleanURL)
@@ -2677,13 +2824,57 @@ func (h *SupportHandler) buildSupportAttachment(msgID uint, att AttachmentPayloa
 		return models.SupportAttachment{}, false
 	}
 
+	resolvedSize := att.FileSize
+	resolvedType := security.SanitizePlainText(att.FileType, 100)
+	if resolvedSize < 0 {
+		resolvedSize = 0
+	}
+
+	verifiedFromStorage := false
+	if h.storage != nil {
+		if rc, cType, cSize, getErr := h.storage.Get(context.Background(), storageKey); getErr == nil && rc != nil {
+			head := make([]byte, 512)
+			n, _ := io.ReadFull(rc, head)
+			_ = rc.Close()
+			if cSize > 0 {
+				resolvedSize = int(cSize)
+			}
+			if cType != "" && cType != "application/octet-stream" {
+				resolvedType = cType
+			} else if n > 0 {
+				resolvedType = http.DetectContentType(head[:n])
+			}
+			verifiedFromStorage = true
+		}
+	}
+	if !verifiedFromStorage {
+		if localPath, ok := h.resolveAttachmentPath(storageKey); ok && isRegularFile(localPath) {
+			if info, statErr := os.Stat(localPath); statErr == nil {
+				resolvedSize = int(info.Size())
+			}
+			if f, openErr := os.Open(localPath); openErr == nil {
+				head := make([]byte, 512)
+				n, _ := io.ReadFull(f, head)
+				_ = f.Close()
+				if n > 0 {
+					detected := http.DetectContentType(head[:n])
+					if strings.HasPrefix(detected, "image/") || detected == "application/pdf" {
+						resolvedType = detected
+					} else if resolvedType == "" {
+						resolvedType = detected
+					}
+				}
+			}
+		}
+	}
+
 	return models.SupportAttachment{
 		MessageID:  msgID,
 		FileURL:    cleanURL,
 		StorageKey: storageKey,
 		FileName:   security.SanitizePlainText(att.FileName, 255),
-		FileSize:   att.FileSize,
-		FileType:   security.SanitizePlainText(att.FileType, 100),
+		FileSize:   resolvedSize,
+		FileType:   resolvedType,
 		CreatedAt:  now,
 	}, true
 }

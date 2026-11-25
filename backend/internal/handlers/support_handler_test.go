@@ -5,7 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
+	"mime/multipart"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -15,6 +19,7 @@ import (
 	"time"
 
 	"catavor-backend/internal/config"
+	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
 
@@ -887,5 +892,520 @@ func TestSupportServeAttachment_LegacyMigrationFallback(t *testing.T) {
 				t.Fatalf("ServeAttachment store %s: body empty, want file contents", tc.storeID)
 			}
 		})
+	}
+}
+
+func makeValid1x1PNG(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.RGBA{R: 12, G: 34, B: 56, A: 255})
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encode png: %v", err)
+	}
+	return buf.Bytes()
+}
+
+type recordingUploadStorage struct {
+	uploadedKeys []string
+}
+
+func (r *recordingUploadStorage) Upload(ctx context.Context, key string, rd io.Reader, size int64, contentType string) (string, error) {
+	_, _ = io.ReadAll(rd)
+	r.uploadedKeys = append(r.uploadedKeys, key)
+	return "", nil
+}
+func (r *recordingUploadStorage) Delete(ctx context.Context, key string) error            { return nil }
+func (r *recordingUploadStorage) DeletePrefix(ctx context.Context, prefix string) error   { return nil }
+func (r *recordingUploadStorage) GetURL(key string) string                                { return "" }
+func (r *recordingUploadStorage) GetDriverName() string                                   { return "r2" }
+func (r *recordingUploadStorage) Get(ctx context.Context, key string) (io.ReadCloser, string, int64, error) {
+	return nil, "", 0, fmt.Errorf("not implemented")
+}
+func (r *recordingUploadStorage) GetPresignedURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	return "", nil
+}
+
+func TestSupportReplyAsAdmin_InternalNoteNoMerchantSSELeak(t *testing.T) {
+	db := supportDB(t)
+	cfg := testCfg()
+	app := supportApp(t, db, cfg)
+
+	ownerUser := models.User{ID: 10, Name: "Pemilik", Email: "pemilik@example.com"}
+	_ = db.Create(&ownerUser)
+
+	initialMsgTime := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
+	ticket := models.SupportTicket{
+		UserID:        10,
+		TicketNumber:  "TCK-SSE-NOTE-001",
+		Subject:       "Uji Kebocoran SSE Internal Note",
+		Category:      "technical",
+		Priority:      "medium",
+		Status:        "waiting_user",
+		CreatedAt:     initialMsgTime,
+		UpdatedAt:     initialMsgTime,
+		LastMessageAt: initialMsgTime,
+	}
+	if err := db.Create(&ticket).Error; err != nil {
+		t.Fatalf("seed ticket: %v", err)
+	}
+
+	hub := services.GetNotificationHub()
+	merchantClient := hub.Register(10, 0, "pro", "")
+	staffClient := hub.Register(1, 0, "", "support")
+	defer hub.Unregister(merchantClient)
+	defer hub.Unregister(staffClient)
+
+	code, body, _ := supportReq(t, app, "POST", "/admin/tickets/"+ticket.TicketNumber+"/reply",
+		`{"message":"RAHASIA_INTERNAL_TIDAK_BOLEH_BOCOR","is_internal_note":true}`, "staf")
+	if code != 201 {
+		t.Fatalf("status = %d, want 201 (body %v)", code, body)
+	}
+
+	// Goroutine BroadcastTicketEvent berjalan asinkron; tunggu singkat lalu drain channel.
+	time.Sleep(80 * time.Millisecond)
+
+	select {
+	case payload := <-merchantClient.Send:
+		if strings.Contains(string(payload), "RAHASIA_INTERNAL_TIDAK_BOLEH_BOCOR") || strings.Contains(string(payload), "ticket_reply_from_staff") {
+			t.Fatalf("merchant menerima event SSE untuk catatan internal: %s", string(payload))
+		}
+		t.Fatalf("merchant tidak boleh menerima event SSE apa pun dari catatan internal, dapat: %s", string(payload))
+	default:
+	}
+
+	select {
+	case payload := <-staffClient.Send:
+		if !strings.Contains(string(payload), "ticket_internal_note_added") {
+			t.Errorf("staf mengharapkan ticket_internal_note_added, dapat: %s", string(payload))
+		}
+		if strings.Contains(string(payload), "RAHASIA_INTERNAL_TIDAK_BOLEH_BOCOR") {
+			t.Errorf("event internal note seharusnya hanya mengirim sinyal metadata")
+		}
+	default:
+		t.Errorf("staf tidak menerima sinyal SSE ticket_internal_note_added")
+	}
+
+	var reloaded models.SupportTicket
+	if err := db.First(&reloaded, ticket.ID).Error; err != nil {
+		t.Fatalf("reload ticket: %v", err)
+	}
+	if !reloaded.LastMessageAt.Equal(initialMsgTime) {
+		t.Errorf("LastMessageAt ikut berubah akibat internal note: got %v want %v", reloaded.LastMessageAt, initialMsgTime)
+	}
+}
+
+func TestAdminSupportUpload_StorelessStaffAllowedAndScoped(t *testing.T) {
+	db := supportDB(t)
+	cfg := testCfg()
+	rec := &recordingUploadStorage{}
+	sh := NewStorageHandler(cfg, rec, db)
+
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app.Post("/admin/support/upload", func(c *fiber.Ctx) error {
+		switch c.Get("X-Test-Actor") {
+		case "support":
+			c.Locals("user", &models.User{ID: 1, Name: "Agen", Email: "agen@example.com", PlatformRole: "support"})
+		case "finance":
+			c.Locals("user", &models.User{ID: 2, Name: "Keuangan", Email: "finance@example.com", PlatformRole: "finance"})
+		}
+		return c.Next()
+	}, middleware.RequirePermission(cfg, "support:tickets:reply"), sh.Upload)
+
+	makeUploadReq := func(actor string) (int, map[string]any) {
+		var body bytes.Buffer
+		w := multipart.NewWriter(&body)
+		part, err := w.CreateFormFile("image", "bukti-staf.png")
+		if err != nil {
+			t.Fatalf("create form file: %v", err)
+		}
+		_, _ = part.Write(makeValid1x1PNG(t))
+		_ = w.Close()
+
+		req := httptest.NewRequest("POST", "/admin/support/upload?category=support", &body)
+		req.Header.Set("Content-Type", w.FormDataContentType())
+		req.Header.Set("X-Test-Actor", actor)
+		resp, err := app.Test(req, -1)
+		if err != nil {
+			t.Fatalf("app.Test: %v", err)
+		}
+		defer resp.Body.Close()
+		raw, _ := io.ReadAll(resp.Body)
+		out := map[string]any{}
+		_ = json.Unmarshal(raw, &out)
+		return resp.StatusCode, out
+	}
+
+	code, body := makeUploadReq("support")
+	if code != 200 {
+		t.Fatalf("staf support tanpa toko upload status = %d, want 200 (body %v)", code, body)
+	}
+	key, _ := body["storage_key"].(string)
+	if !strings.HasPrefix(key, "private/support/staff/") {
+		t.Errorf("storage_key = %q, want prefix private/support/staff/", key)
+	}
+
+	codeDenied, _ := makeUploadReq("finance")
+	if codeDenied != 403 {
+		t.Fatalf("staf tanpa izin support:tickets:reply status = %d, want 403", codeDenied)
+	}
+}
+
+func TestStoreOwnershipMiddleware_SupportAppealExemptions(t *testing.T) {
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app.Use(func(c *fiber.Ctx) error {
+		switch c.Get("X-Test-Actor") {
+		case "banned_merchant":
+			c.Locals("user", &models.User{
+				ID:           20,
+				PlatformRole: "",
+				Stores: []models.Store{
+					{ID: 55, UserID: 20, Slug: "toko-banned", DormancyStatus: "banned", IsBlacklisted: true},
+				},
+			})
+		case "storeless_user":
+			c.Locals("user", &models.User{ID: 21, PlatformRole: ""})
+		case "storeless_staff":
+			c.Locals("user", &models.User{ID: 22, PlatformRole: "support"})
+		}
+		return c.Next()
+	}, middleware.StoreOwnerRequired())
+
+	okHandler := func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusOK)
+	}
+	app.Post("/api/support/tickets", okHandler)
+	app.Post("/api/storage/upload", okHandler)
+	app.Post("/api/products", okHandler)
+
+	run := func(actor, path, slug string) int {
+		req := httptest.NewRequest("POST", path, strings.NewReader(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Test-Actor", actor)
+		if slug != "" {
+			req.Header.Set("X-Store-Slug", slug)
+		}
+		resp, err := app.Test(req, -1)
+		if err != nil {
+			t.Fatalf("%s %s: %v", actor, path, err)
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	if got := run("banned_merchant", "/api/support/tickets", "toko-banned"); got != 200 {
+		t.Errorf("banned_merchant POST /api/support/tickets = %d, want 200", got)
+	}
+	if got := run("banned_merchant", "/api/storage/upload?category=support", "toko-banned"); got != 200 {
+		t.Errorf("banned_merchant POST /api/storage/upload?category=support = %d, want 200", got)
+	}
+	if got := run("banned_merchant", "/api/products", "toko-banned"); got != 403 {
+		t.Errorf("banned_merchant POST /api/products = %d, want 403", got)
+	}
+	if got := run("storeless_user", "/api/support/tickets", ""); got != 200 {
+		t.Errorf("storeless_user POST /api/support/tickets = %d, want 200", got)
+	}
+	if got := run("storeless_user", "/api/support/tickets", "toko-banned"); got != 403 {
+		t.Errorf("storeless_user IDOR X-Store-Slug POST /api/support/tickets = %d, want 403", got)
+	}
+	if got := run("storeless_user", "/api/products", ""); got != 403 {
+		t.Errorf("storeless_user POST /api/products = %d, want 403", got)
+	}
+	if got := run("storeless_staff", "/api/products", ""); got != 403 {
+		t.Errorf("storeless_staff POST /api/products = %d, want 403", got)
+	}
+}
+
+func TestSupportP1_GetTicketDetailsAndMarkRead_NoStatusMutation(t *testing.T) {
+	db := supportDB(t)
+	h := NewSupportHandler(testCfg(), nil, db)
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	actor := func(c *fiber.Ctx) error {
+		c.Locals("user", &models.User{ID: 10, Name: "Pemilik", Email: "pemilik@example.com", PlatformRole: "merchant"})
+		return c.Next()
+	}
+	app.Get("/tickets/:id", actor, h.GetTicketDetails)
+	app.Post("/tickets/:id/mark-read", actor, h.MarkTicketAsRead)
+
+	ticket := seedTicket(t, db, 10, "TCK-P1-GET-001", "Cek Side Effect GET", "waiting_user")
+	agentMsg := models.SupportMessage{
+		TicketID:   ticket.ID,
+		SenderID:   1,
+		SenderType: "agent",
+		Message:    "Mohon konfirmasi kendala Anda.",
+		CreatedAt:  time.Now().UTC(),
+	}
+	if err := db.Create(&agentMsg).Error; err != nil {
+		t.Fatalf("seed agent msg: %v", err)
+	}
+
+	// 1. GET /tickets/:id tidak boleh memutasi read_at maupun status waiting_user -> in_progress
+	code, _, _ := supportReq(t, app, "GET", "/tickets/"+ticket.TicketNumber, "", "pemilik")
+	if code != 200 {
+		t.Fatalf("GET status = %d, want 200", code)
+	}
+	var afterGetTicket models.SupportTicket
+	_ = db.First(&afterGetTicket, ticket.ID)
+	if afterGetTicket.Status != "waiting_user" {
+		t.Fatalf("GET memutasi status menjadi %q, want waiting_user", afterGetTicket.Status)
+	}
+	var afterGetMsg models.SupportMessage
+	_ = db.First(&afterGetMsg, agentMsg.ID)
+	if afterGetMsg.ReadAt != nil {
+		t.Fatalf("GET memutasi read_at menjadi non-nil (%v)", afterGetMsg.ReadAt)
+	}
+
+	// 2. POST /tickets/:id/mark-read memperbarui read_at, TETAP menjaga status waiting_user
+	code, _, _ = supportReq(t, app, "POST", "/tickets/"+ticket.TicketNumber+"/mark-read", "", "pemilik")
+	if code != 200 {
+		t.Fatalf("mark-read status = %d, want 200", code)
+	}
+	_ = db.First(&afterGetTicket, ticket.ID)
+	if afterGetTicket.Status != "waiting_user" {
+		t.Fatalf("mark-read memutasi status menjadi %q, want waiting_user", afterGetTicket.Status)
+	}
+	_ = db.First(&afterGetMsg, agentMsg.ID)
+	if afterGetMsg.ReadAt == nil {
+		t.Fatal("mark-read tidak mengisi read_at pesan agen")
+	}
+}
+
+func TestSupportP1_ListAllTickets_ExcludesInternalNoteFromPreview(t *testing.T) {
+	db := supportDB(t)
+	h := NewSupportHandler(testCfg(), nil, db)
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app.Get("/admin/tickets", func(c *fiber.Ctx) error {
+		c.Locals("user", &models.User{ID: 1, Name: "Agen", Email: "agen@example.com", PlatformRole: "support"})
+		return c.Next()
+	}, h.ListAllTickets)
+
+	ticket := seedTicket(t, db, 10, "TCK-P1-LIST-001", "Cek Preview Catatan Internal", "waiting_user")
+	now := time.Now().UTC()
+	_ = db.Create(&models.SupportMessage{
+		TicketID:       ticket.ID,
+		SenderID:       10,
+		SenderType:     "user",
+		Message:        "PESAN_PUBLIK_MERCHANT_OK",
+		IsInternalNote: false,
+		CreatedAt:      now.Add(-2 * time.Minute),
+	})
+	_ = db.Create(&models.SupportMessage{
+		TicketID:       ticket.ID,
+		SenderID:       1,
+		SenderType:     "agent",
+		Message:        "CATATAN_RAHASIA_PREVIEW_TIDAK_BOLEH_TAMPIL",
+		IsInternalNote: true,
+		CreatedAt:      now.Add(-1 * time.Minute),
+	})
+
+	req := httptest.NewRequest("GET", "/admin/tickets", nil)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200 (%s)", resp.StatusCode, string(raw))
+	}
+	bodyStr := string(raw)
+	if strings.Contains(bodyStr, "CATATAN_RAHASIA_PREVIEW_TIDAK_BOLEH_TAMPIL") {
+		t.Fatalf("ListAllTickets membocorkan catatan internal ke preview daftar: %s", bodyStr)
+	}
+	if !strings.Contains(bodyStr, "PESAN_PUBLIK_MERCHANT_OK") {
+		t.Fatalf("ListAllTickets seharusnya menampilkan pesan publik terakhir: %s", bodyStr)
+	}
+}
+
+func TestSupportP1_SSEAndPing_RBACGranular(t *testing.T) {
+	hub := services.GetNotificationHub()
+	financeClient := hub.Register(91, 0, "", "finance", false)
+	supportClient := hub.Register(92, 0, "", "support", true)
+	defer hub.Unregister(financeClient)
+	defer hub.Unregister(supportClient)
+
+	hub.BroadcastTicketEvent("ticket_created", map[string]any{"ticket_number": "TCK-RBAC-SSE"}, 10, 0, "superadmin")
+	time.Sleep(30 * time.Millisecond)
+
+	select {
+	case msg := <-financeClient.Send:
+		t.Fatalf("staf finance tanpa izin support:tickets:read menerima SSE tiket: %s", string(msg))
+	default:
+	}
+
+	select {
+	case msg := <-supportClient.Send:
+		if !strings.Contains(string(msg), "TCK-RBAC-SSE") {
+			t.Errorf("support client menerima payload tak terduga: %s", string(msg))
+		}
+	default:
+		t.Fatal("support client dengan izin support:tickets:read tidak menerima SSE tiket")
+	}
+
+	db := supportDB(t)
+	h := NewSupportHandler(testCfg(), nil, db)
+	_ = seedTicket(t, db, 10, "TCK-PING-RBAC-001", "Tiket Terbuka", "open")
+
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app.Get("/support/tickets-ping", func(c *fiber.Ctx) error {
+		switch c.Get("X-Test-Actor") {
+		case "finance":
+			c.Locals("user", &models.User{ID: 91, PlatformRole: "finance"})
+		case "support":
+			c.Locals("user", &models.User{ID: 92, PlatformRole: "support"})
+		}
+		return c.Next()
+	}, h.GetSupportTicketsPing)
+
+	reqFin := httptest.NewRequest("GET", "/support/tickets-ping", nil)
+	reqFin.Header.Set("X-Test-Actor", "finance")
+	resFin, _ := app.Test(reqFin, -1)
+	defer resFin.Body.Close()
+	var bodyFin map[string]any
+	_ = json.NewDecoder(resFin.Body).Decode(&bodyFin)
+	if cnt, _ := bodyFin["unread_count"].(float64); cnt != 0 {
+		t.Errorf("finance ping unread_count = %v, want 0", cnt)
+	}
+
+	reqSup := httptest.NewRequest("GET", "/support/tickets-ping", nil)
+	reqSup.Header.Set("X-Test-Actor", "support")
+	resSup, _ := app.Test(reqSup, -1)
+	defer resSup.Body.Close()
+	var bodySup map[string]any
+	_ = json.NewDecoder(resSup.Body).Decode(&bodySup)
+	if cnt, _ := bodySup["unread_count"].(float64); cnt != 1 {
+		t.Errorf("support ping unread_count = %v, want 1", cnt)
+	}
+}
+
+func TestSupportP1_UpdateStatusEnumAndRateTicketSecurity(t *testing.T) {
+	db := supportDB(t)
+	h := NewSupportHandler(testCfg(), nil, db)
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	actor := func(c *fiber.Ctx) error {
+		switch c.Get("X-Test-Actor") {
+		case "staf":
+			c.Locals("user", &models.User{ID: 1, Name: "Agen", PlatformRole: "support"})
+		case "pemilik":
+			c.Locals("user", &models.User{ID: 10, Name: "Pemilik", PlatformRole: "merchant"})
+		}
+		return c.Next()
+	}
+	app.Put("/admin/tickets/:id/status", actor, h.UpdateTicketStatus)
+	app.Post("/tickets/:id/rating", actor, h.RateTicket)
+
+	_ = db.Create(&models.User{ID: 10, Name: "Pemilik", Email: "pemilik@example.com"})
+	ticket := seedTicket(t, db, 10, "TCK-P1-STATE-001", "Uji State & CSAT", "in_progress")
+	_ = db.Create(&models.SupportMessage{
+		TicketID:       ticket.ID,
+		SenderID:       1,
+		SenderType:     "agent",
+		Message:        "Solusi telah diterapkan.",
+		IsInternalNote: false,
+		CreatedAt:      time.Now().UTC(),
+	})
+
+	// 1. Tolak enum status/priority ngawur -> 422
+	codeInvalid, _, _ := supportReq(t, app, "PUT", "/admin/tickets/"+ticket.TicketNumber+"/status", `{"status":"ngawur"}`, "staf")
+	if codeInvalid != 422 {
+		t.Fatalf("status invalid code = %d, want 422", codeInvalid)
+	}
+	codeInvalidPrio, _, _ := supportReq(t, app, "PUT", "/admin/tickets/"+ticket.TicketNumber+"/status", `{"priority":"ultra"}`, "staf")
+	if codeInvalidPrio != 422 {
+		t.Fatalf("priority invalid code = %d, want 422", codeInvalidPrio)
+	}
+
+	// 2. Transisi ke resolved menciptakan system message + notifikasi in-app merchant
+	codeRes, _, _ := supportReq(t, app, "PUT", "/admin/tickets/"+ticket.TicketNumber+"/status", `{"status":"resolved"}`, "staf")
+	if codeRes != 200 {
+		t.Fatalf("resolve status = %d, want 200", codeRes)
+	}
+	var notifCnt int64
+	db.Model(&models.Notification{}).Where("target_id = ? AND type = ?", 10, "ticket").Count(&notifCnt)
+	if notifCnt != 1 {
+		t.Errorf("notif resolved count = %d, want 1", notifCnt)
+	}
+
+	// 3. RateTicket memvalidasi agent_id palsu -> fallback ke agen riil (ID 1)
+	codeRate1, _, _ := supportReq(t, app, "POST", "/tickets/"+ticket.TicketNumber+"/rating", `{"rating":5,"comment":"Bagus","agent_id":999}`, "pemilik")
+	if codeRate1 != 200 {
+		t.Fatalf("rate1 status = %d, want 200", codeRate1)
+	}
+	var rated models.SupportTicket
+	_ = db.First(&rated, ticket.ID)
+	if rated.RatedAgentID == nil || *rated.RatedAgentID != 1 {
+		t.Errorf("RatedAgentID = %v, want 1 (bukan agent_id palsu 999)", rated.RatedAgentID)
+	}
+
+	// 4. RateTicket ulang -> 409 Conflict (tidak boleh overwrite CSAT)
+	codeRate2, _, _ := supportReq(t, app, "POST", "/tickets/"+ticket.TicketNumber+"/rating", `{"rating":1,"comment":"Ubah"}`, "pemilik")
+	if codeRate2 != 409 {
+		t.Fatalf("duplicate rate status = %d, want 409", codeRate2)
+	}
+}
+
+func TestSupportP1_ServeAttachment_SVGSandboxAndMaxAttachments(t *testing.T) {
+	cfg := testCfg()
+	mockS3 := &mockCloudStorage{
+		files: map[string][]byte{
+			"private/support/tickets/2026/11/xss.svg": []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`),
+		},
+	}
+	db := supportDB(t)
+	h := NewSupportHandler(cfg, mockS3, db)
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	actor := func(c *fiber.Ctx) error {
+		c.Locals("user", &models.User{ID: 10, Name: "Pemilik", PlatformRole: "merchant"})
+		return c.Next()
+	}
+	app.Post("/tickets", actor, h.CreateTicket)
+	app.Get("/attachments/:id", actor, h.ServeAttachment)
+
+	// 1. Lebih dari 5 lampiran ditolak 400
+	tooMany := `{
+		"subject": "Terlalu Banyak Lampiran",
+		"category": "technical",
+		"priority": "medium",
+		"message": "uji batas",
+		"attachments": [
+			{"storage_key": "private/support/tickets/2026/11/a1.png", "file_name": "a1.png"},
+			{"storage_key": "private/support/tickets/2026/11/a2.png", "file_name": "a2.png"},
+			{"storage_key": "private/support/tickets/2026/11/a3.png", "file_name": "a3.png"},
+			{"storage_key": "private/support/tickets/2026/11/a4.png", "file_name": "a4.png"},
+			{"storage_key": "private/support/tickets/2026/11/a5.png", "file_name": "a5.png"},
+			{"storage_key": "private/support/tickets/2026/11/a6.png", "file_name": "a6.png"}
+		]
+	}`
+	codeTooMany, _, _ := supportReq(t, app, "POST", "/tickets", tooMany, "pemilik")
+	if codeTooMany != 400 {
+		t.Fatalf("too many attachments status = %d, want 400", codeTooMany)
+	}
+
+	// 2. SVG wajib dipaksa Content-Disposition: attachment dan CSP sandbox
+	tiket := seedTicket(t, db, 10, "TCK-SVG-001", "Uji SVG", "open")
+	msg := models.SupportMessage{TicketID: tiket.ID, SenderID: 10, SenderType: "user", Message: "svg", CreatedAt: time.Now().UTC()}
+	_ = db.Create(&msg)
+	att := models.SupportAttachment{
+		MessageID:  msg.ID,
+		StorageKey: "private/support/tickets/2026/11/xss.svg",
+		FileName:   "xss.svg",
+		FileType:   "image/svg+xml",
+	}
+	_ = db.Create(&att)
+
+	req := httptest.NewRequest("GET", "/attachments/"+itoa(att.ID), nil)
+	res, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("svg req failed: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		t.Fatalf("svg status = %d, want 200", res.StatusCode)
+	}
+	if disp := res.Header.Get("Content-Disposition"); !strings.Contains(disp, "attachment") {
+		t.Errorf("SVG Content-Disposition = %q, want attachment (anti-XSS)", disp)
+	}
+	if csp := res.Header.Get("Content-Security-Policy"); csp != "sandbox; default-src 'none'" {
+		t.Errorf("SVG CSP = %q, want sandbox; default-src 'none'", csp)
 	}
 }

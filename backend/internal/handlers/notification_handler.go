@@ -941,7 +941,12 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 		c.Set("Vary", "Origin")
 	}
 
-	client := services.GetNotificationHub().Register(userID, storeID, storePlan, platformRole)
+	canReadSupport := false
+	if user != nil && user.IsPlatformStaff() {
+		canReadSupport = user.IsSuperadmin() || services.GetRBACService().HasPermission(user, "support:tickets:read")
+	}
+
+	client := services.GetNotificationHub().Register(userID, storeID, storePlan, platformRole, canReadSupport)
 	notifyDone := c.Context().Done()
 
 	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {

@@ -746,6 +746,7 @@ func main() {
 		adminApi.Put("/support/templates/:id", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.UpdateCannedResponse)
 		adminApi.Delete("/support/templates/:id", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.DeleteCannedResponse)
 		adminApi.Post("/support/templates/reset-defaults", middleware.RequirePermission(cfg, "support:tickets:reply"), supportHandler.ResetDefaultCannedResponses)
+		adminApi.Post("/support/upload", middleware.RequirePermission(cfg, "support:tickets:reply"), storageHandler.Upload)
 
 		// Content & Broadcast
 		adminApi.Get("/notifications", middleware.RequirePermission(cfg, "content:broadcast:send"), notificationHandler.SuperadminIndex)

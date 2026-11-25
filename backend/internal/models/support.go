@@ -81,7 +81,7 @@ type SupportAttachment struct {
 	ID         uint           `gorm:"primaryKey;autoIncrement" json:"id"`
 	MessageID  uint           `gorm:"index;not null" json:"message_id"`
 	FileURL    string         `gorm:"type:text;not null" json:"file_url"`
-	StorageKey string         `gorm:"size:500;not null" json:"storage_key"`
+	StorageKey string         `gorm:"size:500;not null;uniqueIndex:idx_support_attachments_storage_key_active,where:deleted_at IS NULL" json:"storage_key"`
 	FileName   string         `gorm:"size:255;not null" json:"file_name"`
 	FileSize   int            `gorm:"default:0" json:"file_size"`
 	FileType   string         `gorm:"size:100;default:'image/jpeg'" json:"file_type"`

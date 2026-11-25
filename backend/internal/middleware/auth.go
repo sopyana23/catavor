@@ -812,6 +812,18 @@ func AuthOrMFASetupRequired(cfg *config.Config) fiber.Handler {
 	}
 }
 
+func isSupportAppealPath(c *fiber.Ctx) bool {
+	path := strings.ToLower(c.Path())
+	if strings.Contains(path, "/support") {
+		return true
+	}
+	if strings.Contains(path, "/storage/upload") {
+		cat := strings.ToLower(strings.TrimSpace(c.Query("category", c.FormValue("category", ""))))
+		return cat == "support" || cat == "tickets" || cat == "ticket" || cat == "screenshots" || cat == "screenshot"
+	}
+	return false
+}
+
 // StoreOwnerRequired enforces strict multi-tenant boundary checks (Zero-Trust Anti-IDOR)
 func StoreOwnerRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
@@ -844,7 +856,7 @@ func StoreOwnerRequired() fiber.Handler {
 			}
 
 			// If not found in preloaded slice, query database directly
-			if matchedStore == nil {
+			if matchedStore == nil && database.DB != nil {
 				var dbStore models.Store
 				if err := database.DB.Where("LOWER(slug) = ? AND user_id = ?", strings.ToLower(targetSlug), user.ID).First(&dbStore).Error; err == nil {
 					matchedStore = &dbStore
@@ -852,7 +864,7 @@ func StoreOwnerRequired() fiber.Handler {
 			}
 
 			// Platform Admins: Superadmin has global oversight; other platform staff only have read-only inspection access via GET/HEAD
-			if matchedStore == nil && isPlatformAdminUser {
+			if matchedStore == nil && isPlatformAdminUser && database.DB != nil {
 				if user.IsSuperadmin() || c.Method() == fiber.MethodGet || c.Method() == fiber.MethodHead {
 					var dbStore models.Store
 					if err := database.DB.Where("LOWER(slug) = ?", strings.ToLower(targetSlug)).First(&dbStore).Error; err == nil {
@@ -868,7 +880,7 @@ func StoreOwnerRequired() fiber.Handler {
 				})
 			}
 
-			if !isPlatformAdminUser && (matchedStore.DormancyStatus == "banned" || matchedStore.IsBlacklisted) {
+			if !isPlatformAdminUser && (matchedStore.DormancyStatus == "banned" || matchedStore.IsBlacklisted) && !isSupportAppealPath(c) {
 				hasOtherActiveStores := false
 				for _, s := range user.Stores {
 					if s.ID != matchedStore.ID && s.DormancyStatus != "banned" && !s.IsBlacklisted {
@@ -912,6 +924,9 @@ func StoreOwnerRequired() fiber.Handler {
 		// Staf tanpa toko cukup diloloskan tanpa konteks store untuk metode inspeksi read-only (GET/HEAD);
 		// operasi mutasi (POST/PUT/DELETE/PATCH) wajib ditolak agar staf tanpa toko tidak membobol state tenant.
 		if matchedStore == nil {
+			if isSupportAppealPath(c) {
+				return c.Next()
+			}
 			if IsPlatformStaffRole(user.PlatformRole) {
 				if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodHead {
 					return c.Status(fiber.StatusForbidden).JSON(fiber.Map{

@@ -18,12 +18,13 @@ const redisNotificationPubSubChannel = "catavor:sse:notifications"
 
 // SSEClient represents an active Server-Sent Events subscriber connection.
 type SSEClient struct {
-	ID           string
-	UserID       uint
-	StoreID      uint
-	StorePlan    string
-	PlatformRole string // e.g. "superadmin", "support", "staff", "merchant", "user"
-	Send         chan []byte
+	ID             string
+	UserID         uint
+	StoreID        uint
+	StorePlan      string
+	PlatformRole   string // e.g. "superadmin", "support", "staff", "merchant", "user"
+	CanReadSupport bool
+	Send           chan []byte
 }
 
 // NotificationHub coordinates realtime notification broadcasts to connected clients.
@@ -68,8 +69,8 @@ func PlanMatchesTarget(clientPlan, targetPlanCode string) bool {
 	return false
 }
 
-// Register adds a new SSEClient to the hub with optional platformRole.
-func (h *NotificationHub) Register(userID, storeID uint, storePlan, platformRole string) *SSEClient {
+// Register adds a new SSEClient to the hub with optional platformRole and support permission flag.
+func (h *NotificationHub) Register(userID, storeID uint, storePlan, platformRole string, canReadSupport ...bool) *SSEClient {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -77,14 +78,20 @@ func (h *NotificationHub) Register(userID, storeID uint, storePlan, platformRole
 	if normalizedPlan == "" {
 		normalizedPlan = "free"
 	}
+	normRole := strings.ToLower(strings.TrimSpace(platformRole))
+	hasSupportRead := normRole == "superadmin" || normRole == "support"
+	if len(canReadSupport) > 0 {
+		hasSupportRead = canReadSupport[0]
+	}
 
 	client := &SSEClient{
-		ID:           uuid.New().String(),
-		UserID:       userID,
-		StoreID:      storeID,
-		StorePlan:    normalizedPlan,
-		PlatformRole: strings.ToLower(strings.TrimSpace(platformRole)),
-		Send:         make(chan []byte, 64),
+		ID:             uuid.New().String(),
+		UserID:         userID,
+		StoreID:        storeID,
+		StorePlan:      normalizedPlan,
+		PlatformRole:   normRole,
+		CanReadSupport: hasSupportRead,
+		Send:           make(chan []byte, 64),
 	}
 
 	h.clients[client] = true
@@ -147,10 +154,15 @@ func (h *NotificationHub) GetActiveClientsCount() int {
 
 type hubPubSubEnvelope struct {
 	OriginNode       string               `json:"origin_node"`
-	Kind             string               `json:"kind"` // "notification" | "notification_deleted"
+	Kind             string               `json:"kind"` // "notification" | "notification_deleted" | "ticket_event"
 	NotificationID   string               `json:"notification_id,omitempty"`
 	Notification     *models.Notification `json:"notification,omitempty"`
 	TargetRecipients string               `json:"target_recipients,omitempty"`
+	EventType        string               `json:"event_type,omitempty"`
+	TicketData       interface{}          `json:"ticket_data,omitempty"`
+	TargetUserID     uint                 `json:"target_user_id,omitempty"`
+	TargetStoreID    uint                 `json:"target_store_id,omitempty"`
+	TargetRole       string               `json:"target_role,omitempty"`
 }
 
 // StartRedisPubSubBridge mendengarkan channel Redis Pub/Sub agar siaran/pencabutan SSE tetap tersampaikan
@@ -194,6 +206,10 @@ func (h *NotificationHub) StartRedisPubSubBridge(ctx context.Context) {
 				case "notification_deleted":
 					if env.NotificationID != "" {
 						h.dispatchLocalRemoval(env.NotificationID, env.Notification)
+					}
+				case "ticket_event":
+					if env.EventType != "" {
+						h.dispatchLocalTicketEvent(env.EventType, env.TicketData, env.TargetUserID, env.TargetStoreID, env.TargetRole)
 					}
 				}
 			}
@@ -325,13 +341,40 @@ func (h *NotificationHub) dispatchLocalRemoval(notifID string, notif *models.Not
 }
 
 // BroadcastTicketEvent sends a real-time ticket event (created, replied, status change)
-// to either a specific user and store, or a platform role (e.g. "superadmin", "support").
+// to either a specific user and store, or support-authorized platform staff, and bridges via Redis Pub/Sub.
 func (h *NotificationHub) BroadcastTicketEvent(eventType string, ticketData interface{}, targetUserID uint, targetStoreID uint, targetRole string) {
+	sentCount := h.dispatchLocalTicketEvent(eventType, ticketData, targetUserID, targetStoreID, targetRole)
+
+	if database.IsRedisAvailable() {
+		env := hubPubSubEnvelope{
+			OriginNode:    h.nodeID,
+			Kind:          "ticket_event",
+			EventType:     eventType,
+			TicketData:    ticketData,
+			TargetUserID:  targetUserID,
+			TargetStoreID: targetStoreID,
+			TargetRole:    strings.ToLower(strings.TrimSpace(targetRole)),
+		}
+		if b, err := json.Marshal(env); err == nil {
+			_ = database.PublishEvent(context.Background(), redisNotificationPubSubChannel, string(b))
+		}
+	}
+
+	log.Info().
+		Str("event", eventType).
+		Uint("target_user", targetUserID).
+		Uint("target_store", targetStoreID).
+		Str("target_role", strings.ToLower(strings.TrimSpace(targetRole))).
+		Int("sent_count", sentCount).
+		Msg("Realtime ticket broadcast delivered")
+}
+
+func (h *NotificationHub) dispatchLocalTicketEvent(eventType string, ticketData interface{}, targetUserID uint, targetStoreID uint, targetRole string) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
 	if len(h.clients) == 0 {
-		return
+		return 0
 	}
 
 	targetRoleClean := strings.ToLower(strings.TrimSpace(targetRole))
@@ -343,7 +386,7 @@ func (h *NotificationHub) BroadcastTicketEvent(eventType string, ticketData inte
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to serialize ticket SSE broadcast")
-		return
+		return 0
 	}
 
 	sentCount := 0
@@ -362,10 +405,10 @@ func (h *NotificationHub) BroadcastTicketEvent(eventType string, ticketData inte
 			}
 		}
 
-		// 2. Target by Role (e.g. "superadmin", "support")
+		// 2. Target by Role (granular RBAC: hanya staf dengan izin support:tickets:read)
 		if targetRoleClean != "" {
 			if targetRoleClean == "superadmin" || targetRoleClean == "support" {
-				if models.IsPlatformStaffRole(client.PlatformRole) {
+				if client.CanReadSupport {
 					shouldSend = true
 				}
 			} else if client.PlatformRole == targetRoleClean {
@@ -388,13 +431,7 @@ func (h *NotificationHub) BroadcastTicketEvent(eventType string, ticketData inte
 		}
 	}
 
-	log.Info().
-		Str("event", eventType).
-		Uint("target_user", targetUserID).
-		Uint("target_store", targetStoreID).
-		Str("target_role", targetRoleClean).
-		Int("sent_count", sentCount).
-		Msg("Realtime ticket broadcast delivered")
+	return sentCount
 }
 
 // BroadcastStoreEvent sends a real-time store lifecycle event (such as store_status_updated)

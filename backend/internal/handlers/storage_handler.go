@@ -94,7 +94,14 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 	// Determine category
 	category := strings.ToLower(strings.TrimSpace(c.Query("category", "")))
 	if category == "" {
-		category = strings.ToLower(strings.TrimSpace(c.FormValue("category", "products")))
+		category = strings.ToLower(strings.TrimSpace(c.FormValue("category", "")))
+	}
+	if category == "" {
+		if strings.Contains(strings.ToLower(c.Path()), "/support/upload") {
+			category = "support"
+		} else {
+			category = "products"
+		}
 	}
 	switch category {
 	case "rekber", "partner", "partners", "escrow", "platform_partner", "platform_partners":
@@ -123,9 +130,9 @@ func (h *StorageHandler) Upload(c *fiber.Ctx) error {
 
 	isPlatformScope := category == "platform_partners" || category == "platform_branding" || category == "platform_payments" || category == "articles"
 
-	// Check if store is suspended/banned: allow support & billing proofs, block catalog changes
+	// Check if store is suspended/banned: allow support appeals, block catalog/branding changes
 	if store, ok := c.Locals("store").(*models.Store); ok && store != nil {
-		if store.DormancyStatus == "banned" || store.IsBlacklisted {
+		if (store.DormancyStatus == "banned" || store.IsBlacklisted) && category != "support" {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"code":    "STORE_BANNED",
