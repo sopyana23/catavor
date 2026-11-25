@@ -292,11 +292,20 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
 
         if (data.token) {
           localStorage.setItem('catavor_token', data.token);
-          if (data.user) {
-            localStorage.setItem('catavor_user', JSON.stringify(data.user));
-          }
         }
-        onSuccess(data.user || { store_slug: registerForm.store_slug });
+        if (data.user) {
+          localStorage.setItem('catavor_user', JSON.stringify(data.user));
+        }
+        if (data.stores && Array.isArray(data.stores)) {
+          localStorage.setItem('catavor_stores', JSON.stringify(data.stores));
+        }
+        const resolvedSlug = data.user?.store_slug || registerForm.store_slug.trim().toLowerCase();
+        if (resolvedSlug) {
+          localStorage.setItem('catavor_active_slug', resolvedSlug);
+          try { sessionStorage.setItem('catavor_active_slug_selected', resolvedSlug); } catch {}
+        }
+        localStorage.setItem('catavor_password_changed', 'true');
+        onSuccess(data.user || { store_slug: resolvedSlug });
       } else {
         setRegisterError(data.message || 'Pendaftaran gagal diproses. Silakan periksa kembali data Anda.');
       }

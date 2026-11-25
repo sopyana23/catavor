@@ -7419,7 +7419,11 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
         setShowStoreSwitcherModal(false);
         setCreateStoreForm({ store_name: '', store_slug: '', store_slogan: '', whatsapp_number: '', store_theme: 'navy' });
         setCreateStoreSlugStatus(null);
-        window.history.pushState({}, '', `/${newSlug}/admin`);
+        setPortalTab('home');
+        setView('tabs');
+        setActiveTab('admin');
+        setAdminSubTab('menu');
+        window.history.pushState({}, '', appendViewParam(`/${newSlug}/admin`));
         await loadData(newSlug);
         showToast(`Profil katalog baru "${data.store?.store_title || newSlug}" berhasil dibuat!`, 'success');
       } else {
@@ -13251,6 +13255,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const data = await res.json();
       if (res.ok && data.success) {
         setVerificationToken(null);
+        clearRegistrationDrafts();
         localStorage.setItem('catavor_token', data.token);
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
         if (data.stores && Array.isArray(data.stores)) {
@@ -13271,13 +13276,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
         if (data.user?.store_slug) {
           saveUserActiveSlug(data.user.id, data.user.store_slug);
           localStorage.setItem('catavor_active_slug', data.user.store_slug);
+          try { sessionStorage.setItem('catavor_active_slug_selected', data.user.store_slug); } catch {}
         }
         setStoreSlug(data.user.store_slug);
         setPortalTab('home');
         setView('tabs');
         setActiveTab('admin');
         setAdminSubTab('menu');
-        window.history.pushState({}, '', `/${data.user.store_slug}/admin`);
+        window.history.pushState({}, '', appendViewParam(`/${data.user.store_slug}/admin`));
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user?.id || '0', token: data.token });
         loadData(data.user.store_slug);
         fetchMyQuota(true);
         fetchNotificationsFromBackend(1, false);
@@ -13339,6 +13346,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const data = await res.json();
       if (res.ok && data.success) {
         setVerificationToken(null);
+        clearRegistrationDrafts();
         localStorage.setItem('catavor_token', data.token);
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
         if (data.stores && Array.isArray(data.stores)) {
@@ -13352,21 +13360,23 @@ Terima kasih atas perhatian dan kerja samanya.`;
         document.body.setAttribute('data-theme', initialTheme);
         setSettingsForm(prev => ({ ...prev, store_theme: initialTheme }));
 
-        setToken(data.token);
-        setAdminUser(data.user);
-        setIsPasswordChanged(true);
         if (data.user?.store_slug) {
           saveUserActiveSlug(data.user.id, data.user.store_slug);
           localStorage.setItem('catavor_active_slug', data.user.store_slug);
+          try { sessionStorage.setItem('catavor_active_slug_selected', data.user.store_slug); } catch {}
         }
+        broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user?.id || '0', token: data.token });
         if (data.payment_url) {
           window.location.href = data.payment_url;
           return;
         }
         if (data.user?.store_slug) {
-          window.location.href = `/${data.user.store_slug}/admin`;
+          window.location.href = appendViewParam(`/${data.user.store_slug}/admin`);
           return;
         }
+        setToken(data.token);
+        setAdminUser(data.user);
+        setIsPasswordChanged(true);
         fetchMyQuota(true);
         fetchNotificationsFromBackend(1, false);
       } else {

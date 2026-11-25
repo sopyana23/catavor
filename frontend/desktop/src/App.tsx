@@ -7489,7 +7489,10 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
         setShowStoreSwitcherModal(false);
         setCreateStoreForm({ store_name: '', store_slug: '', store_slogan: '', whatsapp_number: '', store_theme: 'navy' });
         setCreateStoreSlugStatus(null);
-        window.history.pushState({}, '', `/${newSlug}/admin/items`);
+        setPortalTab('home');
+        setView('admin');
+        setAdminTab('items');
+        window.history.pushState({}, '', appendViewParam(`/${newSlug}/admin/items`));
         await loadData(newSlug);
         showToast(`Profil katalog baru "${data.store?.store_title || newSlug}" berhasil dibuat!`, 'success');
       } else {
@@ -12630,6 +12633,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
         const data = await res.json();
         if (res.ok && data.success) {
+          clearRegistrationDrafts();
           localStorage.setItem('catavor_token', data.token);
           localStorage.setItem('catavor_user', JSON.stringify(data.user));
           if (data.stores) {
@@ -12648,13 +12652,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setIsPasswordChanged(true);
           setRegisterForm({ name: '', email: '', password: '', store_name: '', store_slug: '' });
           if (data.user?.store_slug) {
+            saveUserActiveSlug(data.user.id, data.user.store_slug);
             localStorage.setItem('catavor_active_slug', data.user.store_slug);
+            try { sessionStorage.setItem('catavor_active_slug_selected', data.user.store_slug); } catch {}
           }
           setStoreSlug(data.user.store_slug);
           setPortalTab('home');
           setView('admin');
           setAdminTab('items');
-          window.history.pushState({}, '', `/${data.user.store_slug}/admin/items`);
+          window.history.pushState({}, '', appendViewParam(`/${data.user.store_slug}/admin/items`));
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user?.id || '0', token: data.token });
           loadData(data.user.store_slug);
           fetchMyQuota();
           fetchNotificationsFromBackend(1, false);
@@ -12724,6 +12731,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         });
         const regData = await regRes.json();
         if (regRes.ok && regData.success) {
+          clearRegistrationDrafts();
           localStorage.setItem('catavor_token', regData.token);
           localStorage.setItem('catavor_user', JSON.stringify(regData.user));
           if (regData.stores) {
@@ -12740,13 +12748,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setIsPasswordChanged(true);
           setRegisterForm({ name: '', email: '', password: '', store_name: '', store_slug: '' });
           if (regData.user?.store_slug) {
+            saveUserActiveSlug(regData.user.id, regData.user.store_slug);
             localStorage.setItem('catavor_active_slug', regData.user.store_slug);
+            try { sessionStorage.setItem('catavor_active_slug_selected', regData.user.store_slug); } catch {}
           }
           setStoreSlug(regData.user.store_slug);
           setPortalTab('home');
           setView('admin');
           setAdminTab('items');
-          window.history.pushState({}, '', `/${regData.user.store_slug}/admin/items`);
+          window.history.pushState({}, '', appendViewParam(`/${regData.user.store_slug}/admin/items`));
+          broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: regData.user?.id || '0', token: regData.token });
           loadData(regData.user.store_slug);
           fetchMyQuota();
           fetchNotificationsFromBackend(1, false);
@@ -17213,9 +17224,41 @@ Terima kasih atas perhatian dan kerja samanya.`;
               window.history.pushState({ tab: 'login' }, '', '/login');
             }}
             onSuccess={(registeredUser) => {
-              if (registeredUser?.store_slug) {
-                setStoreSlug(registeredUser.store_slug);
-                loadData(registeredUser.store_slug);
+              clearRegistrationDrafts();
+              const savedToken = localStorage.getItem('catavor_token') || '';
+              if (savedToken) setToken(savedToken);
+              if (registeredUser) setAdminUser(registeredUser);
+              try {
+                const rawStores = localStorage.getItem('catavor_stores');
+                if (rawStores) {
+                  const parsedStores = JSON.parse(rawStores);
+                  if (Array.isArray(parsedStores)) setUserStores(parsedStores);
+                }
+              } catch {}
+              setIsPasswordChanged(true);
+              const initialTheme = registeredUser?.store_theme || 'navy';
+              document.documentElement.setAttribute('data-theme', initialTheme);
+              document.body.setAttribute('data-theme', initialTheme);
+              setSettingsForm(prev => ({ ...prev, store_theme: initialTheme }));
+
+              const slug = registeredUser?.store_slug || localStorage.getItem('catavor_active_slug') || '';
+              if (slug) {
+                if (registeredUser?.id) saveUserActiveSlug(registeredUser.id, slug);
+                localStorage.setItem('catavor_active_slug', slug);
+                try { sessionStorage.setItem('catavor_active_slug_selected', slug); } catch {}
+                setStoreSlug(slug);
+                setPortalTab('home');
+                setView('admin');
+                setAdminTab('items');
+                window.history.pushState({}, '', appendViewParam(`/${slug}/admin/items`));
+                broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: registeredUser?.id || '0', token: savedToken });
+                loadData(slug);
+                fetchMyQuota();
+                fetchNotificationsFromBackend(1, false);
+                showToast('Pendaftaran berhasil! Selamat datang di Dashboard Toko Anda.', 'success');
+              } else {
+                setPortalTab('home');
+                window.history.pushState({}, '', appendViewParam('/catalogs'));
               }
             }}
             platformSettings={platformSettings}

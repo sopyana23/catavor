@@ -4519,9 +4519,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
             {/* Pending Payment Status Banner (Tablet Dashboard) */}
             {quota?.pending_order && (
-              <div style={{ margin: '0.75rem 0.85rem 0 0.85rem' }}>
+              <div style={{ flexShrink: 0 }}>
                 <PendingPaymentBanner
                   device="tablet"
+                  compact={isNarrowScreen || isNavExpanded}
                   pendingOrder={quota.pending_order}
                   currentPlanCode={quota?.plan?.code || 'free'}
                   onOpenSubscription={() => {

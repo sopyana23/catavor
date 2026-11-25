@@ -19,6 +19,7 @@ export interface PendingPaymentBannerProps {
   pendingOrder?: PendingOrderSummary | null;
   currentPlanCode?: string;
   device: 'desktop' | 'tablet' | 'mobile';
+  compact?: boolean;
   onOpenSubscription: () => void;
 }
 
@@ -39,6 +40,7 @@ export const PendingPaymentBanner: React.FC<PendingPaymentBannerProps> = ({
   pendingOrder,
   currentPlanCode = 'free',
   device,
+  compact = false,
   onOpenSubscription,
 }) => {
   if (!pendingOrder) return null;
@@ -51,7 +53,7 @@ export const PendingPaymentBanner: React.FC<PendingPaymentBannerProps> = ({
   const isVerifying = status === 'pending_verification';
   const targetPlanLabel = resolvePlanLabel(pendingOrder.plan_code, pendingOrder.plan_name);
   const isCurrentlyFree = String(currentPlanCode || 'free').toLowerCase().trim() === 'free';
-  const isCompact = device === 'mobile';
+  const isStacked = device === 'mobile' || Boolean(compact);
   const touchMinH = device === 'desktop' ? '38px' : '44px';
 
   const accentColor = isVerifying ? '#d97706' : '#2563eb';
@@ -70,32 +72,133 @@ export const PendingPaymentBanner: React.FC<PendingPaymentBannerProps> = ({
       ? `Invoice ${pendingOrder.order_number} sebesar ${formatRupiah(pendingOrder.final_amount)} masih menunggu penyelesaian pembayaran. Selesaikan transaksi agar paket ${targetPlanLabel} segera aktif di katalog Anda.`
       : `Invoice perpanjangan/upgrade ${pendingOrder.order_number} sebesar ${formatRupiah(pendingOrder.final_amount)} masih menunggu penyelesaian pembayaran.`;
 
+  if (isStacked) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        data-testid="pending-payment-banner"
+        style={{
+          padding: '0.85rem 0.95rem',
+          borderRadius: '0.85rem',
+          background: 'var(--card-bg-gradient, var(--bg-card, #ffffff))',
+          border: `1px solid ${accentBorder}`,
+          borderLeft: `4px solid ${accentColor}`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'stretch',
+          gap: '0.65rem',
+          marginBottom: device === 'mobile' ? '0.25rem' : '0',
+          boxShadow: '0 4px 16px rgba(15, 23, 42, 0.06)',
+          boxSizing: 'border-box',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', flex: 'none', minWidth: 0 }}>
+          <div
+            style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '9px',
+              backgroundColor: accentBg,
+              border: `1px solid ${accentBorder}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: accentColor,
+              flexShrink: 0,
+              marginTop: '0.05rem',
+            }}
+          >
+            {isVerifying ? <FileCheck2 size={18} /> : <Clock size={18} />}
+          </div>
+
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <strong style={{ display: 'block', color: 'var(--text-primary, #0f172a)', fontSize: '0.86rem', fontWeight: 800, lineHeight: 1.3 }}>
+              {title}
+            </strong>
+            <div style={{ marginTop: '0.28rem' }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  padding: '0.15rem 0.5rem',
+                  borderRadius: '999px',
+                  backgroundColor: accentBg,
+                  color: accentColor,
+                  border: `1px solid ${accentBorder}`,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {isVerifying ? 'Dalam Verifikasi' : 'Belum Dibayar'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <p style={{ margin: 0, flex: 'none', color: 'var(--text-secondary, #475569)', fontSize: '0.77rem', lineHeight: 1.48, overflowWrap: 'anywhere' }}>
+          {description}
+        </p>
+
+        <button
+          type="button"
+          onClick={onOpenSubscription}
+          className="btn-secondary"
+          style={{
+            flex: 'none',
+            minHeight: touchMinH,
+            width: '100%',
+            padding: '0.55rem 0.95rem',
+            borderRadius: '0.65rem',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.45rem',
+            borderColor: accentBorder,
+            color: 'var(--text-primary, #0f172a)',
+            boxSizing: 'border-box',
+          }}
+        >
+          <CreditCard size={15} />
+          <span>{isVerifying ? 'Lihat Status Tagihan' : 'Selesaikan Pembayaran'}</span>
+          <ArrowRight size={14} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       role="status"
       aria-live="polite"
+      data-testid="pending-payment-banner"
       style={{
-        padding: isCompact ? '0.9rem 1rem' : '1rem 1.25rem',
-        borderRadius: isCompact ? '0.85rem' : '1rem',
+        padding: '0.95rem 1.2rem',
+        borderRadius: '0.95rem',
         background: 'var(--card-bg-gradient, var(--bg-card, #ffffff))',
         border: `1px solid ${accentBorder}`,
         borderLeft: `4px solid ${accentColor}`,
         display: 'flex',
-        flexDirection: isCompact ? 'column' : 'row',
-        alignItems: isCompact ? 'stretch' : 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: isCompact ? '0.75rem' : '1rem',
-        marginBottom: isCompact ? '0.25rem' : '1rem',
+        gap: '0.85rem 1.15rem',
+        marginBottom: device === 'desktop' ? '1rem' : '0',
         boxShadow: '0 4px 16px rgba(15, 23, 42, 0.06)',
         boxSizing: 'border-box',
+        flexShrink: 0,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.8rem', flex: '1 1 280px', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.8rem', flex: '1 1 320px', minWidth: 0 }}>
         <div
           style={{
-            width: isCompact ? '38px' : '42px',
-            height: isCompact ? '38px' : '42px',
+            width: '40px',
+            height: '40px',
             borderRadius: '10px',
             backgroundColor: accentBg,
             border: `1px solid ${accentBorder}`,
@@ -112,7 +215,7 @@ export const PendingPaymentBanner: React.FC<PendingPaymentBannerProps> = ({
 
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
-            <strong style={{ color: 'var(--text-primary, #0f172a)', fontSize: isCompact ? '0.86rem' : '0.94rem', fontWeight: 800, lineHeight: 1.3 }}>
+            <strong style={{ color: 'var(--text-primary, #0f172a)', fontSize: '0.94rem', fontWeight: 800, lineHeight: 1.3 }}>
               {title}
             </strong>
             <span
@@ -131,7 +234,7 @@ export const PendingPaymentBanner: React.FC<PendingPaymentBannerProps> = ({
             </span>
           </div>
 
-          <p style={{ margin: 0, color: 'var(--text-secondary, #475569)', fontSize: isCompact ? '0.76rem' : '0.8rem', lineHeight: 1.48 }}>
+          <p style={{ margin: 0, color: 'var(--text-secondary, #475569)', fontSize: '0.8rem', lineHeight: 1.48 }}>
             {description}
           </p>
         </div>
@@ -143,10 +246,10 @@ export const PendingPaymentBanner: React.FC<PendingPaymentBannerProps> = ({
         className="btn-secondary"
         style={{
           minHeight: touchMinH,
-          width: isCompact ? '100%' : 'auto',
-          padding: isCompact ? '0.6rem 1rem' : '0.55rem 1.05rem',
+          width: 'auto',
+          padding: '0.55rem 1.05rem',
           borderRadius: '0.65rem',
-          fontSize: isCompact ? '0.8rem' : '0.82rem',
+          fontSize: '0.82rem',
           fontWeight: 700,
           cursor: 'pointer',
           display: 'inline-flex',

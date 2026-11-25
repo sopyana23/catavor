@@ -506,6 +506,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
         }
         if (data.user?.store_slug) {
           localStorage.setItem('catavor_active_slug', data.user.store_slug);
+          try { sessionStorage.setItem('catavor_active_slug_selected', data.user.store_slug); } catch {}
         }
         localStorage.setItem('catavor_password_changed', 'true');
 
@@ -519,10 +520,13 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
           return;
         }
 
-        setShowSuccessModal(true);
         if (onSuccess) {
           onSuccess(data.user);
+          return;
         }
+        const fallbackSlug = data.user?.store_slug || registerForm.store_slug;
+        window.location.href = fallbackSlug ? `/${fallbackSlug}/admin` : '/login';
+        return;
       } else {
         setRegisterError(data.message || 'Pendaftaran gagal. Silakan periksa kembali data Anda.');
       }

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   hasValidSessionToken,
   clearRegistrationDrafts,
-  resolveAuthenticatedRedirect
+  resolveAuthenticatedRedirect,
+  appendViewParam
 } from '../utils/authSync';
 import {
   Sparkles,
@@ -507,6 +508,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
         }
         if (data.user?.store_slug) {
           localStorage.setItem('catavor_active_slug', data.user.store_slug);
+          try { sessionStorage.setItem('catavor_active_slug_selected', data.user.store_slug); } catch {}
         }
         localStorage.setItem('catavor_password_changed', 'true');
 
@@ -520,10 +522,14 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
           return;
         }
 
-        setShowSuccessModal(true);
         if (onSuccess) {
           onSuccess(data.user);
+          return;
         }
+        window.location.href = data.user?.store_slug
+          ? appendViewParam(`/${data.user.store_slug}/admin/items`)
+          : '/';
+        return;
       } else {
         setRegisterError(data.message || 'Pendaftaran gagal. Silakan periksa kembali data Anda.');
       }

@@ -2006,10 +2006,20 @@ export const App: React.FC = () => {
           navigateTo('/');
         }}
         onSuccess={(regUser) => {
-          if (regUser?.store_slug) {
-            navigateTo(`/${regUser.store_slug}/admin`);
+          const savedToken = localStorage.getItem('catavor_token') || '';
+          if (savedToken) setToken(savedToken);
+          if (regUser) setCurrentUser(regUser);
+          setStoreTheme(regUser?.store_theme || 'navy');
+          clearRegistrationDrafts();
+          const targetSlug = regUser?.store_slug || localStorage.getItem('catavor_active_slug') || '';
+          if (targetSlug) {
+            if (regUser?.id) saveUserActiveSlug(regUser.id, targetSlug);
+            localStorage.setItem('catavor_active_slug', targetSlug);
+            try { sessionStorage.setItem('catavor_active_slug_selected', targetSlug); } catch {}
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: regUser?.id || '0', token: savedToken });
+            navigateTo(appendViewParam(`/${targetSlug}/admin`));
           } else {
-            navigateTo('/login');
+            navigateTo(appendViewParam('/login'));
           }
         }}
       />
@@ -2059,10 +2069,20 @@ export const App: React.FC = () => {
           navigateTo('/login');
         }}
         onSuccess={(regUser) => {
-          if (regUser?.store_slug) {
-            navigateTo(`/${regUser.store_slug}/admin`);
+          const savedToken = localStorage.getItem('catavor_token') || '';
+          if (savedToken) setToken(savedToken);
+          if (regUser) setCurrentUser(regUser);
+          setStoreTheme(regUser?.store_theme || 'navy');
+          clearRegistrationDrafts();
+          const targetSlug = regUser?.store_slug || localStorage.getItem('catavor_active_slug') || '';
+          if (targetSlug) {
+            if (regUser?.id) saveUserActiveSlug(regUser.id, targetSlug);
+            localStorage.setItem('catavor_active_slug', targetSlug);
+            try { sessionStorage.setItem('catavor_active_slug_selected', targetSlug); } catch {}
+            broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: regUser?.id || '0', token: savedToken });
+            navigateTo(appendViewParam(`/${targetSlug}/admin`));
           } else {
-            navigateTo('/login');
+            navigateTo(appendViewParam('/login'));
           }
         }}
         onGoogleSSO={handleGoogleSSO}
