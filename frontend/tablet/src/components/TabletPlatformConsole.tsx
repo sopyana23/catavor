@@ -36,6 +36,8 @@ import {
   Check,
   X,
   User,
+  UserCheck,
+  UserPlus,
   Zap,
   Globe,
   TrendingUp,
@@ -893,6 +895,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('all');
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('all');
   const [ticketSlaFilter, setTicketSlaFilter] = useState<string>('all');
+  const [ticketAssignedFilter, setTicketAssignedFilter] = useState<'all' | 'me' | 'unassigned'>('all');
+  const [assigningTicketId, setAssigningTicketId] = useState<number | null>(null);
   const [resolvedTimeRangeFilter, setResolvedTimeRangeFilter] = useState<'30d' | '90d' | 'all'>('30d');
   const [supportSearch, setSupportSearch] = useState('');
   const [debouncedTicketSearch, setDebouncedTicketSearch] = useState('');
@@ -1141,6 +1145,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     ticketCategoryFilter,
     ticketPriorityFilter,
     ticketSlaFilter,
+    ticketAssignedFilter,
     debouncedTicketSearch,
     resolvedTimeRangeFilter
   });
@@ -1152,10 +1157,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       ticketCategoryFilter,
       ticketPriorityFilter,
       ticketSlaFilter,
+      ticketAssignedFilter,
       debouncedTicketSearch,
       resolvedTimeRangeFilter
     };
-  }, [ticketsPagination.page, supportFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, debouncedTicketSearch, resolvedTimeRangeFilter]);
+  }, [ticketsPagination.page, supportFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, ticketAssignedFilter, debouncedTicketSearch, resolvedTimeRangeFilter]);
 
   // Server-Side Support Tickets Fetcher
   const fetchTickets = useCallback(async (
@@ -1165,7 +1171,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     priorityOverride?: string,
     slaOverride?: string,
     searchOverride?: string,
-    timeRangeOverride?: string
+    timeRangeOverride?: string,
+    assignedOverride?: string
   ) => {
     if (!token) return;
     setTicketsLoading(true);
@@ -1174,6 +1181,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       const cat = categoryOverride !== undefined ? categoryOverride : ticketsFilterRef.current.ticketCategoryFilter;
       const pri = priorityOverride !== undefined ? priorityOverride : ticketsFilterRef.current.ticketPriorityFilter;
       const sla = slaOverride !== undefined ? slaOverride : ticketsFilterRef.current.ticketSlaFilter;
+      const asg = assignedOverride !== undefined ? assignedOverride : ticketsFilterRef.current.ticketAssignedFilter;
       const q = searchOverride !== undefined ? searchOverride : ticketsFilterRef.current.debouncedTicketSearch;
       const tr = timeRangeOverride !== undefined ? timeRangeOverride : ticketsFilterRef.current.resolvedTimeRangeFilter;
 
@@ -1184,6 +1192,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       if (cat !== 'all') params.set('category', cat);
       if (pri !== 'all') params.set('priority', pri);
       if (sla === 'breached') params.set('sla_breached', 'true');
+      if (asg !== 'all') params.set('assigned', asg);
       if (st === 'resolved' && tr !== 'all') {
         params.set('time_range', tr);
       }
@@ -1216,7 +1225,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     if (activeView === 'support') {
       fetchTickets(1);
     }
-  }, [activeView, supportFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, debouncedTicketSearch, resolvedTimeRangeFilter, fetchTickets]);
+  }, [activeView, supportFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, ticketAssignedFilter, debouncedTicketSearch, resolvedTimeRangeFilter, fetchTickets]);
 
   // Periodic Presence Heartbeat (12s < 35s TTL) & Real-time SSE listener for Tablet Admin
   useEffect(() => {
@@ -1508,6 +1517,48 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   };
 
+  const handleAssignTicket = async (
+    ticketId: number,
+    payload: { self?: boolean; assigned_agent_id?: number | null }
+  ) => {
+    setAssigningTicketId(ticketId);
+    try {
+      const res = await authFetch(`/api/admin/support/tickets/${ticketId}/assign`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        showToast(json.message || 'Penugasan tiket berhasil diperbarui.');
+        setTickets((prev) =>
+          prev.map((t) =>
+            Number(t.id) === Number(ticketId)
+              ? { ...t, assigned_agent_id: json.data.assigned_agent_id, assigned_agent: json.data.assigned_agent }
+              : t
+          )
+        );
+        if (ticketDetail && Number(ticketDetail.id) === Number(ticketId)) {
+          setTicketDetail((prev: any) =>
+            prev
+              ? { ...prev, assigned_agent_id: json.data.assigned_agent_id, assigned_agent: json.data.assigned_agent }
+              : prev
+          );
+        }
+        fetchTickets(ticketsPagination.page);
+      } else {
+        showToast(json?.message || 'Gagal memperbarui penugasan tiket', 'error');
+      }
+    } catch {
+      showToast('Gagal memperbarui penugasan tiket', 'error');
+    } finally {
+      setAssigningTicketId(null);
+    }
+  };
+
   const handleUpdateTicketStatus = async (status: string) => {
     if (!selectedTicketId) return;
     try {
@@ -1526,7 +1577,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         fetchTickets(ticketsPagination.page);
         loadPlatformStats();
       } else {
-        showToast('Gagal memperbarui status tiket', 'error');
+        const errJson = await res.json().catch(() => null);
+        showToast(errJson?.message || 'Gagal memperbarui status tiket', 'error');
       }
     } catch {
       showToast('Gagal memperbarui status tiket', 'error');
@@ -5308,6 +5360,52 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         )}
                       </button>
 
+                      {/* Agent Ownership Quick Filters */}
+                      <button
+                        type="button"
+                        onClick={() => setTicketAssignedFilter(prev => prev === 'me' ? 'all' : 'me')}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '0.55rem',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          backgroundColor: ticketAssignedFilter === 'me' ? 'rgba(59, 130, 246, 0.16)' : 'var(--bg-deep)',
+                          color: ticketAssignedFilter === 'me' ? '#3b82f6' : 'var(--text-muted)',
+                          border: `1px solid ${ticketAssignedFilter === 'me' ? '#3b82f6' : 'var(--border-light)'}`,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <UserCheck size={13} />
+                        <span>Tiket Saya</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTicketAssignedFilter(prev => prev === 'unassigned' ? 'all' : 'unassigned')}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '0.55rem',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          backgroundColor: ticketAssignedFilter === 'unassigned' ? 'rgba(245, 158, 11, 0.16)' : 'var(--bg-deep)',
+                          color: ticketAssignedFilter === 'unassigned' ? '#f59e0b' : 'var(--text-muted)',
+                          border: `1px solid ${ticketAssignedFilter === 'unassigned' ? '#f59e0b' : 'var(--border-light)'}`,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <UserPlus size={13} />
+                        <span>Belum Ditugaskan</span>
+                      </button>
+
                       {/* Time range for resolved */}
                       {supportFilter === 'resolved' && (
                         <div style={{ display: 'inline-flex', gap: '0.25rem', alignItems: 'center' }}>
@@ -5340,7 +5438,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       )}
 
                       {/* Reset Filter Button */}
-                      {(activeTabletTriageFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || Boolean(supportSearch.trim())) && (
+                      {(activeTabletTriageFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || ticketAssignedFilter !== 'all' || Boolean(supportSearch.trim())) && (
                         <button
                           type="button"
                           onClick={() => {
@@ -5348,6 +5446,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             setTicketCategoryFilter('all');
                             setTicketPriorityFilter('all');
                             setTicketSlaFilter('all');
+                            setTicketAssignedFilter('all');
                             setSupportSearch('');
                           }}
                           style={{
@@ -5530,23 +5629,40 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               </div>
                             )}
 
-                            {/* Row 4: Footer Timestamp & Message Count */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.2rem', borderTop: '1px solid var(--border-light)' }}>
+                            {/* Row 4: Footer Timestamp, Assignment & Message Count */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', paddingTop: '0.2rem', borderTop: '1px solid var(--border-light)' }}>
                               <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
                                 <Clock size={11} />
                                 {formatSupportDateTime(t.created_at)}
                               </span>
-                              <span style={{
-                                fontSize: '0.62rem',
-                                fontWeight: 700,
-                                padding: '0.1rem 0.4rem',
-                                borderRadius: '999px',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-muted)',
-                                border: '1px solid var(--border-light)'
-                              }}>
-                                {messageCount} pesan
-                              </span>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <span style={{
+                                  fontSize: '0.6rem',
+                                  fontWeight: 700,
+                                  padding: '0.1rem 0.38rem',
+                                  borderRadius: '4px',
+                                  backgroundColor: t.assigned_agent_id ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-deep)',
+                                  color: t.assigned_agent_id ? '#10b981' : 'var(--text-muted)',
+                                  border: `1px solid ${t.assigned_agent_id ? 'rgba(16, 185, 129, 0.28)' : 'var(--border-light)'}`,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.2rem'
+                                }}>
+                                  <UserCheck size={10} />
+                                  {t.assigned_agent?.name || (t.assigned_agent_id ? `Agen #${t.assigned_agent_id}` : 'Belum Ditugaskan')}
+                                </span>
+                                <span style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 700,
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  color: 'var(--text-muted)',
+                                  border: '1px solid var(--border-light)'
+                                }}>
+                                  {messageCount} pesan
+                                </span>
+                              </div>
                             </div>
                           </div>
                         );
@@ -5751,6 +5867,64 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             </span>
                           </>
                         )}
+
+                        {/* Agent Ownership Pill & Claim/Release Action */}
+                        {(() => {
+                          const assignedId = ticketDetail.assigned_agent_id;
+                          const assignedName = ticketDetail.assigned_agent?.name || (assignedId ? `Agen #${assignedId}` : '');
+                          const isAssignedToMe = Boolean(assignedId && currentUser?.id && Number(assignedId) === Number(currentUser.id));
+                          return (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              <span
+                                style={{
+                                  minHeight: '36px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  padding: '0.22rem 0.6rem',
+                                  borderRadius: '0.5rem',
+                                  backgroundColor: assignedId ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-deep)',
+                                  color: assignedId ? '#10b981' : 'var(--text-muted)',
+                                  border: `1px solid ${assignedId ? 'rgba(16, 185, 129, 0.3)' : 'var(--border-light)'}`,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                }}
+                              >
+                                <UserCheck size={12} />
+                                <span>{assignedId ? (isAssignedToMe ? 'Ditangani Anda' : `PIC: ${assignedName}`) : 'Belum Ditugaskan'}</span>
+                              </span>
+                              {canReplySupport && (
+                                <button
+                                  type="button"
+                                  disabled={assigningTicketId === Number(ticketDetail.id)}
+                                  onClick={() =>
+                                    handleAssignTicket(
+                                      Number(ticketDetail.id),
+                                      isAssignedToMe ? { assigned_agent_id: 0 } : { self: true }
+                                    )
+                                  }
+                                  style={{
+                                    minHeight: '44px',
+                                    padding: '0.35rem 0.85rem',
+                                    borderRadius: '0.5rem',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 800,
+                                    border: `1px solid ${isAssignedToMe ? 'rgba(239, 68, 68, 0.35)' : 'rgba(59, 130, 246, 0.4)'}`,
+                                    backgroundColor: isAssignedToMe ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.16)',
+                                    color: isAssignedToMe ? '#ef4444' : '#3b82f6',
+                                    cursor: assigningTicketId === Number(ticketDetail.id) ? 'wait' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.32rem',
+                                  }}
+                                >
+                                  <UserPlus size={13} />
+                                  <span>{isAssignedToMe ? 'Lepas Penugasan' : 'Klaim Tiket'}</span>
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Merchant Action Links Bar */}

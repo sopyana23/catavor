@@ -25,6 +25,8 @@ import {
   TrendingUp,
   Users,
   User,
+  UserCheck,
+  UserPlus,
   Search,
   Filter,
   Eye,
@@ -1183,6 +1185,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('all');
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('all');
   const [ticketSlaFilter, setTicketSlaFilter] = useState<string>('all');
+  const [ticketAssignedFilter, setTicketAssignedFilter] = useState<'all' | 'me' | 'unassigned'>('all');
+  const [assigningTicketId, setAssigningTicketId] = useState<number | null>(null);
   const [resolvedTimeRangeFilter, setResolvedTimeRangeFilter] = useState<'30d' | '90d' | 'all'>('30d');
 
   // Pengurutan alami tiket layaknya aplikasi media sosial / chat:
@@ -1904,6 +1908,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (ticketCategoryFilter !== 'all') params.set('category', ticketCategoryFilter);
       if (ticketPriorityFilter !== 'all') params.set('priority', ticketPriorityFilter);
       if (ticketSlaFilter === 'breached') params.set('sla_breached', 'true');
+      if (ticketAssignedFilter !== 'all') params.set('assigned', ticketAssignedFilter);
       if (ticketsFilter === 'resolved' && resolvedTimeRangeFilter !== 'all') {
         params.set('time_range', resolvedTimeRangeFilter);
       }
@@ -1987,6 +1992,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 ...prev,
                 status: activeUpdated.status || prev.status,
                 priority: activeUpdated.priority || prev.priority,
+                assigned_agent_id: activeUpdated.assigned_agent_id !== undefined ? activeUpdated.assigned_agent_id : prev.assigned_agent_id,
+                assigned_agent: activeUpdated.assigned_agent !== undefined ? activeUpdated.assigned_agent : prev.assigned_agent,
                 first_response_at: activeUpdated.first_response_at || prev.first_response_at,
                 sla_breached: activeUpdated.sla_breached !== undefined ? activeUpdated.sla_breached : prev.sla_breached,
                 rating: activeUpdated.rating !== undefined ? activeUpdated.rating : prev.rating,
@@ -2030,7 +2037,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     if (canAccessSupport && token && activeView === 'support') {
       fetchTickets(1, false);
     }
-  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, ticketAssignedFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   // Polling santai fallback (45 detik saat aktif, data utama di-push secara instan via SSE)
   useEffect(() => {
@@ -2051,7 +2058,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, ticketAssignedFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   // Re-fetch reports server-side whenever active filters or debounced search query change
   useEffect(() => {
@@ -2640,6 +2647,46 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
+  // Ticket Ownership Claim / Release
+  const handleAssignTicket = async (
+    ticketId: number | string,
+    payload: { self?: boolean; assigned_agent_id?: number | null }
+  ) => {
+    setAssigningTicketId(Number(ticketId));
+    try {
+      const res = await fetch(`/api/admin/support/tickets/${ticketId}/assign`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        showToast(json.message || 'Penugasan tiket berhasil diperbarui.', 'success');
+        setTickets((prev) =>
+          prev.map((t) =>
+            String(t.id) === String(ticketId)
+              ? { ...t, assigned_agent_id: json.data.assigned_agent_id, assigned_agent: json.data.assigned_agent }
+              : t
+          )
+        );
+        if (selectedTicket && String(selectedTicket.id) === String(ticketId)) {
+          setSelectedTicket((prev: any) =>
+            prev
+              ? { ...prev, assigned_agent_id: json.data.assigned_agent_id, assigned_agent: json.data.assigned_agent }
+              : prev
+          );
+        }
+        fetchTickets(ticketsPagination.page || 1, false);
+      } else {
+        showToast(json?.message || 'Gagal memperbarui penugasan tiket.', 'error');
+      }
+    } catch {
+      showToast('Koneksi gagal saat memperbarui penugasan tiket.', 'error');
+    } finally {
+      setAssigningTicketId(null);
+    }
+  };
+
   // Support Status Update (Open, In Progress, Waiting User, Resolved, Closed)
   const handleUpdateTicketStatus = async (ticketId: number | string, status: string) => {
     try {
@@ -2660,6 +2707,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         if (selectedTicket && selectedTicket.id === ticketId) {
           setSelectedTicket((prev: any) => ({ ...prev, status }));
         }
+      } else {
+        const errJson = await res.json().catch(() => null);
+        showToast(errJson?.message || 'Gagal memperbarui status tiket', 'error');
       }
     } catch {
       showToast('Gagal memperbarui tiket', 'error');
@@ -7225,6 +7275,62 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </button>
                   );
                 })()}
+
+                {/* Agent Ownership Pill & Claim / Release Control */}
+                {(() => {
+                  const assignedId = selectedTicket.assigned_agent_id;
+                  const assignedName = selectedTicket.assigned_agent?.name || (assignedId ? `Agen #${assignedId}` : '');
+                  const isAssignedToMe = Boolean(assignedId && currentUser?.id && Number(assignedId) === Number(currentUser.id));
+                  return (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: assignedId ? 'rgba(16, 185, 129, 0.1)' : theme.cardAlt,
+                          color: assignedId ? '#10b981' : theme.textMuted,
+                          border: `1px solid ${assignedId ? 'rgba(16, 185, 129, 0.28)' : theme.border}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                        }}
+                      >
+                        <UserCheck size={11} />
+                        <span>{assignedId ? (isAssignedToMe ? 'Ditangani Anda' : `PIC: ${assignedName}`) : 'Belum Ditugaskan'}</span>
+                      </span>
+                      {canReplySupport && (
+                        <button
+                          type="button"
+                          disabled={assigningTicketId === Number(selectedTicket.id)}
+                          onClick={() =>
+                            handleAssignTicket(
+                              selectedTicket.id,
+                              isAssignedToMe ? { assigned_agent_id: 0 } : { self: true }
+                            )
+                          }
+                          style={{
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.65rem',
+                            fontWeight: 800,
+                            border: `1px solid ${isAssignedToMe ? 'rgba(239, 68, 68, 0.35)' : 'rgba(59, 130, 246, 0.4)'}`,
+                            backgroundColor: isAssignedToMe ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.14)',
+                            color: isAssignedToMe ? '#ef4444' : '#3b82f6',
+                            cursor: assigningTicketId === Number(selectedTicket.id) ? 'wait' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.28rem',
+                          }}
+                        >
+                          <UserPlus size={11} />
+                          <span>{isAssignedToMe ? 'Lepas Penugasan' : 'Klaim Tiket'}</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* CSAT Rating Card if Rated (Fase 2) */}
@@ -8436,8 +8542,56 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 )}
               </button>
 
+              {/* Agent Ownership Quick Filters */}
+              <button
+                type="button"
+                onClick={() => setTicketAssignedFilter(prev => prev === 'me' ? 'all' : 'me')}
+                style={{
+                  height: '34px',
+                  padding: '0 0.75rem',
+                  borderRadius: '0.65rem',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  backgroundColor: ticketAssignedFilter === 'me' ? 'rgba(59, 130, 246, 0.16)' : theme.surface,
+                  color: ticketAssignedFilter === 'me' ? '#3b82f6' : theme.textSecondary,
+                  border: `1px solid ${ticketAssignedFilter === 'me' ? '#3b82f6' : theme.border}`,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Tampilkan tiket yang Anda klaim"
+              >
+                <UserCheck size={13} />
+                <span>Tiket Saya</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTicketAssignedFilter(prev => prev === 'unassigned' ? 'all' : 'unassigned')}
+                style={{
+                  height: '34px',
+                  padding: '0 0.75rem',
+                  borderRadius: '0.65rem',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  backgroundColor: ticketAssignedFilter === 'unassigned' ? 'rgba(245, 158, 11, 0.16)' : theme.surface,
+                  color: ticketAssignedFilter === 'unassigned' ? '#f59e0b' : theme.textSecondary,
+                  border: `1px solid ${ticketAssignedFilter === 'unassigned' ? '#f59e0b' : theme.border}`,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Tampilkan tiket yang belum ditugaskan"
+              >
+                <UserPlus size={13} />
+                <span>Belum Ditugaskan</span>
+              </button>
+
               {/* Active Filter Indicator & Reset Button */}
-              {(ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || Boolean(ticketSearchQuery)) && (
+              {(ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || ticketAssignedFilter !== 'all' || Boolean(ticketSearchQuery)) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -8445,6 +8599,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     setTicketCategoryFilter('all');
                     setTicketPriorityFilter('all');
                     setTicketSlaFilter('all');
+                    setTicketAssignedFilter('all');
                     setTicketSearchQuery('');
                   }}
                     style={{
@@ -8649,6 +8804,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               {t.priority}
                             </span>
                           )}
+
+                          <span style={{
+                            fontSize: '0.62rem',
+                            fontWeight: 700,
+                            padding: '0.12rem 0.4rem',
+                            borderRadius: '4px',
+                            backgroundColor: t.assigned_agent_id ? 'rgba(16, 185, 129, 0.1)' : theme.cardAlt,
+                            color: t.assigned_agent_id ? '#10b981' : theme.textMuted,
+                            border: `1px solid ${t.assigned_agent_id ? 'rgba(16, 185, 129, 0.25)' : theme.border}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.22rem'
+                          }}>
+                            <UserCheck size={10} />
+                            <span>{t.assigned_agent?.name || (t.assigned_agent_id ? `Agen #${t.assigned_agent_id}` : 'Belum Ditugaskan')}</span>
+                          </span>
 
                           {/* SLA Breached or Active Countdown Badge with Premium Lucide SVG Icon */}
                           {t.sla_breached ? (

@@ -187,6 +187,11 @@ import {
   SUPPORT_TICKET_CATEGORIES,
   SUPPORT_TICKET_PRIORITIES,
 } from '../../shared/support/supportHelpers'
+import {
+  SharedHelpKnowledgeBase,
+  HelpDeflectionSuggestions,
+  generateSupportIdempotencyKey,
+} from '../../shared/support/SharedHelpKnowledgeBase'
 import { OfficialContactModal } from './components/OfficialContactModal'
 import { PlatformPoliciesView, type PolicyKey } from './components/PlatformPoliciesView'
 import { DesktopCheckoutView } from './components/DesktopCheckoutView'
@@ -7864,6 +7869,9 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [attachmentLightbox?.isOpen, attachmentLightbox?.images?.length]);
+
+  const supportCreateIdemRef = useRef<string>(generateSupportIdempotencyKey('tk'));
+  const supportReplyIdemRef = useRef<string>(generateSupportIdempotencyKey('rp'));
 
   const [newTicketForm, setNewTicketForm] = useState<{
     subject: string;
@@ -28154,6 +28162,22 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   </div>
 
+                  {!isSuspendedAccount && (
+                    <SharedHelpKnowledgeBase
+                      formFactor="desktop"
+                      onOpenCreateTicket={(prefill) => {
+                        if (prefill) {
+                          setNewTicketForm((prev) => ({
+                            ...prev,
+                            subject: prev.subject || `Tanya seputar: ${prefill}`,
+                          }));
+                        }
+                        supportCreateIdemRef.current = generateSupportIdempotencyKey('tk');
+                        setShowCreateTicketModal(true);
+                      }}
+                    />
+                  )}
+
                   {/* MASTER-DETAIL TICKET LAYOUT (Adaptive column width prioritizing Room Chat) */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'clamp(260px, 24%, 300px) 1fr', gap: '1.25rem', height: 'calc(100vh - 190px)', minHeight: '620px', maxHeight: 'calc(100vh - 190px)' }}>
                     
@@ -29242,7 +29266,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                     try {
                                       const res = await fetch(`${API_BASE}/support/tickets/${selectedTicket.id}/reply`, {
                                         method: 'POST',
-                                        headers: getAuthHeaders(),
+                                        headers: {
+                                          ...getAuthHeaders(),
+                                          'Idempotency-Key': supportReplyIdemRef.current,
+                                        },
                                         body: JSON.stringify({
                                           message: ticketReplyText.trim(),
                                           attachments: ticketReplyAttachments
@@ -29250,6 +29277,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                       });
                                       const data = await res.json();
                                       if (res.ok && data.success) {
+                                        supportReplyIdemRef.current = generateSupportIdempotencyKey('rp');
                                         const createdMsg = data.data;
                                         setTicketReplyText('');
                                         setTicketReplyAttachments([]);
@@ -29589,7 +29617,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           try {
                             const res = await fetch(`${API_BASE}/support/tickets`, {
                               method: 'POST',
-                              headers: getAuthHeaders(),
+                              headers: {
+                                ...getAuthHeaders(),
+                                'Idempotency-Key': supportCreateIdemRef.current,
+                              },
                               body: JSON.stringify({
                                 store_slug: (storeSlug || getStoreSlug() || resolveActiveStoreSlug()) || undefined,
                                 subject: finalSubject,
@@ -29601,6 +29632,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             });
                             const data = await res.json();
                             if (res.ok && data.success && data.data) {
+                              supportCreateIdemRef.current = generateSupportIdempotencyKey('tk');
                               showToast((settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Permohonan banding kepatuhan berhasil dikirim!' : 'Tiket bantuan berhasil dikirim!');
                               setShowCreateTicketModal(false);
                               setTickets(prev => [data.data, ...prev.filter(t => t.id !== data.data.id)]);
@@ -29660,6 +29692,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                   : undefined
                               }
                             />
+                            {!(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
+                              <div style={{ marginTop: '0.55rem' }}>
+                                <HelpDeflectionSuggestions subject={newTicketForm.subject} formFactor="desktop" />
+                              </div>
+                            )}
                           </div>
 
                           {(settings.dormancy_status === 'suspended' || settings.is_suspended) ? (

@@ -36,6 +36,11 @@ import {
   SUPPORT_TICKET_PRIORITIES,
   resolveTicketMessageCount,
 } from '../../../shared/support/supportHelpers';
+import {
+  SharedHelpKnowledgeBase,
+  HelpDeflectionSuggestions,
+  generateSupportIdempotencyKey,
+} from '../../../shared/support/SharedHelpKnowledgeBase';
 
 export interface TicketAttachment {
   id?: number | string;
@@ -203,6 +208,8 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
   const fetchSupportTicketsRef = useRef<((silent?: boolean, pageToFetch?: number) => void) | null>(null);
   const fetchTicketDetailsRef = useRef<((ticketId: string | number) => void) | null>(null);
   const ticketPageRef = useRef(ticketPage);
+  const supportCreateIdemRef = useRef<string>(generateSupportIdempotencyKey('tk'));
+  const supportReplyIdemRef = useRef<string>(generateSupportIdempotencyKey('rp'));
 
   useEffect(() => {
     selectedTicketIdRef.current = selectedTicketId;
@@ -670,7 +677,8 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
         method: 'POST',
         headers: {
           ...getAuthHeaders(),
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Idempotency-Key': supportCreateIdemRef.current,
         },
         body: JSON.stringify({
           store_slug: storeSlug || undefined,
@@ -684,6 +692,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
 
       const data = await res.json();
       if (res.ok && data.success && data.data) {
+        supportCreateIdemRef.current = generateSupportIdempotencyKey('tk');
         showToast(isSuspendedAccount ? 'Permohonan banding kepatuhan berhasil dikirim!' : 'Tiket bantuan berhasil diajukan!');
         setNewTicketForm({ subject: '', category: 'technical', priority: 'medium', message: '' });
         setTicketNewAttachments([]);
@@ -710,7 +719,8 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
         method: 'POST',
         headers: {
           ...getAuthHeaders(),
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Idempotency-Key': supportReplyIdemRef.current,
         },
         body: JSON.stringify({
           message: ticketReplyText.trim(),
@@ -720,6 +730,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
 
       const data = await res.json();
       if (res.ok && data.success) {
+        supportReplyIdemRef.current = generateSupportIdempotencyKey('rp');
         setTicketReplyText('');
         setTicketReplyAttachments([]);
         showToast('Balasan tiket Anda berhasil dikirim.');
@@ -1128,6 +1139,25 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
         </div>
       </div>
 
+      {!isSuspendedAccount && (
+        <div style={{ flexShrink: 0 }}>
+          <SharedHelpKnowledgeBase
+            formFactor="tablet"
+            onOpenCreateTicket={(prefill) => {
+              if (prefill) {
+                setNewTicketForm((prev) => ({
+                  ...prev,
+                  subject: prev.subject || `Tanya seputar: ${prefill}`,
+                }));
+              }
+              supportCreateIdemRef.current = generateSupportIdempotencyKey('tk');
+              syncTicketUrlParam(null);
+              setSelectedTicketId('new');
+            }}
+          />
+        </div>
+      )}
+
       {/* ===================================================================
           2. MASTER-DETAIL SPLIT VIEW (ADAPTIF ERGONOMI TABLET)
           =================================================================== */}
@@ -1413,6 +1443,11 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                         boxSizing: 'border-box'
                       }}
                     />
+                    {!isSuspendedAccount && (
+                      <div style={{ marginTop: '0.55rem' }}>
+                        <HelpDeflectionSuggestions subject={newTicketForm.subject} formFactor="tablet" />
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

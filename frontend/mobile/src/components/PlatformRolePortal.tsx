@@ -25,6 +25,8 @@ import {
   TrendingUp,
   Users,
   User,
+  UserCheck,
+  UserPlus,
   Search,
   Filter,
   Eye,
@@ -1239,6 +1241,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('all');
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('all');
   const [ticketSlaFilter, setTicketSlaFilter] = useState<string>('all');
+  const [ticketAssignedFilter, setTicketAssignedFilter] = useState<'all' | 'me' | 'unassigned'>('all');
+  const [assigningTicketId, setAssigningTicketId] = useState<number | null>(null);
   const [resolvedTimeRangeFilter, setResolvedTimeRangeFilter] = useState<'30d' | '90d' | 'all'>('30d');
 
   // Pengurutan alami tiket layaknya aplikasi media sosial / chat:
@@ -1980,6 +1984,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (ticketCategoryFilter !== 'all') params.set('category', ticketCategoryFilter);
       if (ticketPriorityFilter !== 'all') params.set('priority', ticketPriorityFilter);
       if (ticketSlaFilter === 'breached') params.set('sla_breached', 'true');
+      if (ticketAssignedFilter !== 'all') params.set('assigned', ticketAssignedFilter);
       if (ticketsFilter === 'resolved' && resolvedTimeRangeFilter !== 'all') {
         params.set('time_range', resolvedTimeRangeFilter);
       }
@@ -2103,7 +2108,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     if (canAccessSupport && token && activeView === 'support') {
       fetchTickets(1, false);
     }
-  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, ticketAssignedFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   // Polling santai fallback (45 detik saat aktif, data utama di-push secara instan via SSE)
   useEffect(() => {
@@ -2124,7 +2129,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, ticketAssignedFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   const selectedTicketRef = useRef<any>(selectedTicket);
   const activeViewRef = useRef<string>(activeView);
@@ -2739,6 +2744,46 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
+  // Ticket Ownership Claim / Release
+  const handleAssignTicket = async (
+    ticketId: number | string,
+    payload: { self?: boolean; assigned_agent_id?: number | null }
+  ) => {
+    setAssigningTicketId(Number(ticketId));
+    try {
+      const res = await fetch(`/api/admin/support/tickets/${ticketId}/assign`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        showToast(json.message || 'Penugasan tiket berhasil diperbarui.', 'success');
+        setTickets((prev) =>
+          prev.map((t) =>
+            String(t.id) === String(ticketId)
+              ? { ...t, assigned_agent_id: json.data.assigned_agent_id, assigned_agent: json.data.assigned_agent }
+              : t
+          )
+        );
+        if (selectedTicket && String(selectedTicket.id) === String(ticketId)) {
+          setSelectedTicket((prev: any) =>
+            prev
+              ? { ...prev, assigned_agent_id: json.data.assigned_agent_id, assigned_agent: json.data.assigned_agent }
+              : prev
+          );
+        }
+        fetchTickets(ticketsPagination.page || 1, false);
+      } else {
+        showToast(json?.message || 'Gagal memperbarui penugasan tiket.', 'error');
+      }
+    } catch {
+      showToast('Koneksi gagal saat memperbarui penugasan tiket.', 'error');
+    } finally {
+      setAssigningTicketId(null);
+    }
+  };
+
   // Support Status Update (Open, In Progress, Waiting User, Resolved, Closed)
   const handleUpdateTicketStatus = async (ticketId: number | string, status: string) => {
     try {
@@ -2759,6 +2804,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         if (selectedTicket && selectedTicket.id === ticketId) {
           setSelectedTicket((prev: any) => ({ ...prev, status }));
         }
+      } else {
+        const errJson = await res.json().catch(() => null);
+        showToast(errJson?.message || 'Gagal memperbarui status tiket', 'error');
       }
     } catch {
       showToast('Gagal memperbarui tiket', 'error');
@@ -7027,6 +7075,63 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </button>
                   );
                 })()}
+
+                {/* Agent Ownership Badge & Claim/Release Button */}
+                {(() => {
+                  const assignedId = selectedTicket.assigned_agent_id;
+                  const assignedName = selectedTicket.assigned_agent?.name || (assignedId ? `Agen #${assignedId}` : '');
+                  const isAssignedToMe = Boolean(assignedId && currentUser?.id && Number(assignedId) === Number(currentUser.id));
+                  return (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          padding: '0.22rem 0.55rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: assignedId ? 'rgba(16, 185, 129, 0.12)' : theme.surface,
+                          color: assignedId ? '#10b981' : theme.textMuted,
+                          border: `1px solid ${assignedId ? 'rgba(16, 185, 129, 0.3)' : theme.border}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.28rem',
+                        }}
+                      >
+                        <UserCheck size={11} />
+                        <span>{assignedId ? (isAssignedToMe ? 'Ditangani Anda' : `PIC: ${assignedName}`) : 'Belum Ditugaskan'}</span>
+                      </span>
+                      {canReplySupport && (
+                        <button
+                          type="button"
+                          disabled={assigningTicketId === Number(selectedTicket.id)}
+                          onClick={() =>
+                            handleAssignTicket(
+                              selectedTicket.id,
+                              isAssignedToMe ? { assigned_agent_id: 0 } : { self: true }
+                            )
+                          }
+                          style={{
+                            minHeight: '44px',
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '0.55rem',
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            border: `1px solid ${isAssignedToMe ? 'rgba(239, 68, 68, 0.35)' : 'rgba(59, 130, 246, 0.4)'}`,
+                            backgroundColor: isAssignedToMe ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.15)',
+                            color: isAssignedToMe ? '#ef4444' : '#3b82f6',
+                            cursor: assigningTicketId === Number(selectedTicket.id) ? 'wait' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                          }}
+                        >
+                          <UserPlus size={12} />
+                          <span>{isAssignedToMe ? 'Lepas Penugasan' : 'Klaim Tiket'}</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* CSAT Rating Card if Rated (Fase 2) */}
@@ -8114,8 +8219,54 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 )}
               </button>
 
+              {/* Agent Ownership Quick Filters */}
+              <button
+                type="button"
+                onClick={() => setTicketAssignedFilter(prev => prev === 'me' ? 'all' : 'me')}
+                style={{
+                  minHeight: '44px',
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: '0.75rem',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  backgroundColor: ticketAssignedFilter === 'me' ? 'rgba(59, 130, 246, 0.16)' : theme.surface,
+                  color: ticketAssignedFilter === 'me' ? '#3b82f6' : theme.textSecondary,
+                  border: `1.5px solid ${ticketAssignedFilter === 'me' ? '#3b82f6' : theme.border}`,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <UserCheck size={13} />
+                <span>Tiket Saya</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTicketAssignedFilter(prev => prev === 'unassigned' ? 'all' : 'unassigned')}
+                style={{
+                  minHeight: '44px',
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: '0.75rem',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  backgroundColor: ticketAssignedFilter === 'unassigned' ? 'rgba(245, 158, 11, 0.16)' : theme.surface,
+                  color: ticketAssignedFilter === 'unassigned' ? '#f59e0b' : theme.textSecondary,
+                  border: `1.5px solid ${ticketAssignedFilter === 'unassigned' ? '#f59e0b' : theme.border}`,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <UserPlus size={13} />
+                <span>Belum Ditugaskan</span>
+              </button>
+
               {/* Reset Filters (if active) */}
-              {(activeMobileTriageFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || ticketSearchQuery.trim()) && (
+              {(activeMobileTriageFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || ticketAssignedFilter !== 'all' || ticketSearchQuery.trim()) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -8123,6 +8274,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     setTicketCategoryFilter('all');
                     setTicketPriorityFilter('all');
                     setTicketSlaFilter('all');
+                    setTicketAssignedFilter('all');
                     setTicketSearchQuery('');
                   }}
                   style={{
@@ -8301,27 +8453,45 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       </div>
                     )}
 
-                    {/* Footer Row: Timestamp & Message Count */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.2rem', borderTop: `1px solid ${theme.border}` }}>
+                    {/* Footer Row: Timestamp, Assignment & Message Count */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', paddingTop: '0.2rem', borderTop: `1px solid ${theme.border}` }}>
                       <span style={{ fontSize: '0.64rem', color: theme.textMuted, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
                         <Clock size={11} />
                         {t.last_message_at || t.created_at ? new Date(t.last_message_at || t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Baru saja'}
                       </span>
 
-                      <div style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.15rem 0.45rem',
-                        borderRadius: '0.4rem',
-                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : 'rgba(2, 132, 199, 0.08)',
-                        color: isDark ? '#38bdf8' : '#0284c7',
-                        fontSize: '0.66rem',
-                        fontWeight: 700
-                      }}>
-                        <MessageSquare size={11} />
-                        <span>{messageCount} Pesan</span>
-                        <ChevronRight size={11} />
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span style={{
+                          fontSize: '0.6rem',
+                          fontWeight: 700,
+                          padding: '0.12rem 0.38rem',
+                          borderRadius: '0.35rem',
+                          backgroundColor: t.assigned_agent_id ? 'rgba(16, 185, 129, 0.12)' : theme.cardAlt,
+                          color: t.assigned_agent_id ? '#10b981' : theme.textMuted,
+                          border: `1px solid ${t.assigned_agent_id ? 'rgba(16, 185, 129, 0.25)' : theme.border}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.2rem'
+                        }}>
+                          <UserCheck size={10} />
+                          <span>{t.assigned_agent?.name || (t.assigned_agent_id ? `Agen #${t.assigned_agent_id}` : 'Belum Ditugaskan')}</span>
+                        </span>
+
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          padding: '0.15rem 0.45rem',
+                          borderRadius: '0.4rem',
+                          backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : 'rgba(2, 132, 199, 0.08)',
+                          color: isDark ? '#38bdf8' : '#0284c7',
+                          fontSize: '0.66rem',
+                          fontWeight: 700
+                        }}>
+                          <MessageSquare size={11} />
+                          <span>{messageCount} Pesan</span>
+                          <ChevronRight size={11} />
+                        </div>
                       </div>
                     </div>
                   </div>

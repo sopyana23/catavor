@@ -172,6 +172,11 @@ import {
   resolveTicketStoreTitle,
   resolveTicketMessageCount,
 } from '../../shared/support/supportHelpers'
+import {
+  SharedHelpKnowledgeBase,
+  HelpDeflectionSuggestions,
+  generateSupportIdempotencyKey,
+} from '../../shared/support/SharedHelpKnowledgeBase'
 import { OfficialContactSheet } from './components/OfficialContactSheet'
 import { MobilePoliciesView, type PolicyKey } from './components/MobilePoliciesView'
 import { normalizeNotification, getMobileNotificationDescription } from './utils/notificationHelpers'
@@ -7922,6 +7927,9 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [attachmentLightbox?.isOpen, attachmentLightbox?.images?.length]);
+
+  const supportCreateIdemRef = useRef<string>(generateSupportIdempotencyKey('tk'));
+  const supportReplyIdemRef = useRef<string>(generateSupportIdempotencyKey('rp'));
 
   const [newTicketForm, setNewTicketForm] = useState<{
     subject: string;
@@ -32308,7 +32316,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                 try {
                                                   const res = await fetch(`${API_BASE}/support/tickets/${selectedTicket.id}/reply`, {
                                                     method: 'POST',
-                                                    headers: getAuthHeaders(),
+                                                    headers: {
+                                                      ...getAuthHeaders(),
+                                                      'Idempotency-Key': supportReplyIdemRef.current,
+                                                    },
                                                     body: JSON.stringify({
                                                       message: ticketReplyText.trim(),
                                                       attachments: ticketReplyAttachments
@@ -32316,6 +32327,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                   });
                                                   const data = await res.json();
                                                   if (res.ok && data.success) {
+                                                    supportReplyIdemRef.current = generateSupportIdempotencyKey('rp');
                                                     const createdMsg = data.data;
                                                     setTicketReplyText('');
                                                     const replyTextarea = document.getElementById('mobile-reply-textarea') as HTMLTextAreaElement | null;
@@ -32461,7 +32473,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                               try {
                                                 const res = await fetch(`${API_BASE}/support/tickets`, {
                                                   method: 'POST',
-                                                  headers: getAuthHeaders(),
+                                                  headers: {
+                                                    ...getAuthHeaders(),
+                                                    'Idempotency-Key': supportCreateIdemRef.current,
+                                                  },
                                                   body: JSON.stringify({
                                                     store_slug: getStoreSlug() || undefined,
                                                     subject: finalSubject,
@@ -32473,6 +32488,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                 });
                                                 const data = await res.json();
                                                 if (res.ok && data.success && data.data) {
+                                                  supportCreateIdemRef.current = generateSupportIdempotencyKey('tk');
                                                   showToast(isSuspendedAccount ? 'Permohonan banding berhasil dikirim!' : 'Tiket berhasil dibuat!');
                                                   setIsCreatingTicket(false);
                                                   setNewTicketForm({ subject: '', category: 'technical', priority: 'medium', message: '' });
@@ -32539,6 +32555,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                       : {})
                                                   }}
                                                 />
+                                                {!(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
+                                                  <div style={{ marginTop: '0.55rem' }}>
+                                                    <HelpDeflectionSuggestions subject={newTicketForm.subject} formFactor="mobile" />
+                                                  </div>
+                                                )}
                                               </div>
 
                                               {/* MODAL DROPDOWN TRIGGER BUTTONS */}
@@ -33084,6 +33105,21 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                           </div>
                                         </div>
                                       </div>
+
+                                      <SharedHelpKnowledgeBase
+                                        formFactor="mobile"
+                                        onOpenCreateTicket={(prefill) => {
+                                          if (prefill) {
+                                            setNewTicketForm((prev) => ({
+                                              ...prev,
+                                              subject: prev.subject || `Tanya seputar: ${prefill}`,
+                                            }));
+                                          }
+                                          supportCreateIdemRef.current = generateSupportIdempotencyKey('tk');
+                                          setTicketNewAttachments([]);
+                                          setIsCreatingTicket(true);
+                                        }}
+                                      />
 
                                       {/* Ticket Cards List */}
                                       {filteredTickets.length === 0 ? (
