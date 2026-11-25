@@ -54,7 +54,7 @@ func RunSupportLifecycle(db *gorm.DB, strg storage.StorageService, origin, actor
 			return update.Error
 		}
 		closed = update.RowsAffected
-		update = tx.Model(&models.SupportTicket{}).Where("status = 'open' AND first_response_at IS NULL AND NOT sla_breached AND sla_due_at <= ?", start).Update("sla_breached", true)
+		update = tx.Model(&models.SupportTicket{}).Where("status IN ? AND first_response_at IS NULL AND NOT sla_breached AND sla_due_at <= ?", []string{"open", "in_progress", "waiting_agent"}, start).Update("sla_breached", true)
 		breaches = update.RowsAffected
 		return update.Error
 	})

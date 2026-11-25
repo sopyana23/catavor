@@ -169,7 +169,7 @@ export function derivePortalCapabilities(user?: RBACUserLike | null): PortalCapa
   const superAdmin = isSuperAdmin(user);
   const canAccessCompliance = superAdmin || hasPermission(user, ['compliance:reports:manage', 'compliance:dormancy:manage']);
   const canAccessSupport = superAdmin || hasPermission(user, ['support:tickets:read', 'support:tickets:reply']);
-  const canManageSupportTemplates = superAdmin || hasPermission(user, ['support:tickets:read', 'support:tickets:reply']);
+  const canManageSupportTemplates = superAdmin || hasPermission(user, 'support:tickets:reply');
   const canManageSystemSettings = superAdmin || hasPermission(user, 'system:settings:manage');
   const canAccessMonetization = superAdmin || hasPermission(user, 'monetization:google:manage');
 

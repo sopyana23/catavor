@@ -393,12 +393,17 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const [activeTab, setActiveTabState] = useState<TabletMerchantTab>(() => {
     if (typeof window !== 'undefined') {
-      const pathParts = window.location.pathname.toLowerCase().split('/').filter(Boolean);
+      const pathnameLower = window.location.pathname.toLowerCase();
+      const pathParts = pathnameLower.split('/').filter(Boolean);
       const pathSub = pathParts[0] === 'admin' ? pathParts[1] : (pathParts[1] === 'admin' ? pathParts[2] : '');
       const params = new URLSearchParams(window.location.search);
-      const rawTab = (params.get('tab') || pathSub || '').toLowerCase();
+      const tabParam = params.get('tab');
+      const rawTab = (tabParam || pathSub || '').toLowerCase();
       if (rawTab === 'audit_logs') {
         return 'profile';
+      }
+      if (!tabParam && (pathnameLower.endsWith('/admin/help') || pathnameLower.includes('/admin/help/'))) {
+        return 'help';
       }
       if (['ads', 'promotions', 'promosi', 'iklan'].includes(rawTab)) {
         return FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? 'ads' : 'items';
@@ -664,10 +669,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   }, [storeSlug, token, fetch, currentUser, onThemeChange, handleCloseStoreChooserModal]);
 
-  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-    setToast({ msg, type });
+  const showToast = useCallback((msg: string, type: string = 'success') => {
+    setToast({ msg, type: type === 'error' ? 'error' : 'success' });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
 
   const tabletFetchQuotaRef = useRef<(() => void) | null>(null);
   const tabletFetchSubscriptionOrdersRef = useRef<(() => void) | null>(null);
@@ -2859,7 +2864,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     setSelectedTicketId('new');
     setTicketForm({
       subject: modCase.targetName ? `Banding Kepatuhan: ${modCase.targetName}` : 'Banding Kepatuhan Item Katalog',
-      category: 'report',
+      category: 'compliance',
       message: `Kepada Tim Kepatuhan Catavor,\n\nSaya mengajukan permohonan banding kepatuhan resmi atas evaluasi nomor laporan #${modCase.reportNumber || '-'}${modCase.targetName ? ` terkait item "${modCase.targetName}"` : ''}.\n\nAlasan & Klarifikasi:\n`,
       priority: 'high'
     });
@@ -3292,7 +3297,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   // =========================================================================
   const [tickets, setTickets] = useState<any[]>([]);
   const [selectedTicketId, setSelectedTicketId] = useState<number | 'new' | null>(null);
-  const [ticketForm, setTicketForm] = useState({ subject: '', category: 'technical', message: '', priority: 'normal' });
+  const [ticketForm, setTicketForm] = useState({ subject: '', category: 'technical', message: '', priority: 'medium' });
   const [replyMessage, setReplyMessage] = useState<string>('');
   const [ticketDetails, setTicketDetails] = useState<any | null>(null);
   const [loadingTicketDetail, setLoadingTicketDetail] = useState<boolean>(false);
@@ -3388,7 +3393,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       });
       if (res.ok) {
         showToast('Tiket bantuan berhasil diajukan!');
-        setTicketForm({ subject: '', category: 'technical', message: '', priority: 'normal' });
+        setTicketForm({ subject: '', category: 'technical', message: '', priority: 'medium' });
         await fetchTickets();
       } else {
         showToast('Gagal mengajukan tiket bantuan', 'error');
@@ -3831,23 +3836,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       loadedTabsRef.current.add(activeTab);
       if (activeTab === 'notifications') {
         fetchNotifications();
-      } else if (activeTab === 'help') {
-        fetchTickets();
       } else if (activeTab === 'subscription') {
         fetchQuota();
         fetchSubscriptionOrders();
       }
     }
-  }, [activeTab, fetchNotifications, fetchTickets, fetchQuota, fetchSubscriptionOrders]);
+  }, [activeTab, fetchNotifications, fetchQuota, fetchSubscriptionOrders]);
 
-  // 4. Ticket Details Fetching (Only when help tab is active and a ticket is selected)
-  useEffect(() => {
-    if (activeTab === 'help' && selectedTicketId && selectedTicketId !== 'new') {
-      fetchTicketDetails(Number(selectedTicketId));
-    } else if (activeTab === 'help' && !selectedTicketId) {
-      setTicketDetails(null);
-    }
-  }, [activeTab, selectedTicketId, fetchTicketDetails]);
+  // 4. Ticket Details Fetching: dikelola penuh oleh TabletHelpdeskView saat activeTab === 'help'
+  // (dihapus legacy polling/auto-select agar tidak memicu side-effect mark-read dan double fetch)
 
   // 5. Periodic Background Ping (Tickets Ping & Notifications Badge Sync every 60s with visibility guard)
   useEffect(() => {
@@ -3874,35 +3871,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [token, fetchTicketsPing, fetchNotifications]);
-
-  // 6. Active Support Chat Polling (every 45s while help tab is active)
-  useEffect(() => {
-    if (!token || activeTab !== 'help') return;
-
-    const intervalMs = 45000;
-    const timer = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      if (selectedTicketId && selectedTicketId !== 'new') {
-        fetchTicketDetails(Number(selectedTicketId));
-      }
-      fetchTickets();
-    }, intervalMs);
-
-    const handleVisibility = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && activeTab === 'help') {
-        if (selectedTicketId && selectedTicketId !== 'new') {
-          fetchTicketDetails(Number(selectedTicketId));
-        }
-        fetchTickets();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, [activeTab, token, selectedTicketId, fetchTickets, fetchTicketDetails]);
 
   // Selected Ticket Reference
   const selectedTicket = useMemo(() => {
@@ -13025,16 +12993,18 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             TAB 8: PUSAT BANTUAN & TIKET CS (Master-Detail Split View)
             =================================================================== */}
         {activeTab === 'help' && (
-          <TabletHelpdeskView
-            token={token}
-            storeSlug={storeSlug}
-            settings={storeSettings}
-            currentUser={currentUser}
-            userStores={userStores}
-            showToast={(msg, type) => showToast(msg, type === 'error' ? 'error' : 'success')}
-            onUpdateUnreadCount={(cnt) => setSupportUnreadCount(cnt)}
-            isNavExpanded={isNavExpanded}
-          />
+          <ErrorBoundary sectionName="Pusat Bantuan & Tiket">
+            <TabletHelpdeskView
+              token={token}
+              storeSlug={storeSlug}
+              settings={storeSettings}
+              currentUser={currentUser}
+              userStores={userStores}
+              showToast={showToast}
+              onUpdateUnreadCount={setSupportUnreadCount}
+              isNavExpanded={isNavExpanded}
+            />
+          </ErrorBoundary>
         )}
 
         {/* ===================================================================

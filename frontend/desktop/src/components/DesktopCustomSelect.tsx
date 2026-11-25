@@ -208,8 +208,8 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
           border: isOpen
             ? '1px solid var(--primary, #10b981)'
             : highlight
-            ? '1px solid var(--primary, #10b981)'
-            : '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
+              ? '1px solid var(--primary, #10b981)'
+              : '1px solid var(--border-light, rgba(255, 255, 255, 0.1))',
           background: 'var(--bg-card, #0f172a)',
           color: 'var(--text-primary, #ffffff)',
           fontSize: style?.height && Number(style.height) <= 34 ? '0.78rem' : '0.84rem',
@@ -219,8 +219,8 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
           boxShadow: isOpen
             ? '0 0 0 2px var(--primary-glow, rgba(16, 185, 129, 0.2))'
             : highlight
-            ? '0 0 0 1px var(--primary-glow, rgba(16, 185, 129, 0.2))'
-            : '0 1px 3px rgba(0,0,0,0.06)',
+              ? '0 0 0 1px var(--primary-glow, rgba(16, 185, 129, 0.2))'
+              : '0 1px 3px rgba(0,0,0,0.06)',
           transition: 'border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease',
           opacity: disabled ? 0.6 : 1,
           boxSizing: 'border-box',
@@ -247,7 +247,7 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
                   lineHeight: 1.25,
                   fontSize: '0.8rem',
                   fontWeight: 600,
-                  color: selectedOption ? 'var(--text-primary, #ffffff)' : 'var(--text-muted, #94a3b8)',
+                  color: triggerStyle?.color || (selectedOption ? 'var(--text-primary, #ffffff)' : 'var(--text-muted, #94a3b8)'),
                 }}
               >
                 {selectedOption ? selectedOption.label : placeholder}
@@ -260,7 +260,7 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
                 lineHeight: 1.4,
-                color: selectedOption ? 'var(--text-primary, #ffffff)' : 'var(--text-muted, #94a3b8)',
+                color: triggerStyle?.color || (selectedOption ? 'var(--text-primary, #ffffff)' : 'var(--text-muted, #94a3b8)'),
               }}
             >
               {selectedOption ? selectedOption.label : placeholder}
@@ -271,8 +271,8 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
               style={{
                 fontSize: '0.72rem',
                 fontWeight: 600,
-                color: 'var(--text-secondary, #94a3b8)',
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                color: triggerStyle?.color ? 'inherit' : 'var(--text-secondary, #94a3b8)',
+                backgroundColor: 'rgba(148, 163, 184, 0.16)',
                 padding: '0.1rem 0.4rem',
                 borderRadius: '999px',
                 flexShrink: 0,
@@ -450,7 +450,7 @@ export const DesktopCustomSelect: React.FC<DesktopCustomSelectProps> = ({
                         fontSize: '0.82rem',
                         lineHeight: 1.35,
                         cursor: 'pointer',
-                        color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
+                        color: isSelected ? 'var(--primary)' : (dropdownStyle?.color || 'var(--text-primary)'),
                         fontWeight: isSelected ? 600 : 400,
                         backgroundColor: isSelected ? 'var(--primary-glow)' : 'transparent',
                         transition: 'background-color 0.15s ease, color 0.15s ease',

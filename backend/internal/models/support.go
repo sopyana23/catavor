@@ -29,6 +29,9 @@ type SupportTicket struct {
 	SLADueAt        *time.Time `gorm:"index" json:"sla_due_at,omitempty"`
 	SLABreached     bool       `gorm:"default:false;index" json:"sla_breached"`
 
+	// Agent Ownership Assignment
+	AssignedAgentID *uint `gorm:"index" json:"assigned_agent_id,omitempty"`
+
 	// CSAT (Customer Satisfaction Score)
 	Rating        *int       `gorm:"index" json:"rating,omitempty"`
 	RatingComment string     `gorm:"type:text" json:"rating_comment,omitempty"`
@@ -40,12 +43,14 @@ type SupportTicket struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relations
-	User        *User            `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Store       *Store           `gorm:"foreignKey:StoreID" json:"store,omitempty"`
-	RatedAgent  *User            `gorm:"foreignKey:RatedAgentID" json:"rated_agent,omitempty"`
+	User            *User            `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Store           *Store           `gorm:"foreignKey:StoreID" json:"store,omitempty"`
+	AssignedAgent   *User            `gorm:"foreignKey:AssignedAgentID" json:"assigned_agent,omitempty"`
+	RatedAgent      *User            `gorm:"foreignKey:RatedAgentID" json:"rated_agent,omitempty"`
 	Messages    []SupportMessage `gorm:"foreignKey:TicketID" json:"messages"`
-	UnreadCount int              `gorm:"-" json:"unread_count"`
-	AttachmentCount int          `gorm:"-" json:"attachment_count"`
+	UnreadCount     int              `gorm:"-" json:"unread_count"`
+	AttachmentCount int              `gorm:"-" json:"attachment_count"`
+	MessageCount    int              `gorm:"-" json:"message_count"`
 }
 
 // TableName explicitly maps SupportTicket model to 'support_tickets' table.
@@ -81,7 +86,7 @@ type SupportAttachment struct {
 	ID         uint           `gorm:"primaryKey;autoIncrement" json:"id"`
 	MessageID  uint           `gorm:"index;not null" json:"message_id"`
 	FileURL    string         `gorm:"type:text;not null" json:"file_url"`
-	StorageKey string         `gorm:"size:500;not null" json:"storage_key"`
+	StorageKey string         `gorm:"size:500;not null;uniqueIndex:idx_support_attachments_storage_key_active,where:deleted_at IS NULL" json:"storage_key"`
 	FileName   string         `gorm:"size:255;not null" json:"file_name"`
 	FileSize   int            `gorm:"default:0" json:"file_size"`
 	FileType   string         `gorm:"size:100;default:'image/jpeg'" json:"file_type"`

@@ -38,6 +38,8 @@ import {
   Check,
   X,
   User,
+  UserCheck,
+  UserPlus,
   Zap,
   Globe,
   TrendingUp,
@@ -127,6 +129,12 @@ import {
 import { AccessDeniedPanel } from '../../../shared/rbac/AccessDeniedPanel';
 import { smartBack, useModalBackHandler } from '../utils/navigation';
 import { broadcastAuthEvent } from '../utils/authSync';
+import {
+  interpolateCannedTemplate,
+  resolveTicketMessageCount,
+  resolveTicketStoreTitle,
+  SUPPORT_TEMPLATE_CATEGORIES,
+} from '../../../shared/support/supportHelpers';
 
 export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
   rekber_template_physical: "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
@@ -168,34 +176,6 @@ const TICKET_PRIORITY_FILTER_OPTIONS: TabletSelectOption[] = [
   { value: 'high', label: 'High', badge: 'Tinggi', badgeBg: 'rgba(249, 115, 22, 0.15)', badgeColor: '#f97316' },
   { value: 'medium', label: 'Medium', badge: 'Sedang', badgeBg: 'rgba(245, 158, 11, 0.15)', badgeColor: '#f59e0b' },
   { value: 'low', label: 'Low', badge: 'Rendah', badgeBg: 'rgba(16, 185, 129, 0.15)', badgeColor: '#10b981' },
-];
-
-const DEFAULT_CANNED_TEMPLATES = [
-  {
-    title: 'Salam Pembuka & Konfirmasi Penerimaan',
-    category: 'Umum',
-    text: 'Halo Pengelola Toko, terima kasih telah menghubungi Pusat Bantuan Catavor. Kami telah menerima laporan/kendala yang Anda sampaikan dan tim kami sedang melakukan investigasi lebih lanjut.'
-  },
-  {
-    title: 'Permintaan Bukti / Tangkapan Layar Tambahan',
-    category: 'Investigasi',
-    text: 'Untuk membantu kami mempercepat penanganan kendala ini, mohon dapat melampirkan tangkapan layar (screenshot) atau rekaman pesan error yang muncul beserta waktu kejadian.'
-  },
-  {
-    title: 'Verifikasi Pembayaran & Aktivasi Pro',
-    category: 'Billing',
-    text: 'Terima kasih atas konfirmasinya. Bukti transaksi langganan Anda telah diverifikasi oleh tim keuangan kami dan paket Pro telah berhasil diaktifkan pada katalog toko Anda.'
-  },
-  {
-    title: 'Kendala Teknis Telah Diatasi',
-    category: 'Solusi',
-    text: 'Kendala teknis yang Anda laporkan telah berhasil diperbaiki oleh tim engineering kami. Silakan muat ulang halaman dashboard Anda dan coba kembali. Jika masih menemui kendala, jangan ragu untuk mengabari kami.'
-  },
-  {
-    title: 'Penutupan Tiket / Masalah Terselesaikan',
-    category: 'Selesai',
-    text: 'Karena solusi telah diberikan dan tidak ada pertanyaan lanjutan, tiket ini kami tandai sebagai terselesaikan. Anda dapat memberikan penilaian layanan (CSAT) untuk membantu kami meningkatkan kualitas dukungan.'
-  }
 ];
 
 export interface TabletPlatformConsoleProps {
@@ -495,14 +475,18 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       // 3. Support tickets (only if user has support permission)
       if (canAccessSupport) {
         try {
-          const tckRes = await fetch('/api/admin/support/tickets?limit=50', {
+          const tckRes = await authFetch('/api/admin/support/tickets?limit=1', {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (tckRes.ok) {
             const tj = await tckRes.json();
             const list = tj.data || [];
-            const urgent = list.filter((t: any) => t.priority === 'urgent' && t.status !== 'resolved' && t.status !== 'closed').length;
-            const actionReq = list.filter((t: any) => t.status === 'open' || t.status === 'in_progress').length;
+            const urgent = typeof tj.metrics?.urgent === 'number'
+              ? tj.metrics.urgent
+              : list.filter((t: any) => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'resolved' && t.status !== 'closed').length;
+            const actionReq = typeof tj.metrics?.action_required === 'number'
+              ? tj.metrics.action_required
+              : list.filter((t: any) => t.status === 'open' || t.status === 'waiting_agent').length;
             setUrgentTicketsCount(urgent);
             setActionRequiredTicketsCount(actionReq);
           }
@@ -913,12 +897,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('all');
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('all');
   const [ticketSlaFilter, setTicketSlaFilter] = useState<string>('all');
+  const [ticketAssignedFilter, setTicketAssignedFilter] = useState<'all' | 'me' | 'unassigned'>('all');
+  const [assigningTicketId, setAssigningTicketId] = useState<number | null>(null);
   const [resolvedTimeRangeFilter, setResolvedTimeRangeFilter] = useState<'30d' | '90d' | 'all'>('30d');
   const [supportSearch, setSupportSearch] = useState('');
   const [debouncedTicketSearch, setDebouncedTicketSearch] = useState('');
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [ticketReplyAttachments, setTicketReplyAttachments] = useState<any[]>([]);
   const [isUploadingTicketAttachment, setIsUploadingTicketAttachment] = useState(false);
+  const [isSendingTicketReply, setIsSendingTicketReply] = useState(false);
   const [activePresences, setActivePresences] = useState<any[]>([]);
   const [showCannedModal, setShowCannedModal] = useState(false);
 
@@ -940,6 +927,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevTypingSentRef = useRef<boolean>(false);
+  const isTypingDebounceTimerRef = useRef<any>(null);
+  const selectedTicketIdRef = useRef<number | null>(selectedTicketId);
+  const ticketsPageRef = useRef<number>(ticketsPagination.page);
+  useEffect(() => {
+    selectedTicketIdRef.current = selectedTicketId;
+  }, [selectedTicketId]);
+  useEffect(() => {
+    ticketsPageRef.current = ticketsPagination.page;
+  }, [ticketsPagination.page]);
 
   // Debounce search input
   useEffect(() => {
@@ -1114,14 +1111,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   }, []);
 
-  const getStoreDisplayName = useCallback((ticket: any) => {
-    if (ticket?.store?.name) return ticket.store.name;
-    if (ticket?.store_name) return ticket.store_name;
-    if (ticket?.store?.slug) return ticket.store.slug;
-    if (ticket?.store_slug) return ticket.store_slug;
-    if (ticket?.user?.name) return ticket.user.name;
-    return ticket?.user_email || 'Merchant';
-  }, []);
+  const getStoreDisplayName = useCallback((ticket: any) => resolveTicketStoreTitle(ticket), []);
 
   const getStorePlanBadge = useCallback((ticket: any) => {
     const plan = String(ticket?.store?.plan || ticket?.store_plan || 'free').toLowerCase();
@@ -1159,6 +1149,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     ticketCategoryFilter,
     ticketPriorityFilter,
     ticketSlaFilter,
+    ticketAssignedFilter,
     debouncedTicketSearch,
     resolvedTimeRangeFilter
   });
@@ -1170,10 +1161,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       ticketCategoryFilter,
       ticketPriorityFilter,
       ticketSlaFilter,
+      ticketAssignedFilter,
       debouncedTicketSearch,
       resolvedTimeRangeFilter
     };
-  }, [ticketsPagination.page, supportFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, debouncedTicketSearch, resolvedTimeRangeFilter]);
+  }, [ticketsPagination.page, supportFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, ticketAssignedFilter, debouncedTicketSearch, resolvedTimeRangeFilter]);
 
   // Server-Side Support Tickets Fetcher
   const fetchTickets = useCallback(async (
@@ -1183,7 +1175,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     priorityOverride?: string,
     slaOverride?: string,
     searchOverride?: string,
-    timeRangeOverride?: string
+    timeRangeOverride?: string,
+    assignedOverride?: string
   ) => {
     if (!token) return;
     setTicketsLoading(true);
@@ -1192,6 +1185,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       const cat = categoryOverride !== undefined ? categoryOverride : ticketsFilterRef.current.ticketCategoryFilter;
       const pri = priorityOverride !== undefined ? priorityOverride : ticketsFilterRef.current.ticketPriorityFilter;
       const sla = slaOverride !== undefined ? slaOverride : ticketsFilterRef.current.ticketSlaFilter;
+      const asg = assignedOverride !== undefined ? assignedOverride : ticketsFilterRef.current.ticketAssignedFilter;
       const q = searchOverride !== undefined ? searchOverride : ticketsFilterRef.current.debouncedTicketSearch;
       const tr = timeRangeOverride !== undefined ? timeRangeOverride : ticketsFilterRef.current.resolvedTimeRangeFilter;
 
@@ -1202,6 +1196,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       if (cat !== 'all') params.set('category', cat);
       if (pri !== 'all') params.set('priority', pri);
       if (sla === 'breached') params.set('sla_breached', 'true');
+      if (asg !== 'all') params.set('assigned', asg);
       if (st === 'resolved' && tr !== 'all') {
         params.set('time_range', tr);
       }
@@ -1234,7 +1229,91 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     if (activeView === 'support') {
       fetchTickets(1);
     }
-  }, [activeView, supportFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, debouncedTicketSearch, resolvedTimeRangeFilter, fetchTickets]);
+  }, [activeView, supportFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, ticketAssignedFilter, debouncedTicketSearch, resolvedTimeRangeFilter, fetchTickets]);
+
+  // Periodic Presence Heartbeat (12s < 35s TTL) & Real-time SSE listener for Tablet Admin
+  useEffect(() => {
+    if (!selectedTicketId || !token || !canAccessSupport) {
+      setActivePresences([]);
+      prevTypingSentRef.current = false;
+      return;
+    }
+
+    const sendPresence = async (isTyping = false) => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      try {
+        await authFetch(`/api/admin/support/tickets/${selectedTicketId}/presence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_typing: isTyping })
+        });
+      } catch { }
+    };
+
+    const fetchPresence = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      try {
+        const res = await authFetch(`/api/admin/support/tickets/${selectedTicketId}/presence`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            setActivePresences(json.data);
+          }
+        }
+      } catch { }
+    };
+
+    sendPresence(false);
+    fetchPresence();
+    const interval = setInterval(() => {
+      sendPresence(false);
+      fetchPresence();
+    }, 12000);
+
+    const onVisChange = () => {
+      if (document.visibilityState === 'visible') {
+        sendPresence(false);
+        fetchPresence();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisChange);
+    };
+  }, [selectedTicketId, token, canAccessSupport, authFetch]);
+
+  useEffect(() => {
+    if (!selectedTicketId || !token || !canAccessSupport) return;
+    if (isTypingDebounceTimerRef.current) clearTimeout(isTypingDebounceTimerRef.current);
+    const isTyping = ticketReply.trim().length > 0;
+    if (!isTyping && !prevTypingSentRef.current) return;
+
+    const delay = isTyping ? 900 : 400;
+    isTypingDebounceTimerRef.current = setTimeout(async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      try {
+        await authFetch(`/api/admin/support/tickets/${selectedTicketId}/presence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_typing: isTyping })
+        });
+        prevTypingSentRef.current = isTyping;
+      } catch { }
+    }, delay);
+
+    return () => {
+      if (isTypingDebounceTimerRef.current) clearTimeout(isTypingDebounceTimerRef.current);
+    };
+  }, [ticketReply, selectedTicketId, token, canAccessSupport, authFetch]);
 
   const fetchTicketDetail = useCallback(async (id: number) => {
     setSelectedTicketId(id);
@@ -1245,8 +1324,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       });
       if (res.ok) {
         const j = await res.json();
-        const data = j.data || j.ticket || j;
-        setTicketDetail(data);
+        const ticketObj = j.data?.ticket || j.data || j.ticket || j;
+        const mergedDetail = {
+          ...ticketObj,
+          messages: Array.isArray(j.data?.messages) ? j.data.messages : (ticketObj?.messages || []),
+        };
+        setTicketDetail(mergedDetail);
 
         // Fetch collision presences
         try {
@@ -1268,8 +1351,80 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   }, [token, authFetch, showToast]);
 
+  const fetchTicketsRef = useRef(fetchTickets);
+  const fetchTicketDetailRef = useRef(fetchTicketDetail);
+  useEffect(() => {
+    fetchTicketsRef.current = fetchTickets;
+  }, [fetchTickets]);
+  useEffect(() => {
+    fetchTicketDetailRef.current = fetchTicketDetail;
+  }, [fetchTicketDetail]);
+
+  // Global Real-Time SSE listener for Tablet Admin Console (without reconnect on ticket switch)
+  useEffect(() => {
+    if (!token || !canAccessSupport) return;
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: any = null;
+    let isUnmounted = false;
+
+    const connectSSE = async () => {
+      if (isUnmounted) return;
+      try {
+        const tkRes = await fetch('/api/notifications/ticket', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!tkRes.ok) throw new Error(`ticket ${tkRes.status}`);
+        const tkJson = await tkRes.json();
+        const streamTicket = String(tkJson?.ticket || tkJson?.data?.ticket || '');
+        if (!streamTicket || isUnmounted) return;
+
+        eventSource = new EventSource(`/api/notifications/stream?ticket=${encodeURIComponent(streamTicket)}`);
+        eventSource.onmessage = (e) => {
+          if (!e.data || e.data.trim() === '' || e.data.startsWith(':')) return;
+          try {
+            const payload = JSON.parse(e.data);
+            const ev = payload?.event;
+            const tk = payload?.ticket;
+            if (
+              ev === 'ticket_created' ||
+              ev === 'ticket_reply_from_user' ||
+              ev === 'ticket_status_updated' ||
+              ev === 'ticket_internal_note_added'
+            ) {
+              fetchTicketsRef.current?.(ticketsPageRef.current);
+              loadPlatformStats();
+              const activeId = selectedTicketIdRef.current;
+              if (activeId && tk && (tk.ticket_id === activeId || tk.id === activeId)) {
+                fetchTicketDetailRef.current?.(activeId);
+              }
+            }
+          } catch { }
+        };
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          if (!isUnmounted) reconnectTimer = setTimeout(connectSSE, 6000);
+        };
+      } catch {
+        if (!isUnmounted) reconnectTimer = setTimeout(connectSSE, 8000);
+      }
+    };
+
+    connectSSE();
+    return () => {
+      isUnmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (eventSource) eventSource.close();
+    };
+  }, [token, canAccessSupport]);
+
   const handleSendTicketReply = async (isNote = false) => {
-    if (!selectedTicketId || (!ticketReply.trim() && ticketReplyAttachments.length === 0)) return;
+    if (!selectedTicketId || isSendingTicketReply || (!ticketReply.trim() && ticketReplyAttachments.length === 0)) return;
+    setIsSendingTicketReply(true);
     try {
       const payload: any = {
         message: ticketReply.trim(),
@@ -1288,6 +1443,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         showToast(isNote || isInternalNote ? 'Catatan internal berhasil disimpan' : 'Balasan berhasil dikirim ke merchant');
         setTicketReply('');
         setTicketReplyAttachments([]);
+        setIsInternalNote(false);
         fetchTicketDetail(selectedTicketId);
         fetchTickets(ticketsPagination.page);
         loadPlatformStats();
@@ -1298,21 +1454,29 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       if (e?.message !== 'UNAUTHORIZED') {
         showToast('Terjadi kesalahan koneksi', 'error');
       }
+    } finally {
+      setIsSendingTicketReply(false);
     }
   };
 
   const handleUploadTicketAttachment = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setIsUploadingTicketAttachment(true);
+    let uploadedCount = 0;
     try {
       for (let i = 0; i < Math.min(files.length, 5 - ticketReplyAttachments.length); i++) {
         const file = files[i];
+        if (file.size > 10 * 1024 * 1024) {
+          showToast(`Ukuran "${file.name}" melebihi batas maksimal 10MB`, 'error');
+          continue;
+        }
         const formData = new FormData();
         formData.append('file', file);
         formData.append('image', file);
         formData.append('category', 'support');
-        const res = await authFetch('/api/storage/upload?category=support', {
+        const res = await authFetch('/api/admin/support/upload?category=support', {
           method: 'POST',
+          credentials: 'include',
           headers: { Authorization: `Bearer ${token}` },
           body: formData
         });
@@ -1340,14 +1504,62 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               blob_url: localBlobUrl
             }
           ]);
+          uploadedCount += 1;
+        } else {
+          const errJson = await res.json().catch(() => null);
+          showToast(errJson?.message || `Gagal mengunggah "${file.name}"`, 'error');
         }
       }
-      showToast('Lampiran berhasil diunggah');
+      if (uploadedCount > 0) {
+        showToast(`${uploadedCount} lampiran berhasil diunggah`);
+      }
     } catch {
       showToast('Gagal mengunggah lampiran', 'error');
     } finally {
       setIsUploadingTicketAttachment(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleAssignTicket = async (
+    ticketId: number,
+    payload: { self?: boolean; assigned_agent_id?: number | null }
+  ) => {
+    setAssigningTicketId(ticketId);
+    try {
+      const res = await authFetch(`/api/admin/support/tickets/${ticketId}/assign`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        showToast(json.message || 'Penugasan tiket berhasil diperbarui.');
+        setTickets((prev) =>
+          prev.map((t) =>
+            Number(t.id) === Number(ticketId)
+              ? { ...t, assigned_agent_id: json.data.assigned_agent_id, assigned_agent: json.data.assigned_agent }
+              : t
+          )
+        );
+        if (ticketDetail && Number(ticketDetail.id) === Number(ticketId)) {
+          setTicketDetail((prev: any) =>
+            prev
+              ? { ...prev, assigned_agent_id: json.data.assigned_agent_id, assigned_agent: json.data.assigned_agent }
+              : prev
+          );
+        }
+        fetchTickets(ticketsPagination.page);
+      } else {
+        showToast(json?.message || 'Gagal memperbarui penugasan tiket', 'error');
+      }
+    } catch {
+      showToast('Gagal memperbarui penugasan tiket', 'error');
+    } finally {
+      setAssigningTicketId(null);
     }
   };
 
@@ -1369,7 +1581,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         fetchTickets(ticketsPagination.page);
         loadPlatformStats();
       } else {
-        showToast('Gagal memperbarui status tiket', 'error');
+        const errJson = await res.json().catch(() => null);
+        showToast(errJson?.message || 'Gagal memperbarui status tiket', 'error');
       }
     } catch {
       showToast('Gagal memperbarui status tiket', 'error');
@@ -1378,8 +1591,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
   const handleUpdateTicketPriority = async (ticketId: number, priority: string) => {
     try {
-      const res = await authFetch(`/api/admin/support/tickets/${ticketId}/priority`, {
-        method: 'PATCH',
+      const res = await authFetch(`/api/admin/support/tickets/${ticketId}/status`, {
+        method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -1399,7 +1612,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   };
 
   const handleInsertCannedTemplate = (content: string) => {
-    setTicketReply(prev => (prev ? `${prev}\n\n${content}` : content));
+    const interpolated = interpolateCannedTemplate(content, {
+      merchantName: ticketDetail?.user?.name,
+      storeTitle: resolveTicketStoreTitle(ticketDetail),
+      ticketNumber: ticketDetail?.ticket_number || (ticketDetail?.id ? `#TCK-${ticketDetail.id}` : '-'),
+      agentName: currentUser?.name || 'Staf CS',
+    });
+    setTicketReply(prev => (prev ? `${prev}\n\n${interpolated}` : interpolated));
     setShowCannedModal(false);
     showToast('Template balasan disisipkan ke pesan');
   };
@@ -2354,14 +2573,19 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     targetSearch: string = debouncedTemplateSearch,
     targetCategory: string = templateCategoryFilter,
     targetLimit: number = templateLimit,
-    includeInactive: boolean = true
+    includeInactive: boolean = true,
+    fetchAll: boolean = false
   ) => {
     if (!token) return;
     setLoadingTemplates(true);
     try {
       const params = new URLSearchParams();
-      params.set('page', String(targetPage));
-      params.set('limit', String(targetLimit));
+      if (fetchAll) {
+        params.set('all', 'true');
+      } else {
+        params.set('page', String(targetPage));
+        params.set('limit', String(targetLimit));
+      }
       if (includeInactive) params.set('include_inactive', 'true');
       if (targetCategory && targetCategory !== 'all') params.set('category', targetCategory);
       if (targetSearch && targetSearch.trim()) params.set('search', targetSearch.trim());
@@ -2580,6 +2804,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     isOpen: showTemplateFormModal,
     onClose: () => setShowTemplateFormModal(false),
     modalId: 'cs_template_form'
+  });
+
+  useModalBackHandler({
+    isOpen: showCannedModal,
+    onClose: () => setShowCannedModal(false),
+    modalId: 'tablet_canned_templates_modal'
   });
 
   // =========================================================================
@@ -3061,12 +3291,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {cannedTemplates.length === 0 ? (
+              {cannedTemplates.filter(tmpl => tmpl.is_active !== false).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                  Belum ada template balasan CS terdaftar
+                  Belum ada template balasan CS aktif terdaftar
                 </div>
               ) : (
-                cannedTemplates.map(tmpl => (
+                cannedTemplates.filter(tmpl => tmpl.is_active !== false).map(tmpl => (
                   <div
                     key={tmpl.id}
                     onClick={() => handleInsertCannedTemplate(tmpl.content)}
@@ -3083,7 +3313,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)' }}>
-                        {tmpl.title} {tmpl.shortcut_code && `(${tmpl.shortcut_code})`}
+                        {tmpl.title} {(tmpl.shortcut || tmpl.shortcut_code) && `(/${tmpl.shortcut || tmpl.shortcut_code})`}
                       </span>
                       <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)' }}>
                         {tmpl.category?.toUpperCase() || 'UMUM'}
@@ -4970,6 +5200,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
           {/* TAB 4: SUPPORT (PUSAT BANTUAN CS) */}
           {activeView === 'support' && canAccessSupport && (
+            <ErrorBoundary sectionName="Pusat Bantuan & Helpdesk CS">
             <TabletMasterDetailView
               title="Tiket Helpdesk CS"
               subtitle={`${ticketsPagination.total_items || tickets.length} antrean tiket`}
@@ -5135,6 +5366,52 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         )}
                       </button>
 
+                      {/* Agent Ownership Quick Filters */}
+                      <button
+                        type="button"
+                        onClick={() => setTicketAssignedFilter(prev => prev === 'me' ? 'all' : 'me')}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '0.55rem',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          backgroundColor: ticketAssignedFilter === 'me' ? 'rgba(59, 130, 246, 0.16)' : 'var(--bg-deep)',
+                          color: ticketAssignedFilter === 'me' ? '#3b82f6' : 'var(--text-muted)',
+                          border: `1px solid ${ticketAssignedFilter === 'me' ? '#3b82f6' : 'var(--border-light)'}`,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <UserCheck size={13} />
+                        <span>Tiket Saya</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTicketAssignedFilter(prev => prev === 'unassigned' ? 'all' : 'unassigned')}
+                        style={{
+                          minHeight: '44px',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: '0.55rem',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          backgroundColor: ticketAssignedFilter === 'unassigned' ? 'rgba(245, 158, 11, 0.16)' : 'var(--bg-deep)',
+                          color: ticketAssignedFilter === 'unassigned' ? '#f59e0b' : 'var(--text-muted)',
+                          border: `1px solid ${ticketAssignedFilter === 'unassigned' ? '#f59e0b' : 'var(--border-light)'}`,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <UserPlus size={13} />
+                        <span>Belum Ditugaskan</span>
+                      </button>
+
                       {/* Time range for resolved */}
                       {supportFilter === 'resolved' && (
                         <div style={{ display: 'inline-flex', gap: '0.25rem', alignItems: 'center' }}>
@@ -5167,7 +5444,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       )}
 
                       {/* Reset Filter Button */}
-                      {(activeTabletTriageFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || Boolean(supportSearch.trim())) && (
+                      {(activeTabletTriageFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || ticketAssignedFilter !== 'all' || Boolean(supportSearch.trim())) && (
                         <button
                           type="button"
                           onClick={() => {
@@ -5175,6 +5452,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             setTicketCategoryFilter('all');
                             setTicketPriorityFilter('all');
                             setTicketSlaFilter('all');
+                            setTicketAssignedFilter('all');
                             setSupportSearch('');
                           }}
                           style={{
@@ -5227,7 +5505,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         const planBadge = getStorePlanBadge(t);
                         const msgs = Array.isArray(t.messages) ? t.messages : [];
                         const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
-                        const messageCount = msgs.length || t.message_count || 1;
+                        const messageCount = resolveTicketMessageCount(t);
                         const lastSenderName = lastMsg ? (lastMsg.sender_type === 'user' ? (lastMsg.sender_name || 'Merchant') : (lastMsg.sender_name || 'Staf CS')) : '';
 
                         return (
@@ -5248,7 +5526,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             }}
                           >
                             {/* Row 1: Ticket Number & Status Badge */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
                                 {isUnread && (
                                   <span style={{
@@ -5268,7 +5546,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   padding: '0.1rem 0.35rem',
                                   borderRadius: '0.3rem',
                                   backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-deep)',
-                                  border: '1px solid var(--border-light)'
+                                  border: '1px solid var(--border-light)',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0
                                 }}>
                                   {t.ticket_number || `#TCK-${t.id}`}
                                 </span>
@@ -5355,23 +5635,40 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               </div>
                             )}
 
-                            {/* Row 4: Footer Timestamp & Message Count */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.2rem', borderTop: '1px solid var(--border-light)' }}>
+                            {/* Row 4: Footer Timestamp, Assignment & Message Count */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', paddingTop: '0.2rem', borderTop: '1px solid var(--border-light)' }}>
                               <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
                                 <Clock size={11} />
                                 {formatSupportDateTime(t.created_at)}
                               </span>
-                              <span style={{
-                                fontSize: '0.62rem',
-                                fontWeight: 700,
-                                padding: '0.1rem 0.4rem',
-                                borderRadius: '999px',
-                                backgroundColor: 'var(--bg-deep)',
-                                color: 'var(--text-muted)',
-                                border: '1px solid var(--border-light)'
-                              }}>
-                                {messageCount} pesan
-                              </span>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <span style={{
+                                  fontSize: '0.6rem',
+                                  fontWeight: 700,
+                                  padding: '0.1rem 0.38rem',
+                                  borderRadius: '4px',
+                                  backgroundColor: t.assigned_agent_id ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-deep)',
+                                  color: t.assigned_agent_id ? '#10b981' : 'var(--text-muted)',
+                                  border: `1px solid ${t.assigned_agent_id ? 'rgba(16, 185, 129, 0.28)' : 'var(--border-light)'}`,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.2rem'
+                                }}>
+                                  <UserCheck size={10} />
+                                  {t.assigned_agent?.name || (t.assigned_agent_id ? `Agen #${t.assigned_agent_id}` : 'Belum Ditugaskan')}
+                                </span>
+                                <span style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 700,
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '999px',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  color: 'var(--text-muted)',
+                                  border: '1px solid var(--border-light)'
+                                }}>
+                                  {messageCount} pesan
+                                </span>
+                              </div>
                             </div>
                           </div>
                         );
@@ -5425,7 +5722,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       flexShrink: 0
                     }}>
                       {/* Agent Collision Warning Banner */}
-                      {activePresences.filter(p => p.user_id !== currentUser?.id).length > 0 && (
+                      {activePresences.filter(p => (p.admin_id ?? p.user_id) !== currentUser?.id).length > 0 && (
                         <div style={{
                           padding: '0.6rem 0.85rem',
                           borderRadius: '0.65rem',
@@ -5440,8 +5737,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         }}>
                           <AlertTriangle size={16} style={{ flexShrink: 0 }} />
                           <span>
-                            <strong>{activePresences.filter(p => p.user_id !== currentUser?.id).map(p => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
-                            {activePresences.filter(p => p.user_id !== currentUser?.id).some(p => p.is_typing) ? ' dan sedang mengetik...' : '.'}
+                            <strong>{activePresences.filter(p => (p.admin_id ?? p.user_id) !== currentUser?.id).map(p => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
+                            {activePresences.filter(p => (p.admin_id ?? p.user_id) !== currentUser?.id).some(p => p.is_typing) ? ' dan sedang mengetik...' : '.'}
                           </span>
                         </div>
                       )}
@@ -5532,38 +5829,108 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           }
                         </span>
 
-                        {/* Status Selector Dropdown */}
-                        <TabletCustomSelect
-                          value={ticketDetail.status || 'open'}
-                          onChange={(val) => handleUpdateTicketStatus(val)}
-                          options={TICKET_STATUS_OPTIONS}
-                          variant="compact"
-                          triggerStyle={{
-                            minHeight: '44px',
-                            minWidth: '135px',
-                            fontSize: '0.75rem',
-                            padding: '0.25rem 0.6rem'
-                          }}
-                          menuWidth={240}
-                          ariaLabel="Perbarui Status Tiket"
-                        />
+                        {/* Status & Priority Selector (hanya interaktif bila punya izin support:tickets:reply) */}
+                        {canReplySupport ? (
+                          <>
+                            <TabletCustomSelect
+                              value={ticketDetail.status || 'open'}
+                              onChange={(val) => handleUpdateTicketStatus(val)}
+                              options={TICKET_STATUS_OPTIONS}
+                              variant="compact"
+                              triggerStyle={{
+                                minHeight: '44px',
+                                minWidth: '135px',
+                                fontSize: '0.75rem',
+                                padding: '0.25rem 0.6rem'
+                              }}
+                              menuWidth={240}
+                              ariaLabel="Perbarui Status Tiket"
+                            />
 
-                        {/* Priority Selector Dropdown */}
-                        <TabletCustomSelect
-                          value={ticketDetail.priority || 'medium'}
-                          onChange={(val) => handleUpdateTicketPriority(ticketDetail.id, val)}
-                          options={TICKET_PRIORITY_OPTIONS}
-                          variant="compact"
-                          triggerStyle={{
-                            minHeight: '44px',
-                            minWidth: '125px',
-                            fontSize: '0.75rem',
-                            padding: '0.25rem 0.6rem',
-                            color: ticketDetail.priority === 'urgent' ? '#ef4444' : undefined
-                          }}
-                          menuWidth={230}
-                          ariaLabel="Perbarui Prioritas Tiket"
-                        />
+                            <TabletCustomSelect
+                              value={ticketDetail.priority || 'medium'}
+                              onChange={(val) => handleUpdateTicketPriority(ticketDetail.id, val)}
+                              options={TICKET_PRIORITY_OPTIONS}
+                              variant="compact"
+                              triggerStyle={{
+                                minHeight: '44px',
+                                minWidth: '125px',
+                                fontSize: '0.75rem',
+                                padding: '0.25rem 0.6rem',
+                                color: ticketDetail.priority === 'urgent' ? '#ef4444' : undefined
+                              }}
+                              menuWidth={230}
+                              ariaLabel="Perbarui Prioritas Tiket"
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ padding: '0.22rem 0.6rem', borderRadius: '0.45rem', fontSize: '0.7rem', fontWeight: 700, backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-secondary)' }}>
+                              Status: {getTicketStatusMeta(ticketDetail.status).label}
+                            </span>
+                            <span style={{ padding: '0.22rem 0.6rem', borderRadius: '0.45rem', fontSize: '0.7rem', fontWeight: 700, backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: ticketDetail.priority === 'urgent' ? '#ef4444' : 'var(--text-secondary)' }}>
+                              Prioritas: {String(ticketDetail.priority || 'medium').toUpperCase()}
+                            </span>
+                          </>
+                        )}
+
+                        {/* Agent Ownership Pill & Claim/Release Action */}
+                        {(() => {
+                          const assignedId = ticketDetail.assigned_agent_id;
+                          const assignedName = ticketDetail.assigned_agent?.name || (assignedId ? `Agen #${assignedId}` : '');
+                          const isAssignedToMe = Boolean(assignedId && currentUser?.id && Number(assignedId) === Number(currentUser.id));
+                          return (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              <span
+                                style={{
+                                  minHeight: '36px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  padding: '0.22rem 0.6rem',
+                                  borderRadius: '0.5rem',
+                                  backgroundColor: assignedId ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-deep)',
+                                  color: assignedId ? '#10b981' : 'var(--text-muted)',
+                                  border: `1px solid ${assignedId ? 'rgba(16, 185, 129, 0.3)' : 'var(--border-light)'}`,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.3rem',
+                                }}
+                              >
+                                <UserCheck size={12} />
+                                <span>{assignedId ? (isAssignedToMe ? 'Ditangani Anda' : `PIC: ${assignedName}`) : 'Belum Ditugaskan'}</span>
+                              </span>
+                              {canReplySupport && (
+                                <button
+                                  type="button"
+                                  disabled={assigningTicketId === Number(ticketDetail.id)}
+                                  onClick={() =>
+                                    handleAssignTicket(
+                                      Number(ticketDetail.id),
+                                      isAssignedToMe ? { assigned_agent_id: 0 } : { self: true }
+                                    )
+                                  }
+                                  style={{
+                                    minHeight: '44px',
+                                    padding: '0.35rem 0.85rem',
+                                    borderRadius: '0.5rem',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 800,
+                                    border: `1px solid ${isAssignedToMe ? 'rgba(239, 68, 68, 0.35)' : 'rgba(59, 130, 246, 0.4)'}`,
+                                    backgroundColor: isAssignedToMe ? 'rgba(239, 68, 68, 0.12)' : 'rgba(59, 130, 246, 0.16)',
+                                    color: isAssignedToMe ? '#ef4444' : '#3b82f6',
+                                    cursor: assigningTicketId === Number(ticketDetail.id) ? 'wait' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.32rem',
+                                  }}
+                                >
+                                  <UserPlus size={13} />
+                                  <span>{isAssignedToMe ? 'Lepas Penugasan' : 'Klaim Tiket'}</span>
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Merchant Action Links Bar */}
@@ -5686,6 +6053,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                             Tiket akan otomatis ditutup permanen (Read-Only) jika tidak ada balasan lebih lanjut dari merchant.
                           </p>
+                          {canReplySupport && (
                           <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.15rem' }}>
                             <button
                               type="button"
@@ -5728,6 +6096,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               <span>Buka Kembali</span>
                             </button>
                           </div>
+                          )}
                         </div>
                       )}
 
@@ -5748,6 +6117,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <Lock size={14} />
                             <span>Arsip Permanen (Read-Only)</span>
                           </div>
+                          {canReplySupport && (
                           <button
                             type="button"
                             onClick={() => handleUpdateTicketStatus('in_progress')}
@@ -5768,6 +6138,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <RefreshCw size={12} />
                             <span>Buka Kembali</span>
                           </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -5890,9 +6261,31 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                                         Oleh: {msg.sender?.name || 'Staf Admin'}
                                       </div>
-                                      <p style={{ margin: 0, fontSize: '0.82rem', lineHeight: 1.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
-                                        {msg.message || msg.content}
-                                      </p>
+                                      {(msg.message || msg.content) ? (
+                                        <p style={{ margin: 0, fontSize: '0.82rem', lineHeight: 1.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                                          {msg.message || msg.content}
+                                        </p>
+                                      ) : null}
+                                      {Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                                        <div style={{ marginTop: '0.5rem', paddingTop: '0.45rem', borderTop: '1px dashed rgba(245, 158, 11, 0.3)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                          <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                            <Paperclip size={11} /> {msg.attachments.length} Lampiran Internal:
+                                          </div>
+                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                                            {msg.attachments.map((att: any, aIdx: number) => {
+                                              const isPdf = (att.file_type || '').includes('pdf') || (att.file_name || '').toLowerCase().endsWith('.pdf') || (att.file_url || '').toLowerCase().endsWith('.pdf');
+                                              return (
+                                                <div key={aIdx} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.6rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-card)', border: '1px solid rgba(245, 158, 11, 0.35)', fontSize: '0.74rem' }}>
+                                                  {isPdf ? <FileText size={14} color="#ef4444" /> : <ImageIcon size={14} color="#f59e0b" />}
+                                                  <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>{att.file_name || 'Lampiran'}</span>
+                                                  <button type="button" onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }} style={{ padding: '0.2rem 0.45rem', borderRadius: '0.35rem', border: 'none', backgroundColor: 'var(--primary, #0284c7)', color: '#ffffff', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>Preview</button>
+                                                  <button type="button" onClick={(e) => handleDownloadAttachment(att, e)} style={{ padding: '0.2rem 0.45rem', borderRadius: '0.35rem', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer' }}>Unduh</button>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
                                   ) : (
                                     <div style={{
@@ -6144,6 +6537,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               type="button"
                               onClick={() => setIsInternalNote(false)}
                               style={{
+                                minHeight: '44px',
                                 padding: '0.45rem 0.5rem',
                                 borderRadius: '0.45rem',
                                 fontSize: '0.74rem',
@@ -6165,6 +6559,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               type="button"
                               onClick={() => setIsInternalNote(true)}
                               style={{
+                                minHeight: '44px',
                                 padding: '0.45rem 0.5rem',
                                 borderRadius: '0.45rem',
                                 fontSize: '0.74rem',
@@ -6288,7 +6683,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   disabled={isUploadingTicketAttachment}
                                   title="Lampirkan File (Gambar/PDF)"
                                   style={{
-                                    height: '36px',
+                                    minHeight: '44px',
                                     padding: '0 0.75rem',
                                     borderRadius: '0.55rem',
                                     border: '1px solid var(--border-light)',
@@ -6313,10 +6708,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
                                 <button
                                   type="button"
-                                  onClick={() => setShowCannedModal(true)}
+                                  onClick={() => {
+                                    fetchCannedTemplates(1, '', 'all', 100, false, true);
+                                    setShowCannedModal(true);
+                                  }}
                                   title="Gunakan Template CS"
                                   style={{
-                                    height: '36px',
+                                    minHeight: '44px',
                                     padding: '0 0.75rem',
                                     borderRadius: '0.55rem',
                                     border: '1px solid var(--border-light)',
@@ -6360,9 +6758,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleSendTicketReply(isInternalNote)}
-                                  disabled={!ticketReply.trim() && ticketReplyAttachments.length === 0}
+                                  disabled={isSendingTicketReply || (!ticketReply.trim() && ticketReplyAttachments.length === 0)}
                                   style={{
-                                    height: '42px',
+                                    minHeight: '44px',
                                     padding: '0 1.25rem',
                                     borderRadius: '0.55rem',
                                     border: 'none',
@@ -6370,8 +6768,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     color: '#ffffff',
                                     fontWeight: 700,
                                     fontSize: '0.82rem',
-                                    cursor: (!ticketReply.trim() && ticketReplyAttachments.length === 0) ? 'not-allowed' : 'pointer',
-                                    opacity: (!ticketReply.trim() && ticketReplyAttachments.length === 0) ? 0.6 : 1,
+                                    cursor: (isSendingTicketReply || (!ticketReply.trim() && ticketReplyAttachments.length === 0)) ? 'not-allowed' : 'pointer',
+                                    opacity: (isSendingTicketReply || (!ticketReply.trim() && ticketReplyAttachments.length === 0)) ? 0.6 : 1,
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '0.4rem',
@@ -6379,7 +6777,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   }}
                                 >
                                   <Send size={15} />
-                                  <span>{isInternalNote ? 'Simpan Catatan' : 'Kirim'}</span>
+                                  <span>{isSendingTicketReply ? 'Mengirim...' : (isInternalNote ? 'Simpan Catatan' : 'Kirim')}</span>
                                 </button>
                               </div>
                             </div>
@@ -6391,6 +6789,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 )
               }
             />
+            </ErrorBoundary>
           )}
 
           {/* TAB 5: FINANCE (KEUANGAN & BILLING) */}
@@ -11248,112 +11647,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
 
 
-      {/* CANNED CS RESPONSE TEMPLATES MODAL */}
-      {showCannedModal && (
-        <div
-          onClick={() => setShowCannedModal(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(6px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1.5rem'
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: '560px',
-              maxHeight: '80vh',
-              backgroundColor: 'var(--bg-card)',
-              borderRadius: '1rem',
-              border: '1px solid var(--border-light)',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden'
-            }}
-          >
-            <div style={{
-              padding: '1rem 1.25rem',
-              borderBottom: '1px solid var(--border-light)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              backgroundColor: 'var(--bg-deep)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Zap size={18} color="#f59e0b" />
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  Template Balasan Cepat CS
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCannedModal(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '0.25rem',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{
-              padding: '1rem 1.25rem',
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.65rem'
-            }}>
-              {DEFAULT_CANNED_TEMPLATES.map((tmpl, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => handleInsertCannedTemplate(tmpl.text)}
-                  style={{
-                    padding: '0.85rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{tmpl.title}</strong>
-                    <span style={{
-                      fontSize: '0.62rem',
-                      fontWeight: 700,
-                      padding: '0.1rem 0.4rem',
-                      borderRadius: '999px',
-                      backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                      color: 'var(--primary)',
-                      border: '1px solid rgba(59, 130, 246, 0.25)'
-                    }}>
-                      {tmpl.category}
-                    </span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
-                    {tmpl.text}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* CREATE / EDIT CS TEMPLATE FORM MODAL (CENTERED DIALOG TABLET) */}
       {showTemplateFormModal && (
         <div
@@ -11501,27 +11794,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
                     Kategori Template
                   </label>
-                  <select
+                  <TabletCustomSelect
                     value={templateForm.category}
-                    onChange={e => setTemplateForm({ ...templateForm, category: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.82rem',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="general">Umum &amp; Greeting</option>
-                    <option value="billing">Keuangan &amp; Billing</option>
-                    <option value="technical">Kendala Teknis</option>
-                    <option value="closing">Penutupan Tiket</option>
-                    <option value="account">Akun &amp; Keamanan</option>
-                  </select>
+                    onChange={(val) => setTemplateForm({ ...templateForm, category: val })}
+                    options={SUPPORT_TEMPLATE_CATEGORIES.map((opt) => ({ value: opt.value, label: opt.label }))}
+                    triggerStyle={{ minHeight: '44px' }}
+                    ariaLabel="Kategori Template"
+                  />
                 </div>
               </div>
 

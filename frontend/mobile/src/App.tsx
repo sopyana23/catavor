@@ -174,6 +174,15 @@ import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
 import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import {
+  resolveTicketStoreTitle,
+  resolveTicketMessageCount,
+} from '../../shared/support/supportHelpers'
+import {
+  SharedHelpKnowledgeBase,
+  HelpDeflectionSuggestions,
+  generateSupportIdempotencyKey,
+} from '../../shared/support/SharedHelpKnowledgeBase'
 import { OfficialContactSheet } from './components/OfficialContactSheet'
 import { MobilePoliciesView, type PolicyKey } from './components/MobilePoliciesView'
 import { normalizeNotification, getMobileNotificationDescription } from './utils/notificationHelpers'
@@ -863,7 +872,8 @@ interface SupportTicket {
   store_slug?: string | null;
   store?: {
     id: number;
-    name: string;
+    name?: string;
+    store_title?: string;
     slug: string;
     plan?: string;
   } | null;
@@ -878,6 +888,7 @@ interface SupportTicket {
   raw_last_message_at?: string;
   unread_count?: number;
   has_unread?: boolean;
+  message_count?: number;
   messages: TicketMessage[];
   rating?: number;
   rating_comment?: string;
@@ -7642,8 +7653,6 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
   });
   const [isCreatingTicket, setIsCreatingTicket] = useState<boolean>(false);
   const [showOfficialContactSheet, setShowOfficialContactSheet] = useState<boolean>(false);
-  const [showCategorySelectModal, setShowCategorySelectModal] = useState<boolean>(false);
-  const [showPrioritySelectModal, setShowPrioritySelectModal] = useState<boolean>(false);
   const [ticketFilter, setTicketFilter] = useState<'all' | 'active' | 'resolved'>('all');
   const [ticketSearch, setTicketSearch] = useState<string>('');
   const [debouncedTicketSearch, setDebouncedTicketSearch] = useState<string>('');
@@ -7862,6 +7871,9 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [attachmentLightbox?.isOpen, attachmentLightbox?.images?.length]);
 
+  const supportCreateIdemRef = useRef<string>(generateSupportIdempotencyKey('tk'));
+  const supportReplyIdemRef = useRef<string>(generateSupportIdempotencyKey('rp'));
+
   const [newTicketForm, setNewTicketForm] = useState<{
     subject: string;
     category: string;
@@ -7993,6 +8005,7 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
             raw_last_message_at: t.last_message_at || t.updated_at,
             unread_count: unreadCount,
             has_unread: hasUnread,
+            message_count: typeof t.message_count === 'number' ? t.message_count : msgs.length,
             rating: t.rating,
             rating_comment: t.rating_comment,
             rated_at: t.rated_at,
@@ -18859,7 +18872,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               className="bottom-sheet-content"
               onClick={(e) => e.stopPropagation()}
               style={{
-                transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+                transform: `translateY(${sheetDragY < 0 ? sheetDragY * 0.16 : sheetDragY}px)`,
                 transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
                 maxHeight: '88vh',
                 padding: '0.65rem 1.15rem 1rem'
@@ -21010,7 +21023,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     className={`bottom-sheet-content ${closingSheet === 'purchase_options' ? 'is-closing' : ''}`}
                     onClick={(e) => e.stopPropagation()}
                     style={{
-                      transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+                      transform: `translateY(${sheetDragY < 0 ? sheetDragY * 0.16 : sheetDragY}px)`,
                       transition: isSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
                       maxHeight: '86vh',
                       display: 'flex',
@@ -24058,11 +24071,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             case 'help':
                               if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
                                 if (isCreatingTicket) return { title: 'Banding Kepatuhan', subtitle: '' };
-                                if (selectedTicket) return { title: `Banding #${selectedTicket.id}`, subtitle: '' };
+                                if (selectedTicket) return { title: `Banding #${selectedTicket.ticket_number || selectedTicket.id}`, subtitle: '' };
                                 return { title: 'Banding Kepatuhan', subtitle: '' };
                               }
                               if (isCreatingTicket) return { title: 'Buat Tiket Baru', subtitle: '' };
-                              if (selectedTicket) return { title: `Tiket #${selectedTicket.id}`, subtitle: '' };
+                              if (selectedTicket) return { title: `#${selectedTicket.ticket_number || selectedTicket.id}`, subtitle: '' };
                               return { title: 'Pusat Bantuan', subtitle: '' };
                             case 'policies':
                               return { title: 'Ketentuan & Kebijakan', subtitle: 'Pedoman Regulasi Platform' };
@@ -24278,8 +24291,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 type="button"
                                 className="btn-primary"
                                 style={{
-                                  padding: '0.35rem 0.65rem',
-                                  borderRadius: '0.5rem',
+                                  minHeight: '44px',
+                                  padding: '0.35rem 0.85rem',
+                                  borderRadius: '0.55rem',
                                   fontSize: '0.72rem',
                                   fontWeight: 800,
                                   display: 'flex',
@@ -31465,6 +31479,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                               )}
 
                               {adminSubTab === 'help' && (
+                                <ErrorBoundary sectionName="Pusat Bantuan & Tiket">
                                 <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.25rem' }}>
 
                                   {/* VIEW A: TICKET DETAIL & THREAD */}
@@ -31925,8 +31940,153 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         <div ref={messagesEndRef} style={{ height: '4px' }} />
                                       </div>
 
-                                      {/* Sticky Mobile App Reply Bar */}
-                                      {selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' ? (
+                                      {/* Info Masa Sanggah 7 Hari & CSAT untuk status resolved/closed */}
+                                      {(selectedTicket.status === 'resolved' || selectedTicket.status === 'closed') && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: selectedTicket.status === 'resolved' ? '130px' : '0' }}>
+                                          {selectedTicket.status === 'resolved' ? (
+                                            <div className="glass-panel" style={{ padding: '0.7rem 0.85rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.06)' }}>
+                                              <span style={{ fontSize: '0.76rem', color: '#10b981', fontWeight: 700 }}>
+                                                Tiket ditandai Selesai (Masa Sanggah 7 Hari). Kirim balasan di bawah untuk membuka kembali tiket otomatis.
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            <div className="glass-panel" style={{ padding: '0.75rem 0.85rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(100,116,139,0.35)', background: 'rgba(100,116,139,0.06)' }}>
+                                              <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                                Tiket ini telah ditutup permanen (Read-Only). Buat tiket baru jika ada pertanyaan lanjutan.
+                                              </span>
+                                            </div>
+                                          )}
+
+                                          {/* CSAT 1-Click Rating Widget */}
+                                          {selectedTicket.rating ? (
+                                            <div className="glass-panel" style={{
+                                              padding: '0.85rem 1rem',
+                                              borderRadius: '0.85rem',
+                                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                                              background: 'rgba(245, 158, 11, 0.06)',
+                                              display: 'flex',
+                                              flexDirection: 'column',
+                                              gap: '0.4rem'
+                                            }}>
+                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                  <Star size={15} fill="#f59e0b" color="#f59e0b" /> Ulasan Layanan:
+                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                                                  {[1, 2, 3, 4, 5].map(star => (
+                                                    <Star
+                                                      key={star}
+                                                      size={14}
+                                                      fill={star <= (selectedTicket.rating || 0) ? '#f59e0b' : 'none'}
+                                                      color={star <= (selectedTicket.rating || 0) ? '#f59e0b' : 'var(--text-muted)'}
+                                                    />
+                                                  ))}
+                                                  <span style={{ fontSize: '0.8rem', fontWeight: 900, color: '#f59e0b', marginLeft: '0.3rem' }}>
+                                                    {selectedTicket.rating}/5
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              {selectedTicket.rating_comment && (
+                                                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.4 }}>
+                                                  "{selectedTicket.rating_comment}"
+                                                </p>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <div className="glass-panel" style={{
+                                              padding: '0.9rem 1rem',
+                                              borderRadius: '0.85rem',
+                                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                                              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.02) 100%)',
+                                              display: 'flex',
+                                              flexDirection: 'column',
+                                              gap: '0.65rem'
+                                            }}>
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                                  Beri Nilai Kepuasan Layanan:
+                                                </h4>
+                                                <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                                  Ketuk bintang untuk menilai kualitas respon tim Catavor
+                                                </p>
+                                              </div>
+
+                                              {/* Star Buttons */}
+                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.25rem 0' }}>
+                                                {[1, 2, 3, 4, 5].map(star => {
+                                                  const isFilled = (csatHoverRating || csatRating) >= star;
+                                                  return (
+                                                    <button
+                                                      key={star}
+                                                      type="button"
+                                                      onClick={() => setCsatRating(star)}
+                                                      style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        minWidth: '44px',
+                                                        minHeight: '44px',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        padding: '0.25rem',
+                                                        transition: 'transform 0.1s ease',
+                                                        transform: (csatHoverRating || csatRating) >= star ? 'scale(1.15)' : 'scale(1)'
+                                                      }}
+                                                    >
+                                                      <Star
+                                                        size={22}
+                                                        fill={isFilled ? '#f59e0b' : 'none'}
+                                                        color={isFilled ? '#f59e0b' : 'var(--text-muted)'}
+                                                      />
+                                                    </button>
+                                                  );
+                                                })}
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 900, color: '#f59e0b', marginLeft: '0.25rem' }}>
+                                                  {csatRating}/5
+                                                </span>
+                                              </div>
+
+                                              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                <input
+                                                  type="text"
+                                                  value={csatComment}
+                                                  onChange={(e) => setCsatComment(e.target.value)}
+                                                  placeholder="Komentar singkat (opsional)..."
+                                                  className="search-input"
+                                                  style={{ flex: 1, fontSize: '0.78rem', padding: '0.45rem 0.65rem' }}
+                                                />
+                                                <button
+                                                  type="button"
+                                                  disabled={isSubmittingCSAT}
+                                                  onClick={() => handleSubmitCSAT(selectedTicket.id)}
+                                                  style={{
+                                                    minHeight: '44px',
+                                                    padding: '0.5rem 0.95rem',
+                                                    borderRadius: '0.55rem',
+                                                    backgroundColor: '#f59e0b',
+                                                    color: '#000000',
+                                                    fontWeight: 800,
+                                                    fontSize: '0.78rem',
+                                                    border: 'none',
+                                                    cursor: isSubmittingCSAT ? 'not-allowed' : 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.3rem',
+                                                    whiteSpace: 'nowrap'
+                                                  }}
+                                                >
+                                                  {isSubmittingCSAT ? <Loader size={13} className="animate-spin" /> : <Star size={13} fill="#000000" />}
+                                                  <span>Kirim</span>
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Sticky Mobile App Reply Bar (diizinkan selama status !== 'closed') */}
+                                      {selectedTicket.status !== 'closed' && (
                                         <div style={{
                                           position: 'fixed',
                                           bottom: 0,
@@ -32002,8 +32162,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                               disabled={isUploadingAttachment || ticketReplyAttachments.length >= 5}
                                               onClick={() => document.getElementById('mobile-ticket-reply-file')?.click()}
                                               style={{
-                                                width: '40px',
-                                                height: '40px',
+                                                width: '44px',
+                                                height: '44px',
                                                 borderRadius: '50%',
                                                 border: '1px solid var(--border-light)',
                                                 backgroundColor: 'rgba(255,255,255,0.06)',
@@ -32058,7 +32218,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                 try {
                                                   const res = await fetch(`${API_BASE}/support/tickets/${selectedTicket.id}/reply`, {
                                                     method: 'POST',
-                                                    headers: getAuthHeaders(),
+                                                    headers: {
+                                                      ...getAuthHeaders(),
+                                                      'Idempotency-Key': supportReplyIdemRef.current,
+                                                    },
                                                     body: JSON.stringify({
                                                       message: ticketReplyText.trim(),
                                                       attachments: ticketReplyAttachments
@@ -32066,8 +32229,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                   });
                                                   const data = await res.json();
                                                   if (res.ok && data.success) {
+                                                    supportReplyIdemRef.current = generateSupportIdempotencyKey('rp');
                                                     const createdMsg = data.data;
                                                     setTicketReplyText('');
+                                                    const replyTextarea = document.getElementById('mobile-reply-textarea') as HTMLTextAreaElement | null;
+                                                    if (replyTextarea) replyTextarea.style.height = 'auto';
                                                     setTicketReplyAttachments([]);
                                                     showToast('Balasan Anda telah terkirim!');
                                                     if (createdMsg) {
@@ -32101,8 +32267,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                 }
                                               }}
                                               style={{
-                                                width: '40px',
-                                                height: '40px',
+                                                width: '44px',
+                                                height: '44px',
                                                 borderRadius: '50%',
                                                 padding: 0,
                                                 display: 'flex',
@@ -32115,134 +32281,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                               {isSubmittingReply ? <Loader size={16} className="animate-spin" /> : <Send size={16} />}
                                             </button>
                                           </div>
-                                        </div>
-                                      ) : (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                          <div className="glass-panel" style={{ padding: '0.75rem 0.85rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.05)' }}>
-                                            <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 700 }}>
-                                              ✓ Tiket ini telah ditandai Selesai. Buat tiket baru jika ada pertanyaan lain.
-                                            </span>
-                                          </div>
-
-                                          {/* CSAT 1-Click Rating Widget (Fase 2) */}
-                                          {selectedTicket.rating ? (
-                                            <div className="glass-panel" style={{
-                                              padding: '0.85rem 1rem',
-                                              borderRadius: '0.85rem',
-                                              border: '1px solid rgba(245, 158, 11, 0.35)',
-                                              background: 'rgba(245, 158, 11, 0.06)',
-                                              display: 'flex',
-                                              flexDirection: 'column',
-                                              gap: '0.4rem'
-                                            }}>
-                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                                  <Star size={15} fill="#f59e0b" color="#f59e0b" /> Ulasan Layanan:
-                                                </span>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
-                                                  {[1, 2, 3, 4, 5].map(star => (
-                                                    <Star
-                                                      key={star}
-                                                      size={14}
-                                                      fill={star <= (selectedTicket.rating || 0) ? '#f59e0b' : 'none'}
-                                                      color={star <= (selectedTicket.rating || 0) ? '#f59e0b' : 'var(--text-muted)'}
-                                                    />
-                                                  ))}
-                                                  <span style={{ fontSize: '0.8rem', fontWeight: 900, color: '#f59e0b', marginLeft: '0.3rem' }}>
-                                                    {selectedTicket.rating}/5
-                                                  </span>
-                                                </div>
-                                              </div>
-                                              {selectedTicket.rating_comment && (
-                                                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.4 }}>
-                                                  "{selectedTicket.rating_comment}"
-                                                </p>
-                                              )}
-                                            </div>
-                                          ) : (
-                                            <div className="glass-panel" style={{
-                                              padding: '0.9rem 1rem',
-                                              borderRadius: '0.85rem',
-                                              border: '1px solid rgba(245, 158, 11, 0.35)',
-                                              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.02) 100%)',
-                                              display: 'flex',
-                                              flexDirection: 'column',
-                                              gap: '0.65rem'
-                                            }}>
-                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                                <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                                  Beri Nilai Kepuasan Layanan:
-                                                </h4>
-                                                <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                                  Ketuk bintang untuk menilai kualitas respon tim Catavor
-                                                </p>
-                                              </div>
-
-                                              {/* Star Buttons */}
-                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.25rem 0' }}>
-                                                {[1, 2, 3, 4, 5].map(star => {
-                                                  const isFilled = (csatHoverRating || csatRating) >= star;
-                                                  return (
-                                                    <button
-                                                      key={star}
-                                                      type="button"
-                                                      onClick={() => setCsatRating(star)}
-                                                      style={{
-                                                        background: 'none',
-                                                        border: 'none',
-                                                        cursor: 'pointer',
-                                                        padding: '0.25rem',
-                                                        transition: 'transform 0.1s ease',
-                                                        transform: (csatHoverRating || csatRating) >= star ? 'scale(1.15)' : 'scale(1)'
-                                                      }}
-                                                    >
-                                                      <Star
-                                                        size={22}
-                                                        fill={isFilled ? '#f59e0b' : 'none'}
-                                                        color={isFilled ? '#f59e0b' : 'var(--text-muted)'}
-                                                      />
-                                                    </button>
-                                                  );
-                                                })}
-                                                <span style={{ fontSize: '0.85rem', fontWeight: 900, color: '#f59e0b', marginLeft: '0.25rem' }}>
-                                                  {csatRating}/5
-                                                </span>
-                                              </div>
-
-                                              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                <input
-                                                  type="text"
-                                                  value={csatComment}
-                                                  onChange={(e) => setCsatComment(e.target.value)}
-                                                  placeholder="Komentar singkat (opsional)..."
-                                                  className="search-input"
-                                                  style={{ flex: 1, fontSize: '0.78rem', padding: '0.45rem 0.65rem' }}
-                                                />
-                                                <button
-                                                  type="button"
-                                                  disabled={isSubmittingCSAT}
-                                                  onClick={() => handleSubmitCSAT(selectedTicket.id)}
-                                                  style={{
-                                                    padding: '0.5rem 0.9rem',
-                                                    borderRadius: '0.55rem',
-                                                    backgroundColor: '#f59e0b',
-                                                    color: '#000000',
-                                                    fontWeight: 800,
-                                                    fontSize: '0.78rem',
-                                                    border: 'none',
-                                                    cursor: isSubmittingCSAT ? 'not-allowed' : 'pointer',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.3rem',
-                                                    whiteSpace: 'nowrap'
-                                                  }}
-                                                >
-                                                  {isSubmittingCSAT ? <Loader size={13} className="animate-spin" /> : <Star size={13} fill="#000000" />}
-                                                  <span>Kirim</span>
-                                                </button>
-                                              </div>
-                                            </div>
-                                          )}
                                         </div>
                                       )}
                                     </div>
@@ -32337,7 +32375,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                               try {
                                                 const res = await fetch(`${API_BASE}/support/tickets`, {
                                                   method: 'POST',
-                                                  headers: getAuthHeaders(),
+                                                  headers: {
+                                                    ...getAuthHeaders(),
+                                                    'Idempotency-Key': supportCreateIdemRef.current,
+                                                  },
                                                   body: JSON.stringify({
                                                     store_slug: getStoreSlug() || undefined,
                                                     subject: finalSubject,
@@ -32349,6 +32390,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                 });
                                                 const data = await res.json();
                                                 if (res.ok && data.success && data.data) {
+                                                  supportCreateIdemRef.current = generateSupportIdempotencyKey('tk');
                                                   showToast(isSuspendedAccount ? 'Permohonan banding berhasil dikirim!' : 'Tiket berhasil dibuat!');
                                                   setIsCreatingTicket(false);
                                                   setNewTicketForm({ subject: '', category: 'technical', priority: 'medium', message: '' });
@@ -32415,6 +32457,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                       : {})
                                                   }}
                                                 />
+                                                {!(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
+                                                  <div style={{ marginTop: '0.55rem' }}>
+                                                    <HelpDeflectionSuggestions subject={newTicketForm.subject} formFactor="mobile" />
+                                                  </div>
+                                                )}
                                               </div>
 
                                               {/* MODAL DROPDOWN TRIGGER BUTTONS */}
@@ -32575,8 +32622,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                   style={{ fontSize: '0.84rem', resize: 'vertical', minHeight: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? '120px' : '100px', borderRadius: '0.65rem', padding: '0.75rem 0.85rem' }}
                                                 />
                                                 {(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
-                                                  <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                                                    💡 <em>Anda dapat menyesuaikan atau menambahkan poin klarifikasi, kronologi, atau izin usaha pada draf di atas untuk mempercepat verifikasi.</em>
+                                                  <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.4, display: 'flex', alignItems: 'flex-start', gap: '0.35rem' }}>
+                                                    <Info size={14} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--primary)' }} />
+                                                    <em>Anda dapat menyesuaikan atau menambahkan poin klarifikasi, kronologi, atau izin usaha pada draf di atas untuk mempercepat verifikasi.</em>
                                                   </p>
                                                 )}
                                               </div>
@@ -32850,7 +32898,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                             type="button"
                                             onClick={() => setShowOfficialContactSheet(true)}
                                             style={{
-                                              padding: '0.45rem 0.85rem',
+                                              minHeight: '44px',
+                                              padding: '0.45rem 0.9rem',
                                               borderRadius: '0.6rem',
                                               backgroundColor: 'var(--bg-deep)',
                                               color: 'var(--text-primary)',
@@ -32897,6 +32946,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                     onClick={() => setTicketFilter('all')}
                                                     style={{
                                                       flex: 1,
+                                                      minHeight: '44px',
                                                       padding: '0.38rem 0.5rem',
                                                       borderRadius: '0.45rem',
                                                       border: 'none',
@@ -32916,6 +32966,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                     onClick={() => setTicketFilter('active')}
                                                     style={{
                                                       flex: 1,
+                                                      minHeight: '44px',
                                                       padding: '0.38rem 0.5rem',
                                                       borderRadius: '0.45rem',
                                                       border: 'none',
@@ -32935,6 +32986,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                     onClick={() => setTicketFilter('resolved')}
                                                     style={{
                                                       flex: 1,
+                                                      minHeight: '44px',
                                                       padding: '0.38rem 0.5rem',
                                                       borderRadius: '0.45rem',
                                                       border: 'none',
@@ -32956,11 +33008,26 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         </div>
                                       </div>
 
+                                      <SharedHelpKnowledgeBase
+                                        formFactor="mobile"
+                                        onOpenCreateTicket={(prefill) => {
+                                          if (prefill) {
+                                            setNewTicketForm((prev) => ({
+                                              ...prev,
+                                              subject: prev.subject || `Tanya seputar: ${prefill}`,
+                                            }));
+                                          }
+                                          supportCreateIdemRef.current = generateSupportIdempotencyKey('tk');
+                                          setTicketNewAttachments([]);
+                                          setIsCreatingTicket(true);
+                                        }}
+                                      />
+
                                       {/* Ticket Cards List */}
                                       {filteredTickets.length === 0 ? (
                                         <div className="glass-panel" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', borderRadius: '1rem', border: '1px solid var(--border-light)' }}>
                                           <MessageSquare size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.65rem' }} />
-                                          {tickets.length === 0 ? (
+                                          {tickets.length === 0 && !ticketSearch.trim() && ticketFilter === 'all' ? (
                                             <>
                                               <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>Belum Ada Tiket</h4>
                                               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0' }}>Punya kendala teknis atau pertanyaan? Buat tiket support Anda untuk terhubung langsung dengan tim kami.</p>
@@ -32972,7 +33039,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                     setTicketNewAttachments([]);
                                                     setIsCreatingTicket(true);
                                                   }}
-                                                  style={{ padding: '0.45rem 1rem', fontSize: '0.75rem', borderRadius: '0.55rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                                                  style={{ minHeight: '44px', padding: '0.45rem 1rem', fontSize: '0.75rem', borderRadius: '0.55rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                                                 >
                                                   <Plus size={14} />
                                                   <span>Buat Tiket Baru</span>
@@ -32981,6 +33048,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                   type="button"
                                                   onClick={() => setShowOfficialContactSheet(true)}
                                                   style={{
+                                                    minHeight: '44px',
                                                     padding: '0.45rem 0.95rem',
                                                     borderRadius: '0.55rem',
                                                     backgroundColor: 'var(--bg-deep)',
@@ -33010,7 +33078,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                   setTicketSearch('');
                                                   setTicketFilter('all');
                                                 }}
-                                                style={{ padding: '0.45rem 1rem', fontSize: '0.75rem', borderRadius: '0.55rem' }}
+                                                style={{ minHeight: '44px', padding: '0.45rem 1rem', fontSize: '0.75rem', borderRadius: '0.55rem' }}
                                               >
                                                 Reset Filter
                                               </button>
@@ -33174,7 +33242,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                           border: '1px solid rgba(14, 165, 233, 0.2)'
                                                         }}>
                                                           <Store size={10} color="#0284c7" />
-                                                          <span>{ticket.store.name}</span>
+                                                          <span>{resolveTicketStoreTitle(ticket)}</span>
                                                           <span style={{
                                                             fontSize: '0.52rem',
                                                             padding: '0.04rem 0.28rem',
@@ -33194,7 +33262,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                       )}
                                                     </div>
                                                     <span style={{ fontWeight: isUnread ? 700 : 400, color: isUnread ? '#38bdf8' : 'var(--text-muted)' }}>
-                                                      {msgs.length} Pesan &bull; {ticket.updated_at}
+                                                      {resolveTicketMessageCount(ticket)} Pesan &bull; {ticket.updated_at}
                                                     </span>
                                                   </div>
                                                 </div>
@@ -33221,7 +33289,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                   setTicketPage(newP);
                                                 }}
                                                 style={{
-                                                  padding: '0.4rem 0.85rem',
+                                                  minHeight: '44px',
+                                                  padding: '0.4rem 0.9rem',
                                                   borderRadius: '0.6rem',
                                                   border: '1px solid var(--border-light)',
                                                   backgroundColor: ticketPage <= 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
@@ -33246,7 +33315,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                   setTicketPage(newP);
                                                 }}
                                                 style={{
-                                                  padding: '0.4rem 0.85rem',
+                                                  minHeight: '44px',
+                                                  padding: '0.4rem 0.9rem',
                                                   borderRadius: '0.6rem',
                                                   border: '1px solid var(--border-light)',
                                                   backgroundColor: ticketPage >= ticketTotalPages ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
@@ -33274,6 +33344,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   />
 
                                 </div>
+                                </ErrorBoundary>
                               )}
 
                               {adminSubTab === 'analytics' && (

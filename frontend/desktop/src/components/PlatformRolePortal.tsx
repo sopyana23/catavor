@@ -27,6 +27,8 @@ import {
   TrendingUp,
   Users,
   User,
+  UserCheck,
+  UserPlus,
   Search,
   Filter,
   Eye,
@@ -141,6 +143,11 @@ export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
 };
 import { smartBack, useModalBackHandler } from '../utils/navigation';
 import { apiClient } from '../utils/apiClient';
+import {
+  interpolateCannedTemplate,
+  resolveTicketMessageCount,
+  resolveTicketStoreTitle,
+} from '../../../shared/support/supportHelpers';
 import appLogoImg from '../assets/logo.png';
 import { APP_LOGO_BASE64 } from '../assets/logoBase64';
 
@@ -695,6 +702,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   }, [showTemplateModal]);
 
+  useModalBackHandler({
+    isOpen: showTemplateModal,
+    onClose: () => setShowTemplateModal(false),
+    modalId: 'desktop-portal-template-picker-modal'
+  });
+
+  useModalBackHandler({
+    isOpen: showFooterStatusMenu,
+    onClose: () => setShowFooterStatusMenu(false),
+    modalId: 'desktop-portal-status-menu-modal'
+  });
+
   // Swipe & Drag Bottom Sheet State for Ticket Status Modal
   const [statusSheetDragY, setStatusSheetDragY] = useState(0);
   const [isStatusSheetDragging, setIsStatusSheetDragging] = useState(false);
@@ -1015,16 +1034,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   const handleApplyTemplate = (tmpl: any) => {
     if (!tmpl) return;
-    const merchantName = getMerchantDisplayName(selectedTicket);
-    const storeName = selectedTicket?.store?.name || selectedTicket?.store_name || 'Merchant Anda';
-    const ticketNum = selectedTicket?.ticket_number || `#TCK-${selectedTicket?.id}`;
-    const agentName = currentUser?.name || 'Staf CS';
-
-    let content = tmpl.content || '';
-    content = content.replace(/\{\{merchant_name\}\}/gi, merchantName);
-    content = content.replace(/\{\{store_name\}\}/gi, storeName);
-    content = content.replace(/\{\{ticket_number\}\}/gi, ticketNum);
-    content = content.replace(/\{\{agent_name\}\}/gi, agentName);
+    const content = interpolateCannedTemplate(tmpl.content || '', {
+      merchantName: getMerchantDisplayName(selectedTicket),
+      storeTitle: resolveTicketStoreTitle(selectedTicket),
+      ticketNumber: selectedTicket?.ticket_number || `#TCK-${selectedTicket?.id}`,
+      agentName: currentUser?.name || 'Staf CS',
+    });
 
     setReplyText(content);
     setShowTemplateModal(false);
@@ -1172,6 +1187,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('all');
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('all');
   const [ticketSlaFilter, setTicketSlaFilter] = useState<string>('all');
+  const [ticketAssignedFilter, setTicketAssignedFilter] = useState<'all' | 'me' | 'unassigned'>('all');
+  const [assigningTicketId, setAssigningTicketId] = useState<number | null>(null);
   const [resolvedTimeRangeFilter, setResolvedTimeRangeFilter] = useState<'30d' | '90d' | 'all'>('30d');
 
   // Pengurutan alami tiket layaknya aplikasi media sosial / chat:
@@ -1635,11 +1652,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   // Agent Collision Detection Presence (Fase 5)
   const [activePresences, setActivePresences] = useState<any[]>([]);
   const isTypingDebounceTimerRef = useRef<any>(null);
+  const prevTypingSentRef = useRef<boolean>(false);
 
-  // Send periodic presence heartbeat (15s interval, respects document.visibilityState)
+  // Send periodic presence heartbeat (12s interval < 35s Redis TTL, respects document.visibilityState)
   useEffect(() => {
     if (!selectedTicket || !token || !canAccessSupport) {
       setActivePresences([]);
+      prevTypingSentRef.current = false;
       return;
     }
 
@@ -1681,7 +1700,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const interval = setInterval(() => {
       sendPresence(false);
       fetchPresence();
-    }, 30000);
+    }, 12000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -1697,15 +1716,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     };
   }, [selectedTicket?.id, token, canAccessSupport]);
 
-  // Debounced Typing Indicator: only sends typing signal with debounce, not on every keystroke
+  // Debounced Typing Indicator: sends both true when typing and false when input cleared
   useEffect(() => {
     if (!selectedTicket?.id || !token || !canAccessSupport) return;
     if (isTypingDebounceTimerRef.current) {
       clearTimeout(isTypingDebounceTimerRef.current);
     }
     const isTyping = replyText.trim().length > 0;
-    if (!isTyping) return;
+    if (!isTyping && !prevTypingSentRef.current) return;
 
+    const delay = isTyping ? 900 : 400;
     isTypingDebounceTimerRef.current = setTimeout(async () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       try {
@@ -1715,10 +1735,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify({ is_typing: true })
+          body: JSON.stringify({ is_typing: isTyping })
         });
+        prevTypingSentRef.current = isTyping;
       } catch {}
-    }, 1200);
+    }, delay);
 
     return () => {
       if (isTypingDebounceTimerRef.current) {
@@ -1889,6 +1910,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (ticketCategoryFilter !== 'all') params.set('category', ticketCategoryFilter);
       if (ticketPriorityFilter !== 'all') params.set('priority', ticketPriorityFilter);
       if (ticketSlaFilter === 'breached') params.set('sla_breached', 'true');
+      if (ticketAssignedFilter !== 'all') params.set('assigned', ticketAssignedFilter);
       if (ticketsFilter === 'resolved' && resolvedTimeRangeFilter !== 'all') {
         params.set('time_range', resolvedTimeRangeFilter);
       }
@@ -1949,7 +1971,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             playSupportChime();
             const incomingTitle = totalNewIncoming === 1 ? '1 pesan masuk' : `${totalNewIncoming} pesan masuk`;
             sendSupportNotification(
-              `💬 ${incomingTitle}: ${incomingTicketNum}`,
+              `${incomingTitle}: ${incomingTicketNum}`,
               `${incomingSender}: ${incomingSnippet}`
             );
           }
@@ -1972,6 +1994,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 ...prev,
                 status: activeUpdated.status || prev.status,
                 priority: activeUpdated.priority || prev.priority,
+                assigned_agent_id: activeUpdated.assigned_agent_id !== undefined ? activeUpdated.assigned_agent_id : prev.assigned_agent_id,
+                assigned_agent: activeUpdated.assigned_agent !== undefined ? activeUpdated.assigned_agent : prev.assigned_agent,
                 first_response_at: activeUpdated.first_response_at || prev.first_response_at,
                 sla_breached: activeUpdated.sla_breached !== undefined ? activeUpdated.sla_breached : prev.sla_breached,
                 rating: activeUpdated.rating !== undefined ? activeUpdated.rating : prev.rating,
@@ -2015,7 +2039,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     if (canAccessSupport && token && activeView === 'support') {
       fetchTickets(1, false);
     }
-  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, ticketAssignedFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   // Polling santai fallback (45 detik saat aktif, data utama di-push secara instan via SSE)
   useEffect(() => {
@@ -2036,7 +2060,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
+  }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, ticketAssignedFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
   // Re-fetch reports server-side whenever active filters or debounced search query change
   useEffect(() => {
@@ -2045,7 +2069,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   }, [token, canAccessCompliance, activeView, reportsFilter, reportsTargetFilter, debouncedReportsSearch]);
 
-  // Real-Time Global SSE Stream Subscription (Go Channel Live Broadcast) for Mobile
+  const selectedTicketRef = useRef<any>(selectedTicket);
+  const activeViewRef = useRef<string>(activeView);
+  useEffect(() => {
+    selectedTicketRef.current = selectedTicket;
+  }, [selectedTicket]);
+  useEffect(() => {
+    activeViewRef.current = activeView;
+  }, [activeView]);
+
+  // Real-Time Global SSE Stream Subscription (stable connection across view/ticket switches)
   useEffect(() => {
     if (!token || (!isSuperAdmin && !canAccessSupport)) return;
 
@@ -2064,7 +2097,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           headers: { 'Content-Type': 'application/json' },
         });
         if (tkRes.status === 401) {
-          // Sesi habis — jangan buka stream, biarkan lapisan auth menangani.
           console.warn('SSE: sesi tidak valid, tiket tidak diterbitkan');
           return;
         }
@@ -2082,13 +2114,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           try {
             const payload = JSON.parse(e.data);
             const { event, ticket, notification } = payload;
+            const currentSelected = selectedTicketRef.current;
 
             if (event === 'ticket_created' && ticket) {
               playSupportChime();
               const ticketNum = ticket.ticket_number || `#TCK-${ticket.id}`;
-              const merchantName = ticket.user?.name || ticket.store?.name || 'Merchant';
+              const merchantName = ticket.store?.store_title || ticket.user?.name || ticket.store?.name || 'Merchant';
               sendSupportNotification(
-                `🎫 Tiket Bantuan Baru: ${ticketNum}`,
+                `Tiket Bantuan Baru: ${ticketNum}`,
                 `${merchantName}: ${ticket.subject || 'Kendala baru memerlukan tindakan CS'}`
               );
 
@@ -2106,7 +2139,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               const sender = ticket.sender_name || 'Merchant';
               const snippet = ticket.message?.message || '';
               sendSupportNotification(
-                `💬 Balasan Baru: ${ticketNum}`,
+                `Balasan Baru: ${ticketNum}`,
                 `${sender}: ${snippet}`
               );
 
@@ -2116,8 +2149,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               }));
 
               fetchTickets(1, false);
-              if (selectedTicket && (selectedTicket.id === ticket.ticket_id || selectedTicket.ticket_number === ticket.ticket_number)) {
-                handleOpenTicketChat({ id: selectedTicket.id, ticket_number: selectedTicket.ticket_number }, false);
+              if (currentSelected && (currentSelected.id === ticket.ticket_id || currentSelected.ticket_number === ticket.ticket_number)) {
+                handleOpenTicketChat({ id: currentSelected.id, ticket_number: currentSelected.ticket_number }, false);
+              }
+            } else if ((event === 'ticket_status_updated' || event === 'ticket_internal_note_added') && ticket) {
+              fetchTickets(1, false);
+              if (currentSelected && (currentSelected.id === ticket.ticket_id || currentSelected.id === ticket.id || currentSelected.ticket_number === ticket.ticket_number)) {
+                handleOpenTicketChat({ id: currentSelected.id, ticket_number: currentSelected.ticket_number }, false);
               }
             } else if (event === 'ticket_status_updated') {
               fetchTickets(1, false);
@@ -2156,7 +2194,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (eventSource) eventSource.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
-  }, [token, isSuperAdmin, canAccessSupport, activeView, selectedTicket?.id]);
+  }, [token, isSuperAdmin, canAccessSupport]);
 
   const loadData = async (refreshLists = true) => {
     if (!token) return;
@@ -2568,8 +2606,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         const formData = new FormData();
         formData.append('image', file);
         formData.append('category', 'support');
-        const res = await fetch('/api/storage/upload?category=support', {
+        const res = await fetch('/api/admin/support/upload?category=support', {
           method: 'POST',
+          credentials: 'include',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: formData
         });
@@ -2610,6 +2649,46 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
+  // Ticket Ownership Claim / Release
+  const handleAssignTicket = async (
+    ticketId: number | string,
+    payload: { self?: boolean; assigned_agent_id?: number | null }
+  ) => {
+    setAssigningTicketId(Number(ticketId));
+    try {
+      const res = await fetch(`/api/admin/support/tickets/${ticketId}/assign`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        showToast(json.message || 'Penugasan tiket berhasil diperbarui.', 'success');
+        setTickets((prev) =>
+          prev.map((t) =>
+            String(t.id) === String(ticketId)
+              ? { ...t, assigned_agent_id: json.data.assigned_agent_id, assigned_agent: json.data.assigned_agent }
+              : t
+          )
+        );
+        if (selectedTicket && String(selectedTicket.id) === String(ticketId)) {
+          setSelectedTicket((prev: any) =>
+            prev
+              ? { ...prev, assigned_agent_id: json.data.assigned_agent_id, assigned_agent: json.data.assigned_agent }
+              : prev
+          );
+        }
+        fetchTickets(ticketsPagination.page || 1, false);
+      } else {
+        showToast(json?.message || 'Gagal memperbarui penugasan tiket.', 'error');
+      }
+    } catch {
+      showToast('Koneksi gagal saat memperbarui penugasan tiket.', 'error');
+    } finally {
+      setAssigningTicketId(null);
+    }
+  };
+
   // Support Status Update (Open, In Progress, Waiting User, Resolved, Closed)
   const handleUpdateTicketStatus = async (ticketId: number | string, status: string) => {
     try {
@@ -2630,6 +2709,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         if (selectedTicket && selectedTicket.id === ticketId) {
           setSelectedTicket((prev: any) => ({ ...prev, status }));
         }
+      } else {
+        const errJson = await res.json().catch(() => null);
+        showToast(errJson?.message || 'Gagal memperbarui status tiket', 'error');
       }
     } catch {
       showToast('Gagal memperbarui tiket', 'error');
@@ -3837,7 +3919,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           title: `Tiket #${selectedTicket.ticket_number || ('TCK-' + selectedTicket.id)}`,
           subtitle: `${getStoreDisplayName(selectedTicket)} • Status: ${String(selectedTicket.status || 'open').toUpperCase()}`,
           items: [
-            ...(selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' ? [{
+            ...(canReplySupport && selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' ? [{
               id: 'resolve_ticket',
               label: 'Tandai Tiket Selesai',
               description: 'Ubah status ke Resolved (Teratasi)',
@@ -3846,7 +3928,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               iconColor: '#10b981',
               onClick: () => handleUpdateTicketStatus(selectedTicket.id, 'resolved')
             }] : []),
-            ...(selectedTicket.status !== 'closed' ? [{
+            ...(canReplySupport && selectedTicket.status !== 'closed' ? [{
               id: 'close_ticket',
               label: 'Tutup Tiket Permanen',
               description: 'Kunci tiket dan akhiri percakapan',
@@ -4713,7 +4795,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {activeView === 'reports' && moderationModalReport
                   ? `${moderationModalReport.report_number || `#RPT-${moderationModalReport.id}`} • ${moderationModalReport.store_title || moderationModalReport.store_slug || 'Katalog'}`
                   : activeView === 'support' && selectedTicket
-                    ? `${selectedTicket.ticket_number || ('#TCK-' + selectedTicket.id)} • 🏪 ${getStoreDisplayName(selectedTicket)}`
+                    ? `${selectedTicket.ticket_number || ('#TCK-' + selectedTicket.id)} • ${getStoreDisplayName(selectedTicket)}`
                     : (activeView === 'broadcast' && broadcastSubViewState === 'create')
                       ? 'Segmentasi & Pengumuman Platform'
                       : (activeView === 'broadcast' && broadcastSubViewState === 'detail')
@@ -6978,13 +7060,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* 4. MODULE 4: HELPDESK & TIKET BANTUAN                                     */}
       {/* ========================================================================= */}
       {activeView === 'support' && canAccessSupport && (
-        selectedTicket ? (
+        <ErrorBoundary sectionName="Pusat Bantuan & Helpdesk">
+        {selectedTicket ? (
           /* ----------------------------------------------------------------------- */
           /* 4A. TICKET CONVERSATION CHAT ROOM (DETAIL THREAD PERCAKAPAN)             */
           /* ----------------------------------------------------------------------- */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingBottom: '140px', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
             {/* Agent Collision Warning Banner (Fase 5) */}
-            {activePresences.filter((p: any) => p.user_id !== currentUser?.id).length > 0 && (
+            {activePresences.filter((p: any) => (p.admin_id ?? p.user_id) !== currentUser?.id).length > 0 && (
               <div style={{
                 padding: '0.75rem 1rem',
                 borderRadius: '0.85rem',
@@ -7001,8 +7084,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 <AlertTriangle size={17} style={{ flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <span>
-                    👀 <strong>{activePresences.filter((p: any) => p.user_id !== currentUser?.id).map((p: any) => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
-                    {activePresences.filter((p: any) => p.user_id !== currentUser?.id).some((p: any) => p.is_typing) ? ' dan sedang mengetik balasan...' : '.'}
+                    <strong>{activePresences.filter((p: any) => (p.admin_id ?? p.user_id) !== currentUser?.id).map((p: any) => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
+                    {activePresences.filter((p: any) => (p.admin_id ?? p.user_id) !== currentUser?.id).some((p: any) => p.is_typing) ? ' dan sedang mengetik balasan...' : '.'}
                   </span>
                 </div>
               </div>
@@ -7165,7 +7248,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   return (
                     <button
                       type="button"
-                      onClick={() => setShowFooterStatusMenu(true)}
+                      disabled={!canReplySupport}
+                      onClick={() => { if (canReplySupport) setShowFooterStatusMenu(true); }}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -7177,10 +7261,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         border: `1px solid ${statusMeta.border}`,
                         fontSize: '0.65rem',
                         fontWeight: 800,
-                        cursor: 'pointer',
+                        cursor: canReplySupport ? 'pointer' : 'default',
                         transition: 'all 0.15s ease'
                       }}
-                      title="Klik untuk ubah status pengerjaan tiket"
+                      title={canReplySupport ? 'Klik untuk ubah status pengerjaan tiket' : 'Status tiket (Mode Baca Saja)'}
                     >
                       <span style={{
                         width: '7px',
@@ -7192,6 +7276,62 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       }} />
                       <span>{statusMeta.label}</span>
                     </button>
+                  );
+                })()}
+
+                {/* Agent Ownership Pill & Claim / Release Control */}
+                {(() => {
+                  const assignedId = selectedTicket.assigned_agent_id;
+                  const assignedName = selectedTicket.assigned_agent?.name || (assignedId ? `Agen #${assignedId}` : '');
+                  const isAssignedToMe = Boolean(assignedId && currentUser?.id && Number(assignedId) === Number(currentUser.id));
+                  return (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '0.5rem',
+                          backgroundColor: assignedId ? 'rgba(16, 185, 129, 0.1)' : theme.cardAlt,
+                          color: assignedId ? '#10b981' : theme.textMuted,
+                          border: `1px solid ${assignedId ? 'rgba(16, 185, 129, 0.28)' : theme.border}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                        }}
+                      >
+                        <UserCheck size={11} />
+                        <span>{assignedId ? (isAssignedToMe ? 'Ditangani Anda' : `PIC: ${assignedName}`) : 'Belum Ditugaskan'}</span>
+                      </span>
+                      {canReplySupport && (
+                        <button
+                          type="button"
+                          disabled={assigningTicketId === Number(selectedTicket.id)}
+                          onClick={() =>
+                            handleAssignTicket(
+                              selectedTicket.id,
+                              isAssignedToMe ? { assigned_agent_id: 0 } : { self: true }
+                            )
+                          }
+                          style={{
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.65rem',
+                            fontWeight: 800,
+                            border: `1px solid ${isAssignedToMe ? 'rgba(239, 68, 68, 0.35)' : 'rgba(59, 130, 246, 0.4)'}`,
+                            backgroundColor: isAssignedToMe ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.14)',
+                            color: isAssignedToMe ? '#ef4444' : '#3b82f6',
+                            cursor: assigningTicketId === Number(selectedTicket.id) ? 'wait' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.28rem',
+                          }}
+                        >
+                          <UserPlus size={11} />
+                          <span>{isAssignedToMe ? 'Lepas Penugasan' : 'Klaim Tiket'}</span>
+                        </button>
+                      )}
+                    </div>
                   );
                 })()}
               </div>
@@ -7241,7 +7381,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     <Clock size={12} /> Target Respon Pertama:
                   </span>
                   <span>
-                    {selectedTicket.sla_breached ? '⚠️ Melewati SLA' : (selectedTicket.first_response_at ? '✓ Terpenuhi Tepat Waktu' : 'Sedang Berjalan')}
+                    {selectedTicket.sla_breached ? 'Melewati SLA' : (selectedTicket.first_response_at ? 'Terpenuhi Tepat Waktu' : 'Sedang Berjalan')}
                   </span>
                 </div>
               )}
@@ -7268,6 +7408,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <p style={{ margin: 0, fontSize: '0.7rem' }}>
                     Tiket akan otomatis ditutup permanen (Read-Only) jika tidak ada balasan lebih lanjut dari merchant.
                   </p>
+                  {canReplySupport && (
                   <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.15rem' }}>
                     <button
                       type="button"
@@ -7310,6 +7451,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       <span>Buka Kembali</span>
                     </button>
                   </div>
+                  )}
                 </div>
               )}
 
@@ -7332,6 +7474,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     <Lock size={14} />
                     <span>Arsip Permanen (Read-Only)</span>
                   </div>
+                  {canReplySupport && (
                   <button
                     type="button"
                     onClick={() => handleUpdateTicketStatus(selectedTicket.id, 'in_progress')}
@@ -7353,6 +7496,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     <RefreshCw size={12} />
                     <span>Buka Kembali</span>
                   </button>
+                  )}
                 </div>
               )}
             </div>
@@ -7483,9 +7627,31 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontWeight: 600 }}>
                               Oleh: {msg.sender?.name || 'Staf Admin'}
                             </div>
-                            <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
-                              {msg.message}
-                            </p>
+                            {msg.message ? (
+                              <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                {msg.message}
+                              </p>
+                            ) : null}
+                            {Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                              <div style={{ marginTop: '0.5rem', paddingTop: '0.45rem', borderTop: '1px dashed rgba(245, 158, 11, 0.3)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                <div style={{ fontSize: '0.67rem', fontWeight: 700, color: isDark ? '#fbbf24' : '#b45309', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                  <Paperclip size={11} /> {msg.attachments.length} Lampiran Internal:
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                                  {msg.attachments.map((att: any, aIdx: number) => {
+                                    const isPDF = (att.file_type || '').includes('pdf') || (att.file_name || '').toLowerCase().endsWith('.pdf') || (att.file_url || '').toLowerCase().endsWith('.pdf');
+                                    return (
+                                      <div key={aIdx} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.6rem', borderRadius: '0.55rem', backgroundColor: isDark ? 'rgba(15, 23, 42, 0.7)' : '#ffffff', border: '1px solid rgba(245, 158, 11, 0.35)', fontSize: '0.74rem' }}>
+                                        {isPDF ? <FileText size={14} color="#ef4444" /> : <ImageIcon size={14} color="#f59e0b" />}
+                                        <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>{att.file_name || 'Lampiran'}</span>
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }} style={{ padding: '0.2rem 0.45rem', borderRadius: '0.35rem', border: 'none', backgroundColor: '#0284c7', color: '#ffffff', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>Preview</button>
+                                        <button type="button" onClick={(e) => handleDownloadDocument(att, e)} style={{ padding: '0.2rem 0.45rem', borderRadius: '0.35rem', border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.textPrimary, fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer' }}>Unduh</button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div
@@ -7733,15 +7899,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               <div ref={messagesEndRef} />
             </div>
 
-            {/* 3. Sleek Executive Bottom Reply Composer (Flush to Bottom) */}
+            {/* 3. Sleek Executive Bottom Reply Composer (Sticky inside main chat pane so sidebar is never overlapped) */}
             {selectedTicket.status === 'closed' ? (
               <div style={{
-                position: 'fixed',
+                position: 'sticky',
                 bottom: 0,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                maxWidth: '1440px',
                 width: '100%',
+                marginTop: '0.75rem',
                 padding: '0.85rem 1.25rem calc(0.85rem + env(safe-area-inset-bottom, 0px)) 1.25rem',
                 backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
                 backdropFilter: 'blur(24px)',
@@ -7749,7 +7913,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 borderTop: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
                 borderLeft: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
                 borderRight: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
-                zIndex: 9990,
+                borderRadius: '0.85rem 0.85rem 0 0',
+                zIndex: 40,
                 boxShadow: isDark ? '0 -8px 30px rgba(0,0,0,0.5)' : '0 -6px 20px rgba(0,0,0,0.06)',
                 textAlign: 'center',
                 boxSizing: 'border-box'
@@ -7773,12 +7938,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </div>
             ) : (
               <div style={{
-                position: 'fixed',
+                position: 'sticky',
                 bottom: 0,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                maxWidth: '1440px',
                 width: '100%',
+                marginTop: '0.75rem',
                 padding: '0.65rem 1.25rem calc(0.65rem + env(safe-area-inset-bottom, 0px)) 1.25rem',
                 backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.97)',
                 backdropFilter: 'blur(24px)',
@@ -7786,7 +7949,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 borderTop: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
                 borderLeft: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
                 borderRight: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
-                zIndex: 9990,
+                borderRadius: '0.85rem 0.85rem 0 0',
+                zIndex: 40,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.55rem',
@@ -7983,7 +8147,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    fetchCannedTemplates();
+                    fetchCannedTemplates(1, '', 'all', 100, false, true);
                     setShowTemplateModal(true);
                   }}
                   style={{
@@ -8242,11 +8406,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   padding: '0 0.65rem',
                   fontSize: '0.74rem',
                   fontWeight: 700,
+                  background: activeTriageFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
                   backgroundColor: activeTriageFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
                   borderColor: activeTriageFilter !== 'all' ? 'var(--primary)' : theme.border,
                   color: activeTriageFilter !== 'all' ? 'var(--primary)' : theme.textPrimary
                 }}
-                dropdownStyle={{ minWidth: '200px' }}
+                dropdownStyle={{
+                  minWidth: '200px',
+                  background: theme.surface,
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  color: theme.textPrimary
+                }}
               />
 
               {/* Time-Windowing Selector Bar for Selesai / Resolved Tab */}
@@ -8294,11 +8465,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   padding: '0 0.65rem',
                   fontSize: '0.74rem',
                   fontWeight: 700,
+                  background: ticketCategoryFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
                   backgroundColor: ticketCategoryFilter !== 'all' ? 'var(--primary-glow)' : theme.surface,
                   borderColor: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.border,
                   color: ticketCategoryFilter !== 'all' ? 'var(--primary)' : theme.textPrimary
                 }}
-                dropdownStyle={{ minWidth: '190px' }}
+                dropdownStyle={{
+                  minWidth: '190px',
+                  background: theme.surface,
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  color: theme.textPrimary
+                }}
               />
 
               {/* Priority Dropdown (Desktop Native - Always Visible & Strictly Count > 0) */}
@@ -8315,11 +8493,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   padding: '0 0.65rem',
                   fontSize: '0.74rem',
                   fontWeight: 700,
+                  background: ticketPriorityFilter !== 'all' ? (isDark ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.1)') : theme.surface,
                   backgroundColor: ticketPriorityFilter !== 'all' ? (isDark ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.1)') : theme.surface,
                   borderColor: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.border,
                   color: ticketPriorityFilter !== 'all' ? '#ef4444' : theme.textPrimary
                 }}
-                dropdownStyle={{ minWidth: '190px' }}
+                dropdownStyle={{
+                  minWidth: '190px',
+                  background: theme.surface,
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  color: theme.textPrimary
+                }}
               />
 
               {/* SLA Filter Toggle (Desktop Native) */}
@@ -8360,8 +8545,56 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 )}
               </button>
 
+              {/* Agent Ownership Quick Filters */}
+              <button
+                type="button"
+                onClick={() => setTicketAssignedFilter(prev => prev === 'me' ? 'all' : 'me')}
+                style={{
+                  height: '34px',
+                  padding: '0 0.75rem',
+                  borderRadius: '0.65rem',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  backgroundColor: ticketAssignedFilter === 'me' ? 'rgba(59, 130, 246, 0.16)' : theme.surface,
+                  color: ticketAssignedFilter === 'me' ? '#3b82f6' : theme.textSecondary,
+                  border: `1px solid ${ticketAssignedFilter === 'me' ? '#3b82f6' : theme.border}`,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Tampilkan tiket yang Anda klaim"
+              >
+                <UserCheck size={13} />
+                <span>Tiket Saya</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTicketAssignedFilter(prev => prev === 'unassigned' ? 'all' : 'unassigned')}
+                style={{
+                  height: '34px',
+                  padding: '0 0.75rem',
+                  borderRadius: '0.65rem',
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  backgroundColor: ticketAssignedFilter === 'unassigned' ? 'rgba(245, 158, 11, 0.16)' : theme.surface,
+                  color: ticketAssignedFilter === 'unassigned' ? '#f59e0b' : theme.textSecondary,
+                  border: `1px solid ${ticketAssignedFilter === 'unassigned' ? '#f59e0b' : theme.border}`,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Tampilkan tiket yang belum ditugaskan"
+              >
+                <UserPlus size={13} />
+                <span>Belum Ditugaskan</span>
+              </button>
+
               {/* Active Filter Indicator & Reset Button */}
-              {(ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || Boolean(ticketSearchQuery)) && (
+              {(ticketsFilter !== 'all' || ticketCategoryFilter !== 'all' || ticketPriorityFilter !== 'all' || ticketSlaFilter !== 'all' || ticketAssignedFilter !== 'all' || Boolean(ticketSearchQuery)) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -8369,6 +8602,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     setTicketCategoryFilter('all');
                     setTicketPriorityFilter('all');
                     setTicketSlaFilter('all');
+                    setTicketAssignedFilter('all');
                     setTicketSearchQuery('');
                   }}
                     style={{
@@ -8442,8 +8676,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     t.status === 'closed' ? 'Ditutup' : String(t.status || 'OPEN').toUpperCase();
 
                   const storePlan = String(t.store?.plan || '').toLowerCase();
-                  const storeDisplayName = t.store?.store_title || t.store?.name || t.store_name || t.user?.name || 'Merchant';
-                  const messageCount = Array.isArray(t.messages) ? t.messages.length : (t.message_count || 0);
+                  const storeDisplayName = resolveTicketStoreTitle(t);
+                  const messageCount = resolveTicketMessageCount(t);
                   const msgs = Array.isArray(t.messages) ? t.messages : [];
                   const lastMsg = t.last_msg || (msgs.length > 0 ? msgs[msgs.length - 1] : null);
                   const isUnread = Boolean(t.has_unread || (t.unread_count && t.unread_count > 0));
@@ -8573,6 +8807,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               {t.priority}
                             </span>
                           )}
+
+                          <span style={{
+                            fontSize: '0.62rem',
+                            fontWeight: 700,
+                            padding: '0.12rem 0.4rem',
+                            borderRadius: '4px',
+                            backgroundColor: t.assigned_agent_id ? 'rgba(16, 185, 129, 0.1)' : theme.cardAlt,
+                            color: t.assigned_agent_id ? '#10b981' : theme.textMuted,
+                            border: `1px solid ${t.assigned_agent_id ? 'rgba(16, 185, 129, 0.25)' : theme.border}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.22rem'
+                          }}>
+                            <UserCheck size={10} />
+                            <span>{t.assigned_agent?.name || (t.assigned_agent_id ? `Agen #${t.assigned_agent_id}` : 'Belum Ditugaskan')}</span>
+                          </span>
 
                           {/* SLA Breached or Active Countdown Badge with Premium Lucide SVG Icon */}
                           {t.sla_breached ? (
@@ -8825,29 +9075,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <span style={{ fontSize: '0.74rem', color: theme.textMuted, fontWeight: 600 }}>Tampilkan:</span>
-                        <select
-                          value={ticketsPagination.limit}
-                          onChange={(e) => {
-                            const newLimit = parseInt(e.target.value, 10);
+                        <DesktopCustomSelect
+                          value={String(ticketsPagination.limit)}
+                          onChange={(val) => {
+                            const newLimit = parseInt(val, 10) || 20;
                             fetchTickets(1, false, newLimit);
                           }}
-                          style={{
-                            padding: '0.28rem 0.55rem',
-                            borderRadius: '0.45rem',
-                            border: `1px solid ${theme.border}`,
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
-                            color: theme.textPrimary,
+                          options={[10, 20, 50, 100].map(sz => ({ value: String(sz), label: String(sz) }))}
+                          direction="up"
+                          triggerStyle={{
+                            minHeight: '30px',
+                            padding: '0.22rem 0.55rem',
                             fontSize: '0.74rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            outline: 'none'
+                            color: theme.textPrimary,
                           }}
-                        >
-                          <option value={10}>10</option>
-                          <option value={20}>20</option>
-                          <option value={50}>50</option>
-                          <option value={100}>100</option>
-                        </select>
+                          ariaLabel="Jumlah tiket per halaman"
+                        />
                         <span style={{ fontSize: '0.74rem', color: theme.textMuted }}>tiket/hal</span>
                       </div>
 
@@ -9073,7 +9316,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </>
             )}
           </div>
-        )
+        )}
+        </ErrorBoundary>
       )}
 
       {/* ========================================================================= */}
