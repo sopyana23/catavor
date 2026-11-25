@@ -413,3 +413,112 @@ func TestOrderStateMachine_ApproveRejectResetExpireAndCouponQuota(t *testing.T) 
 		t.Fatalf("store plan setelah revert satu-satunya order paid = %q, want free", revertedStore.Plan)
 	}
 }
+
+func TestCreateSubscriptionOrder_BlocksDuplicatePendingOrder(t *testing.T) {
+	db := newHardeningDB(t)
+	u, st := seedHardeningUserStore(t, db, "dup-pending", "free", nil)
+
+	if _, err := CreateCoupon(db, MasterCoupon{
+		Code: "HEMATDUP", Label: "Potongan 10k", Type: "discount", Discount: 10000, UsageLimit: 5, MaxUsesPerStore: 1, IsActive: true,
+	}); err != nil {
+		t.Fatalf("seed coupon: %v", err)
+	}
+
+	ord1, _, err := CreateSubscriptionOrder(db, st.ID, u.ID, CreateOrderRequest{
+		PlanCode:          "pro_starter",
+		CouponCode:        "HEMATDUP",
+		PaymentMethod:     "qris",
+		PaymentProofURL:   "data:image/png;base64,iVBORw0KGgo=",
+		SenderAccountName: "Tester",
+	})
+	if err != nil {
+		t.Fatalf("order pertama gagal: %v", err)
+	}
+
+	// Second concurrent/duplicate upgrade attempt while pending_verification exists MUST fail with PENDING_ORDER_EXISTS
+	if _, _, err := CreateSubscriptionOrder(db, st.ID, u.ID, CreateOrderRequest{
+		PlanCode:          "pro_business",
+		PaymentMethod:     "qris",
+		PaymentProofURL:   "data:image/png;base64,iVBORw0KGgo=",
+		SenderAccountName: "Tester",
+	}); err == nil || !strings.Contains(err.Error(), "PENDING_ORDER_EXISTS") {
+		t.Fatalf("duplikat order harus ditolak PENDING_ORDER_EXISTS, dapat: %v", err)
+	}
+
+	var ordCount int64
+	db.Model(&models.SubscriptionOrder{}).Where("store_id = ?", st.ID).Count(&ordCount)
+	if ordCount != 1 {
+		t.Fatalf("order count = %d, want 1", ordCount)
+	}
+
+	// Same store cannot cancel pending_verification order directly
+	if _, _, err := CancelPendingSubscriptionOrder(db, st.ID, ord1.ID); err == nil || !strings.Contains(err.Error(), "CANNOT_CANCEL_VERIFYING") {
+		t.Fatalf("cancel pending_verification harus ditolak CANNOT_CANCEL_VERIFYING, dapat: %v", err)
+	}
+}
+
+func TestCancelPendingSubscriptionOrder_RulesAndIDOR(t *testing.T) {
+	db := newHardeningDB(t)
+	_ = db.Where("key = ?", "payment_system_mode").Delete(&models.Setting{}).Error
+	if err := db.Create(&models.Setting{Key: "payment_system_mode", Value: "gateway_aulaa"}).Error; err != nil {
+		t.Fatalf("seed mode: %v", err)
+	}
+
+	uA, stA := seedHardeningUserStore(t, db, "cancel-a", "free", nil)
+	_, stB := seedHardeningUserStore(t, db, "cancel-b", "free", nil)
+
+	if _, err := CreateCoupon(db, MasterCoupon{
+		Code: "BATAL20", Label: "Potongan 20k", Type: "discount", Discount: 20000, UsageLimit: 5, MaxUsesPerStore: 1, IsActive: true,
+	}); err != nil {
+		t.Fatalf("seed coupon: %v", err)
+	}
+
+	ord, _, err := CreateSubscriptionOrder(db, stA.ID, uA.ID, CreateOrderRequest{
+		PlanCode:      "pro_starter",
+		CouponCode:    "BATAL20",
+		PaymentMethod: "qris",
+	})
+	if err != nil {
+		t.Fatalf("create pending gateway order: %v", err)
+	}
+	if ord.PaymentStatus != "pending" {
+		t.Fatalf("status = %q, want pending", ord.PaymentStatus)
+	}
+
+	// Creating another order before cancel must fail
+	if _, _, err := CreateSubscriptionOrder(db, stA.ID, uA.ID, CreateOrderRequest{
+		PlanCode:      "pro_business",
+		PaymentMethod: "qris",
+	}); err == nil || !strings.Contains(err.Error(), "PENDING_ORDER_EXISTS") {
+		t.Fatalf("harus ditolak sebelum cancel, dapat: %v", err)
+	}
+
+	// Cross-store IDOR cancel attempt must fail with ORDER_NOT_FOUND
+	if _, _, err := CancelPendingSubscriptionOrder(db, stB.ID, ord.ID); err == nil || !strings.Contains(err.Error(), "ORDER_NOT_FOUND") {
+		t.Fatalf("IDOR cancel harus ditolak ORDER_NOT_FOUND, dapat: %v", err)
+	}
+
+	// Owner cancels unpaid pending order -> succeeds, releases coupon, allows switching to pro_business
+	cancelled, quota, err := CancelPendingSubscriptionOrder(db, stA.ID, ord.ID)
+	if err != nil {
+		t.Fatalf("owner cancel gagal: %v", err)
+	}
+	if cancelled.PaymentStatus != "cancelled" {
+		t.Fatalf("cancelled status = %q, want cancelled", cancelled.PaymentStatus)
+	}
+	if quota == nil || quota.PendingOrder != nil {
+		t.Fatalf("pending_order pada quota seharusnya nil setelah cancel")
+	}
+
+	ord2, _, err := CreateSubscriptionOrder(db, stA.ID, uA.ID, CreateOrderRequest{
+		PlanCode:      "pro_business",
+		CouponCode:    "BATAL20",
+		PaymentMethod: "qris",
+	})
+	if err != nil {
+		t.Fatalf("order baru setelah cancel & pelepasan kupon gagal: %v", err)
+	}
+	if ord2.PlanCode != "pro_business" {
+		t.Fatalf("plan baru = %q, want pro_business", ord2.PlanCode)
+	}
+}

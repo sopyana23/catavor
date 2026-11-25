@@ -555,6 +555,13 @@ func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*
 			return tx.Save(&store).Error
 		}
 
+		var existingPending models.SubscriptionOrder
+		if err := tx.Where("store_id = ? AND payment_status IN ?", storeID, []string{"pending", "pending_verification"}).
+			Order("created_at DESC, id DESC").
+			First(&existingPending).Error; err == nil {
+			return fmt.Errorf("PENDING_ORDER_EXISTS: Tidak dapat menjadwalkan perubahan paket karena tagihan %s masih dalam proses pembayaran atau verifikasi.", existingPending.OrderNumber)
+		}
+
 		if currentCode == "free" {
 			return fmt.Errorf("toko pada paket Gratis Terbatas tidak dapat menjadwalkan penurunan paket; silakan lakukan upgrade berbayar")
 		}
@@ -1023,6 +1030,17 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 	// Sweep expired pending invoices first so freed unique_codes & coupons are immediately available.
 	_ = ProcessExpiredPendingOrders(db)
 
+	// Guard: Single in-flight order per store (block duplicate/spam invoices when pending or pending_verification exists)
+	var prePending models.SubscriptionOrder
+	if err := db.Where("store_id = ? AND payment_status IN ?", storeID, []string{"pending", "pending_verification"}).
+		Order("created_at DESC, id DESC").
+		First(&prePending).Error; err == nil {
+		if prePending.PaymentStatus == "pending_verification" {
+			return nil, nil, fmt.Errorf("PENDING_ORDER_EXISTS: Tagihan %s sedang dalam proses verifikasi Tim Finance. Harap tunggu verifikasi selesai sebelum memilih atau mengubah paket.", prePending.OrderNumber)
+		}
+		return nil, nil, fmt.Errorf("PENDING_ORDER_EXISTS: Anda masih memiliki tagihan %s yang menunggu pembayaran. Selesaikan atau batalkan tagihan tersebut terlebih dahulu sebelum memilih paket lain.", prePending.OrderNumber)
+	}
+
 	// Guard: Check Platform Payment System Mode (gateway_aulaa | manual_qris | manual_bank | maintenance)
 	var modeSetting models.Setting
 	if err := db.Where("key = ?", "payment_system_mode").First(&modeSetting).Error; err == nil {
@@ -1279,6 +1297,20 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 
 	var quota *StoreQuotaInfo
 	txErr := db.Transaction(func(tx *gorm.DB) error {
+		var lockedStore models.Store
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&lockedStore, storeID).Error; err != nil {
+			return err
+		}
+		var inFlight models.SubscriptionOrder
+		if err := tx.Where("store_id = ? AND payment_status IN ?", storeID, []string{"pending", "pending_verification"}).
+			Order("created_at DESC, id DESC").
+			First(&inFlight).Error; err == nil {
+			if inFlight.PaymentStatus == "pending_verification" {
+				return fmt.Errorf("PENDING_ORDER_EXISTS: Tagihan %s sedang dalam proses verifikasi Tim Finance. Harap tunggu verifikasi selesai sebelum memilih atau mengubah paket.", inFlight.OrderNumber)
+			}
+			return fmt.Errorf("PENDING_ORDER_EXISTS: Anda masih memiliki tagihan %s yang menunggu pembayaran. Selesaikan atau batalkan tagihan tersebut terlebih dahulu sebelum memilih paket lain.", inFlight.OrderNumber)
+		}
+
 		var redemption *models.CouponRedemption
 		if cleanCoupon != "" {
 			_, _, _, red, cErr := ValidateAndReserveCouponInTx(tx, cleanCoupon, storeID, userID, nil, netAfterProration)
@@ -1308,6 +1340,9 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		return nil
 	})
 	if txErr != nil {
+		if strings.Contains(txErr.Error(), "PENDING_ORDER_EXISTS:") {
+			return nil, nil, txErr
+		}
 		return nil, nil, fmt.Errorf("gagal membuat pesanan langganan: %w", txErr)
 	}
 
@@ -1592,6 +1627,51 @@ func GetStoreSubscriptionOrders(db *gorm.DB, storeID uint) ([]models.Subscriptio
 	var orders []models.SubscriptionOrder
 	err := db.Where("store_id = ?", storeID).Order("created_at desc").Find(&orders).Error
 	return orders, err
+}
+
+// CancelPendingSubscriptionOrder allows a merchant to self-cancel an unpaid ('pending') order
+// and atomically release any reserved coupon quota or unique code.
+// Orders already in 'pending_verification' (proof submitted) are strictly rejected.
+func CancelPendingSubscriptionOrder(db *gorm.DB, storeID uint, orderID uint) (*models.SubscriptionOrder, *StoreQuotaInfo, error) {
+	if db == nil {
+		return nil, nil, errors.New("database connection unavailable")
+	}
+
+	var order models.SubscriptionOrder
+	txErr := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND store_id = ?", orderID, storeID).
+			First(&order).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("ORDER_NOT_FOUND: Tagihan langganan tidak ditemukan.")
+			}
+			return err
+		}
+
+		if order.PaymentStatus == "pending_verification" {
+			return fmt.Errorf("CANNOT_CANCEL_VERIFYING: Bukti pembayaran tagihan ini sudah diterima dan sedang diverifikasi Tim Finance sehingga tidak dapat dibatalkan mandiri. Silakan hubungi Admin melalui Pusat Bantuan jika ingin mengajukan perubahan paket.")
+		}
+		if order.PaymentStatus != "pending" {
+			return fmt.Errorf("INVALID_ORDER_STATE: Tagihan dengan status '%s' tidak dapat dibatalkan.", order.PaymentStatus)
+		}
+
+		order.PaymentStatus = "cancelled"
+		order.RejectionReason = "Dibatalkan oleh pemilik toko sebelum pembayaran diselesaikan."
+		if err := tx.Save(&order).Error; err != nil {
+			return err
+		}
+		return ReleaseCouponRedemptionInTx(tx, order.ID, order.CouponCode)
+	})
+	if txErr != nil {
+		return nil, nil, txErr
+	}
+
+	database.InvalidateStoreQuotaCache(context.Background(), storeID)
+	freshQuota, _ := GetStoreQuotaInfo(db, storeID)
+	if freshQuota != nil {
+		GetNotificationHub().BroadcastQuotaEvent(storeID, freshQuota)
+	}
+	return &order, freshQuota, nil
 }
 
 // CancelStoreDowngrade removes any scheduled plan downgrade.

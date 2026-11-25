@@ -270,6 +270,14 @@ func (h *SubscriptionHandler) ScheduleDowngrade(c *fiber.Ctx) error {
 	quota, err := services.ScheduleStoreDowngrade(h.db, storeID, targetCode)
 	if err != nil {
 		log.Error().Err(err).Msg("subscription: ScheduleStoreDowngrade gagal")
+		if strings.Contains(err.Error(), "PENDING_ORDER_EXISTS") {
+			cleanMsg := strings.TrimSpace(strings.TrimPrefix(err.Error(), "PENDING_ORDER_EXISTS:"))
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"success": false,
+				"code":    "PENDING_ORDER_EXISTS",
+				"message": cleanMsg,
+			})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": safeErrMsg(err, "Gagal menjadwalkan penurunan paket."),
@@ -838,6 +846,14 @@ func (h *SubscriptionHandler) CreateOrder(c *fiber.Ctx) error {
 				"message": "Sistem transaksi pembayaran sedang dalam masa pemeliharaan berkala. Silakan coba kembali beberapa saat lagi.",
 			})
 		}
+		if strings.Contains(err.Error(), "PENDING_ORDER_EXISTS") {
+			cleanMsg := strings.TrimSpace(strings.TrimPrefix(err.Error(), "PENDING_ORDER_EXISTS:"))
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"success": false,
+				"code":    "PENDING_ORDER_EXISTS",
+				"message": cleanMsg,
+			})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
 			"message": safeErrMsg(err, "Gagal membuat pesanan langganan."),
@@ -1203,6 +1219,73 @@ func (h *SubscriptionHandler) CancelDowngrade(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Jadwal downgrade berhasil dibatalkan. Paket langganan Anda tetap berlanjut.",
 		"data":    quota,
+	})
+}
+
+// CancelOrder allows a merchant to self-cancel an unpaid ('pending') subscription order.
+// Orders already in 'pending_verification' are strictly locked (cannot be self-cancelled).
+func (h *SubscriptionHandler) CancelOrder(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	storeIDVal := c.Locals("store_id")
+	if storeIDVal == nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "STORE_REQUIRED",
+			"message": "Autentikasi toko diperlukan.",
+		})
+	}
+	storeID := storeIDVal.(uint)
+
+	idParam := strings.TrimSpace(c.Params("id"))
+	orderID, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil || orderID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "ID tagihan tidak valid.",
+		})
+	}
+
+	order, quota, cErr := services.CancelPendingSubscriptionOrder(h.db, storeID, uint(orderID))
+	if cErr != nil {
+		errMsg := cErr.Error()
+		switch {
+		case strings.Contains(errMsg, "ORDER_NOT_FOUND"):
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"code":    "ORDER_NOT_FOUND",
+				"message": strings.TrimSpace(strings.TrimPrefix(errMsg, "ORDER_NOT_FOUND:")),
+			})
+		case strings.Contains(errMsg, "CANNOT_CANCEL_VERIFYING"):
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"success": false,
+				"code":    "CANNOT_CANCEL_VERIFYING",
+				"message": strings.TrimSpace(strings.TrimPrefix(errMsg, "CANNOT_CANCEL_VERIFYING:")),
+			})
+		case strings.Contains(errMsg, "INVALID_ORDER_STATE"):
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"success": false,
+				"code":    "INVALID_ORDER_STATE",
+				"message": strings.TrimSpace(strings.TrimPrefix(errMsg, "INVALID_ORDER_STATE:")),
+			})
+		default:
+			log.Error().Err(cErr).Uint("store_id", storeID).Uint64("order_id", orderID).Msg("subscription: CancelOrder gagal")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": safeErrMsg(cErr, "Gagal membatalkan tagihan langganan."),
+			})
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Tagihan berhasil dibatalkan. Anda kini dapat memilih paket lain.",
+		"order":   order,
+		"quota":   quota,
 	})
 }
 

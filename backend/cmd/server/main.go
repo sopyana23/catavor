@@ -637,6 +637,7 @@ func main() {
 		guardedMutations.Delete("/subscription/custom-domain", subscriptionHandler.RemoveCustomDomain)
 		guardedMutations.Post("/subscription/order", subscriptionHandler.CreateOrder)
 		guardedMutations.Post("/subscription/orders/:id/sync", paymentHandler.SyncOrderStatus)
+		guardedMutations.Post("/subscription/orders/:id/cancel", middleware.AuthRateLimiter(), subscriptionHandler.CancelOrder)
 		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
 		guarded.Get("/subscription/orders/:id/proof", subscriptionHandler.GetOrderProof)
 
