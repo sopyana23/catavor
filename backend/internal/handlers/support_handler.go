@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -277,9 +278,23 @@ func (h *SupportHandler) ListMyTickets(c *fiber.Ctx) error {
 			attMap[r.TicketID] = r.Count
 		}
 
+		// 3. Batch count ALL public messages so ticket cards show exact message_count while keeping payload lean
+		var msgCountRows []attRes
+		h.db.Model(&models.SupportMessage{}).
+			Select("ticket_id, COUNT(id) as count").
+			Where("ticket_id IN (?) AND is_internal_note = false AND deleted_at IS NULL", ticketIDs).
+			Group("ticket_id").
+			Scan(&msgCountRows)
+
+		msgCountMap := make(map[uint]int, len(msgCountRows))
+		for _, r := range msgCountRows {
+			msgCountMap[r.TicketID] = r.Count
+		}
+
 		for i := range tickets {
 			tickets[i].UnreadCount = unreadMap[tickets[i].ID]
 			tickets[i].AttachmentCount = attMap[tickets[i].ID]
+			tickets[i].MessageCount = msgCountMap[tickets[i].ID]
 			if lm, ok := latestMsgMap[tickets[i].ID]; ok {
 				tickets[i].Messages = []models.SupportMessage{lm}
 			} else {
@@ -973,9 +988,23 @@ func (h *SupportHandler) ListAllTickets(c *fiber.Ctx) error {
 			attMap[r.TicketID] = r.Count
 		}
 
+		// 3. Batch count all active messages (including internal notes for staff overview)
+		var msgCountRows []attRes
+		h.db.Model(&models.SupportMessage{}).
+			Select("ticket_id, COUNT(id) as count").
+			Where("ticket_id IN (?) AND deleted_at IS NULL", ticketIDs).
+			Group("ticket_id").
+			Scan(&msgCountRows)
+
+		msgCountMap := make(map[uint]int, len(msgCountRows))
+		for _, r := range msgCountRows {
+			msgCountMap[r.TicketID] = r.Count
+		}
+
 		for i := range tickets {
 			tickets[i].UnreadCount = unreadMap[tickets[i].ID]
 			tickets[i].AttachmentCount = attMap[tickets[i].ID]
+			tickets[i].MessageCount = msgCountMap[tickets[i].ID]
 			if lm, ok := latestMsgMap[tickets[i].ID]; ok {
 				tickets[i].Messages = []models.SupportMessage{lm}
 			} else {
@@ -1746,6 +1775,11 @@ func (h *SupportHandler) StartAutoCloseTicketsWorker() {
 }
 
 func (h *SupportHandler) runLifecycleTasks() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error().Interface("panic", r).Msg("Support lifecycle worker recovered from panic")
+		}
+	}()
 	tracker := services.GetAutomationTracker()
 	if !tracker.TryLockBot("support_lifecycle") {
 		return
@@ -1783,7 +1817,8 @@ func (h *SupportHandler) ListCannedResponses(c *fiber.Ctx) error {
 		limit = 100
 	}
 
-	cacheKey := fmt.Sprintf("cat=%s:q=%s:inact=%t:all=%t:p=%d:l=%d", category, search, includeInactive, isAll, page, limit)
+	rawCacheKey := fmt.Sprintf("cat=%s:q=%s:inact=%t:all=%t:p=%d:l=%d", category, search, includeInactive, isAll, page, limit)
+	cacheKey := fmt.Sprintf("v2:%x", sha256.Sum256([]byte(rawCacheKey)))
 	if cachedData, ok := database.GetSupportTemplatesCache(c.Context(), cacheKey); ok {
 		c.Set("X-Cache", "HIT-REDIS")
 		c.Set("Content-Type", "application/json")
@@ -1801,8 +1836,8 @@ func (h *SupportHandler) ListCannedResponses(c *fiber.Ctx) error {
 	}
 
 	if search != "" {
-		term := "%" + strings.ToLower(search) + "%"
-		q = q.Where("LOWER(title) LIKE ? OR LOWER(shortcut) LIKE ? OR LOWER(content) LIKE ?", term, term, term)
+		term := "%" + escapeLikePattern(strings.ToLower(search)) + "%"
+		q = q.Where(`(LOWER(title) LIKE ? ESCAPE '\' OR LOWER(shortcut) LIKE ? ESCAPE '\' OR LOWER(content) LIKE ? ESCAPE '\')`, term, term, term)
 	}
 
 	var total int64
@@ -2087,7 +2122,7 @@ func (h *SupportHandler) DeleteCannedResponse(c *fiber.Ctx) error {
 	})
 }
 
-// ResetDefaultCannedResponses restores standard default templates into the database.
+// ResetDefaultCannedResponses restores standard default templates into the database atomically.
 func (h *SupportHandler) ResetDefaultCannedResponses(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -2095,15 +2130,29 @@ func (h *SupportHandler) ResetDefaultCannedResponses(c *fiber.Ctx) error {
 			"message": "Database belum diinisialisasi.",
 		})
 	}
-	// Remove existing default or deleted
-	h.db.Unscoped().Where("1 = 1").Delete(&models.SupportCannedResponse{})
-	SeedDefaultCannedResponses(h.db)
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().Where("1 = 1").Delete(&models.SupportCannedResponse{}).Error; err != nil {
+			return err
+		}
+		SeedDefaultCannedResponses(tx)
+		return nil
+	}); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memulihkan template bawaan secara atomik.",
+		})
+	}
 
 	// Purge Redis cache
 	database.InvalidateSupportTemplatesCache(c.Context())
 
 	var templates []models.SupportCannedResponse
-	h.db.Order("sort_order asc, id asc").Find(&templates)
+	if err := h.db.Order("sort_order asc, id asc").Find(&templates).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Template dipulihkan tetapi gagal memuat daftar terbaru.",
+		})
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -2185,36 +2234,6 @@ func SeedDefaultCannedResponses(db *gorm.DB) {
 		d.UpdatedAt = time.Now().UTC()
 		db.Create(&d)
 	}
-}
-
-// ListHelpArticles returns a list of knowledge base guide articles.
-func (h *SupportHandler) ListHelpArticles(c *fiber.Ctx) error {
-	if h.db == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"success": false,
-			"message": "Database belum diinisialisasi.",
-		})
-	}
-	var articles []models.HelpArticle
-	q := h.db.Where("is_published = true").Order("sort_order asc, id asc")
-
-	category := strings.TrimSpace(c.Query("category"))
-	if category != "" && category != "all" {
-		q = q.Where("category = ?", category)
-	}
-
-	if err := q.Find(&articles).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal memuat artikel bantuan.",
-		})
-	}
-
-	return c.JSON(fiber.Map{
-		"success": true,
-		"count":   len(articles),
-		"data":    articles,
-	})
 }
 
 // -----------------------------------------------------------------------------

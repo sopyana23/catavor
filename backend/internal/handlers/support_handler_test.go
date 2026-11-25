@@ -1409,3 +1409,96 @@ func TestSupportP1_ServeAttachment_SVGSandboxAndMaxAttachments(t *testing.T) {
 		t.Errorf("SVG CSP = %q, want sandbox; default-src 'none'", csp)
 	}
 }
+
+func TestSupportP2_MessageCountAndTemplatesHygiene(t *testing.T) {
+	db := supportDB(t)
+	if err := db.AutoMigrate(&models.SupportCannedResponse{}); err != nil {
+		t.Fatalf("automigrate canned responses: %v", err)
+	}
+	h := NewSupportHandler(&config.Config{}, nil, db)
+
+	merchant := models.User{ID: 10, Name: "Pemilik", Email: "pemilik@catavor.local", Password: "x", PlatformRole: "merchant"}
+	staff := models.User{ID: 2, Name: "Staf CS", Email: "cs@catavor.local", Password: "x", PlatformRole: "support"}
+	_ = db.Create(&merchant)
+	_ = db.Create(&staff)
+
+	tiket := seedTicket(t, db, 10, "TCK-CNT-001", "Uji Hitungan Pesan", "waiting_user")
+	_ = db.Create(&models.SupportMessage{TicketID: tiket.ID, SenderID: 10, SenderType: "user", Message: "Pesan merchant 1", CreatedAt: time.Now().UTC().Add(-3 * time.Minute)})
+	_ = db.Create(&models.SupportMessage{TicketID: tiket.ID, SenderID: 2, SenderType: "agent", Message: "Balasan publik CS", CreatedAt: time.Now().UTC().Add(-2 * time.Minute)})
+	_ = db.Create(&models.SupportMessage{TicketID: tiket.ID, SenderID: 2, SenderType: "agent", Message: "Catatan internal rahasia", IsInternalNote: true, CreatedAt: time.Now().UTC().Add(-1 * time.Minute)})
+
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app.Get("/merchant/tickets", func(c *fiber.Ctx) error {
+		c.Locals("user", &merchant)
+		return c.Next()
+	}, h.ListMyTickets)
+	app.Get("/admin/tickets", func(c *fiber.Ctx) error {
+		c.Locals("user", &staff)
+		return c.Next()
+	}, h.ListAllTickets)
+	app.Get("/admin/templates", func(c *fiber.Ctx) error {
+		c.Locals("user", &staff)
+		return c.Next()
+	}, h.ListCannedResponses)
+	app.Post("/admin/templates/reset", func(c *fiber.Ctx) error {
+		c.Locals("user", &staff)
+		return c.Next()
+	}, h.ResetDefaultCannedResponses)
+
+	// 1. Merchant list: message_count=2 (exclude internal note), messages len=1 (lean latest public)
+	codeM, jM, _ := supportReq(t, app, "GET", "/merchant/tickets", "", "merchant")
+	if codeM != 200 {
+		t.Fatalf("merchant list status = %d", codeM)
+	}
+	rowsM, _ := jM["data"].([]interface{})
+	if len(rowsM) != 1 {
+		t.Fatalf("expected 1 merchant ticket, got %d", len(rowsM))
+	}
+	rowM := rowsM[0].(map[string]interface{})
+	if got := int(rowM["message_count"].(float64)); got != 2 {
+		t.Errorf("merchant message_count = %d, want 2", got)
+	}
+	if msgsM, _ := rowM["messages"].([]interface{}); len(msgsM) != 1 {
+		t.Errorf("merchant lean preview messages len = %d, want 1", len(msgsM))
+	}
+
+	// 2. Staff list: message_count=3 (include internal note for staff overview)
+	codeA, jA, _ := supportReq(t, app, "GET", "/admin/tickets", "", "staff")
+	if codeA != 200 {
+		t.Fatalf("admin list status = %d", codeA)
+	}
+	rowsA := jA["data"].([]interface{})
+	rowA := rowsA[0].(map[string]interface{})
+	if got := int(rowA["message_count"].(float64)); got != 3 {
+		t.Errorf("admin message_count = %d, want 3", got)
+	}
+
+	// 3. ResetDefaultCannedResponses atomic restore of 7 default templates
+	codeR, jR, _ := supportReq(t, app, "POST", "/admin/templates/reset", "", "staff")
+	if codeR != 200 {
+		t.Fatalf("reset templates status = %d", codeR)
+	}
+	if cnt := int(jR["count"].(float64)); cnt != 7 {
+		t.Errorf("reset count = %d, want 7", cnt)
+	}
+
+	// 4. ListCannedResponses LIKE escaping: "%" and "_" should NOT match everything
+	_ = db.Create(&models.SupportCannedResponse{
+		Title: "Diskon 50% Promo_VIP", Shortcut: "promo_vip", Category: "billing",
+		Content: "Kode 50% aktif", SortOrder: 99, IsActive: true,
+	}).Error
+	codeSearchPct, jPct, _ := supportReq(t, app, "GET", "/admin/templates?search=50%25", "", "staff")
+	if codeSearchPct != 200 {
+		t.Fatalf("template search %% status = %d", codeSearchPct)
+	}
+	if itemsPct, _ := jPct["data"].([]interface{}); len(itemsPct) != 1 {
+		t.Errorf("expected exactly 1 literal '50%%' template match, got %d", len(itemsPct))
+	}
+
+	// 5. Long >200 char query handled cleanly without panicking / cache key bloat
+	longQ := strings.Repeat("x", 240)
+	codeLong, _, _ := supportReq(t, app, "GET", "/admin/templates?search="+longQ, "", "staff")
+	if codeLong != 200 {
+		t.Fatalf("template long query status = %d, want 200", codeLong)
+	}
+}
