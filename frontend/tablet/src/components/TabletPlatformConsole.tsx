@@ -493,14 +493,18 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       // 3. Support tickets (only if user has support permission)
       if (canAccessSupport) {
         try {
-          const tckRes = await fetch('/api/admin/support/tickets?limit=50', {
+          const tckRes = await authFetch('/api/admin/support/tickets?limit=1', {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (tckRes.ok) {
             const tj = await tckRes.json();
             const list = tj.data || [];
-            const urgent = list.filter((t: any) => t.priority === 'urgent' && t.status !== 'resolved' && t.status !== 'closed').length;
-            const actionReq = list.filter((t: any) => t.status === 'open' || t.status === 'in_progress').length;
+            const urgent = typeof tj.metrics?.urgent === 'number'
+              ? tj.metrics.urgent
+              : list.filter((t: any) => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'resolved' && t.status !== 'closed').length;
+            const actionReq = typeof tj.metrics?.action_required === 'number'
+              ? tj.metrics.action_required
+              : list.filter((t: any) => t.status === 'open' || t.status === 'waiting_agent').length;
             setUrgentTicketsCount(urgent);
             setActionRequiredTicketsCount(actionReq);
           }
@@ -917,6 +921,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [ticketReplyAttachments, setTicketReplyAttachments] = useState<any[]>([]);
   const [isUploadingTicketAttachment, setIsUploadingTicketAttachment] = useState(false);
+  const [isSendingTicketReply, setIsSendingTicketReply] = useState(false);
   const [activePresences, setActivePresences] = useState<any[]>([]);
   const [showCannedModal, setShowCannedModal] = useState(false);
 
@@ -938,6 +943,16 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevTypingSentRef = useRef<boolean>(false);
+  const isTypingDebounceTimerRef = useRef<any>(null);
+  const selectedTicketIdRef = useRef<number | null>(selectedTicketId);
+  const ticketsPageRef = useRef<number>(ticketsPagination.page);
+  useEffect(() => {
+    selectedTicketIdRef.current = selectedTicketId;
+  }, [selectedTicketId]);
+  useEffect(() => {
+    ticketsPageRef.current = ticketsPagination.page;
+  }, [ticketsPagination.page]);
 
   // Debounce search input
   useEffect(() => {
@@ -1232,6 +1247,90 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   }, [activeView, supportFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, debouncedTicketSearch, resolvedTimeRangeFilter, fetchTickets]);
 
+  // Periodic Presence Heartbeat (12s < 35s TTL) & Real-time SSE listener for Tablet Admin
+  useEffect(() => {
+    if (!selectedTicketId || !token || !canAccessSupport) {
+      setActivePresences([]);
+      prevTypingSentRef.current = false;
+      return;
+    }
+
+    const sendPresence = async (isTyping = false) => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      try {
+        await authFetch(`/api/admin/support/tickets/${selectedTicketId}/presence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_typing: isTyping })
+        });
+      } catch { }
+    };
+
+    const fetchPresence = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      try {
+        const res = await authFetch(`/api/admin/support/tickets/${selectedTicketId}/presence`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            setActivePresences(json.data);
+          }
+        }
+      } catch { }
+    };
+
+    sendPresence(false);
+    fetchPresence();
+    const interval = setInterval(() => {
+      sendPresence(false);
+      fetchPresence();
+    }, 12000);
+
+    const onVisChange = () => {
+      if (document.visibilityState === 'visible') {
+        sendPresence(false);
+        fetchPresence();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisChange);
+    };
+  }, [selectedTicketId, token, canAccessSupport, authFetch]);
+
+  useEffect(() => {
+    if (!selectedTicketId || !token || !canAccessSupport) return;
+    if (isTypingDebounceTimerRef.current) clearTimeout(isTypingDebounceTimerRef.current);
+    const isTyping = ticketReply.trim().length > 0;
+    if (!isTyping && !prevTypingSentRef.current) return;
+
+    const delay = isTyping ? 900 : 400;
+    isTypingDebounceTimerRef.current = setTimeout(async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      try {
+        await authFetch(`/api/admin/support/tickets/${selectedTicketId}/presence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_typing: isTyping })
+        });
+        prevTypingSentRef.current = isTyping;
+      } catch { }
+    }, delay);
+
+    return () => {
+      if (isTypingDebounceTimerRef.current) clearTimeout(isTypingDebounceTimerRef.current);
+    };
+  }, [ticketReply, selectedTicketId, token, canAccessSupport, authFetch]);
+
   const fetchTicketDetail = useCallback(async (id: number) => {
     setSelectedTicketId(id);
     setTicketDetailsLoading(true);
@@ -1241,8 +1340,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       });
       if (res.ok) {
         const j = await res.json();
-        const data = j.data || j.ticket || j;
-        setTicketDetail(data);
+        const ticketObj = j.data?.ticket || j.data || j.ticket || j;
+        const mergedDetail = {
+          ...ticketObj,
+          messages: Array.isArray(j.data?.messages) ? j.data.messages : (ticketObj?.messages || []),
+        };
+        setTicketDetail(mergedDetail);
 
         // Fetch collision presences
         try {
@@ -1264,8 +1367,80 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   }, [token, authFetch, showToast]);
 
+  const fetchTicketsRef = useRef(fetchTickets);
+  const fetchTicketDetailRef = useRef(fetchTicketDetail);
+  useEffect(() => {
+    fetchTicketsRef.current = fetchTickets;
+  }, [fetchTickets]);
+  useEffect(() => {
+    fetchTicketDetailRef.current = fetchTicketDetail;
+  }, [fetchTicketDetail]);
+
+  // Global Real-Time SSE listener for Tablet Admin Console (without reconnect on ticket switch)
+  useEffect(() => {
+    if (!token || !canAccessSupport) return;
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: any = null;
+    let isUnmounted = false;
+
+    const connectSSE = async () => {
+      if (isUnmounted) return;
+      try {
+        const tkRes = await fetch('/api/notifications/ticket', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!tkRes.ok) throw new Error(`ticket ${tkRes.status}`);
+        const tkJson = await tkRes.json();
+        const streamTicket = String(tkJson?.ticket || tkJson?.data?.ticket || '');
+        if (!streamTicket || isUnmounted) return;
+
+        eventSource = new EventSource(`/api/notifications/stream?ticket=${encodeURIComponent(streamTicket)}`);
+        eventSource.onmessage = (e) => {
+          if (!e.data || e.data.trim() === '' || e.data.startsWith(':')) return;
+          try {
+            const payload = JSON.parse(e.data);
+            const ev = payload?.event;
+            const tk = payload?.ticket;
+            if (
+              ev === 'ticket_created' ||
+              ev === 'ticket_reply_from_user' ||
+              ev === 'ticket_status_updated' ||
+              ev === 'ticket_internal_note_added'
+            ) {
+              fetchTicketsRef.current?.(ticketsPageRef.current);
+              loadPlatformStats();
+              const activeId = selectedTicketIdRef.current;
+              if (activeId && tk && (tk.ticket_id === activeId || tk.id === activeId)) {
+                fetchTicketDetailRef.current?.(activeId);
+              }
+            }
+          } catch { }
+        };
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          if (!isUnmounted) reconnectTimer = setTimeout(connectSSE, 6000);
+        };
+      } catch {
+        if (!isUnmounted) reconnectTimer = setTimeout(connectSSE, 8000);
+      }
+    };
+
+    connectSSE();
+    return () => {
+      isUnmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (eventSource) eventSource.close();
+    };
+  }, [token, canAccessSupport]);
+
   const handleSendTicketReply = async (isNote = false) => {
-    if (!selectedTicketId || (!ticketReply.trim() && ticketReplyAttachments.length === 0)) return;
+    if (!selectedTicketId || isSendingTicketReply || (!ticketReply.trim() && ticketReplyAttachments.length === 0)) return;
+    setIsSendingTicketReply(true);
     try {
       const payload: any = {
         message: ticketReply.trim(),
@@ -1284,6 +1459,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         showToast(isNote || isInternalNote ? 'Catatan internal berhasil disimpan' : 'Balasan berhasil dikirim ke merchant');
         setTicketReply('');
         setTicketReplyAttachments([]);
+        setIsInternalNote(false);
         fetchTicketDetail(selectedTicketId);
         fetchTickets(ticketsPagination.page);
         loadPlatformStats();
@@ -1294,21 +1470,29 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
       if (e?.message !== 'UNAUTHORIZED') {
         showToast('Terjadi kesalahan koneksi', 'error');
       }
+    } finally {
+      setIsSendingTicketReply(false);
     }
   };
 
   const handleUploadTicketAttachment = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setIsUploadingTicketAttachment(true);
+    let uploadedCount = 0;
     try {
       for (let i = 0; i < Math.min(files.length, 5 - ticketReplyAttachments.length); i++) {
         const file = files[i];
+        if (file.size > 10 * 1024 * 1024) {
+          showToast(`Ukuran "${file.name}" melebihi batas maksimal 10MB`, 'error');
+          continue;
+        }
         const formData = new FormData();
         formData.append('file', file);
         formData.append('image', file);
         formData.append('category', 'support');
-        const res = await authFetch('/api/storage/upload?category=support', {
+        const res = await authFetch('/api/admin/support/upload?category=support', {
           method: 'POST',
+          credentials: 'include',
           headers: { Authorization: `Bearer ${token}` },
           body: formData
         });
@@ -1336,9 +1520,15 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
               blob_url: localBlobUrl
             }
           ]);
+          uploadedCount += 1;
+        } else {
+          const errJson = await res.json().catch(() => null);
+          showToast(errJson?.message || `Gagal mengunggah "${file.name}"`, 'error');
         }
       }
-      showToast('Lampiran berhasil diunggah');
+      if (uploadedCount > 0) {
+        showToast(`${uploadedCount} lampiran berhasil diunggah`);
+      }
     } catch {
       showToast('Gagal mengunggah lampiran', 'error');
     } finally {
@@ -1374,8 +1564,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
   const handleUpdateTicketPriority = async (ticketId: number, priority: string) => {
     try {
-      const res = await authFetch(`/api/admin/support/tickets/${ticketId}/priority`, {
-        method: 'PATCH',
+      const res = await authFetch(`/api/admin/support/tickets/${ticketId}/status`, {
+        method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -5242,7 +5432,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             }}
                           >
                             {/* Row 1: Ticket Number & Status Badge */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
                                 {isUnread && (
                                   <span style={{
@@ -5262,7 +5452,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   padding: '0.1rem 0.35rem',
                                   borderRadius: '0.3rem',
                                   backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-deep)',
-                                  border: '1px solid var(--border-light)'
+                                  border: '1px solid var(--border-light)',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0
                                 }}>
                                   {t.ticket_number || `#TCK-${t.id}`}
                                 </span>
@@ -5419,7 +5611,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       flexShrink: 0
                     }}>
                       {/* Agent Collision Warning Banner */}
-                      {activePresences.filter(p => p.user_id !== currentUser?.id).length > 0 && (
+                      {activePresences.filter(p => (p.admin_id ?? p.user_id) !== currentUser?.id).length > 0 && (
                         <div style={{
                           padding: '0.6rem 0.85rem',
                           borderRadius: '0.65rem',
@@ -5434,8 +5626,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         }}>
                           <AlertTriangle size={16} style={{ flexShrink: 0 }} />
                           <span>
-                            <strong>{activePresences.filter(p => p.user_id !== currentUser?.id).map(p => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
-                            {activePresences.filter(p => p.user_id !== currentUser?.id).some(p => p.is_typing) ? ' dan sedang mengetik...' : '.'}
+                            <strong>{activePresences.filter(p => (p.admin_id ?? p.user_id) !== currentUser?.id).map(p => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
+                            {activePresences.filter(p => (p.admin_id ?? p.user_id) !== currentUser?.id).some(p => p.is_typing) ? ' dan sedang mengetik...' : '.'}
                           </span>
                         </div>
                       )}
@@ -5526,38 +5718,50 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           }
                         </span>
 
-                        {/* Status Selector Dropdown */}
-                        <TabletCustomSelect
-                          value={ticketDetail.status || 'open'}
-                          onChange={(val) => handleUpdateTicketStatus(val)}
-                          options={TICKET_STATUS_OPTIONS}
-                          variant="compact"
-                          triggerStyle={{
-                            minHeight: '44px',
-                            minWidth: '135px',
-                            fontSize: '0.75rem',
-                            padding: '0.25rem 0.6rem'
-                          }}
-                          menuWidth={240}
-                          ariaLabel="Perbarui Status Tiket"
-                        />
+                        {/* Status & Priority Selector (hanya interaktif bila punya izin support:tickets:reply) */}
+                        {canReplySupport ? (
+                          <>
+                            <TabletCustomSelect
+                              value={ticketDetail.status || 'open'}
+                              onChange={(val) => handleUpdateTicketStatus(val)}
+                              options={TICKET_STATUS_OPTIONS}
+                              variant="compact"
+                              triggerStyle={{
+                                minHeight: '44px',
+                                minWidth: '135px',
+                                fontSize: '0.75rem',
+                                padding: '0.25rem 0.6rem'
+                              }}
+                              menuWidth={240}
+                              ariaLabel="Perbarui Status Tiket"
+                            />
 
-                        {/* Priority Selector Dropdown */}
-                        <TabletCustomSelect
-                          value={ticketDetail.priority || 'medium'}
-                          onChange={(val) => handleUpdateTicketPriority(ticketDetail.id, val)}
-                          options={TICKET_PRIORITY_OPTIONS}
-                          variant="compact"
-                          triggerStyle={{
-                            minHeight: '44px',
-                            minWidth: '125px',
-                            fontSize: '0.75rem',
-                            padding: '0.25rem 0.6rem',
-                            color: ticketDetail.priority === 'urgent' ? '#ef4444' : undefined
-                          }}
-                          menuWidth={230}
-                          ariaLabel="Perbarui Prioritas Tiket"
-                        />
+                            <TabletCustomSelect
+                              value={ticketDetail.priority || 'medium'}
+                              onChange={(val) => handleUpdateTicketPriority(ticketDetail.id, val)}
+                              options={TICKET_PRIORITY_OPTIONS}
+                              variant="compact"
+                              triggerStyle={{
+                                minHeight: '44px',
+                                minWidth: '125px',
+                                fontSize: '0.75rem',
+                                padding: '0.25rem 0.6rem',
+                                color: ticketDetail.priority === 'urgent' ? '#ef4444' : undefined
+                              }}
+                              menuWidth={230}
+                              ariaLabel="Perbarui Prioritas Tiket"
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ padding: '0.22rem 0.6rem', borderRadius: '0.45rem', fontSize: '0.7rem', fontWeight: 700, backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: 'var(--text-secondary)' }}>
+                              Status: {getTicketStatusMeta(ticketDetail.status).label}
+                            </span>
+                            <span style={{ padding: '0.22rem 0.6rem', borderRadius: '0.45rem', fontSize: '0.7rem', fontWeight: 700, backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', color: ticketDetail.priority === 'urgent' ? '#ef4444' : 'var(--text-secondary)' }}>
+                              Prioritas: {String(ticketDetail.priority || 'medium').toUpperCase()}
+                            </span>
+                          </>
+                        )}
                       </div>
 
                       {/* Merchant Action Links Bar */}
@@ -5680,6 +5884,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                           <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                             Tiket akan otomatis ditutup permanen (Read-Only) jika tidak ada balasan lebih lanjut dari merchant.
                           </p>
+                          {canReplySupport && (
                           <div style={{ display: 'flex', gap: '0.45rem', marginTop: '0.15rem' }}>
                             <button
                               type="button"
@@ -5722,6 +5927,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               <span>Buka Kembali</span>
                             </button>
                           </div>
+                          )}
                         </div>
                       )}
 
@@ -5742,6 +5948,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <Lock size={14} />
                             <span>Arsip Permanen (Read-Only)</span>
                           </div>
+                          {canReplySupport && (
                           <button
                             type="button"
                             onClick={() => handleUpdateTicketStatus('in_progress')}
@@ -5762,6 +5969,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             <RefreshCw size={12} />
                             <span>Buka Kembali</span>
                           </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -5884,9 +6092,31 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                                         Oleh: {msg.sender?.name || 'Staf Admin'}
                                       </div>
-                                      <p style={{ margin: 0, fontSize: '0.82rem', lineHeight: 1.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
-                                        {msg.message || msg.content}
-                                      </p>
+                                      {(msg.message || msg.content) ? (
+                                        <p style={{ margin: 0, fontSize: '0.82rem', lineHeight: 1.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                                          {msg.message || msg.content}
+                                        </p>
+                                      ) : null}
+                                      {Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                                        <div style={{ marginTop: '0.5rem', paddingTop: '0.45rem', borderTop: '1px dashed rgba(245, 158, 11, 0.3)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                          <div style={{ fontSize: '0.67rem', fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                            <Paperclip size={11} /> {msg.attachments.length} Lampiran Internal:
+                                          </div>
+                                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                                            {msg.attachments.map((att: any, aIdx: number) => {
+                                              const isPdf = (att.file_type || '').includes('pdf') || (att.file_name || '').toLowerCase().endsWith('.pdf') || (att.file_url || '').toLowerCase().endsWith('.pdf');
+                                              return (
+                                                <div key={aIdx} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.6rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-card)', border: '1px solid rgba(245, 158, 11, 0.35)', fontSize: '0.74rem' }}>
+                                                  {isPdf ? <FileText size={14} color="#ef4444" /> : <ImageIcon size={14} color="#f59e0b" />}
+                                                  <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>{att.file_name || 'Lampiran'}</span>
+                                                  <button type="button" onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }} style={{ padding: '0.2rem 0.45rem', borderRadius: '0.35rem', border: 'none', backgroundColor: 'var(--primary, #0284c7)', color: '#ffffff', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>Preview</button>
+                                                  <button type="button" onClick={(e) => handleDownloadAttachment(att, e)} style={{ padding: '0.2rem 0.45rem', borderRadius: '0.35rem', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-primary)', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer' }}>Unduh</button>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
                                   ) : (
                                     <div style={{
@@ -6354,7 +6584,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => handleSendTicketReply(isInternalNote)}
-                                  disabled={!ticketReply.trim() && ticketReplyAttachments.length === 0}
+                                  disabled={isSendingTicketReply || (!ticketReply.trim() && ticketReplyAttachments.length === 0)}
                                   style={{
                                     height: '42px',
                                     padding: '0 1.25rem',
@@ -6364,8 +6594,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     color: '#ffffff',
                                     fontWeight: 700,
                                     fontSize: '0.82rem',
-                                    cursor: (!ticketReply.trim() && ticketReplyAttachments.length === 0) ? 'not-allowed' : 'pointer',
-                                    opacity: (!ticketReply.trim() && ticketReplyAttachments.length === 0) ? 0.6 : 1,
+                                    cursor: (isSendingTicketReply || (!ticketReply.trim() && ticketReplyAttachments.length === 0)) ? 'not-allowed' : 'pointer',
+                                    opacity: (isSendingTicketReply || (!ticketReply.trim() && ticketReplyAttachments.length === 0)) ? 0.6 : 1,
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '0.4rem',
@@ -6373,7 +6603,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   }}
                                 >
                                   <Send size={15} />
-                                  <span>{isInternalNote ? 'Simpan Catatan' : 'Kirim'}</span>
+                                  <span>{isSendingTicketReply ? 'Mengirim...' : (isInternalNote ? 'Simpan Catatan' : 'Kirim')}</span>
                                 </button>
                               </div>
                             </div>

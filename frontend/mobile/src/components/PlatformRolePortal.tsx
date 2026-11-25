@@ -1045,7 +1045,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const handleApplyTemplate = (tmpl: any) => {
     if (!tmpl) return;
     const merchantName = getMerchantDisplayName(selectedTicket);
-    const storeName = selectedTicket?.store?.name || selectedTicket?.store_name || 'Toko Anda';
+    const storeName = selectedTicket?.store?.store_title || selectedTicket?.store?.name || selectedTicket?.store_name || 'Toko Anda';
     const ticketNum = selectedTicket?.ticket_number || `#TCK-${selectedTicket?.id}`;
     const agentName = currentUser?.name || 'Staf CS';
 
@@ -1741,11 +1741,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   // Agent Collision Detection Presence (Fase 5)
   const [activePresences, setActivePresences] = useState<any[]>([]);
   const isTypingDebounceTimerRef = useRef<any>(null);
+  const prevTypingSentRef = useRef<boolean>(false);
 
-  // Send periodic presence heartbeat (15s interval, respects document.visibilityState)
+  // Send periodic presence heartbeat (12s interval < 35s Redis TTL, respects document.visibilityState)
   useEffect(() => {
     if (!selectedTicket || !token || !canAccessSupport) {
       setActivePresences([]);
+      prevTypingSentRef.current = false;
       return;
     }
 
@@ -1787,7 +1789,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     const interval = setInterval(() => {
       sendPresence(false);
       fetchPresence();
-    }, 30000);
+    }, 12000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -1803,15 +1805,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     };
   }, [selectedTicket?.id, token, canAccessSupport]);
 
-  // Debounced Typing Indicator: only sends typing signal with debounce, not on every keystroke
+  // Debounced Typing Indicator: sends both true when typing and false when cleared
   useEffect(() => {
     if (!selectedTicket?.id || !token || !canAccessSupport) return;
     if (isTypingDebounceTimerRef.current) {
       clearTimeout(isTypingDebounceTimerRef.current);
     }
     const isTyping = replyText.trim().length > 0;
-    if (!isTyping) return;
+    if (!isTyping && !prevTypingSentRef.current) return;
 
+    const delay = isTyping ? 900 : 400;
     isTypingDebounceTimerRef.current = setTimeout(async () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       try {
@@ -1821,10 +1824,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify({ is_typing: true })
+          body: JSON.stringify({ is_typing: isTyping })
         });
+        prevTypingSentRef.current = isTyping;
       } catch { }
-    }, 1200);
+    }, delay);
 
     return () => {
       if (isTypingDebounceTimerRef.current) {
@@ -2120,7 +2124,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     };
   }, [token, canAccessSupport, activeView, ticketsFilter, ticketCategoryFilter, ticketPriorityFilter, ticketSlaFilter, resolvedTimeRangeFilter, debouncedTicketSearch]);
 
-  // Real-Time Global SSE Stream Subscription (Go Channel Live Broadcast) for Mobile
+  const selectedTicketRef = useRef<any>(selectedTicket);
+  const activeViewRef = useRef<string>(activeView);
+  useEffect(() => {
+    selectedTicketRef.current = selectedTicket;
+  }, [selectedTicket]);
+  useEffect(() => {
+    activeViewRef.current = activeView;
+  }, [activeView]);
+
+  // Real-Time Global SSE Stream Subscription (stable across ticket/tab switches)
   useEffect(() => {
     if (!token || (!isSuperAdmin && !canAccessSupport)) return;
 
@@ -2156,11 +2169,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           try {
             const payload = JSON.parse(e.data);
             const { event, ticket, notification } = payload;
+            const currentSelected = selectedTicketRef.current;
 
             if (event === 'ticket_created' && ticket) {
               playSupportChime();
               const ticketNum = ticket.ticket_number || `#TCK-${ticket.id}`;
-              const merchantName = ticket.user?.name || ticket.store?.name || 'Merchant';
+              const merchantName = ticket.store?.store_title || ticket.user?.name || ticket.store?.name || 'Merchant';
               sendSupportNotification(
                 `Tiket Bantuan Baru: ${ticketNum}`,
                 `${merchantName}: ${ticket.subject || 'Kendala baru memerlukan tindakan CS'}`
@@ -2190,8 +2204,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               }));
 
               fetchTickets(1, false);
-              if (selectedTicket && (selectedTicket.id === ticket.ticket_id || selectedTicket.ticket_number === ticket.ticket_number)) {
-                handleOpenTicketChat({ id: selectedTicket.id, ticket_number: selectedTicket.ticket_number }, false);
+              if (currentSelected && (currentSelected.id === ticket.ticket_id || currentSelected.ticket_number === ticket.ticket_number)) {
+                handleOpenTicketChat({ id: currentSelected.id, ticket_number: currentSelected.ticket_number }, false);
+              }
+            } else if ((event === 'ticket_status_updated' || event === 'ticket_internal_note_added') && ticket) {
+              fetchTickets(1, false);
+              if (currentSelected && (currentSelected.id === ticket.ticket_id || currentSelected.id === ticket.id || currentSelected.ticket_number === ticket.ticket_number)) {
+                handleOpenTicketChat({ id: currentSelected.id, ticket_number: currentSelected.ticket_number }, false);
               }
             } else if (event === 'ticket_status_updated') {
               fetchTickets(1, false);
@@ -2230,7 +2249,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       if (eventSource) eventSource.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
-  }, [token, isSuperAdmin, canAccessSupport, activeView, selectedTicket?.id]);
+  }, [token, isSuperAdmin, canAccessSupport]);
 
   const loadData = async (refreshLists = true) => {
     if (!token) return;
@@ -2675,8 +2694,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         const formData = new FormData();
         formData.append('image', file);
         formData.append('category', 'support');
-        const res = await fetch('/api/storage/upload?category=support', {
+        const res = await fetch('/api/admin/support/upload?category=support', {
           method: 'POST',
+          credentials: 'include',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: formData
         });
@@ -4837,7 +4857,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               ) : null}
             </div>
             {/* Header Spacer for Fixed Float & Ideal Content Separation */}
-            <div style={{ height: '62px', marginBottom: '0.5rem', flexShrink: 0 }} aria-hidden="true" />
+            <div style={{ height: '72px', marginBottom: '0.5rem', flexShrink: 0 }} aria-hidden="true" />
           </>
         );
       })()}
@@ -6824,9 +6844,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           /* ----------------------------------------------------------------------- */
           /* 4A. TICKET CONVERSATION CHAT ROOM (DETAIL THREAD PERCAKAPAN)             */
           /* ----------------------------------------------------------------------- */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingBottom: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingTop: '0.25rem', paddingBottom: 0 }}>
             {/* Agent Collision Warning Banner (Fase 5) */}
-            {activePresences.filter((p: any) => p.user_id !== currentUser?.id).length > 0 && (
+            {activePresences.filter((p: any) => (p.admin_id ?? p.user_id) !== currentUser?.id).length > 0 && (
               <div style={{
                 padding: '0.75rem 1rem',
                 borderRadius: '0.85rem',
@@ -6843,8 +6863,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 <AlertTriangle size={17} style={{ flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <span>
-                    <strong>{activePresences.filter((p: any) => p.user_id !== currentUser?.id).map((p: any) => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
-                    {activePresences.filter((p: any) => p.user_id !== currentUser?.id).some((p: any) => p.is_typing) ? ' dan sedang mengetik balasan...' : '.'}
+                    <strong>{activePresences.filter((p: any) => (p.admin_id ?? p.user_id) !== currentUser?.id).map((p: any) => p.admin_name).join(', ')}</strong> juga sedang membuka tiket ini
+                    {activePresences.filter((p: any) => (p.admin_id ?? p.user_id) !== currentUser?.id).some((p: any) => p.is_typing) ? ' dan sedang mengetik balasan...' : '.'}
                   </span>
                 </div>
               </div>
@@ -6974,7 +6994,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   return (
                     <button
                       type="button"
-                      onClick={() => setShowFooterStatusMenu(true)}
+                      disabled={!canReplySupport}
+                      onClick={() => { if (canReplySupport) setShowFooterStatusMenu(true); }}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -6986,10 +7007,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         border: `1px solid ${statusMeta.border}`,
                         fontSize: '0.65rem',
                         fontWeight: 800,
-                        cursor: 'pointer',
+                        cursor: canReplySupport ? 'pointer' : 'default',
                         transition: 'all 0.15s ease'
                       }}
-                      title="Klik untuk ubah status pengerjaan tiket"
+                      title={canReplySupport ? 'Klik untuk ubah status pengerjaan tiket' : 'Status tiket (Mode Baca Saja)'}
                     >
                       <span style={{
                         width: '7px',
@@ -7077,6 +7098,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <p style={{ margin: 0, fontSize: '0.7rem' }}>
                     Tiket akan otomatis ditutup permanen (Read-Only) jika tidak ada balasan lebih lanjut dari merchant.
                   </p>
+                  {canReplySupport && (
                   <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.15rem' }}>
                     <button
                       type="button"
@@ -7119,6 +7141,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       <span>Buka Kembali</span>
                     </button>
                   </div>
+                  )}
                 </div>
               )}
 
@@ -7141,6 +7164,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     <Lock size={14} />
                     <span>Arsip Permanen (Read-Only)</span>
                   </div>
+                  {canReplySupport && (
                   <button
                     type="button"
                     onClick={() => handleUpdateTicketStatus(selectedTicket.id, 'in_progress')}
@@ -7162,6 +7186,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     <RefreshCw size={12} />
                     <span>Buka Kembali</span>
                   </button>
+                  )}
                 </div>
               )}
             </div>
@@ -7281,20 +7306,42 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               wordBreak: 'break-word'
                             }}
                           >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                <Lock size={12} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
+                              <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isDark ? '#fbbf24' : '#d97706', display: 'flex', alignItems: 'center', gap: '0.3rem', flex: '1 1 auto', minWidth: 0 }}>
+                                <Lock size={12} style={{ flexShrink: 0 }} /> CATATAN INTERNAL CS (Hanya Terlihat Oleh Tim Admin)
                               </span>
-                              <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600 }}>
+                              <span style={{ fontSize: '0.62rem', color: theme.textMuted, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
                                 {formatSupportDateTime(msg.created_at)}
                               </span>
                             </div>
                             <div style={{ fontSize: '0.72rem', color: theme.textSecondary, fontWeight: 600 }}>
                               Oleh: {msg.sender?.name || 'Staf Admin'}
                             </div>
-                            <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
-                              {msg.message}
-                            </p>
+                            {msg.message ? (
+                              <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textPrimary, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', wordWrap: 'break-word' }}>
+                                {msg.message}
+                              </p>
+                            ) : null}
+                            {Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                              <div style={{ marginTop: '0.5rem', paddingTop: '0.45rem', borderTop: '1px dashed rgba(245, 158, 11, 0.3)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                <div style={{ fontSize: '0.67rem', fontWeight: 700, color: isDark ? '#fbbf24' : '#b45309', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                  <Paperclip size={11} /> {msg.attachments.length} Lampiran Internal:
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                                  {msg.attachments.map((att: any, aIdx: number) => {
+                                    const isPDF = (att.file_type || '').includes('pdf') || (att.file_name || '').toLowerCase().endsWith('.pdf') || (att.file_url || '').toLowerCase().endsWith('.pdf');
+                                    return (
+                                      <div key={aIdx} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.6rem', borderRadius: '0.55rem', backgroundColor: isDark ? 'rgba(15, 23, 42, 0.7)' : '#ffffff', border: '1px solid rgba(245, 158, 11, 0.35)', fontSize: '0.74rem' }}>
+                                        {isPDF ? <FileText size={14} color="#ef4444" /> : <ImageIcon size={14} color="#f59e0b" />}
+                                        <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>{att.file_name || 'Lampiran'}</span>
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); openDocumentPreview(att); }} style={{ padding: '0.2rem 0.45rem', borderRadius: '0.35rem', border: 'none', backgroundColor: '#0284c7', color: '#ffffff', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>Preview</button>
+                                        <button type="button" onClick={(e) => handleDownloadDocument(att, e)} style={{ padding: '0.2rem 0.45rem', borderRadius: '0.35rem', border: `1px solid ${theme.border}`, backgroundColor: 'transparent', color: theme.textPrimary, fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer' }}>Unduh</button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div
@@ -7984,6 +8031,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   subtitle="Filter antrean pengerjaan tiket aktif"
                   placeholder="Semua Status Tiket"
                   icon={<Filter size={13} />}
+                  triggerStyle={{
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    color: theme.textPrimary
+                  }}
                 />
               </div>
 
@@ -7996,6 +8048,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   subtitle="Filter kategori tiket bantuan aktif"
                   placeholder="Semua Kategori"
                   icon={<Tag size={13} />}
+                  triggerStyle={{
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    color: theme.textPrimary
+                  }}
                 />
               </div>
 
@@ -8008,6 +8065,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   subtitle="Filter tingkat urgensi tiket aktif"
                   placeholder="Semua Prioritas"
                   icon={<AlertCircle size={13} />}
+                  triggerStyle={{
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    color: theme.textPrimary
+                  }}
                 />
               </div>
 
@@ -8021,9 +8083,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   borderRadius: '0.75rem',
                   fontSize: '0.74rem',
                   fontWeight: 700,
-                  backgroundColor: ticketSlaFilter === 'breached' ? 'rgba(239, 68, 68, 0.15)' : 'var(--bg-card, #0f172a)',
+                  backgroundColor: ticketSlaFilter === 'breached' ? 'rgba(239, 68, 68, 0.15)' : theme.surface,
                   color: ticketSlaFilter === 'breached' ? '#ef4444' : theme.textSecondary,
-                  border: `1.5px solid ${ticketSlaFilter === 'breached' ? '#ef4444' : 'var(--border-light, rgba(255, 255, 255, 0.1))'}`,
+                  border: `1.5px solid ${ticketSlaFilter === 'breached' ? '#ef4444' : theme.border}`,
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -8099,7 +8161,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               tickets.map((t) => {
                 const isUnread = t.status === 'open' || t.status === 'waiting_agent';
                 const statusMeta = getTicketStatusMeta(t.status);
-                const storeDisplayName = t.store_name || t.store?.name || t.user_name || t.user_email || 'Merchant';
+                const storeDisplayName = t.store?.store_title || t.store_name || t.store?.name || t.user?.name || t.user_name || t.user?.email || 'Merchant';
                 const storePlan = t.store_plan || t.store?.plan || '';
                 const msgs = Array.isArray(t.messages) ? t.messages : [];
                 const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;

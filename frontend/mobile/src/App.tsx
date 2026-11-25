@@ -32023,8 +32023,147 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         <div ref={messagesEndRef} style={{ height: '4px' }} />
                                       </div>
 
-                                      {/* Sticky Mobile App Reply Bar */}
-                                      {selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' ? (
+                                      {/* Info Masa Sanggah 7 Hari & CSAT untuk status resolved/closed */}
+                                      {(selectedTicket.status === 'resolved' || selectedTicket.status === 'closed') && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: selectedTicket.status === 'resolved' ? '130px' : '0' }}>
+                                          {selectedTicket.status === 'resolved' ? (
+                                            <div className="glass-panel" style={{ padding: '0.7rem 0.85rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.06)' }}>
+                                              <span style={{ fontSize: '0.76rem', color: '#10b981', fontWeight: 700 }}>
+                                                Tiket ditandai Selesai (Masa Sanggah 7 Hari). Kirim balasan di bawah untuk membuka kembali tiket otomatis.
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            <div className="glass-panel" style={{ padding: '0.75rem 0.85rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(100,116,139,0.35)', background: 'rgba(100,116,139,0.06)' }}>
+                                              <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                                Tiket ini telah ditutup permanen (Read-Only). Buat tiket baru jika ada pertanyaan lanjutan.
+                                              </span>
+                                            </div>
+                                          )}
+
+                                          {/* CSAT 1-Click Rating Widget */}
+                                          {selectedTicket.rating ? (
+                                            <div className="glass-panel" style={{
+                                              padding: '0.85rem 1rem',
+                                              borderRadius: '0.85rem',
+                                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                                              background: 'rgba(245, 158, 11, 0.06)',
+                                              display: 'flex',
+                                              flexDirection: 'column',
+                                              gap: '0.4rem'
+                                            }}>
+                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                                  <Star size={15} fill="#f59e0b" color="#f59e0b" /> Ulasan Layanan:
+                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                                                  {[1, 2, 3, 4, 5].map(star => (
+                                                    <Star
+                                                      key={star}
+                                                      size={14}
+                                                      fill={star <= (selectedTicket.rating || 0) ? '#f59e0b' : 'none'}
+                                                      color={star <= (selectedTicket.rating || 0) ? '#f59e0b' : 'var(--text-muted)'}
+                                                    />
+                                                  ))}
+                                                  <span style={{ fontSize: '0.8rem', fontWeight: 900, color: '#f59e0b', marginLeft: '0.3rem' }}>
+                                                    {selectedTicket.rating}/5
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              {selectedTicket.rating_comment && (
+                                                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.4 }}>
+                                                  "{selectedTicket.rating_comment}"
+                                                </p>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <div className="glass-panel" style={{
+                                              padding: '0.9rem 1rem',
+                                              borderRadius: '0.85rem',
+                                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                                              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.02) 100%)',
+                                              display: 'flex',
+                                              flexDirection: 'column',
+                                              gap: '0.65rem'
+                                            }}>
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                                                  Beri Nilai Kepuasan Layanan:
+                                                </h4>
+                                                <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                                  Ketuk bintang untuk menilai kualitas respon tim Catavor
+                                                </p>
+                                              </div>
+
+                                              {/* Star Buttons */}
+                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.25rem 0' }}>
+                                                {[1, 2, 3, 4, 5].map(star => {
+                                                  const isFilled = (csatHoverRating || csatRating) >= star;
+                                                  return (
+                                                    <button
+                                                      key={star}
+                                                      type="button"
+                                                      onClick={() => setCsatRating(star)}
+                                                      style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        padding: '0.25rem',
+                                                        transition: 'transform 0.1s ease',
+                                                        transform: (csatHoverRating || csatRating) >= star ? 'scale(1.15)' : 'scale(1)'
+                                                      }}
+                                                    >
+                                                      <Star
+                                                        size={22}
+                                                        fill={isFilled ? '#f59e0b' : 'none'}
+                                                        color={isFilled ? '#f59e0b' : 'var(--text-muted)'}
+                                                      />
+                                                    </button>
+                                                  );
+                                                })}
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 900, color: '#f59e0b', marginLeft: '0.25rem' }}>
+                                                  {csatRating}/5
+                                                </span>
+                                              </div>
+
+                                              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                <input
+                                                  type="text"
+                                                  value={csatComment}
+                                                  onChange={(e) => setCsatComment(e.target.value)}
+                                                  placeholder="Komentar singkat (opsional)..."
+                                                  className="search-input"
+                                                  style={{ flex: 1, fontSize: '0.78rem', padding: '0.45rem 0.65rem' }}
+                                                />
+                                                <button
+                                                  type="button"
+                                                  disabled={isSubmittingCSAT}
+                                                  onClick={() => handleSubmitCSAT(selectedTicket.id)}
+                                                  style={{
+                                                    padding: '0.5rem 0.9rem',
+                                                    borderRadius: '0.55rem',
+                                                    backgroundColor: '#f59e0b',
+                                                    color: '#000000',
+                                                    fontWeight: 800,
+                                                    fontSize: '0.78rem',
+                                                    border: 'none',
+                                                    cursor: isSubmittingCSAT ? 'not-allowed' : 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.3rem',
+                                                    whiteSpace: 'nowrap'
+                                                  }}
+                                                >
+                                                  {isSubmittingCSAT ? <Loader size={13} className="animate-spin" /> : <Star size={13} fill="#000000" />}
+                                                  <span>Kirim</span>
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Sticky Mobile App Reply Bar (diizinkan selama status !== 'closed') */}
+                                      {selectedTicket.status !== 'closed' && (
                                         <div style={{
                                           position: 'fixed',
                                           bottom: 0,
@@ -32213,134 +32352,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                               {isSubmittingReply ? <Loader size={16} className="animate-spin" /> : <Send size={16} />}
                                             </button>
                                           </div>
-                                        </div>
-                                      ) : (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                          <div className="glass-panel" style={{ padding: '0.75rem 0.85rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.05)' }}>
-                                            <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 700 }}>
-                                              ✓ Tiket ini telah ditandai Selesai. Buat tiket baru jika ada pertanyaan lain.
-                                            </span>
-                                          </div>
-
-                                          {/* CSAT 1-Click Rating Widget (Fase 2) */}
-                                          {selectedTicket.rating ? (
-                                            <div className="glass-panel" style={{
-                                              padding: '0.85rem 1rem',
-                                              borderRadius: '0.85rem',
-                                              border: '1px solid rgba(245, 158, 11, 0.35)',
-                                              background: 'rgba(245, 158, 11, 0.06)',
-                                              display: 'flex',
-                                              flexDirection: 'column',
-                                              gap: '0.4rem'
-                                            }}>
-                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                                  <Star size={15} fill="#f59e0b" color="#f59e0b" /> Ulasan Layanan:
-                                                </span>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
-                                                  {[1, 2, 3, 4, 5].map(star => (
-                                                    <Star
-                                                      key={star}
-                                                      size={14}
-                                                      fill={star <= (selectedTicket.rating || 0) ? '#f59e0b' : 'none'}
-                                                      color={star <= (selectedTicket.rating || 0) ? '#f59e0b' : 'var(--text-muted)'}
-                                                    />
-                                                  ))}
-                                                  <span style={{ fontSize: '0.8rem', fontWeight: 900, color: '#f59e0b', marginLeft: '0.3rem' }}>
-                                                    {selectedTicket.rating}/5
-                                                  </span>
-                                                </div>
-                                              </div>
-                                              {selectedTicket.rating_comment && (
-                                                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.4 }}>
-                                                  "{selectedTicket.rating_comment}"
-                                                </p>
-                                              )}
-                                            </div>
-                                          ) : (
-                                            <div className="glass-panel" style={{
-                                              padding: '0.9rem 1rem',
-                                              borderRadius: '0.85rem',
-                                              border: '1px solid rgba(245, 158, 11, 0.35)',
-                                              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.02) 100%)',
-                                              display: 'flex',
-                                              flexDirection: 'column',
-                                              gap: '0.65rem'
-                                            }}>
-                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                                <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                                  Beri Nilai Kepuasan Layanan:
-                                                </h4>
-                                                <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                                  Ketuk bintang untuk menilai kualitas respon tim Catavor
-                                                </p>
-                                              </div>
-
-                                              {/* Star Buttons */}
-                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem', padding: '0.25rem 0' }}>
-                                                {[1, 2, 3, 4, 5].map(star => {
-                                                  const isFilled = (csatHoverRating || csatRating) >= star;
-                                                  return (
-                                                    <button
-                                                      key={star}
-                                                      type="button"
-                                                      onClick={() => setCsatRating(star)}
-                                                      style={{
-                                                        background: 'none',
-                                                        border: 'none',
-                                                        cursor: 'pointer',
-                                                        padding: '0.25rem',
-                                                        transition: 'transform 0.1s ease',
-                                                        transform: (csatHoverRating || csatRating) >= star ? 'scale(1.15)' : 'scale(1)'
-                                                      }}
-                                                    >
-                                                      <Star
-                                                        size={22}
-                                                        fill={isFilled ? '#f59e0b' : 'none'}
-                                                        color={isFilled ? '#f59e0b' : 'var(--text-muted)'}
-                                                      />
-                                                    </button>
-                                                  );
-                                                })}
-                                                <span style={{ fontSize: '0.85rem', fontWeight: 900, color: '#f59e0b', marginLeft: '0.25rem' }}>
-                                                  {csatRating}/5
-                                                </span>
-                                              </div>
-
-                                              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                <input
-                                                  type="text"
-                                                  value={csatComment}
-                                                  onChange={(e) => setCsatComment(e.target.value)}
-                                                  placeholder="Komentar singkat (opsional)..."
-                                                  className="search-input"
-                                                  style={{ flex: 1, fontSize: '0.78rem', padding: '0.45rem 0.65rem' }}
-                                                />
-                                                <button
-                                                  type="button"
-                                                  disabled={isSubmittingCSAT}
-                                                  onClick={() => handleSubmitCSAT(selectedTicket.id)}
-                                                  style={{
-                                                    padding: '0.5rem 0.9rem',
-                                                    borderRadius: '0.55rem',
-                                                    backgroundColor: '#f59e0b',
-                                                    color: '#000000',
-                                                    fontWeight: 800,
-                                                    fontSize: '0.78rem',
-                                                    border: 'none',
-                                                    cursor: isSubmittingCSAT ? 'not-allowed' : 'pointer',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.3rem',
-                                                    whiteSpace: 'nowrap'
-                                                  }}
-                                                >
-                                                  {isSubmittingCSAT ? <Loader size={13} className="animate-spin" /> : <Star size={13} fill="#000000" />}
-                                                  <span>Kirim</span>
-                                                </button>
-                                              </div>
-                                            </div>
-                                          )}
                                         </div>
                                       )}
                                     </div>

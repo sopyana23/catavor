@@ -390,6 +390,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       if (tabParam === 'audit_logs') {
         return 'profile';
       }
+      const pathnameLower = window.location.pathname.toLowerCase();
+      if (!tabParam && (pathnameLower.endsWith('/admin/help') || pathnameLower.includes('/admin/help/'))) {
+        return 'help';
+      }
       const v = (params.get('view') || params.get('sub') || '').toLowerCase();
       if (['orders', 'riwayat', 'tagihan', 'billing'].includes(v) || params.get('order') || params.get('proof')) {
         return 'subscription';
@@ -646,10 +650,10 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
     }
   }, [storeSlug, token, fetch, currentUser, onThemeChange, handleCloseStoreChooserModal]);
 
-  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-    setToast({ msg, type });
+  const showToast = useCallback((msg: string, type: string = 'success') => {
+    setToast({ msg, type: type === 'error' ? 'error' : 'success' });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
 
   const tabletFetchQuotaRef = useRef<(() => void) | null>(null);
   const tabletFetchSubscriptionOrdersRef = useRef<(() => void) | null>(null);
@@ -3767,23 +3771,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       loadedTabsRef.current.add(activeTab);
       if (activeTab === 'notifications') {
         fetchNotifications();
-      } else if (activeTab === 'help') {
-        fetchTickets();
       } else if (activeTab === 'subscription') {
         fetchQuota();
         fetchSubscriptionOrders();
       }
     }
-  }, [activeTab, fetchNotifications, fetchTickets, fetchQuota, fetchSubscriptionOrders]);
+  }, [activeTab, fetchNotifications, fetchQuota, fetchSubscriptionOrders]);
 
-  // 4. Ticket Details Fetching (Only when help tab is active and a ticket is selected)
-  useEffect(() => {
-    if (activeTab === 'help' && selectedTicketId && selectedTicketId !== 'new') {
-      fetchTicketDetails(Number(selectedTicketId));
-    } else if (activeTab === 'help' && !selectedTicketId) {
-      setTicketDetails(null);
-    }
-  }, [activeTab, selectedTicketId, fetchTicketDetails]);
+  // 4. Ticket Details Fetching: dikelola penuh oleh TabletHelpdeskView saat activeTab === 'help'
+  // (dihapus legacy polling/auto-select agar tidak memicu side-effect mark-read dan double fetch)
 
   // 5. Periodic Background Ping (Tickets Ping & Notifications Badge Sync every 60s with visibility guard)
   useEffect(() => {
@@ -3810,35 +3806,6 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [token, fetchTicketsPing, fetchNotifications]);
-
-  // 6. Active Support Chat Polling (every 45s while help tab is active)
-  useEffect(() => {
-    if (!token || activeTab !== 'help') return;
-
-    const intervalMs = 45000;
-    const timer = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      if (selectedTicketId && selectedTicketId !== 'new') {
-        fetchTicketDetails(Number(selectedTicketId));
-      }
-      fetchTickets();
-    }, intervalMs);
-
-    const handleVisibility = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && activeTab === 'help') {
-        if (selectedTicketId && selectedTicketId !== 'new') {
-          fetchTicketDetails(Number(selectedTicketId));
-        }
-        fetchTickets();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, [activeTab, token, selectedTicketId, fetchTickets, fetchTicketDetails]);
 
   // Selected Ticket Reference
   const selectedTicket = useMemo(() => {
@@ -12805,8 +12772,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             settings={storeSettings}
             currentUser={currentUser}
             userStores={userStores}
-            showToast={(msg, type) => showToast(msg, type === 'error' ? 'error' : 'success')}
-            onUpdateUnreadCount={(cnt) => setSupportUnreadCount(cnt)}
+            showToast={showToast}
+            onUpdateUnreadCount={setSupportUnreadCount}
             isNavExpanded={isNavExpanded}
           />
         )}

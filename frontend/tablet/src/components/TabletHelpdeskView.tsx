@@ -149,7 +149,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
   }>({
     subject: '',
     category: 'technical',
-    priority: 'normal',
+    priority: 'medium',
     message: ''
   });
   const [ticketNewAttachments, setTicketNewAttachments] = useState<TicketAttachment[]>([]);
@@ -172,6 +172,25 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
   const isFirstTicketLoadRef = useRef<boolean>(true);
   const isFetchingTicketsRef = useRef<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const selectedTicketIdRef = useRef<string | number | null>(selectedTicketId);
+  const showToastRef = useRef(showToast);
+  const onUpdateUnreadCountRef = useRef(onUpdateUnreadCount);
+  const fetchSupportTicketsRef = useRef<((silent?: boolean, pageToFetch?: number) => void) | null>(null);
+  const fetchTicketDetailsRef = useRef<((ticketId: string | number) => void) | null>(null);
+  const ticketPageRef = useRef(ticketPage);
+
+  useEffect(() => {
+    selectedTicketIdRef.current = selectedTicketId;
+  }, [selectedTicketId]);
+  useEffect(() => {
+    ticketPageRef.current = ticketPage;
+  }, [ticketPage]);
+  useEffect(() => {
+    showToastRef.current = showToast;
+  }, [showToast]);
+  useEffect(() => {
+    onUpdateUnreadCountRef.current = onUpdateUnreadCount;
+  }, [onUpdateUnreadCount]);
 
   // Audio Chime Synthesizer
   const playSupportChime = useCallback(() => {
@@ -292,7 +311,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
           const mappedTickets: SupportTicket[] = json.data.map((t: any) => {
             const msgs = Array.isArray(t.messages) ? t.messages : [];
             const hasUnreadAgent = msgs.some((m: any) => (m.sender_type === 'agent' || m.sender_type === 'support') && !m.read_at);
-            const isViewed = String(selectedTicketId) === String(t.id) || readTicketIdsRef.current.has(t.id) || readTicketIdsRef.current.has(String(t.id));
+            const isViewed = String(selectedTicketIdRef.current) === String(t.id) || readTicketIdsRef.current.has(t.id) || readTicketIdsRef.current.has(String(t.id));
             const unreadCount = isViewed ? 0 : (t.unread_count !== undefined ? t.unread_count : (hasUnreadAgent ? 1 : 0));
 
             return {
@@ -340,7 +359,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
             });
             if (hasNewIncoming) {
               playSupportChime();
-              showToast('Pesan balasan baru dari Tim CS Catavor telah masuk.', 'info');
+              showToastRef.current('Pesan balasan baru dari Tim CS Catavor telah masuk.', 'info');
             }
           }
 
@@ -355,7 +374,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
 
           // Update parent unread count
           const unreadTotal = mappedTickets.filter(t => t.has_unread || (t.unread_count && t.unread_count > 0)).length;
-          if (onUpdateUnreadCount) onUpdateUnreadCount(unreadTotal);
+          if (onUpdateUnreadCountRef.current) onUpdateUnreadCountRef.current(unreadTotal);
         }
       }
     } catch (err) {
@@ -364,7 +383,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
       isFetchingTicketsRef.current = false;
       if (!silent) setLoadingTickets(false);
     }
-  }, [token, ticketPage, ticketLimit, ticketFilter, debouncedTicketSearch, storeSlug, getAuthHeaders, selectedTicketId, currentUser?.name, playSupportChime, showToast, onUpdateUnreadCount]);
+  }, [token, ticketPage, ticketLimit, ticketFilter, debouncedTicketSearch, storeSlug, getAuthHeaders, currentUser?.name, playSupportChime]);
 
   // 2. Fetch single ticket detail
   const fetchTicketDetails = useCallback(async (ticketId: string | number) => {
@@ -445,19 +464,89 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
     }
   }, [selectedTicketId, fetchTicketDetails]);
 
-  // Background polling (every 45s)
+  useEffect(() => {
+    fetchSupportTicketsRef.current = fetchSupportTickets;
+  }, [fetchSupportTickets]);
+
+  useEffect(() => {
+    fetchTicketDetailsRef.current = fetchTicketDetails;
+  }, [fetchTicketDetails]);
+
+  // Background polling (every 45s) + Real-Time SSE listener (without reconnect on ticket switch)
   useEffect(() => {
     if (!token) return;
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: any = null;
+    let isUnmounted = false;
+
+    const connectSSE = async () => {
+      if (isUnmounted) return;
+      try {
+        const tkRes = await fetch('/api/notifications/ticket', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ store_slug: storeSlug || '' }),
+        });
+        if (!tkRes.ok) throw new Error(`ticket ${tkRes.status}`);
+        const tkJson = await tkRes.json();
+        const streamTicket = String(tkJson?.ticket || tkJson?.data?.ticket || '');
+        if (!streamTicket || isUnmounted) return;
+
+        const qs = new URLSearchParams({ ticket: streamTicket });
+        if (storeSlug) qs.set('store_slug', storeSlug);
+        eventSource = new EventSource(`/api/notifications/stream?${qs.toString()}`);
+
+        eventSource.onmessage = (e) => {
+          if (!e.data || e.data.trim() === '' || e.data.startsWith(':')) return;
+          try {
+            const payload = JSON.parse(e.data);
+            const ev = payload?.event;
+            const tk = payload?.ticket;
+            if (ev === 'ticket_reply_from_staff' || ev === 'ticket_status_updated') {
+              fetchSupportTicketsRef.current?.(true, ticketPageRef.current);
+              const activeId = selectedTicketIdRef.current;
+              if (activeId && activeId !== 'new' && (!tk?.ticket_id || String(tk.ticket_id) === String(activeId) || tk.ticket_number === activeId)) {
+                fetchTicketDetailsRef.current?.(activeId);
+              }
+            }
+          } catch { }
+        };
+
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          if (!isUnmounted) {
+            reconnectTimer = setTimeout(connectSSE, 6000);
+          }
+        };
+      } catch {
+        if (!isUnmounted) {
+          reconnectTimer = setTimeout(connectSSE, 8000);
+        }
+      }
+    };
+
+    connectSSE();
+
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      if (selectedTicketId && selectedTicketId !== 'new') {
-        fetchTicketDetails(selectedTicketId);
+      const activeId = selectedTicketIdRef.current;
+      if (activeId && activeId !== 'new') {
+        fetchTicketDetailsRef.current?.(activeId);
       }
-      fetchSupportTickets(true, ticketPage);
+      fetchSupportTicketsRef.current?.(true, ticketPageRef.current);
     }, 45000);
 
-    return () => clearInterval(interval);
-  }, [token, selectedTicketId, ticketPage, fetchSupportTickets, fetchTicketDetails]);
+    return () => {
+      isUnmounted = true;
+      clearInterval(interval);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (eventSource) eventSource.close();
+    };
+  }, [token, storeSlug]);
 
   // 3. Handle File Upload (Screenshots & PDF)
   const handleUploadAttachment = async (files: FileList | null, isReply: boolean = false) => {
@@ -570,11 +659,10 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
       const data = await res.json();
       if (res.ok && data.success && data.data) {
         showToast(isSuspendedAccount ? 'Permohonan banding kepatuhan berhasil dikirim!' : 'Tiket bantuan berhasil diajukan!');
-        setNewTicketForm({ subject: '', category: 'technical', priority: 'normal', message: '' });
+        setNewTicketForm({ subject: '', category: 'technical', priority: 'medium', message: '' });
         setTicketNewAttachments([]);
         setSelectedTicketId(data.data.id);
         fetchSupportTickets();
-        fetchTicketDetails(data.data.id);
       } else {
         showToast(data.message || 'Gagal mengajukan tiket bantuan.', 'error');
       }
@@ -1319,8 +1407,9 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                       >
                         <option value="technical">Kendala Teknis & Aplikasi</option>
                         <option value="billing">Tagihan & Langganan</option>
+                        <option value="catalog_help">Bantuan Pengelolaan Katalog</option>
                         <option value="account">Akun & Verifikasi</option>
-                        <option value="report">Laporan Pelanggaran</option>
+                        <option value="general">Pertanyaan Umum</option>
                         <option value="compliance">Kepatuhan & Banding</option>
                       </select>
                     </div>
@@ -1346,7 +1435,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                         }}
                       >
                         <option value="low">Rendah (Pertanyaan Umum)</option>
-                        <option value="normal">Normal (Operasional)</option>
+                        <option value="medium">Sedang (Operasional)</option>
                         <option value="high">Tinggi (Urgensi Bisnis)</option>
                         <option value="urgent">Mendesak (Darurat)</option>
                       </select>
@@ -2013,9 +2102,14 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                   </div>
                 )}
 
-                {/* Reply Bar Footer */}
-                {!['resolved', 'closed'].includes(ticketDetails.status) ? (
+                {/* Reply Bar Footer (diizinkan selama status !== 'closed', termasuk auto-reopen dari 'resolved') */}
+                {ticketDetails.status !== 'closed' ? (
                   <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', flexShrink: 0 }}>
+                    {ticketDetails.status === 'resolved' && (
+                      <div style={{ marginBottom: '0.65rem', padding: '0.55rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', fontSize: '0.78rem', color: '#10b981', fontWeight: 600 }}>
+                        Tiket berstatus Selesai (Masa Sanggah 7 Hari). Kirim balasan di bawah kapan saja untuk membuka kembali tiket otomatis.
+                      </div>
+                    )}
 
                     {/* Attachment Chips before sending */}
                     {ticketReplyAttachments.length > 0 && (
@@ -2131,9 +2225,9 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                     </form>
                   </div>
                 ) : (
-                  <div style={{ padding: '0.9rem 1.5rem', textAlign: 'center', backgroundColor: 'rgba(16, 185, 129, 0.06)', borderTop: '1px solid rgba(16, 185, 129, 0.25)', flexShrink: 0 }}>
-                    <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 700 }}>
-                      ✓ Tiket ini telah ditandai Selesai. Silakan ajukan tiket baru jika memiliki kendala lain.
+                  <div style={{ padding: '0.9rem 1.5rem', textAlign: 'center', backgroundColor: 'rgba(100, 116, 139, 0.08)', borderTop: '1px solid rgba(100, 116, 139, 0.25)', flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                      Tiket ini telah ditutup permanen (Read-Only). Silakan ajukan tiket baru jika memiliki kendala lain.
                     </span>
                   </div>
                 )}

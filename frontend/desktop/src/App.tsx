@@ -7612,6 +7612,20 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
   useEffect(() => {
     setTicketPage(1);
   }, [ticketFilter]);
+
+  // Debounce search query so keyword searches actually trigger server-side filtering
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const nextQ = ticketSearch.trim();
+      setDebouncedTicketSearch((prev) => {
+        if (prev !== nextQ) {
+          setTicketPage(1);
+        }
+        return nextQ;
+      });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [ticketSearch]);
   const [showCreateTicketModal, setShowCreateTicketModal] = useState<boolean>(false);
   const [showOfficialContactModal, setShowOfficialContactModal] = useState<boolean>(false);
   const [ticketReplyText, setTicketReplyText] = useState<string>('');
@@ -28038,12 +28052,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       <div style={{ display: 'flex', gap: '0.85rem', padding: '0.45rem 0.95rem', background: 'var(--bg-deep)', borderRadius: '0.75rem', border: '1px solid var(--border-light)', fontSize: '0.8rem' }}>
                         <div>
                           <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.68rem', fontWeight: 600 }}>Total Tiket</span>
-                          <strong style={{ color: 'var(--text-primary)', fontSize: '0.98rem' }}>{tickets.length}</strong>
+                          <strong style={{ color: 'var(--text-primary)', fontSize: '0.98rem' }}>{ticketMetrics.total}</strong>
                         </div>
                         <div style={{ width: '1px', backgroundColor: 'var(--border-light)' }} />
                         <div>
                           <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.68rem', fontWeight: 600 }}>Aktif Diproses</span>
-                          <strong style={{ color: '#f59e0b', fontSize: '0.98rem' }}>{tickets.filter(t => t.status === 'open' || t.status === 'in_progress' || t.status === 'waiting_agent' || t.status === 'waiting_user').length}</strong>
+                          <strong style={{ color: '#f59e0b', fontSize: '0.98rem' }}>{ticketMetrics.active}</strong>
                         </div>
                       </div>
 
@@ -28966,8 +28980,17 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             <div ref={messagesEndRef} style={{ height: '4px' }} />
                           </div>
 
-                          {/* Reply Input Form with Multi-Image Screenshot Upload */}
-                          {selectedTicket.status !== 'resolved' && selectedTicket.status !== 'closed' ? (
+                          {/* Info Masa Sanggah saat status resolved (masih bisa dibalas untuk auto-reopen) */}
+                          {selectedTicket.status === 'resolved' && (
+                            <div className="glass-panel" style={{ padding: '0.7rem 1rem', borderRadius: '0.75rem', border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexShrink: 0 }}>
+                              <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 700 }}>
+                                Tiket ini ditandai Selesai. Jika kendala masih berlanjut dalam masa sanggah 7 hari, kirim balasan di bawah untuk membuka kembali tiket otomatis.
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Reply Input Form with Multi-Image Screenshot Upload (diizinkan selama status !== 'closed') */}
+                          {selectedTicket.status !== 'closed' ? (
                             <div
                               style={{
                                 padding: '1rem 1.15rem',
@@ -29197,14 +29220,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               </div>
                             </div>
                           ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: 'auto', flexShrink: 0 }}>
-                              <div className="glass-panel" style={{ padding: '0.85rem 1rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.05)' }}>
-                                <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: 700 }}>
-                                  ✓ Tiket ini telah ditandai Selesai. Anda dapat membuat tiket baru jika memiliki pertanyaan lain.
-                                </span>
-                              </div>
+                            <div className="glass-panel" style={{ padding: '0.85rem 1rem', borderRadius: '0.85rem', textAlign: 'center', border: '1px solid rgba(100,116,139,0.35)', background: 'rgba(100,116,139,0.06)', marginTop: 'auto', flexShrink: 0 }}>
+                              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                Tiket ini telah ditutup permanen (Read-Only). Silakan buat tiket baru jika memiliki kendala lanjutan.
+                              </span>
+                            </div>
+                          )}
 
-                              {/* CSAT 1-Click Rating Widget (Fase 2) */}
+                          {/* CSAT 1-Click Rating Widget (tampil saat status resolved atau closed) */}
+                          {(selectedTicket.status === 'resolved' || selectedTicket.status === 'closed') && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', flexShrink: 0 }}>
                               {selectedTicket.rating ? (
                                 <div className="glass-panel" style={{
                                   padding: '1rem 1.25rem',
@@ -29490,13 +29515,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             });
                             const data = await res.json();
                             if (res.ok && data.success && data.data) {
-                              showToast('Permohonan banding kepatuhan berhasil dikirim!');
+                              showToast((settings.dormancy_status === 'suspended' || settings.is_suspended) ? 'Permohonan banding kepatuhan berhasil dikirim!' : 'Tiket bantuan berhasil dikirim!');
                               setShowCreateTicketModal(false);
                               setTickets(prev => [data.data, ...prev.filter(t => t.id !== data.data.id)]);
                               setSelectedTicket(data.data);
                               setNewTicketForm({ subject: '', category: 'technical', priority: 'medium', message: '' });
                               setTicketNewAttachments([]);
-                              fetchSupportTickets();
+                              setTicketPage(1);
+                              fetchSupportTickets(true, 1);
                               fetchTicketDetails(data.data.id);
                               const slug = storeSlug || getStoreSlug();
                               if (slug) window.history.pushState({}, '', `/${slug}/admin/help?ticket=${data.data.id}`);
