@@ -885,10 +885,16 @@ func (h *StoreHandler) CatalogMetrics(c *fiber.Ctx) error {
 	h.db.Model(&models.Product{}).Where("store_id = ? AND is_active = false AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&archivedItems)
 
 	var outOfStockItems int64
-	h.db.Model(&models.Product{}).Where("store_id = ? AND stock = 0 AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&outOfStockItems)
+	h.db.Model(&models.Product{}).
+		Where("store_id = ? AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).
+		Where(productOutOfStockCondition(h.db)).
+		Count(&outOfStockItems)
 
 	var lowStockItems int64
-	h.db.Model(&models.Product{}).Where("store_id = ? AND stock > 0 AND stock <= 5 AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).Count(&lowStockItems)
+	h.db.Model(&models.Product{}).
+		Where("store_id = ? AND (moderation_status IS NULL OR moderation_status = 'none' OR moderation_status != 'hidden')", store.ID).
+		Where(productLowStockCondition(h.db)).
+		Count(&lowStockItems)
 
 	// By Product Type
 	var typeRows []CountResult

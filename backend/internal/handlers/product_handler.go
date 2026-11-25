@@ -173,9 +173,9 @@ func (h *ProductHandler) Index(c *fiber.Ctx) error {
 
 	if stockStatus := strings.ToLower(strings.TrimSpace(c.Query("stock"))); stockStatus != "" && stockStatus != "all" {
 		if stockStatus == "in_stock" {
-			query = query.Where("products.stock > 0")
+			query = query.Where(productInStockCondition(h.db))
 		} else if stockStatus == "out_of_stock" {
-			query = query.Where("products.stock <= 0")
+			query = query.Where(productOutOfStockCondition(h.db))
 		}
 	}
 
