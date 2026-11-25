@@ -110,6 +110,7 @@ import { TabletImageLightbox } from './TabletImageLightbox';
 import { SafeImage } from './SafeImage';
 import { ProofLightbox } from './ProofLightbox';
 import { AuthenticatedProofImage } from '../../../shared/finance/AuthenticatedProofImage';
+import { PendingPaymentBanner } from '../../../shared/finance/PendingPaymentBanner';
 import { RichTextarea, FormattedText } from './RichTextarea';
 
 export const resolveProofImageUrl = (order: any, _token?: string | null): string => {
@@ -4515,6 +4516,21 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Pending Payment Status Banner (Tablet Dashboard) */}
+            {quota?.pending_order && (
+              <div style={{ margin: '0.75rem 0.85rem 0 0.85rem' }}>
+                <PendingPaymentBanner
+                  device="tablet"
+                  pendingOrder={quota.pending_order}
+                  currentPlanCode={quota?.plan?.code || 'free'}
+                  onOpenSubscription={() => {
+                    setActiveTab('subscription');
+                    if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/subscription`);
+                  }}
+                />
+              </div>
+            )}
 
             {/* Live Quota Dashboard Widget */}
             <TabletQuotaWidget

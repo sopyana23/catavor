@@ -62,6 +62,7 @@ export interface StoreQuotaData {
   days_remaining: number;
   is_in_grace_period: boolean;
   remaining_credit_amount?: number;
+  pending_order?: any;
   active_items_count: number;
   archived_items_count: number;
   max_items: number;

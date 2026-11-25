@@ -178,6 +178,7 @@ import { initGoogleAdSense, syncGoogleAdSenseHead } from './utils/googleAdSense'
 import { CookieConsentBanner } from '../../shared/monetization/CookieConsentBanner'
 import { PublicFeaturedShowcase } from '../../shared/monetization/PublicFeaturedShowcase'
 import { MerchantAdsView } from '../../shared/monetization/MerchantAdsView'
+import { PendingPaymentBanner } from '../../shared/finance/PendingPaymentBanner'
 import { SwipeableToast } from './components/SwipeableToast'
 import { RichTextarea, FormattedText, ExternalLinkWarningModal, type RichTextareaProps } from './components/RichTextarea';
 export { RichTextarea, type RichTextareaProps };
@@ -2496,6 +2497,7 @@ export const renderStoreLogo = (logoUrl: string | undefined, className = '', siz
 
 interface ShopSettings {
   plan?: string
+  has_verified_badge?: boolean
   slug?: string
   enable_wa_direct?: boolean
   enable_wa_rekber?: boolean
@@ -2541,7 +2543,6 @@ interface ShopSettings {
   aulaa_api_key?: string
   aulaa_base_url?: string
   aulaa_webhook_secret?: string
-  has_verified_badge?: boolean
 }
 
 interface CommentItem {
@@ -4334,90 +4335,7 @@ function App() {
     return () => window.removeEventListener('catavor_prompt_external_url', handleGlobalExternalPrompt);
   }, []);
 
-  const [notifications, setNotifications] = useState<any[]>([
-    {
-      id: 'notif_about_guide',
-      title: 'Panduan Kelengkapan Halaman Tentang Kami',
-      category: 'PANDUAN',
-      message: 'Lengkapi Alamat Bisnis, Jam Operasional, dan Profil Komitmen Layanan Anda agar profil katalog terlihat profesional dan terpercaya di mata pembeli.',
-      detail_content: `Halaman Tentang Kami adalah wajah utama brand profil bisnis Anda di mata pembeli. Untuk membangun kepercayaan maksimal pelanggan baru, pastikan Anda melengkapi:
-
-1. Alamat Bisnis & Titik Maps:
-Mempermudah calon pelanggan menemukan lokasi fisik toko, workshop, atau titik penjemputan pesanan.
-
-2. Jam Operasional Toko:
-Jadwal buka dan jam operasional harian dalam melayani pesanan atau chat pelanggan.
-
-3. Profil Komitmen Layanan & Garansi:
-Penjelasan jaminan kualitas produk, keaslian barang, serta standar pelayanan terbaik toko Anda.
-
-Klik tombol di bawah untuk langsung menuju formulir pengaturan Tentang Kami.`,
-      time: 'Baru saja',
-      timestamp: 'Baru saja',
-      read: false,
-      type: 'warning',
-      action_type: 'detail',
-      action_label: 'Buka Pengaturan Tentang Kami →',
-      linkSubTab: 'settings',
-      linkSettingsSubTab: 'about'
-    },
-    {
-      id: 'notif_share_feature',
-      title: 'Fitur Bagikan Katalog & QR Code Bisnis',
-      category: 'PROMOSI',
-      message: 'Katalog digital Anda kini telah aktif! Bagikan tautan resmi atau unduh QR Code dinamis untuk mulai menjangkau pembeli di berbagai platform.',
-      detail_content: `Katalog bisnis Anda kini telah aktif dan dapat diakses oleh publik secara instan.
-
-Fitur Bagikan Katalog memungkinkan Anda untuk:
-• Membagikan tautan link langsung ke media sosial (WhatsApp, Instagram Bio, TikTok, dan Facebook).
-• Mengunduh Poster QR Code beresolusi tinggi untuk dicetak dan dipajang di meja kasir, etalase toko, atau kartu nama bisnis Anda.
-• Memantau trafik pengunjung dan total klik katalog secara realtime di dashboard analitik.
-
-Mulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!`,
-      time: '5 menit lalu',
-      timestamp: '5 menit lalu',
-      read: false,
-      type: 'success',
-      action_type: 'detail',
-      action_label: 'Buka Menu Pengaturan Visual →',
-      linkSubTab: 'settings',
-      linkSettingsSubTab: 'theme'
-    },
-    {
-      id: 'notif_inventory_direct',
-      title: 'Kelola Stok & Inventaris Produk',
-      category: 'INVENTARIS',
-      message: 'Akses cepat ke menu inventaris untuk menambah produk baru, mengubah varian, atau memperbarui harga jual.',
-      time: '1 jam lalu',
-      timestamp: '1 jam lalu',
-      read: false,
-      type: 'order',
-      action_type: 'navigate',
-      linkSubTab: 'items'
-    },
-    {
-      id: 'notif_login_session',
-      title: 'Sesi Login Berhasil Masuk',
-      category: 'KEAMANAN',
-      message: 'Akun admin Anda berhasil login ke sistem dari perangkat ini pada pukul 14:27 WIB.',
-      time: '3 jam lalu',
-      timestamp: '3 jam lalu',
-      read: true,
-      type: 'info',
-      action_type: 'none'
-    },
-    {
-      id: 'notif_cloud_backup',
-      title: 'Pencadangan Data Cloud Selesai',
-      category: 'SISTEM',
-      message: 'Seluruh data postingan produk dan media katalog Anda telah dicadangkan secara otomatis dan aman pada server cloud.',
-      time: '6 jam lalu',
-      timestamp: '6 jam lalu',
-      read: true,
-      type: 'system',
-      action_type: 'none'
-    }
-  ]);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [selectedNotificationDetail, setSelectedNotificationDetail] = useState<any | null>(() => {
     try {
       if (typeof window !== 'undefined') {
@@ -12729,12 +12647,17 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setAdminUser(data.user);
           setIsPasswordChanged(true);
           setRegisterForm({ name: '', email: '', password: '', store_name: '', store_slug: '' });
+          if (data.user?.store_slug) {
+            localStorage.setItem('catavor_active_slug', data.user.store_slug);
+          }
           setStoreSlug(data.user.store_slug);
           setPortalTab('home');
           setView('admin');
           setAdminTab('items');
           window.history.pushState({}, '', `/${data.user.store_slug}/admin/items`);
           loadData(data.user.store_slug);
+          fetchMyQuota();
+          fetchNotificationsFromBackend(1, false);
           showToast('Selamat Datang! Akun dan katalog usaha Anda berhasil dibuat.');
         } else {
           if (data.errors) {
@@ -12816,12 +12739,17 @@ Terima kasih atas perhatian dan kerja samanya.`;
           setAdminUser(regData.user);
           setIsPasswordChanged(true);
           setRegisterForm({ name: '', email: '', password: '', store_name: '', store_slug: '' });
+          if (regData.user?.store_slug) {
+            localStorage.setItem('catavor_active_slug', regData.user.store_slug);
+          }
           setStoreSlug(regData.user.store_slug);
           setPortalTab('home');
           setView('admin');
           setAdminTab('items');
           window.history.pushState({}, '', `/${regData.user.store_slug}/admin/items`);
           loadData(regData.user.store_slug);
+          fetchMyQuota();
+          fetchNotificationsFromBackend(1, false);
           showToast('Selamat Datang! Akun usaha Anda berhasil diaktifkan.');
         } else {
           setRegisterError(regData.message || 'Gagal menyelesaikan pendaftaran.');
@@ -13019,90 +12947,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setView('admin');
         setAdminTab('items');
         setShowPaymentSuccessModal(true);
-
-        const planName = registerPlan === 'pro_business' ? 'Pro Bisnis' : 'Pro Starter';
-        const matchedRegPlan = subscriptionPlans.find(p => p.code === registerPlan);
-        const newNotifs: any[] = [
-          {
-            id: Date.now() + 1,
-            title: 'Selamat Datang di Catavor',
-            message: isFreeCoupon 
-              ? `Akun usaha Anda berhasil dibuat! Selamat menikmati seluruh fitur premium paket ${planName}.`
-              : 'Akun usaha Anda berhasil dibuat! Selamat datang di platform katalog digital Catavor.',
-            time: 'Baru saja',
-            read: false,
-            type: 'success'
-          }
-        ];
-
-        if (appliedCoupon) {
-          if (appliedCoupon.type === 'free') {
-            newNotifs.push({
-              id: Date.now() + 2,
-              title: `Kupon Gratis Diterapkan: ${appliedCoupon.code}`,
-              message: `Kupon "${appliedCoupon.code}" (${appliedCoupon.label}) berhasil membebaskan seluruh biaya pendaftaran 100%.`,
-              time: 'Baru saja',
-              read: false,
-              type: 'success'
-            });
-            newNotifs.push({
-              id: Date.now() + 3,
-              title: `Aktivasi Paket ${planName} Berhasil (100% Gratis)`,
-              message: `Selamat! Paket ${planName} Anda langsung aktif tanpa perlu menunggu verifikasi admin. Nikmati akses eksklusif dan fitur toko premium.`,
-              time: 'Baru saja',
-              read: false,
-              type: 'success'
-            });
-          } else {
-            const basePrice = Number(matchedRegPlan?.price_monthly || (registerPlan === 'pro_business' ? 129000 : 30000));
-            const finalPrice = Math.max(0, basePrice - appliedCoupon.discount);
-            newNotifs.push({
-              id: Date.now() + 2,
-              title: `Kupon Diskon Diterapkan: ${appliedCoupon.code}`,
-              message: `Kupon "${appliedCoupon.code}" memberikan potongan harga Rp ${appliedCoupon.discount.toLocaleString('id-ID')}. Total tagihan Anda menjadi Rp ${finalPrice.toLocaleString('id-ID')}.`,
-              time: 'Baru saja',
-              read: false,
-              type: 'success'
-            });
-            newNotifs.push({
-              id: Date.now() + 3,
-              title: 'Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
-              message: `Bukti pembayaran sebesar Rp ${finalPrice.toLocaleString('id-ID')} telah kami terima dan sedang diverifikasi oleh Tim Admin.`,
-              time: 'Baru saja',
-              read: false,
-              type: 'warning'
-            });
-            newNotifs.push({
-              id: Date.now() + 4,
-              title: 'Informasi Akses Sementara (Plan Free)',
-              message: 'Selama proses verifikasi berlangsung, fitur Plan Free aktif sementara sehingga Anda tetap dapat mengelola katalog usaha Anda.',
-              time: 'Baru saja',
-              read: false,
-              type: 'info'
-            });
-          }
-        } else {
-          // Bayar biasa tanpa kupon
-          const basePrice = Number(matchedRegPlan?.price_monthly || (registerPlan === 'pro_business' ? 129000 : 30000));
-          newNotifs.push({
-            id: Date.now() + 2,
-            title: 'Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
-            message: `Bukti pembayaran sebesar Rp ${basePrice.toLocaleString('id-ID')} untuk paket ${planName} telah kami terima. Tim Admin akan melakukan verifikasi transaksi dalam maksimal 1x24 jam.`,
-            time: 'Baru saja',
-            read: false,
-            type: 'warning'
-          });
-          newNotifs.push({
-            id: Date.now() + 3,
-            title: 'Informasi Akses Sementara (Plan Free)',
-            message: 'Selama proses verifikasi berlangsung, fitur Plan Free aktif sementara sehingga Anda tetap dapat mengelola katalog usaha Anda.',
-            time: 'Baru saja',
-            read: false,
-            type: 'info'
-          });
-        }
-
-        setNotifications(newNotifs);
+        fetchMyQuota();
+        fetchNotificationsFromBackend(1, false);
       } else {
         if (data.errors) {
           const firstErr = Object.values(data.errors)[0] as string[];
@@ -22987,6 +22833,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     PENDING VERIFIKASI
                   </span>
                 </div>
+              )}
+
+              {/* Pending Payment Status Banner (Desktop Dashboard) */}
+              {storeQuota?.pending_order && adminTab !== 'subscription' && (
+                <PendingPaymentBanner
+                  device="desktop"
+                  pendingOrder={storeQuota.pending_order}
+                  currentPlanCode={storeQuota?.plan?.code || settings.plan || 'free'}
+                  onOpenSubscription={() => {
+                    setAdminTab('subscription');
+                    const slug = storeSlug || getStoreSlug();
+                    if (slug) window.history.pushState({}, '', `/${slug}/admin/subscription`);
+                  }}
+                />
               )}
 
               {/* Onboarding Banner: Lengkapi Pengaturan Halaman Tentang Kami */}
