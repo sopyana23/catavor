@@ -135,7 +135,8 @@ import {
   Users,
   HardDriveDownload,
   FileSpreadsheet,
-  LogIn
+  LogIn,
+  Megaphone
 } from 'lucide-react'
 import './App.css'
 import { getItemModerationMeta } from '../../shared/moderation/itemModerationBadge'
@@ -5960,10 +5961,10 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
     }
     return 'hub';
   })
-  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'settings' | 'profile' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share' | 'audit_logs' | 'rbac' | 'portal'>(() => {
+  const [adminSubTab, setAdminSubTab] = useState<'menu' | 'items' | 'analytics' | 'ads' | 'settings' | 'profile' | 'policies' | 'notifications' | 'help' | 'subscription' | 'share' | 'audit_logs' | 'rbac' | 'portal'>(() => {
     if (typeof window !== 'undefined') {
       const savedSub = sessionStorage.getItem('catavor_mobile_admin_subtab');
-      if (savedSub && ['menu', 'items', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(savedSub)) {
+      if (savedSub && ['menu', 'items', 'analytics', 'ads', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(savedSub)) {
         sessionStorage.removeItem('catavor_mobile_admin_subtab');
         return savedSub as any;
       }
@@ -6022,22 +6023,25 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
       if (path.includes('/admin/rbac') || ['rbac', 'akses'].includes(rawTabParam) || ['rbac', 'akses'].includes(rawSubParam)) {
         return 'rbac';
       }
+      if (path.includes('/admin/ads') || ['ads', 'promotions', 'promosi', 'iklan'].includes(rawTabParam) || ['ads', 'promotions', 'promosi', 'iklan'].includes(rawSubParam)) {
+        return 'ads';
+      }
       if (path.includes('/admin/items') || ['items', 'produk', 'katalog'].includes(rawTabParam) || ['items', 'produk', 'katalog'].includes(rawSubParam)) {
         return 'items';
       }
       if (parts.length >= 3 && parts[1] === 'admin') {
         const sub = parts[2];
-        if (['items', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+        if (['items', 'analytics', 'ads', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
           return sub as any;
         }
       }
       if (parts.length === 2 && parts[0] === 'admin') {
         const sub = parts[1];
-        if (['items', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+        if (['items', 'analytics', 'ads', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
           return sub as any;
         }
       }
-      if (rawSubParam && ['items', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(rawSubParam)) {
+      if (rawSubParam && ['items', 'analytics', 'ads', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(rawSubParam)) {
         return rawSubParam as any;
       }
     }
@@ -10381,6 +10385,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
           } else if (pageSub === 'analytics' || pageSub === 'analisis' || pageSub === 'statistik') {
             setAdminSubTab('analytics');
             setView('tabs');
+          } else if (pageSub === 'ads' || pageSub === 'promotions' || pageSub === 'promosi' || pageSub === 'iklan') {
+            setAdminSubTab('ads');
+            setView('tabs');
           } else if (pageSub === 'profile') {
             const profileSub = urlParams.get('sub') || subSub;
             if (profileSub === 'logs' || profileSub === 'audit_logs' || profileSub === 'audit-logs') {
@@ -10775,6 +10782,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
               setAdminSubTab('analytics');
               setView('tabs');
               fetchAnalytics(analyticsPeriod);
+            } else if (pageSub === 'ads' || pageSub === 'promotions' || pageSub === 'promosi' || pageSub === 'iklan') {
+              setAdminSubTab('ads');
+              setView('tabs');
             } else if (pageSub === 'profile') {
               const profileSub = urlParams.get('sub');
               if (profileSub === 'logs' || profileSub === 'audit_logs' || profileSub === 'audit-logs') {
@@ -12411,6 +12421,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         targetPath += `/admin/items`;
       } else if (adminSubTab === 'analytics') {
         targetPath += `/admin/analytics`;
+      } else if (adminSubTab === 'ads') {
+        targetPath += `/admin/ads`;
       } else if (adminSubTab === 'settings') {
         if (mobileSettingsTab && mobileSettingsTab !== 'menu') {
           if (mobileSettingsTab === 'account') {
@@ -24001,6 +24013,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 title: 'Statistik & Analitika',
                                 subtitle: 'Ringkasan Trafik'
                               };
+                            case 'ads':
+                              return {
+                                title: 'Promosi & Iklan',
+                                subtitle: 'Slot Etalase & Kampanye'
+                              };
                             case 'items':
                               return {
                                 title: 'Kelola Inventaris',
@@ -26937,7 +26954,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         MENU &amp; FITUR KATALOG
                                       </span>
                                       <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                                        8 Fitur Pintar
+                                        9 Fitur Pintar
                                       </span>
                                     </div>
 
@@ -26981,6 +26998,43 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         </div>
                                         <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
                                           Analitik
+                                        </span>
+                                      </button>
+
+                                      {/* 2. Promosi & Iklan */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setAdminSubTab('ads');
+                                          const slug = getStoreSlug();
+                                          if (slug) window.history.pushState({}, '', `/${slug}/admin/ads`);
+                                        }}
+                                        style={{
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          alignItems: 'center',
+                                          gap: '0.35rem',
+                                          background: 'none',
+                                          border: 'none',
+                                          padding: 0,
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        <div style={{
+                                          width: '44px',
+                                          height: '44px',
+                                          borderRadius: '0.75rem',
+                                          backgroundColor: 'var(--bg-deep)',
+                                          border: '1px solid var(--border-light)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: 'var(--primary)'
+                                        }}>
+                                          <Megaphone size={20} />
+                                        </div>
+                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                                          Promosi
                                         </span>
                                       </button>
 
@@ -33274,12 +33328,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       }
                                     }}
                                   />
+                                </div>
+                              )}
+
+                              {adminSubTab === 'ads' && (
+                                <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', width: '100%', paddingBottom: '30px' }}>
                                   <MerchantAdsView
                                     device="mobile"
                                     isDark={themeMode === 'dark'}
                                     token={token}
                                     storeSlug={storeSlug}
                                     products={filteredFaunas as any}
+                                    settings={settings}
                                     onToast={(msg, type) => showToast(msg, type || 'success')}
                                   />
                                 </div>

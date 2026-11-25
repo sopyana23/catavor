@@ -5796,10 +5796,10 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
     }
     return 'catalog';
   });
-  const [adminTab, setAdminTab] = useState<'items' | 'categories' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal' | 'share'>(() => {
+  const [adminTab, setAdminTab] = useState<'items' | 'categories' | 'analytics' | 'ads' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal' | 'share'>(() => {
     if (typeof window !== 'undefined') {
       const savedTab = sessionStorage.getItem('catavor_desktop_admin_tab');
-      if (savedTab && ['items', 'categories', 'analytics', 'notifications', 'settings', 'profile', 'policies', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(savedTab)) {
+      if (savedTab && ['items', 'categories', 'analytics', 'ads', 'notifications', 'settings', 'profile', 'policies', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(savedTab)) {
         sessionStorage.removeItem('catavor_desktop_admin_tab');
         return savedTab as any;
       }
@@ -5850,17 +5850,18 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
       }
       if (parts[0] === 'admin' && parts[1]) {
         const sub = parts[1];
-        if (['items', 'categories', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
+        if (['items', 'categories', 'analytics', 'ads', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
           return sub as any;
         }
       }
       if (parts.length >= 3 && parts[1] === 'admin') {
         const sub = parts[2];
-        if (['items', 'categories', 'analytics', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
+        if (['items', 'categories', 'analytics', 'ads', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
           return sub as any;
         }
       }
       if (['analytics', 'analisis'].includes(rawTabParam)) return 'analytics';
+      if (['ads', 'promotions', 'promosi', 'iklan'].includes(rawTabParam)) return 'ads';
       if (['settings', 'pengaturan'].includes(rawTabParam)) return 'settings';
       if (['profile', 'profil'].includes(rawTabParam)) return 'profile';
       if (['policies', 'kebijakan'].includes(rawTabParam)) return 'policies';
@@ -10035,6 +10036,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
             setAdminTab('analytics');
             fetchAnalytics(analyticsPeriod);
           }
+          else if (pageSub === 'ads' || pageSub === 'promotions' || pageSub === 'promosi' || pageSub === 'iklan') {
+            setAdminTab('ads');
+          }
           else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket' || pageSub === 'orders' || pageSub === 'riwayat' || pageSub === 'tagihan') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support') {
             setAdminTab('help');
@@ -10117,6 +10121,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
           else if (pageSub === 'analytics' || pageSub === 'analisis' || pageSub === 'statistik' || pageSub === 'trafik') {
             setAdminTab('analytics');
             fetchAnalytics(analyticsPeriod);
+          }
+          else if (pageSub === 'ads' || pageSub === 'promotions' || pageSub === 'promosi' || pageSub === 'iklan') {
+            setAdminTab('ads');
           }
           else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket' || pageSub === 'orders' || pageSub === 'riwayat' || pageSub === 'tagihan') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan') {
@@ -10427,6 +10434,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
               setAdminTab('analytics');
               setView('admin');
               fetchAnalytics(analyticsPeriod);
+            } else if (pageSub === 'ads' || pageSub === 'promotions' || pageSub === 'promosi' || pageSub === 'iklan') {
+              setAdminTab('ads');
+              setView('admin');
             } else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') {
               setAdminTab('subscription');
               setView('admin');
@@ -11808,6 +11818,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
       } else if (adminTab === 'analytics') {
         targetPath += `/admin/analytics`;
+      } else if (adminTab === 'ads') {
+        targetPath += `/admin/ads`;
       } else if (adminTab === 'subscription') {
         targetPath += `/admin/subscription`;
         const curQ = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -23665,6 +23677,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 />
               )}
 
+              {adminTab === 'ads' && (
+                <div className="animate-fade-in" style={{ padding: '0.25rem 0 2rem 0' }}>
+                  <MerchantAdsView
+                    device="desktop"
+                    isDark={themeMode === 'dark'}
+                    token={token}
+                    storeSlug={storeSlug}
+                    products={filteredFaunas as any}
+                    settings={{ ...settings, ...platformSettings }}
+                    onToast={(msg, type) => showToast(msg, type || 'success')}
+                  />
+                </div>
+              )}
+
               {adminTab === 'settings' && (
                 <>
                   {/* Desktop Settings Header */}
@@ -29653,14 +29679,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
                       });
                     }}
-                  />
-                  <MerchantAdsView
-                    device="desktop"
-                    isDark={themeMode === 'dark'}
-                    token={token}
-                    storeSlug={storeSlug}
-                    products={filteredFaunas as any}
-                    onToast={(msg, type) => showToast(msg, type || 'success')}
                   />
                 </div>
               )}

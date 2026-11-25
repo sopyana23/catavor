@@ -34,11 +34,12 @@ import {
   FileSpreadsheet,
   FileCode,
   HardDriveDownload,
-  Share2
+  Share2,
+  Megaphone
 } from 'lucide-react';
 
 export interface MerchantAdminShellProps {
-  adminTab: 'items' | 'categories' | 'analytics' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal' | 'share';
+  adminTab: 'items' | 'categories' | 'analytics' | 'ads' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal' | 'share';
   setAdminTab: (tab: any) => void;
   settings: any;
   storeSlug: string | null;
@@ -212,6 +213,11 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           id: 'analytics',
           label: 'Statistik & Trafik',
           icon: <BarChart3 size={18} />
+        },
+        {
+          id: 'ads',
+          label: 'Promosi & Iklan',
+          icon: <Megaphone size={18} />
         }
       ]
     },
@@ -302,6 +308,7 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
       case 'items': return 'Daftar Item & Inventaris';
       case 'categories': return 'Manajemen Kategori & Etalase Katalog';
       case 'analytics': return 'Statistik & Analisis Trafik';
+      case 'ads': return 'Promosi & Iklan Etalase';
       case 'subscription': return 'Paket Langganan & Kuota Katalog';
       case 'notifications': return 'Pusat Notifikasi Sistem';
       case 'audit_logs': return 'Riwayat Aktivitas & Audit Trail';
