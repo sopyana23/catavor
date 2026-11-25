@@ -6,11 +6,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/fs"
+	"os"
 	"path"
 	"sort"
 	"strings"
 	"time"
 
+	"catavor-backend/internal/config"
 	"catavor-backend/internal/models"
 
 	"github.com/rs/zerolog/log"
@@ -221,10 +223,21 @@ func baselineMigrations(db *gorm.DB, files []migrationFile) error {
 	})
 }
 
+func isLocalDevMFAEnv() bool {
+	appEnv := ""
+	if config.AppConfig != nil {
+		appEnv = strings.ToLower(strings.TrimSpace(config.AppConfig.AppEnv))
+	}
+	if appEnv == "" {
+		appEnv = strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	}
+	return appEnv == "local" || appEnv == "development"
+}
+
 // EnsureN60MFASchema memastikan tabel dan kolom prasyarat MFA (N-60) benar-benar
 // terbentuk secara fisik di database, termasuk pada instalasi lama yang sebelumnya
 // melalui jalur baselineMigrations, serta menyelaraskan two_factor_enforced untuk
-// seluruh akun staf platform aktif.
+// seluruh akun staf platform aktif di lingkungan non-lokal (staging/production).
 func EnsureN60MFASchema(db *gorm.DB) error {
 	const n60Version = "20261116_n60_user_two_factor_auth.sql"
 
@@ -257,12 +270,17 @@ func EnsureN60MFASchema(db *gorm.DB) error {
 		log.Info().Str("migrasi", n60Version).Msg("skema fisik N-60 MFA dipastikan terbentuk")
 	}
 
-	// Backfill idempoten: seluruh role staf platform wajib memiliki two_factor_enforced = true.
-	if err := db.Model(&models.User{}).
-		Where("LOWER(TRIM(platform_role)) IN ? AND two_factor_enforced = ?",
-			[]string{"superadmin", "admin", "compliance", "support", "finance", "content"}, false).
-		Update("two_factor_enforced", true).Error; err != nil {
-		return fmt.Errorf("backfill two_factor_enforced staf gagal: %w", err)
+	// Backfill idempoten (fail-closed untuk staging/production/unset APP_ENV):
+	// seluruh role staf platform wajib memiliki two_factor_enforced = true.
+	// Di local/development, flag two_factor_enforced = false tetap dipertahankan
+	// selaras dengan IsMFAMandatory agar developer/QA bisa memakai akun staf non-MFA.
+	if !isLocalDevMFAEnv() {
+		if err := db.Model(&models.User{}).
+			Where("LOWER(TRIM(platform_role)) IN ? AND two_factor_enforced = ?",
+				[]string{"superadmin", "admin", "compliance", "support", "finance", "content"}, false).
+			Update("two_factor_enforced", true).Error; err != nil {
+			return fmt.Errorf("backfill two_factor_enforced staf gagal: %w", err)
+		}
 	}
 
 	return nil
