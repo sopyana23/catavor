@@ -139,6 +139,11 @@ export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
 };
 import { smartBack, useModalBackHandler } from '../utils/navigation';
 import { apiClient } from '../utils/apiClient';
+import {
+  interpolateCannedTemplate,
+  resolveTicketMessageCount,
+  resolveTicketStoreTitle,
+} from '../../../shared/support/supportHelpers';
 import appLogoImg from '../assets/logo.png';
 import { APP_LOGO_BASE64 } from '../assets/logoBase64';
 
@@ -693,6 +698,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   }, [showTemplateModal]);
 
+  useModalBackHandler({
+    isOpen: showTemplateModal,
+    onClose: () => setShowTemplateModal(false),
+    modalId: 'desktop-portal-template-picker-modal'
+  });
+
+  useModalBackHandler({
+    isOpen: showFooterStatusMenu,
+    onClose: () => setShowFooterStatusMenu(false),
+    modalId: 'desktop-portal-status-menu-modal'
+  });
+
   // Swipe & Drag Bottom Sheet State for Ticket Status Modal
   const [statusSheetDragY, setStatusSheetDragY] = useState(0);
   const [isStatusSheetDragging, setIsStatusSheetDragging] = useState(false);
@@ -1013,16 +1030,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   const handleApplyTemplate = (tmpl: any) => {
     if (!tmpl) return;
-    const merchantName = getMerchantDisplayName(selectedTicket);
-    const storeName = selectedTicket?.store?.store_title || selectedTicket?.store?.name || selectedTicket?.store_name || 'Merchant Anda';
-    const ticketNum = selectedTicket?.ticket_number || `#TCK-${selectedTicket?.id}`;
-    const agentName = currentUser?.name || 'Staf CS';
-
-    let content = tmpl.content || '';
-    content = content.replace(/\{\{merchant_name\}\}/gi, merchantName);
-    content = content.replace(/\{\{store_name\}\}/gi, storeName);
-    content = content.replace(/\{\{ticket_number\}\}/gi, ticketNum);
-    content = content.replace(/\{\{agent_name\}\}/gi, agentName);
+    const content = interpolateCannedTemplate(tmpl.content || '', {
+      merchantName: getMerchantDisplayName(selectedTicket),
+      storeTitle: resolveTicketStoreTitle(selectedTicket),
+      ticketNumber: selectedTicket?.ticket_number || `#TCK-${selectedTicket?.id}`,
+      agentName: currentUser?.name || 'Staf CS',
+    });
 
     setReplyText(content);
     setShowTemplateModal(false);
@@ -1951,7 +1964,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             playSupportChime();
             const incomingTitle = totalNewIncoming === 1 ? '1 pesan masuk' : `${totalNewIncoming} pesan masuk`;
             sendSupportNotification(
-              `💬 ${incomingTitle}: ${incomingTicketNum}`,
+              `${incomingTitle}: ${incomingTicketNum}`,
               `${incomingSender}: ${incomingSnippet}`
             );
           }
@@ -4730,7 +4743,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 {activeView === 'reports' && moderationModalReport
                   ? `${moderationModalReport.report_number || `#RPT-${moderationModalReport.id}`} • ${moderationModalReport.store_title || moderationModalReport.store_slug || 'Katalog'}`
                   : activeView === 'support' && selectedTicket
-                    ? `${selectedTicket.ticket_number || ('#TCK-' + selectedTicket.id)} • 🏪 ${getStoreDisplayName(selectedTicket)}`
+                    ? `${selectedTicket.ticket_number || ('#TCK-' + selectedTicket.id)} • ${getStoreDisplayName(selectedTicket)}`
                     : (activeView === 'broadcast' && broadcastSubViewState === 'create')
                       ? 'Segmentasi & Pengumuman Platform'
                       : (activeView === 'broadcast' && broadcastSubViewState === 'detail')
@@ -6994,7 +7007,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* 4. MODULE 4: HELPDESK & TIKET BANTUAN                                     */}
       {/* ========================================================================= */}
       {activeView === 'support' && canAccessSupport && (
-        selectedTicket ? (
+        <ErrorBoundary sectionName="Pusat Bantuan & Helpdesk">
+        {selectedTicket ? (
           /* ----------------------------------------------------------------------- */
           /* 4A. TICKET CONVERSATION CHAT ROOM (DETAIL THREAD PERCAKAPAN)             */
           /* ----------------------------------------------------------------------- */
@@ -8024,7 +8038,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    fetchCannedTemplates();
+                    fetchCannedTemplates(1, '', 'all', 100, false, true);
                     setShowTemplateModal(true);
                   }}
                   style={{
@@ -8504,8 +8518,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     t.status === 'closed' ? 'Ditutup' : String(t.status || 'OPEN').toUpperCase();
 
                   const storePlan = String(t.store?.plan || '').toLowerCase();
-                  const storeDisplayName = t.store?.store_title || t.store?.name || t.store_name || t.user?.name || 'Merchant';
-                  const messageCount = Array.isArray(t.messages) ? t.messages.length : (t.message_count || 0);
+                  const storeDisplayName = resolveTicketStoreTitle(t);
+                  const messageCount = resolveTicketMessageCount(t);
                   const msgs = Array.isArray(t.messages) ? t.messages : [];
                   const lastMsg = t.last_msg || (msgs.length > 0 ? msgs[msgs.length - 1] : null);
                   const isUnread = Boolean(t.has_unread || (t.unread_count && t.unread_count > 0));
@@ -8887,29 +8901,22 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <span style={{ fontSize: '0.74rem', color: theme.textMuted, fontWeight: 600 }}>Tampilkan:</span>
-                        <select
-                          value={ticketsPagination.limit}
-                          onChange={(e) => {
-                            const newLimit = parseInt(e.target.value, 10);
+                        <DesktopCustomSelect
+                          value={String(ticketsPagination.limit)}
+                          onChange={(val) => {
+                            const newLimit = parseInt(val, 10) || 20;
                             fetchTickets(1, false, newLimit);
                           }}
-                          style={{
-                            padding: '0.28rem 0.55rem',
-                            borderRadius: '0.45rem',
-                            border: `1px solid ${theme.border}`,
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
-                            color: theme.textPrimary,
+                          options={[10, 20, 50, 100].map(sz => ({ value: String(sz), label: String(sz) }))}
+                          direction="up"
+                          triggerStyle={{
+                            minHeight: '30px',
+                            padding: '0.22rem 0.55rem',
                             fontSize: '0.74rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            outline: 'none'
+                            color: theme.textPrimary,
                           }}
-                        >
-                          <option value={10}>10</option>
-                          <option value={20}>20</option>
-                          <option value={50}>50</option>
-                          <option value={100}>100</option>
-                        </select>
+                          ariaLabel="Jumlah tiket per halaman"
+                        />
                         <span style={{ fontSize: '0.74rem', color: theme.textMuted }}>tiket/hal</span>
                       </div>
 
@@ -9135,7 +9142,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </>
             )}
           </div>
-        )
+        )}
+        </ErrorBoundary>
       )}
 
       {/* ========================================================================= */}

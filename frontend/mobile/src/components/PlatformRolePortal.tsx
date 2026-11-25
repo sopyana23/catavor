@@ -139,6 +139,12 @@ export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
 import { apiClient } from '../utils/apiClient';
 import { smartBack, useModalBackHandler, useIsAnyModalOpen } from '../utils/navigation';
 import { MobileCustomSelect, type MobileSelectOption } from './MobileCustomSelect';
+import {
+  interpolateCannedTemplate,
+  resolveTicketMessageCount,
+  resolveTicketStoreTitle,
+  SUPPORT_TEMPLATE_CATEGORIES,
+} from '../../../shared/support/supportHelpers';
 import appLogoImg from '../assets/logo.png';
 import { APP_LOGO_BASE64 } from '../assets/logoBase64';
 
@@ -1044,16 +1050,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   const handleApplyTemplate = (tmpl: any) => {
     if (!tmpl) return;
-    const merchantName = getMerchantDisplayName(selectedTicket);
-    const storeName = selectedTicket?.store?.store_title || selectedTicket?.store?.name || selectedTicket?.store_name || 'Toko Anda';
-    const ticketNum = selectedTicket?.ticket_number || `#TCK-${selectedTicket?.id}`;
-    const agentName = currentUser?.name || 'Staf CS';
-
-    let content = tmpl.content || '';
-    content = content.replace(/\{\{merchant_name\}\}/gi, merchantName);
-    content = content.replace(/\{\{store_name\}\}/gi, storeName);
-    content = content.replace(/\{\{ticket_number\}\}/gi, ticketNum);
-    content = content.replace(/\{\{agent_name\}\}/gi, agentName);
+    const content = interpolateCannedTemplate(tmpl.content || '', {
+      merchantName: getMerchantDisplayName(selectedTicket),
+      storeTitle: resolveTicketStoreTitle(selectedTicket),
+      ticketNumber: selectedTicket?.ticket_number || `#TCK-${selectedTicket?.id}`,
+      agentName: currentUser?.name || 'Staf CS',
+    });
 
     setReplyText(content);
     setShowTemplateModal(false);
@@ -4594,8 +4596,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   onClick={() => setShowOptionsMenu(true)}
                   title={headerConfig.title || "Menu Opsi"}
                   style={{
-                    width: '34px',
-                    height: '34px',
+                    width: '44px',
+                    height: '44px',
                     borderRadius: '0.75rem',
                     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
                     border: `1px solid ${theme.border}`,
@@ -4722,8 +4724,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             : "Kembali ke Dashboard"
                   }
                   style={{
-                    width: '34px',
-                    height: '34px',
+                    width: '44px',
+                    height: '44px',
                     borderRadius: '0.75rem',
                     backgroundColor: (activeView === 'broadcast' && broadcastSubViewState !== 'list')
                       ? (isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)')
@@ -4815,8 +4817,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       onClick={headerConfig.primaryAction.onClick}
                       title={headerConfig.primaryAction.title}
                       style={{
-                        width: '34px',
-                        height: '34px',
+                        width: '44px',
+                        height: '44px',
                         borderRadius: '0.75rem',
                         backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
                         border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.35)' : 'rgba(56, 189, 248, 0.3)'}`,
@@ -4837,8 +4839,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       onClick={() => setShowOptionsMenu(true)}
                       title={headerConfig.title || "Menu Opsi"}
                       style={{
-                        width: '34px',
-                        height: '34px',
+                        width: '44px',
+                        height: '44px',
                         borderRadius: '0.75rem',
                         backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
                         border: `1px solid ${theme.border}`,
@@ -4900,7 +4902,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               display: 'flex',
               flexDirection: 'column',
               gap: '0.65rem',
-              transform: `translateY(${Math.max(0, sheetDragY)}px)`,
+              transform: `translateY(${sheetDragY < 0 ? sheetDragY * 0.16 : sheetDragY}px)`,
               transition: isDraggingSheet ? 'none' : 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
               animation: isDraggingSheet ? 'none' : 'slideUp 0.25s ease-out'
             }}
@@ -6840,7 +6842,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* 4. MODULE 4: HELPDESK & TIKET BANTUAN                                     */}
       {/* ========================================================================= */}
       {activeView === 'support' && canAccessSupport && (
-        selectedTicket ? (
+        <ErrorBoundary sectionName="Helpdesk Tiket">
+        {selectedTicket ? (
           /* ----------------------------------------------------------------------- */
           /* 4A. TICKET CONVERSATION CHAT ROOM (DETAIL THREAD PERCAKAPAN)             */
           /* ----------------------------------------------------------------------- */
@@ -7672,6 +7675,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         type="button"
                         onClick={() => setIsInternalNote(false)}
                         style={{
+                          minHeight: '44px',
                           padding: '0.45rem 0.5rem',
                           borderRadius: '0.5rem',
                           fontSize: '0.74rem',
@@ -7695,6 +7699,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         type="button"
                         onClick={() => setIsInternalNote(true)}
                         style={{
+                          minHeight: '44px',
                           padding: '0.45rem 0.5rem',
                           borderRadius: '0.5rem',
                           fontSize: '0.74rem',
@@ -7794,7 +7799,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             type="button"
                             onClick={() => setShowFooterStatusMenu(true)}
                             style={{
-                              height: '32px',
+                              minHeight: '44px',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '0.35rem',
@@ -7838,11 +7843,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       <button
                         type="button"
                         onClick={() => {
-                          fetchCannedTemplates();
+                          fetchCannedTemplates(1, '', 'all', 100, false, true);
                           setShowTemplateModal(true);
                         }}
                         style={{
-                          height: '32px',
+                          minHeight: '44px',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '0.35rem',
@@ -7895,8 +7900,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         disabled={isUploadingTicketAttachment || ticketReplyAttachments.length >= 5}
                         onClick={() => document.getElementById('admin-ticket-reply-file')?.click()}
                         style={{
-                          width: '32px',
-                          height: '32px',
+                          width: '44px',
+                          height: '44px',
                           borderRadius: '0.55rem',
                           backgroundColor: 'transparent',
                           border: 'none',
@@ -7944,8 +7949,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         disabled={(!replyText.trim() && ticketReplyAttachments.length === 0) || actionLoading}
                         onClick={() => handleAdminReply(false)}
                         style={{
-                          width: '36px',
-                          height: '36px',
+                          width: '44px',
+                          height: '44px',
                           borderRadius: '50%',
                           backgroundColor: isInternalNote ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
                           color: isInternalNote ? '#000000' : '#ffffff',
@@ -8161,11 +8166,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               tickets.map((t) => {
                 const isUnread = t.status === 'open' || t.status === 'waiting_agent';
                 const statusMeta = getTicketStatusMeta(t.status);
-                const storeDisplayName = t.store?.store_title || t.store_name || t.store?.name || t.user?.name || t.user_name || t.user?.email || 'Merchant';
+                const storeDisplayName = resolveTicketStoreTitle(t);
                 const storePlan = t.store_plan || t.store?.plan || '';
                 const msgs = Array.isArray(t.messages) ? t.messages : [];
                 const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
-                const messageCount = msgs.length || t.message_count || 1;
+                const messageCount = resolveTicketMessageCount(t);
                 const lastSenderName = lastMsg ? (lastMsg.sender_type === 'user' ? (lastMsg.sender_name || 'Merchant') : (lastMsg.sender_name || 'CS Agent')) : '';
 
                 return (
@@ -8367,7 +8372,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               </div>
             )}
           </div>
-        )
+        )}
+        </ErrorBoundary>
       )}
 
       {/* ========================================================================= */}
@@ -15232,27 +15238,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <label style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textSecondary, display: 'block', marginBottom: '0.3rem' }}>
                     Kategori
                   </label>
-                  <select
+                  <MobileCustomSelect
                     value={templateForm.category}
-                    onChange={e => setTemplateForm({ ...templateForm, category: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '0.55rem 0.75rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: theme.cardAlt,
-                      border: `1px solid ${theme.border}`,
-                      color: theme.textPrimary,
-                      fontSize: '0.82rem',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="general">Umum &amp; Greeting</option>
-                    <option value="billing">Keuangan &amp; Billing</option>
-                    <option value="technical">Kendala Teknis</option>
-                    <option value="closing">Penutupan Tiket</option>
-                    <option value="account">Akun &amp; Keamanan</option>
-                  </select>
+                    onChange={(val) => setTemplateForm({ ...templateForm, category: val })}
+                    options={SUPPORT_TEMPLATE_CATEGORIES.map((opt) => ({ value: opt.value, label: opt.label }))}
+                    title="Pilih Kategori Template"
+                    triggerStyle={{ minHeight: '44px' }}
+                    ariaLabel="Kategori Template"
+                  />
                 </div>
               </div>
 

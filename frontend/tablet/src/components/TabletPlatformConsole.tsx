@@ -125,6 +125,12 @@ import {
 import { AccessDeniedPanel } from '../../../shared/rbac/AccessDeniedPanel';
 import { smartBack, useModalBackHandler } from '../utils/navigation';
 import { broadcastAuthEvent } from '../utils/authSync';
+import {
+  interpolateCannedTemplate,
+  resolveTicketMessageCount,
+  resolveTicketStoreTitle,
+  SUPPORT_TEMPLATE_CATEGORIES,
+} from '../../../shared/support/supportHelpers';
 
 export const REKBER_FACTORY_DEFAULTS: Record<string, string> = {
   rekber_template_physical: "Halo *{store_title}*, saya berminat membeli produk berikut:\n\n*Produk:* {item_name}\n*Harga:* {item_price}\n\nSaya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.\n\nMohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.\n\nTerima kasih.",
@@ -166,34 +172,6 @@ const TICKET_PRIORITY_FILTER_OPTIONS: TabletSelectOption[] = [
   { value: 'high', label: 'High', badge: 'Tinggi', badgeBg: 'rgba(249, 115, 22, 0.15)', badgeColor: '#f97316' },
   { value: 'medium', label: 'Medium', badge: 'Sedang', badgeBg: 'rgba(245, 158, 11, 0.15)', badgeColor: '#f59e0b' },
   { value: 'low', label: 'Low', badge: 'Rendah', badgeBg: 'rgba(16, 185, 129, 0.15)', badgeColor: '#10b981' },
-];
-
-const DEFAULT_CANNED_TEMPLATES = [
-  {
-    title: 'Salam Pembuka & Konfirmasi Penerimaan',
-    category: 'Umum',
-    text: 'Halo Pengelola Toko, terima kasih telah menghubungi Pusat Bantuan Catavor. Kami telah menerima laporan/kendala yang Anda sampaikan dan tim kami sedang melakukan investigasi lebih lanjut.'
-  },
-  {
-    title: 'Permintaan Bukti / Tangkapan Layar Tambahan',
-    category: 'Investigasi',
-    text: 'Untuk membantu kami mempercepat penanganan kendala ini, mohon dapat melampirkan tangkapan layar (screenshot) atau rekaman pesan error yang muncul beserta waktu kejadian.'
-  },
-  {
-    title: 'Verifikasi Pembayaran & Aktivasi Pro',
-    category: 'Billing',
-    text: 'Terima kasih atas konfirmasinya. Bukti transaksi langganan Anda telah diverifikasi oleh tim keuangan kami dan paket Pro telah berhasil diaktifkan pada katalog toko Anda.'
-  },
-  {
-    title: 'Kendala Teknis Telah Diatasi',
-    category: 'Solusi',
-    text: 'Kendala teknis yang Anda laporkan telah berhasil diperbaiki oleh tim engineering kami. Silakan muat ulang halaman dashboard Anda dan coba kembali. Jika masih menemui kendala, jangan ragu untuk mengabari kami.'
-  },
-  {
-    title: 'Penutupan Tiket / Masalah Terselesaikan',
-    category: 'Selesai',
-    text: 'Karena solusi telah diberikan dan tidak ada pertanyaan lanjutan, tiket ini kami tandai sebagai terselesaikan. Anda dapat memberikan penilaian layanan (CSAT) untuk membantu kami meningkatkan kualitas dukungan.'
-  }
 ];
 
 export interface TabletPlatformConsoleProps {
@@ -1127,14 +1105,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   }, []);
 
-  const getStoreDisplayName = useCallback((ticket: any) => {
-    if (ticket?.store?.name) return ticket.store.name;
-    if (ticket?.store_name) return ticket.store_name;
-    if (ticket?.store?.slug) return ticket.store.slug;
-    if (ticket?.store_slug) return ticket.store_slug;
-    if (ticket?.user?.name) return ticket.user.name;
-    return ticket?.user_email || 'Merchant';
-  }, []);
+  const getStoreDisplayName = useCallback((ticket: any) => resolveTicketStoreTitle(ticket), []);
 
   const getStorePlanBadge = useCallback((ticket: any) => {
     const plan = String(ticket?.store?.plan || ticket?.store_plan || 'free').toLowerCase();
@@ -1585,7 +1556,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   };
 
   const handleInsertCannedTemplate = (content: string) => {
-    setTicketReply(prev => (prev ? `${prev}\n\n${content}` : content));
+    const interpolated = interpolateCannedTemplate(content, {
+      merchantName: ticketDetail?.user?.name,
+      storeTitle: resolveTicketStoreTitle(ticketDetail),
+      ticketNumber: ticketDetail?.ticket_number || (ticketDetail?.id ? `#TCK-${ticketDetail.id}` : '-'),
+      agentName: currentUser?.name || 'Staf CS',
+    });
+    setTicketReply(prev => (prev ? `${prev}\n\n${interpolated}` : interpolated));
     setShowCannedModal(false);
     showToast('Template balasan disisipkan ke pesan');
   };
@@ -2540,14 +2517,19 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     targetSearch: string = debouncedTemplateSearch,
     targetCategory: string = templateCategoryFilter,
     targetLimit: number = templateLimit,
-    includeInactive: boolean = true
+    includeInactive: boolean = true,
+    fetchAll: boolean = false
   ) => {
     if (!token) return;
     setLoadingTemplates(true);
     try {
       const params = new URLSearchParams();
-      params.set('page', String(targetPage));
-      params.set('limit', String(targetLimit));
+      if (fetchAll) {
+        params.set('all', 'true');
+      } else {
+        params.set('page', String(targetPage));
+        params.set('limit', String(targetLimit));
+      }
       if (includeInactive) params.set('include_inactive', 'true');
       if (targetCategory && targetCategory !== 'all') params.set('category', targetCategory);
       if (targetSearch && targetSearch.trim()) params.set('search', targetSearch.trim());
@@ -2766,6 +2748,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     isOpen: showTemplateFormModal,
     onClose: () => setShowTemplateFormModal(false),
     modalId: 'cs_template_form'
+  });
+
+  useModalBackHandler({
+    isOpen: showCannedModal,
+    onClose: () => setShowCannedModal(false),
+    modalId: 'tablet_canned_templates_modal'
   });
 
   // =========================================================================
@@ -3247,12 +3235,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {cannedTemplates.length === 0 ? (
+              {cannedTemplates.filter(tmpl => tmpl.is_active !== false).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                  Belum ada template balasan CS terdaftar
+                  Belum ada template balasan CS aktif terdaftar
                 </div>
               ) : (
-                cannedTemplates.map(tmpl => (
+                cannedTemplates.filter(tmpl => tmpl.is_active !== false).map(tmpl => (
                   <div
                     key={tmpl.id}
                     onClick={() => handleInsertCannedTemplate(tmpl.content)}
@@ -3269,7 +3257,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)' }}>
-                        {tmpl.title} {tmpl.shortcut_code && `(${tmpl.shortcut_code})`}
+                        {tmpl.title} {(tmpl.shortcut || tmpl.shortcut_code) && `(/${tmpl.shortcut || tmpl.shortcut_code})`}
                       </span>
                       <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--bg-card)' }}>
                         {tmpl.category?.toUpperCase() || 'UMUM'}
@@ -5154,6 +5142,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
           {/* TAB 4: SUPPORT (PUSAT BANTUAN CS) */}
           {activeView === 'support' && canAccessSupport && (
+            <ErrorBoundary sectionName="Pusat Bantuan & Helpdesk CS">
             <TabletMasterDetailView
               title="Tiket Helpdesk CS"
               subtitle={`${ticketsPagination.total_items || tickets.length} antrean tiket`}
@@ -5411,7 +5400,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         const planBadge = getStorePlanBadge(t);
                         const msgs = Array.isArray(t.messages) ? t.messages : [];
                         const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
-                        const messageCount = msgs.length || t.message_count || 1;
+                        const messageCount = resolveTicketMessageCount(t);
                         const lastSenderName = lastMsg ? (lastMsg.sender_type === 'user' ? (lastMsg.sender_name || 'Merchant') : (lastMsg.sender_name || 'Staf CS')) : '';
 
                         return (
@@ -6368,6 +6357,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               type="button"
                               onClick={() => setIsInternalNote(false)}
                               style={{
+                                minHeight: '44px',
                                 padding: '0.45rem 0.5rem',
                                 borderRadius: '0.45rem',
                                 fontSize: '0.74rem',
@@ -6389,6 +6379,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                               type="button"
                               onClick={() => setIsInternalNote(true)}
                               style={{
+                                minHeight: '44px',
                                 padding: '0.45rem 0.5rem',
                                 borderRadius: '0.45rem',
                                 fontSize: '0.74rem',
@@ -6512,7 +6503,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   disabled={isUploadingTicketAttachment}
                                   title="Lampirkan File (Gambar/PDF)"
                                   style={{
-                                    height: '36px',
+                                    minHeight: '44px',
                                     padding: '0 0.75rem',
                                     borderRadius: '0.55rem',
                                     border: '1px solid var(--border-light)',
@@ -6537,10 +6528,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
                                 <button
                                   type="button"
-                                  onClick={() => setShowCannedModal(true)}
+                                  onClick={() => {
+                                    fetchCannedTemplates(1, '', 'all', 100, false, true);
+                                    setShowCannedModal(true);
+                                  }}
                                   title="Gunakan Template CS"
                                   style={{
-                                    height: '36px',
+                                    minHeight: '44px',
                                     padding: '0 0.75rem',
                                     borderRadius: '0.55rem',
                                     border: '1px solid var(--border-light)',
@@ -6586,7 +6580,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                   onClick={() => handleSendTicketReply(isInternalNote)}
                                   disabled={isSendingTicketReply || (!ticketReply.trim() && ticketReplyAttachments.length === 0)}
                                   style={{
-                                    height: '42px',
+                                    minHeight: '44px',
                                     padding: '0 1.25rem',
                                     borderRadius: '0.55rem',
                                     border: 'none',
@@ -6615,6 +6609,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 )
               }
             />
+            </ErrorBoundary>
           )}
 
           {/* TAB 5: FINANCE (KEUANGAN & BILLING) */}
@@ -11472,112 +11467,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
 
 
-      {/* CANNED CS RESPONSE TEMPLATES MODAL */}
-      {showCannedModal && (
-        <div
-          onClick={() => setShowCannedModal(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(6px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1.5rem'
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: '560px',
-              maxHeight: '80vh',
-              backgroundColor: 'var(--bg-card)',
-              borderRadius: '1rem',
-              border: '1px solid var(--border-light)',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden'
-            }}
-          >
-            <div style={{
-              padding: '1rem 1.25rem',
-              borderBottom: '1px solid var(--border-light)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              backgroundColor: 'var(--bg-deep)'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Zap size={18} color="#f59e0b" />
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                  Template Balasan Cepat CS
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCannedModal(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '0.25rem',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{
-              padding: '1rem 1.25rem',
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.65rem'
-            }}>
-              {DEFAULT_CANNED_TEMPLATES.map((tmpl, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => handleInsertCannedTemplate(tmpl.text)}
-                  style={{
-                    padding: '0.85rem',
-                    borderRadius: '0.65rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    border: '1px solid var(--border-light)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{tmpl.title}</strong>
-                    <span style={{
-                      fontSize: '0.62rem',
-                      fontWeight: 700,
-                      padding: '0.1rem 0.4rem',
-                      borderRadius: '999px',
-                      backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                      color: 'var(--primary)',
-                      border: '1px solid rgba(59, 130, 246, 0.25)'
-                    }}>
-                      {tmpl.category}
-                    </span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
-                    {tmpl.text}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* CREATE / EDIT CS TEMPLATE FORM MODAL (CENTERED DIALOG TABLET) */}
       {showTemplateFormModal && (
         <div
@@ -11725,27 +11614,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.35rem' }}>
                     Kategori Template
                   </label>
-                  <select
+                  <TabletCustomSelect
                     value={templateForm.category}
-                    onChange={e => setTemplateForm({ ...templateForm, category: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '0.65rem',
-                      backgroundColor: 'var(--bg-deep)',
-                      border: '1px solid var(--border-light)',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.82rem',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="general">Umum &amp; Greeting</option>
-                    <option value="billing">Keuangan &amp; Billing</option>
-                    <option value="technical">Kendala Teknis</option>
-                    <option value="closing">Penutupan Tiket</option>
-                    <option value="account">Akun &amp; Keamanan</option>
-                  </select>
+                    onChange={(val) => setTemplateForm({ ...templateForm, category: val })}
+                    options={SUPPORT_TEMPLATE_CATEGORIES.map((opt) => ({ value: opt.value, label: opt.label }))}
+                    triggerStyle={{ minHeight: '44px' }}
+                    ariaLabel="Kategori Template"
+                  />
                 </div>
               </div>
 

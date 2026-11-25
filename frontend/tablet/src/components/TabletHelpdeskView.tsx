@@ -29,6 +29,13 @@ import {
 import { TabletMasterDetailView } from './TabletMasterDetailView';
 import { DocumentPreviewModal, type DocumentPreviewData } from './DocumentPreviewModal';
 import { TabletOfficialContactModal } from './TabletOfficialContactModal';
+import { TabletCustomSelect } from './TabletCustomSelect';
+import { useModalBackHandler } from '../utils/navigation';
+import {
+  SUPPORT_TICKET_CATEGORIES,
+  SUPPORT_TICKET_PRIORITIES,
+  resolveTicketMessageCount,
+} from '../../../shared/support/supportHelpers';
 
 export interface TicketAttachment {
   id?: number | string;
@@ -74,6 +81,7 @@ export interface SupportTicket {
   messages: TicketMessage[];
   unread_count?: number;
   has_unread?: boolean;
+  message_count?: number;
   rating?: number;
   rating_comment?: string;
   rated_at?: string;
@@ -162,9 +170,26 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
   const [isSubmittingCSAT, setIsSubmittingCSAT] = useState<boolean>(false);
   const [showOfficialContactModal, setShowOfficialContactModal] = useState<boolean>(false);
 
-  // Document & Lightbox Preview States
+  // Document Preview State
   const [docPreview, setDocPreview] = useState<DocumentPreviewData | null>(null);
-  const [activeImageLightbox, setActiveImageLightbox] = useState<string | null>(null);
+
+  useModalBackHandler({
+    isOpen: showOfficialContactModal,
+    onClose: () => setShowOfficialContactModal(false),
+    modalId: 'tablet-official-contact-modal',
+  });
+
+  const syncTicketUrlParam = useCallback((id: string | number | 'new' | null) => {
+    try {
+      const url = new URL(window.location.href);
+      if (id && id !== 'new') {
+        url.searchParams.set('ticket', String(id));
+      } else {
+        url.searchParams.delete('ticket');
+      }
+      window.history.pushState({}, '', `${url.pathname}${url.search}`);
+    } catch {}
+  }, []);
 
   // References
   const readTicketIdsRef = useRef<Set<string | number>>(new Set());
@@ -329,6 +354,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
               last_message_at: t.last_message_at ? new Date(t.last_message_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : undefined,
               unread_count: unreadCount,
               has_unread: unreadCount > 0,
+              message_count: typeof t.message_count === 'number' ? t.message_count : msgs.length,
               rating: t.rating,
               rating_comment: t.rating_comment,
               rated_at: t.rated_at,
@@ -1027,7 +1053,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
             type="button"
             onClick={() => setShowOfficialContactModal(true)}
             style={{
-              minHeight: '40px',
+              minHeight: '44px',
               padding: '0.45rem 1rem',
               borderRadius: '0.65rem',
               backgroundColor: 'var(--bg-deep)',
@@ -1059,10 +1085,11 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                     message: `Halo Tim Kepatuhan & Bantuan Platform Catavor,\n\nSaya selaku pengelola profil katalog mengajukan permohonan peninjauan kembali atas penangguhan/pembekuan pada profil katalog kami:\n- Nama Profil Katalog: ${settings?.store_title || '-'}\n- Status Terdeteksi: ${settings?.dormancy_status || 'suspended'}\n\nKami siap memberikan bukti kepatuhan atau melakukan perbaikan katalog yang diperlukan sesuai panduan komunitas platform.\n\nTerima kasih atas perhatian dan dukungannya.`
                   });
                 }
+                syncTicketUrlParam(null);
                 setSelectedTicketId('new');
               }}
               style={{
-                minHeight: '40px',
+                minHeight: '44px',
                 padding: '0.45rem 1.15rem',
                 borderRadius: '0.65rem',
                 backgroundColor: 'var(--primary)',
@@ -1113,6 +1140,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
           onClearSelection={() => {
             setSelectedTicketId(null);
             setTicketDetails(null);
+            syncTicketUrlParam(null);
           }}
           emptyDetailMessage="Pilih salah satu tiket dari daftar untuk melihat percakapan atau klik 'Buat Tiket Baru' di bagian atas."
           isSidebarExpanded={isNavExpanded}
@@ -1165,7 +1193,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                       onClick={() => setTicketFilter(tab)}
                       style={{
                         flex: 1,
-                        minHeight: '32px',
+                        minHeight: '44px',
                         padding: '0.25rem 0.4rem',
                         borderRadius: '0.45rem',
                         border: 'none',
@@ -1208,6 +1236,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                         key={tk.id}
                         onClick={() => {
                           setSelectedTicketId(tk.id);
+                          syncTicketUrlParam(tk.id);
                           readTicketIdsRef.current.add(tk.id);
                           readTicketIdsRef.current.add(String(tk.id));
                           setTickets(prev => prev.map(t => String(t.id) === String(tk.id) ? { ...t, unread_count: 0, has_unread: false } : t));
@@ -1262,11 +1291,13 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                         </div>
 
                         {/* Snippet & Date */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.1rem', gap: '0.35rem' }}>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
                             {lastMsg ? `${lastMsg.sender_name}: ${lastMsg.message}` : (tk.category || 'Teknis')}
                           </span>
-                          <span>{tk.last_message_at || tk.updated_at || tk.created_at}</span>
+                          <span style={{ flexShrink: 0, whiteSpace: 'nowrap', fontWeight: 600 }}>
+                            {resolveTicketMessageCount(tk)} pesan • {tk.last_message_at || tk.updated_at || tk.created_at}
+                          </span>
                         </div>
                       </div>
                     );
@@ -1290,7 +1321,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                     disabled={ticketPage <= 1 || loadingTickets}
                     onClick={() => setTicketPage(prev => Math.max(1, prev - 1))}
                     style={{
-                      minHeight: '34px',
+                      minHeight: '44px',
                       padding: '0.35rem 0.75rem',
                       borderRadius: '0.5rem',
                       border: '1px solid var(--border-light)',
@@ -1310,7 +1341,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                     disabled={ticketPage >= ticketTotalPages || loadingTickets}
                     onClick={() => setTicketPage(prev => Math.min(ticketTotalPages, prev + 1))}
                     style={{
-                      minHeight: '34px',
+                      minHeight: '44px',
                       padding: '0.35rem 0.75rem',
                       borderRadius: '0.5rem',
                       border: '1px solid var(--border-light)',
@@ -1389,56 +1420,28 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                       <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-secondary)' }}>
                         KATEGORI BANTUAN
                       </label>
-                      <select
+                      <TabletCustomSelect
                         value={isSuspendedAccount ? 'compliance' : newTicketForm.category}
+                        onChange={(val) => setNewTicketForm({ ...newTicketForm, category: val })}
                         disabled={isSuspendedAccount}
-                        onChange={(e) => setNewTicketForm({ ...newTicketForm, category: e.target.value })}
-                        style={{
-                          width: '100%',
-                          minHeight: '44px',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.6rem',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: 'var(--bg-card)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.86rem',
-                          outline: 'none'
-                        }}
-                      >
-                        <option value="technical">Kendala Teknis & Aplikasi</option>
-                        <option value="billing">Tagihan & Langganan</option>
-                        <option value="catalog_help">Bantuan Pengelolaan Katalog</option>
-                        <option value="account">Akun & Verifikasi</option>
-                        <option value="general">Pertanyaan Umum</option>
-                        <option value="compliance">Kepatuhan & Banding</option>
-                      </select>
+                        options={SUPPORT_TICKET_CATEGORIES.map((opt) => ({ value: opt.value, label: opt.label }))}
+                        triggerStyle={{ minHeight: '44px' }}
+                        ariaLabel="Kategori Bantuan"
+                      />
                     </div>
 
                     <div>
                       <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-secondary)' }}>
                         TINGKAT URGENSI
                       </label>
-                      <select
+                      <TabletCustomSelect
                         value={isSuspendedAccount ? 'high' : newTicketForm.priority}
+                        onChange={(val) => setNewTicketForm({ ...newTicketForm, priority: val })}
                         disabled={isSuspendedAccount}
-                        onChange={(e) => setNewTicketForm({ ...newTicketForm, priority: e.target.value })}
-                        style={{
-                          width: '100%',
-                          minHeight: '44px',
-                          padding: '0.65rem 0.85rem',
-                          borderRadius: '0.6rem',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: 'var(--bg-card)',
-                          color: 'var(--text-primary)',
-                          fontSize: '0.86rem',
-                          outline: 'none'
-                        }}
-                      >
-                        <option value="low">Rendah (Pertanyaan Umum)</option>
-                        <option value="medium">Sedang (Operasional)</option>
-                        <option value="high">Tinggi (Urgensi Bisnis)</option>
-                        <option value="urgent">Mendesak (Darurat)</option>
-                      </select>
+                        options={SUPPORT_TICKET_PRIORITIES.map((opt) => ({ value: opt.value, label: opt.label }))}
+                        triggerStyle={{ minHeight: '44px' }}
+                        ariaLabel="Tingkat Urgensi"
+                      />
                     </div>
                   </div>
 
@@ -2246,52 +2249,6 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
           onClose={() => setDocPreview(null)}
           token={token}
         />
-      )}
-
-      {activeImageLightbox && (
-        <div
-          onClick={() => setActiveImageLightbox(null)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.85)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1.5rem'
-          }}
-        >
-          <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }}>
-            <img
-              src={activeImageLightbox}
-              alt="Lampiran Tiket"
-              style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: '0.75rem', objectFit: 'contain' }}
-            />
-            <button
-              type="button"
-              onClick={() => setActiveImageLightbox(null)}
-              style={{
-                position: 'absolute',
-                top: '-12px',
-                right: '-12px',
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                backgroundColor: '#ffffff',
-                color: '#000000',
-                border: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
-              }}
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
       )}
 
       {/* Tablet Official Contact Modal */}

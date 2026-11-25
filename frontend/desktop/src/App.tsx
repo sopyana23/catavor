@@ -183,6 +183,10 @@ import { checkUrlSecurity } from './utils/urlSecurity'
 import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import {
+  SUPPORT_TICKET_CATEGORIES,
+  SUPPORT_TICKET_PRIORITIES,
+} from '../../shared/support/supportHelpers'
 import { OfficialContactModal } from './components/OfficialContactModal'
 import { PlatformPoliciesView, type PolicyKey } from './components/PlatformPoliciesView'
 import { DesktopCheckoutView } from './components/DesktopCheckoutView'
@@ -7605,7 +7609,8 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
   const [ticketPage, setTicketPage] = useState<number>(1);
   const [ticketTotalPages, setTicketTotalPages] = useState<number>(1);
   const [ticketTotalItems, setTicketTotalItems] = useState<number>(0);
-  const [ticketLimit] = useState<number>(15);
+  const [ticketLimit, setTicketLimit] = useState<number>(15);
+  const [ticketJumpPage, setTicketJumpPage] = useState<string>('');
   const [ticketMetrics, setTicketMetrics] = useState<{ total: number; active: number; resolved: number }>({ total: 0, active: 0, resolved: 0 });
 
   // Reset to page 1 on filter tab change
@@ -8816,7 +8821,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   useEffect(() => {
     if (!token || adminTab !== 'help') return;
     fetchSupportTickets(tickets.length > 0, ticketPage);
-  }, [adminTab, token, debouncedTicketSearch, ticketFilter, storeSlug, ticketPage]);
+  }, [adminTab, token, debouncedTicketSearch, ticketFilter, storeSlug, ticketPage, ticketLimit]);
 
   // Polling fallback (45 detik saat tab bantuan biasa, 8 detik saat di ruang obrolan banding suspended)
   useEffect(() => {
@@ -9169,6 +9174,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
     isOpen: Boolean(archiveConfirmModal),
     onClose: () => setArchiveConfirmModal(null),
     modalId: 'desktop-archive-confirmation-modal'
+  })
+
+  useModalBackHandler({
+    isOpen: showCreateTicketModal,
+    onClose: () => {
+      setShowCreateTicketModal(false);
+    },
+    modalId: 'desktop-create-ticket-modal'
+  })
+
+  useModalBackHandler({
+    isOpen: showOfficialContactModal,
+    onClose: () => setShowOfficialContactModal(false),
+    modalId: 'desktop-official-contact-modal'
   })
 
   // Enterprise Product Delete Confirmation Modal State
@@ -27949,7 +27968,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 </div>
               )}
 
-              {adminTab === 'help' && (() => {
+              {adminTab === 'help' && (
+                <ErrorBoundary sectionName="Pusat Bantuan & Tiket">
+                {(() => {
                 const isSuspendedAccount = settings.dormancy_status === 'suspended' || settings.is_suspended;
                 const currentStoreSlug = (storeSlug || getStoreSlug() || '').toLowerCase();
                 const currentStoreObj = userStores?.find(s => s.slug?.toLowerCase() === currentStoreSlug);
@@ -28441,65 +28462,130 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         )}
                       </div>
 
-                      {/* Pagination Controls */}
-                      {ticketTotalPages > 1 && (
+                      {/* Enterprise Data Table Pagination Controls */}
+                      {ticketTotalItems > 0 && (
                         <div style={{
                           display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
+                          flexDirection: 'column',
+                          gap: '0.55rem',
                           padding: '0.75rem 0.25rem 0.25rem',
                           marginTop: 'auto',
                           flexShrink: 0,
                           borderTop: '1px solid var(--border-light)',
-                          fontSize: '0.78rem'
+                          fontSize: '0.74rem'
                         }}>
-                          <button
-                            type="button"
-                            disabled={ticketPage <= 1 || loadingTickets}
-                            onClick={() => {
-                              const newP = Math.max(1, ticketPage - 1);
-                              setTicketPage(newP);
-                            }}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: ticketPage <= 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
-                              color: ticketPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
-                              cursor: ticketPage <= 1 ? 'not-allowed' : 'pointer',
-                              fontWeight: 600,
-                              fontSize: '0.75rem',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            &larr; Sebelumnya
-                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+                              {Math.min((ticketPage - 1) * ticketLimit + 1, ticketTotalItems)}–{Math.min(ticketPage * ticketLimit, ticketTotalItems)} dari {ticketTotalItems}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <DesktopCustomSelect
+                                value={String(ticketLimit)}
+                                onChange={(val) => {
+                                  const next = parseInt(val, 10) || 15;
+                                  setTicketLimit(next);
+                                  setTicketPage(1);
+                                }}
+                                options={[10, 15, 25, 50].map(sz => ({ value: String(sz), label: `${sz}/hal` }))}
+                                triggerStyle={{ minHeight: '28px', padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}
+                                ariaLabel="Jumlah tiket per halaman"
+                              />
+                            </div>
+                          </div>
 
-                          <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
-                            Hal {ticketPage} dari {ticketTotalPages} ({ticketTotalItems} tiket)
-                          </span>
+                          {ticketTotalPages > 1 && (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.3rem', flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <button
+                                  type="button"
+                                  disabled={ticketPage <= 1 || loadingTickets}
+                                  onClick={() => setTicketPage(p => Math.max(1, p - 1))}
+                                  style={{
+                                    padding: '0.28rem 0.55rem',
+                                    borderRadius: '0.45rem',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: ticketPage <= 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
+                                    color: ticketPage <= 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                                    cursor: ticketPage <= 1 ? 'not-allowed' : 'pointer',
+                                    fontWeight: 600,
+                                    fontSize: '0.72rem'
+                                  }}
+                                >
+                                  Prev
+                                </button>
+                                <span style={{ color: 'var(--text-secondary)', fontWeight: 700, padding: '0 0.2rem' }}>
+                                  {ticketPage}/{ticketTotalPages}
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={ticketPage >= ticketTotalPages || loadingTickets}
+                                  onClick={() => setTicketPage(p => Math.min(ticketTotalPages, p + 1))}
+                                  style={{
+                                    padding: '0.28rem 0.55rem',
+                                    borderRadius: '0.45rem',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: ticketPage >= ticketTotalPages ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
+                                    color: ticketPage >= ticketTotalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                                    cursor: ticketPage >= ticketTotalPages ? 'not-allowed' : 'pointer',
+                                    fontWeight: 600,
+                                    fontSize: '0.72rem'
+                                  }}
+                                >
+                                  Next
+                                </button>
+                              </div>
 
-                          <button
-                            type="button"
-                            disabled={ticketPage >= ticketTotalPages || loadingTickets}
-                            onClick={() => {
-                              const newP = Math.min(ticketTotalPages, ticketPage + 1);
-                              setTicketPage(newP);
-                            }}
-                            style={{
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: ticketPage >= ticketTotalPages ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)',
-                              color: ticketPage >= ticketTotalPages ? 'var(--text-muted)' : 'var(--text-primary)',
-                              cursor: ticketPage >= ticketTotalPages ? 'not-allowed' : 'pointer',
-                              fontWeight: 600,
-                              fontSize: '0.75rem',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            Selanjutnya &rarr;
-                          </button>
+                              <form
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const p = parseInt(ticketJumpPage, 10);
+                                  if (!isNaN(p) && p >= 1 && p <= ticketTotalPages) {
+                                    setTicketPage(p);
+                                    setTicketJumpPage('');
+                                  }
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                              >
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={ticketTotalPages}
+                                  placeholder="Hal"
+                                  value={ticketJumpPage}
+                                  onChange={(e) => setTicketJumpPage(e.target.value)}
+                                  style={{
+                                    width: '44px',
+                                    height: '26px',
+                                    padding: '0 0.25rem',
+                                    borderRadius: '0.4rem',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-deep)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.72rem',
+                                    textAlign: 'center'
+                                  }}
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={!ticketJumpPage}
+                                  style={{
+                                    height: '26px',
+                                    padding: '0 0.45rem',
+                                    borderRadius: '0.4rem',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'rgba(255,255,255,0.08)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    cursor: ticketJumpPage ? 'pointer' : 'not-allowed',
+                                    opacity: ticketJumpPage ? 1 : 0.45
+                                  }}
+                                >
+                                  Go
+                                </button>
+                              </form>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -29541,13 +29627,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               <label className="form-label" style={{ margin: 0 }}>Judul Kendala / Subjek *</label>
                               {!(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
                                 <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                                  {newTicketForm.subject.length}/80
+                                  {newTicketForm.subject.length}/200
                                 </span>
                               )}
                             </div>
                             <input
                               type="text"
-                              maxLength={120}
+                              maxLength={200}
                               className="form-input"
                               placeholder="Contoh: Pembayaran Upgrade Paket Pro Belum Terverifikasi"
                               value={
@@ -29621,31 +29707,22 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                               <div className="form-group">
                                 <label className="form-label">Kategori *</label>
-                                <select
-                                  className="form-input"
+                                <DesktopCustomSelect
                                   value={newTicketForm.category}
-                                  onChange={(e) => setNewTicketForm({ ...newTicketForm, category: e.target.value })}
-                                >
-                                  <option value="billing">Pembayaran & Paket Pro</option>
-                                  <option value="technical">Kendala Teknis & Fitur</option>
-                                  <option value="catalog_help">Bantuan Pengelolaan Katalog</option>
-                                  <option value="account">Kendala Akun & Profil</option>
-                                  <option value="general">Lainnya / Pertanyaan Umum</option>
-                                </select>
+                                  onChange={(val) => setNewTicketForm({ ...newTicketForm, category: val })}
+                                  options={SUPPORT_TICKET_CATEGORIES.filter((opt) => opt.value !== 'compliance').map((opt) => ({ value: opt.value, label: opt.label }))}
+                                  ariaLabel="Kategori Tiket"
+                                />
                               </div>
 
                               <div className="form-group">
                                 <label className="form-label">Tingkat Urgensi *</label>
-                                <select
-                                  className="form-input"
+                                <DesktopCustomSelect
                                   value={newTicketForm.priority}
-                                  onChange={(e) => setNewTicketForm({ ...newTicketForm, priority: e.target.value })}
-                                >
-                                  <option value="low">Rendah (Pertanyaan Umum)</option>
-                                  <option value="medium">Sedang (Kendala Standar)</option>
-                                  <option value="high">Tinggi (Fitur Bermasalah)</option>
-                                  <option value="urgent">Mendesak (Katalog Error / Darurat)</option>
-                                </select>
+                                  onChange={(val) => setNewTicketForm({ ...newTicketForm, priority: val })}
+                                  options={SUPPORT_TICKET_PRIORITIES.map((opt) => ({ value: opt.value, label: opt.label }))}
+                                  ariaLabel="Tingkat Urgensi Tiket"
+                                />
                               </div>
                             </div>
                           )}
@@ -29662,8 +29739,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               style={{ resize: 'vertical', minHeight: (settings.dormancy_status === 'suspended' || settings.is_suspended) ? '130px' : '90px' }}
                             />
                             {(settings.dormancy_status === 'suspended' || settings.is_suspended) && (
-                              <p style={{ margin: '0.45rem 0 0 0', fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
-                                💡 <em>Anda dapat menyesuaikan atau menambahkan poin klarifikasi, kronologi kejadian, atau nomor izin usaha pada draf pesan di atas untuk mempercepat verifikasi tim kepatuhan.</em>
+                              <p style={{ margin: '0.45rem 0 0 0', fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.45, display: 'flex', alignItems: 'flex-start', gap: '0.35rem' }}>
+                                <Info size={14} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--primary)' }} />
+                                <em>Anda dapat menyesuaikan atau menambahkan poin klarifikasi, kronologi kejadian, atau nomor izin usaha pada draf pesan di atas untuk mempercepat verifikasi tim kepatuhan.</em>
                               </p>
                             )}
                           </div>
@@ -29788,6 +29866,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 </div>
               );
             })()}
+            </ErrorBoundary>
+              )}
 
               {/* TAB 8: PAKET & LANGGANAN TOKO (FULL-PAGE VIEW) */}
               {adminTab === 'subscription' && (
