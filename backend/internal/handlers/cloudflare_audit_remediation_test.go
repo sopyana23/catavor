@@ -35,6 +35,8 @@ func openCloudflareAuditDB(t *testing.T) *gorm.DB {
 		&models.Store{},
 		&models.Category{},
 		&models.Product{},
+		&models.Coupon{},
+		&models.CouponRedemption{},
 		&models.SubscriptionOrder{},
 		&models.PlatformRole{},
 		&models.PlatformPermission{},

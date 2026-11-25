@@ -207,18 +207,16 @@ func (h *SubscriptionHandler) financeOrdersPage(c *fiber.Ctx) error {
 	return c.JSON(result)
 }
 
-// Coupons currently live in one settings value. Expand inside PostgreSQL so only the requested
-// page crosses the DB connection. Ordinality preserves the ordering used by the existing editor.
+// financeCouponBase queries the relational coupons table cleanly (replacing legacy settings JSON expansion).
 func financeCouponBase(db *gorm.DB, q string) *gorm.DB {
-	query := db.Table(`settings CROSS JOIN LATERAL jsonb_array_elements(COALESCE(NULLIF(NULLIF(trim(value),'null'),''),'[]')::jsonb) WITH ORDINALITY AS coupons(item,pos)`).
-		Where("key = ?", "master_coupons")
+	query := db.Table("coupons")
 	if q != "" {
-		query = query.Where("concat_ws(' ',item->>'code',item->>'label') ILIKE ?", financeSearchPattern(q))
+		query = query.Where("concat_ws(' ', code, label) ILIKE ?", financeSearchPattern(q))
 	}
 	return query
 }
 
-const couponStateSQL = `CASE WHEN item->>'is_active' = 'true' THEN 'active' ELSE 'inactive' END`
+const couponStateSQL = `CASE WHEN is_active THEN 'active' ELSE 'inactive' END`
 
 func (h *SubscriptionHandler) financeCouponsPage(c *fiber.Ctx) error {
 	q, err := parseFinanceQuery(c, "type")
@@ -230,11 +228,11 @@ func (h *SubscriptionHandler) financeCouponsPage(c *fiber.Ctx) error {
 	defer cancel()
 	err = h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var stats []financeBucket
-		if err := financeCouponBase(tx, q.Keyword).Select(couponStateSQL + " AS state, item->>'type' AS kind, count(*) AS n").Group("1,2").Scan(&stats).Error; err != nil {
+		if err := financeCouponBase(tx, q.Keyword).Select(couponStateSQL + " AS state, type AS kind, count(*) AS n").Group("1,2").Scan(&stats).Error; err != nil {
 			return err
 		}
 		result = q.aggregate(stats, "type")
-		items := []json.RawMessage{}
+		items := []services.MasterCoupon{}
 		result.Data = items
 		if result.Total == 0 {
 			return nil
@@ -244,14 +242,27 @@ func (h *SubscriptionHandler) financeCouponsPage(c *fiber.Ctx) error {
 			query = query.Where(couponStateSQL+" = ?", q.Status)
 		}
 		if q.Kind != "" {
-			query = query.Where("item->>'type' = ?", q.Kind)
+			query = query.Where("type = ?", q.Kind)
 		}
-		var values []string
-		if err := query.Select("item::text AS value").Order("pos").Limit(q.Limit).Offset((result.Page - 1) * q.Limit).Scan(&values).Error; err != nil {
+		var rows []models.Coupon
+		if err := query.Order("created_at DESC, id DESC").Limit(q.Limit).Offset((result.Page - 1) * q.Limit).Find(&rows).Error; err != nil {
 			return err
 		}
-		for _, raw := range values {
-			items = append(items, json.RawMessage(raw))
+		for _, r := range rows {
+			items = append(items, services.MasterCoupon{
+				ID:              "cpn_" + strconv.FormatUint(uint64(r.ID), 10),
+				Code:            strings.ToUpper(strings.TrimSpace(r.Code)),
+				Label:           r.Label,
+				Type:            r.Type,
+				Discount:        r.Discount,
+				UsageLimit:      r.UsageLimit,
+				UsedCount:       r.UsedCount,
+				MaxUsesPerStore: r.MaxUsesPerStore,
+				IsActive:        r.IsActive,
+				ExpiresAt:       r.ExpiresAt,
+				CreatedAt:       r.CreatedAt,
+				UpdatedAt:       r.UpdatedAt,
+			})
 		}
 		result.Data = items
 		return nil

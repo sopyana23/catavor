@@ -95,6 +95,8 @@ func newTestDB(t *testing.T) *gorm.DB {
 		&models.UserSession{},
 		&models.Store{},
 		&models.SubscriptionPlan{},
+		&models.Coupon{},
+		&models.CouponRedemption{},
 		&models.SubscriptionOrder{},
 		&models.Category{},
 		&models.Product{},

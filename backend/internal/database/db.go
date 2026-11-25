@@ -189,6 +189,8 @@ func BootstrapProductionSchema(db *gorm.DB) error {
 			&models.MFAAccountLockout{},
 			&models.MFAChallengeFailure{},
 			&models.TwoFactorRecoveryTicket{},
+			&models.Coupon{},
+			&models.CouponRedemption{},
 			&models.SubscriptionOrder{},
 			&models.Product{},
 			&models.ProductImage{},
