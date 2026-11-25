@@ -24,13 +24,28 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+type PendingSubscriptionOrderSummary struct {
+	ID            uint       `json:"id"`
+	OrderNumber   string     `json:"order_number"`
+	PlanCode      string     `json:"plan_code"`
+	PlanName      string     `json:"plan_name"`
+	FinalAmount   float64    `json:"final_amount"`
+	UniqueCode    int        `json:"unique_code"`
+	PaymentMethod string     `json:"payment_method"`
+	PaymentMode   string     `json:"payment_mode"`
+	PaymentStatus string     `json:"payment_status"`
+	CreatedAt     time.Time  `json:"created_at"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+}
+
 type StoreQuotaInfo struct {
-	StoreID             uint                     `json:"store_id"`
-	StoreSlug           string                   `json:"store_slug"`
-	StoreTitle          string                   `json:"store_title"`
-	Plan                models.SubscriptionPlan  `json:"plan"`
-	NextPlan            *models.SubscriptionPlan `json:"next_plan,omitempty"`
-	PlanStatus          string                   `json:"plan_status"` // active | grace_period | expired
+	StoreID                       uint                             `json:"store_id"`
+	StoreSlug                     string                           `json:"store_slug"`
+	StoreTitle                    string                           `json:"store_title"`
+	Plan                          models.SubscriptionPlan          `json:"plan"`
+	NextPlan                      *models.SubscriptionPlan         `json:"next_plan,omitempty"`
+	PendingOrder                  *PendingSubscriptionOrderSummary `json:"pending_order,omitempty"`
+	PlanStatus                    string                           `json:"plan_status"` // active | grace_period | expired
 	PlanExpiresAt       *time.Time               `json:"plan_expires_at,omitempty"`
 	GracePeriodUntil    *time.Time               `json:"grace_period_until,omitempty"`
 	DaysRemaining       int                      `json:"days_remaining"`
@@ -262,12 +277,34 @@ func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 		isApex = IsApexDomain(*store.CustomDomain)
 	}
 
+	var pendingSummary *PendingSubscriptionOrderSummary
+	if db.Migrator().HasTable(&models.SubscriptionOrder{}) {
+		var pendingOrd models.SubscriptionOrder
+		if err := db.Where("store_id = ? AND payment_status IN ?", store.ID, []string{"pending", "pending_verification"}).
+			Order("created_at DESC, id DESC").First(&pendingOrd).Error; err == nil {
+			pendingSummary = &PendingSubscriptionOrderSummary{
+				ID:            pendingOrd.ID,
+				OrderNumber:   pendingOrd.OrderNumber,
+				PlanCode:      pendingOrd.PlanCode,
+				PlanName:      resolveFriendlyPlanName(db, pendingOrd.PlanCode),
+				FinalAmount:   pendingOrd.FinalAmount,
+				UniqueCode:    pendingOrd.UniqueCode,
+				PaymentMethod: pendingOrd.PaymentMethod,
+				PaymentMode:   pendingOrd.PaymentMode,
+				PaymentStatus: pendingOrd.PaymentStatus,
+				CreatedAt:     pendingOrd.CreatedAt,
+				ExpiresAt:     pendingOrd.ExpiresAt,
+			}
+		}
+	}
+
 	quota := &StoreQuotaInfo{
 		StoreID:                       store.ID,
 		StoreSlug:                     store.Slug,
 		StoreTitle:                    store.StoreTitle,
 		Plan:                          *plan,
 		NextPlan:                      nextPlan,
+		PendingOrder:                  pendingSummary,
 		PlanStatus:                    store.PlanStatus,
 		PlanExpiresAt:                 store.PlanExpiresAt,
 		GracePeriodUntil:              store.GracePeriodUntil,
@@ -564,6 +601,11 @@ func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*
 				}
 				subj, body := BuildSubscriptionDowngradeCancelledEmail(store.StoreTitle, currName, effectiveDateStr, store.Slug)
 				_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_cancelled", fmt.Sprintf("store_%d_cancel_downgrade_%s", store.ID, nowKey))
+				DispatchSubscriptionLifecycleInApp(db, store.ID, fmt.Sprintf("notif_sub_cancel_dg_%d_%s", store.ID, nowKey),
+					"Jadwal Penurunan Paket Dibatalkan", "LANGGANAN",
+					fmt.Sprintf("Perubahan paket dibatalkan. Katalog \"%s\" tetap melanjutkan paket %s sampai %s.", store.StoreTitle, currName, effectiveDateStr),
+					fmt.Sprintf("Jadwal perubahan paket telah dibatalkan. Seluruh fitur paket %s tetap aktif hingga %s.", currName, effectiveDateStr),
+					"success", "Lihat Paket Langganan ->")
 			} else {
 				targetPrice := "Gratis"
 				if targetPlan.PriceMonthly > 0 {
@@ -571,6 +613,11 @@ func ScheduleStoreDowngrade(db *gorm.DB, storeID uint, targetPlanCode string) (*
 				}
 				subj, body := BuildSubscriptionDowngradeScheduledEmail(store.StoreTitle, targetPlan.Name, targetPrice, effectiveDateStr, store.Slug)
 				_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_scheduled", fmt.Sprintf("store_%d_downgrade_%s_%s", store.ID, targetPlanCode, nowKey))
+				DispatchSubscriptionLifecycleInApp(db, store.ID, fmt.Sprintf("notif_sub_sched_dg_%d_%s_%s", store.ID, targetPlanCode, nowKey),
+					fmt.Sprintf("Jadwal Perubahan ke %s Disimpan", targetPlan.Name), "LANGGANAN",
+					fmt.Sprintf("Katalog \"%s\" dijadwalkan beralih ke paket %s pada %s. Fitur saat ini tetap penuh sampai periode berakhir.", store.StoreTitle, targetPlan.Name, effectiveDateStr),
+					fmt.Sprintf("Perubahan ke paket %s akan berlaku efektif pada %s. Anda tetap dapat membatalkannya kapan saja sebelum tanggal efektif.", targetPlan.Name, effectiveDateStr),
+					"info", "Kelola Jadwal Paket ->")
 			}
 		}
 	}
@@ -646,6 +693,11 @@ func ProcessSubscriptionLifecycle(db *gorm.DB) (cycleErr error) {
 				refID := fmt.Sprintf("store_%d_h3_%s", store.ID, store.PlanExpiresAt.Format("20060102"))
 				subj, body := BuildSubscriptionRenewalReminderH3Email(store.StoreTitle, targetName, targetPrice, expStr, store.Slug)
 				_, _ = EnqueueLifecycleEmailOnce(db, user.Email, user.Name, "Catavor Billing", subj, body, "subscription_renewal_reminder_h3", refID)
+				DispatchSubscriptionLifecycleInApp(db, store.ID, fmt.Sprintf("notif_%s", refID),
+					fmt.Sprintf("Pengingat H-3: Paket Berakhir %s", expStr), "LANGGANAN",
+					fmt.Sprintf("Masa aktif paket toko \"%s\" berakhir dalam 3 hari (%s). Lanjutkan ke %s (%s) atau biarkan berakhir tanpa auto-debit.", store.StoreTitle, expStr, targetName, targetPrice),
+					fmt.Sprintf("Masa aktif paket akan berakhir pada %s. Platform tidak melakukan auto-debit. Silakan selesaikan pembayaran melalui menu Langganan bila ingin melanjutkan.", expStr),
+					"warning", "Kelola Perpanjangan ->")
 			}
 		}
 	}
@@ -688,6 +740,11 @@ func ProcessSubscriptionLifecycle(db *gorm.DB) (cycleErr error) {
 				subj, body := BuildSubscriptionGracePeriodEmail(store.StoreTitle, pName, graceStr, store.Slug)
 				refID := fmt.Sprintf("store_%d_grace_%s", store.ID, graceEnd.Format("20060102"))
 				_, _ = EnqueueLifecycleEmailOnce(db, user.Email, user.Name, "Catavor Billing", subj, body, "subscription_grace_period", refID)
+				DispatchSubscriptionLifecycleInApp(db, store.ID, fmt.Sprintf("notif_%s", refID),
+					"Masa Tenggang Langganan 7 Hari Dimulai", "LANGGANAN",
+					fmt.Sprintf("Paket %s toko \"%s\" memasuki masa tenggang hingga %s. Perpanjang sebelum berakhir agar produk tidak diarsipkan.", pName, store.StoreTitle, graceStr),
+					fmt.Sprintf("Katalog Anda tetap aktif selama masa tenggang 7 hari (hingga %s). Selesaikan perpanjangan di menu Langganan agar hak akses paket tetap utuh.", graceStr),
+					"warning", "Perpanjang Sekarang ->")
 			}
 			continue
 		}
@@ -780,6 +837,11 @@ func ProcessSubscriptionLifecycle(db *gorm.DB) (cycleErr error) {
 			subj, body := BuildSubscriptionTransitionExecutedEmail(store.StoreTitle, targetPlan.Name, targetPlan.MaxItems, archivedCount, store.Slug)
 			refID := fmt.Sprintf("store_%d_transition_%s", store.ID, graceCycleKey)
 			_, _ = EnqueueLifecycleEmailOnce(db, user.Email, user.Name, "Catavor Billing", subj, body, "subscription_transition_executed", refID)
+			DispatchSubscriptionLifecycleInApp(db, store.ID, fmt.Sprintf("notif_%s", refID),
+				fmt.Sprintf("Paket Toko Kini Aktif di %s", targetPlan.Name), "LANGGANAN",
+				fmt.Sprintf("Masa tenggang berakhir. Katalog \"%s\" kini beralih ke %s (%d item diarsipkan ke draft agar sesuai kuota).", store.StoreTitle, targetPlan.Name, archivedCount),
+				fmt.Sprintf("Profil katalog Anda sekarang menggunakan paket %s. Sebanyak %d produk yang melampaui kuota dipindahkan sementara ke arsip dan tetap aman di database.", targetPlan.Name, archivedCount),
+				"info", "Kelola Paket & Arsip ->")
 		}
 	}
 
@@ -908,7 +970,8 @@ func ProcessExpiredPendingOrders(db *gorm.DB) error {
 		return nil
 	}
 	now := time.Now().UTC()
-	return db.Transaction(func(tx *gorm.DB) error {
+	var expiredOrders []models.SubscriptionOrder
+	txErr := db.Transaction(func(tx *gorm.DB) error {
 		var expired []models.SubscriptionOrder
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("payment_status = ? AND expires_at IS NOT NULL AND expires_at <= ?", "pending", now).
@@ -923,9 +986,23 @@ func ProcessExpiredPendingOrders(db *gorm.DB) error {
 				return err
 			}
 			_ = ReleaseCouponRedemptionInTx(tx, ord.ID, ord.CouponCode)
+			ord.PaymentStatus = "expired"
+			expiredOrders = append(expiredOrders, ord)
 		}
 		return nil
 	})
+	if txErr != nil {
+		return txErr
+	}
+	for i := range expiredOrders {
+		ord := expiredOrders[i]
+		database.InvalidateStoreQuotaCache(context.Background(), ord.StoreID)
+		if freshQuota, err := GetStoreQuotaInfo(db, ord.StoreID); err == nil && freshQuota != nil {
+			GetNotificationHub().BroadcastQuotaEvent(ord.StoreID, freshQuota)
+		}
+		DispatchSubscriptionOrderExpired(db, &ord)
+	}
+	return nil
 }
 
 func resolveOrderPaymentFamily(mode string) string {
@@ -1235,7 +1312,18 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 	}
 
 	if baseFinalAmount > 0 {
+		database.InvalidateStoreQuotaCache(context.Background(), storeID)
 		quota, _ = GetStoreQuotaInfo(db, storeID)
+		if quota != nil {
+			GetNotificationHub().BroadcastQuotaEvent(storeID, quota)
+		}
+		DispatchSubscriptionOrderPending(db, &order)
+	} else {
+		var expiresAt *time.Time
+		if quota != nil {
+			expiresAt = quota.PlanExpiresAt
+		}
+		DispatchSubscriptionOrderActivated(db, &order, plan, expiresAt)
 	}
 	return &order, quota, nil
 }
@@ -1331,6 +1419,12 @@ func RejectSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint, reason str
 		Str("reason", cleanReason).
 		Msg("Subscription order rejected by finance admin")
 
+	database.InvalidateStoreQuotaCache(context.Background(), order.StoreID)
+	if freshQuota, qErr := GetStoreQuotaInfo(db, order.StoreID); qErr == nil && freshQuota != nil {
+		GetNotificationHub().BroadcastQuotaEvent(order.StoreID, freshQuota)
+	}
+	DispatchSubscriptionOrderRejected(db, &order)
+
 	return &order, nil
 }
 
@@ -1365,6 +1459,11 @@ func ResetSubscriptionOrderToPending(db *gorm.DB, orderID uint, adminID uint) (*
 		return nil, txErr
 	}
 
+	database.InvalidateStoreQuotaCache(context.Background(), order.StoreID)
+	if freshQuota, qErr := GetStoreQuotaInfo(db, order.StoreID); qErr == nil && freshQuota != nil {
+		GetNotificationHub().BroadcastQuotaEvent(order.StoreID, freshQuota)
+	}
+
 	return &order, nil
 }
 
@@ -1377,6 +1476,7 @@ func ApproveSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint) (*models.
 
 	var order models.SubscriptionOrder
 	var quota *StoreQuotaInfo
+	wasAlreadyPaid := false
 	now := time.Now().UTC()
 
 	txErr := db.Transaction(func(tx *gorm.DB) error {
@@ -1385,6 +1485,7 @@ func ApproveSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint) (*models.
 		}
 
 		if order.PaymentStatus == "paid" {
+			wasAlreadyPaid = true
 			var qErr error
 			quota, qErr = GetStoreQuotaInfo(tx, order.StoreID)
 			return qErr
@@ -1422,6 +1523,16 @@ func ApproveSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint) (*models.
 		Str("plan", order.PlanCode).
 		Uint("approved_by_admin", adminID).
 		Msg("Subscription order approved and store plan activated")
+
+	if !wasAlreadyPaid {
+		var activatedPlan *models.SubscriptionPlan
+		var expiresAt *time.Time
+		if quota != nil {
+			activatedPlan = &quota.Plan
+			expiresAt = quota.PlanExpiresAt
+		}
+		DispatchSubscriptionOrderActivated(db, &order, activatedPlan, expiresAt)
+	}
 
 	return &order, quota, nil
 }
@@ -1520,8 +1631,14 @@ func CancelStoreDowngrade(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 			effectiveDateStr = store.PlanExpiresAt.Format("02 January 2006")
 		}
 		subj, body := BuildSubscriptionDowngradeCancelledEmail(store.StoreTitle, currName, effectiveDateStr, store.Slug)
-		refKey := fmt.Sprintf("store_%d_cancel_downgrade_%s", store.ID, time.Now().UTC().Format("2006010215"))
+		nowKey := time.Now().UTC().Format("2006010215")
+		refKey := fmt.Sprintf("store_%d_cancel_downgrade_%s", store.ID, nowKey)
 		_, _ = EnqueueEmail(user.Email, user.Name, "Catavor Billing", subj, body, "subscription_downgrade_cancelled", refKey)
+		DispatchSubscriptionLifecycleInApp(db, store.ID, fmt.Sprintf("notif_sub_cancel_dg_%d_%s", store.ID, nowKey),
+			"Jadwal Penurunan Paket Dibatalkan", "LANGGANAN",
+			fmt.Sprintf("Perubahan paket dibatalkan. Katalog \"%s\" tetap melanjutkan paket %s sampai %s.", store.StoreTitle, currName, effectiveDateStr),
+			fmt.Sprintf("Jadwal perubahan paket telah dibatalkan. Seluruh fitur paket %s tetap aktif hingga %s.", currName, effectiveDateStr),
+			"success", "Lihat Paket Langganan ->")
 	}
 
 	return GetStoreQuotaInfo(db, storeID)

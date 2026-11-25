@@ -2072,101 +2072,31 @@ func (h *NotificationHandler) SearchUsers(c *fiber.Ctx) error {
 	})
 }
 
-// ensureStoreInitialNotifications seeds initial guides if the store is newly registered.
+// ensureStoreInitialNotifications seeds plan-specific onboarding guides idempotently for a store.
 func (h *NotificationHandler) ensureStoreInitialNotifications(storeID, userID uint) {
+	if h.DB == nil || storeID == 0 {
+		return
+	}
 	var count int64
 	h.DB.Model(&models.Notification{}).
 		Where("target_type = 'single_store' AND target_id = ?", storeID).
 		Count(&count)
-
 	if count > 0 {
 		return
 	}
-
-	now := time.Now().UTC()
-	initialGuides := []models.Notification{
-		{
-			ID:                    fmt.Sprintf("notif_about_%d", storeID),
-			TargetType:            "single_store",
-			TargetID:              storeID,
-			Status:                "published",
-			PublishedAt:           &now,
-			Title:                 "Panduan Kelengkapan Halaman Tentang Kami",
-			Category:              "PANDUAN",
-			Message:               "Lengkapi Alamat Bisnis, Jam Operasional, dan Profil Komitmen Layanan Anda agar profil katalog terlihat profesional dan terpercaya di mata pembeli.",
-			DetailContent:         "Halaman Tentang Kami adalah wajah utama brand profil bisnis Anda di mata pembeli. Untuk membangun kepercayaan maksimal pelanggan baru, pastikan Anda melengkapi:\n\n1. Alamat Bisnis & Titik Maps:\nMempermudah calon pelanggan menemukan lokasi fisik toko, workshop, atau titik penjemputan pesanan.\n\n2. Jam Operasional Toko:\nJadwal buka dan jam operasional harian dalam melayani pesanan atau chat pelanggan.\n\n3. Profil Komitmen Layanan & Garansi:\nPenjelasan jaminan kualitas produk, keaslian barang, serta standar pelayanan terbaik toko Anda.\n\nKlik tombol di bawah untuk langsung menuju formulir pengaturan Tentang Kami.",
-			Type:                  "warning",
-			ActionEnabled:         true,
-			ActionType:            "detail",
-			LinkSubTab:            "settings",
-			LinkMobileSettingsTab: "about",
-			ActionLabel:           "Buka Pengaturan Tentang Kami →",
-			RetentionHours:        168,
-			CreatedAt:             now,
-			UpdatedAt:             now,
-		},
-		{
-			ID:             fmt.Sprintf("notif_share_%d", storeID),
-			TargetType:     "single_store",
-			TargetID:       storeID,
-			Status:         "published",
-			PublishedAt:    &now,
-			Title:          "Fitur Bagikan Katalog & QR Code Bisnis",
-			Category:       "PROMOSI",
-			Message:        "Katalog digital Anda kini telah aktif! Bagikan tautan resmi atau unduh QR Code dinamis untuk mulai menjangkau pembeli di berbagai platform.",
-			DetailContent:  "Katalog bisnis Anda kini telah aktif dan dapat diakses oleh publik secara instan.\n\nFitur Bagikan Katalog memungkinkan Anda untuk:\n• Membagikan tautan link langsung ke media sosial (WhatsApp, Instagram Bio, TikTok, dan Facebook).\n• Mengunduh Poster QR Code beresolusi tinggi untuk dicetak dan dipajang di meja kasir, etalase toko, atau kartu nama bisnis Anda.\n• Memantau trafik pengunjung dan total klik katalog secara realtime di dashboard analitik.\n\nMulai promosikan katalog Anda sekarang untuk memaksimalkan penjualan!",
-			Type:           "success",
-			ActionEnabled:  true,
-			ActionType:     "detail",
-			LinkSubTab:     "share",
-			ActionLabel:    "Buka Menu Bagikan Katalog →",
-			RetentionHours: 168,
-			CreatedAt:      now.Add(-5 * time.Minute),
-			UpdatedAt:      now.Add(-5 * time.Minute),
-		},
-		{
-			ID:             fmt.Sprintf("notif_inventory_%d", storeID),
-			TargetType:     "single_store",
-			TargetID:       storeID,
-			Status:         "published",
-			PublishedAt:    &now,
-			Title:          "Kelola Stok & Inventaris Produk",
-			Category:       "INVENTARIS",
-			Message:        "Akses cepat ke menu inventaris untuk menambah produk baru, mengubah varian, atau memperbarui harga jual.",
-			Type:           "order",
-			ActionEnabled:  true,
-			ActionType:     "navigate",
-			LinkSubTab:     "items",
-			RetentionHours: 168,
-			CreatedAt:      now.Add(-1 * time.Hour),
-			UpdatedAt:      now.Add(-1 * time.Hour),
-		},
+	var store models.Store
+	if err := h.DB.First(&store, storeID).Error; err != nil {
+		return
 	}
-
-	for _, g := range initialGuides {
-		h.DB.Create(&g)
+	var pendingOrder *models.SubscriptionOrder
+	if h.DB.Migrator().HasTable(&models.SubscriptionOrder{}) {
+		var found models.SubscriptionOrder
+		if err := h.DB.Where("store_id = ? AND payment_status IN ?", store.ID, []string{"pending", "pending_verification"}).
+			Order("created_at DESC, id DESC").First(&found).Error; err == nil {
+			pendingOrder = &found
+		}
 	}
-
-	services.GetAutomationTracker().RecordLog(services.AutomationLogEntry{
-		BotName:     "onboarding_engine",
-		TriggerType: "event_hook",
-		BotTitle:    "Bot Panduan Onboarding Toko Baru",
-		Target:      fmt.Sprintf("Toko #%d", storeID),
-		TargetID:    storeID,
-		Action:      "sent_in_app",
-		Status:      "success",
-		Details:     fmt.Sprintf("3 artikel panduan onboarding otomatis disematkan ke katalog toko #%d.", storeID),
-		Timestamp:   time.Now().UTC(),
-	})
-
-	services.GetAutomationTracker().RecordWorkerHeartbeat(
-		"onboarding_engine",
-		"running",
-		fmt.Sprintf("Panduan onboarding berhasil diinjeksi ke Toko #%d.", storeID),
-		"",
-		3,
-		time.Now().UTC().Add(1*time.Hour),
-	)
+	services.EnsureStoreOnboardingNotifications(h.DB, &store, pendingOrder)
 }
 
 func (h *NotificationHandler) RegisterAutomationRoutes(router fiber.Router, cfg *config.Config) {

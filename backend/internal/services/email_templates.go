@@ -1,8 +1,10 @@
 package services
 
 import (
+	"catavor-backend/internal/models"
 	"fmt"
 	"html"
+	"math"
 	"net/url"
 	"os"
 	"strings"
@@ -1175,6 +1177,487 @@ func BuildSubscriptionGracePeriodEmail(storeTitle, currentPlanName, graceUntilDa
 	bodyHTML = wrapEmailLayout("MASA TENGGANG AKTIF", "#ef4444", title, subtitle, mainContent, "Perpanjang Langganan Sekarang →", adminSubURL)
 	return
 }
+
+func formatEmailRupiah(amount float64) string {
+	rounded := int64(math.Round(amount))
+	if rounded <= 0 {
+		return "Rp 0"
+	}
+	raw := fmt.Sprintf("%d", rounded)
+	n := len(raw)
+	if n <= 3 {
+		return "Rp " + raw
+	}
+	var parts []string
+	for n > 3 {
+		parts = append([]string{raw[n-3 : n]}, parts...)
+		n -= 3
+	}
+	parts = append([]string{raw[:n]}, parts...)
+	return "Rp " + strings.Join(parts, ".")
+}
+
+func formatEmailStorageLimit(bytes int64) string {
+	if bytes <= 0 {
+		return "100 MB"
+	}
+	gb := float64(bytes) / (1024.0 * 1024.0 * 1024.0)
+	if gb >= 1 {
+		if gb == float64(int64(gb)) {
+			return fmt.Sprintf("%d GB", int64(gb))
+		}
+		return fmt.Sprintf("%.1f GB", gb)
+	}
+	mb := bytes / (1024 * 1024)
+	if mb < 1 {
+		mb = 1
+	}
+	return fmt.Sprintf("%d MB", mb)
+}
+
+func formatEmailQuotaItems(maxItems int) string {
+	if maxItems < 0 {
+		return "Tanpa Batas (Unlimited)"
+	}
+	return fmt.Sprintf("%d item aktif", maxItems)
+}
+
+func orderPaymentStatusLabel(order *models.SubscriptionOrder) string {
+	if order == nil {
+		return "Menunggu Pembayaran"
+	}
+	switch strings.ToLower(strings.TrimSpace(order.PaymentStatus)) {
+	case "pending_verification":
+		return "Menunggu Verifikasi Tim Finance (Est. 1x24 Jam)"
+	case "paid":
+		return "Lunas & Terverifikasi"
+	case "rejected":
+		return "Ditolak"
+	case "expired":
+		return "Kedaluwarsa"
+	default:
+		return "Menunggu Pembayaran"
+	}
+}
+
+func buildOrderAmountSummaryHTML(order *models.SubscriptionOrder, targetPlanName string) string {
+	if order == nil {
+		return ""
+	}
+	rows := fmt.Sprintf(`
+				<div style="margin-bottom: 6px;"><strong>Nomor Invoice:</strong> %s</div>
+				<div style="margin-bottom: 6px;"><strong>Paket Tujuan:</strong> <span style="color: #2563eb; font-weight: 700;">%s</span></div>`,
+		html.EscapeString(order.OrderNumber),
+		html.EscapeString(targetPlanName),
+	)
+	if order.ProrationCreditAmount > 0 {
+		rows += fmt.Sprintf(`<div style="margin-bottom: 6px;"><strong>Kredit Prorasi Siklus Berjalan:</strong> -%s</div>`,
+			html.EscapeString(formatEmailRupiah(order.ProrationCreditAmount)))
+	}
+	if order.DiscountAmount > 0 {
+		couponSuffix := ""
+		if strings.TrimSpace(order.CouponCode) != "" {
+			couponSuffix = fmt.Sprintf(" (%s)", html.EscapeString(order.CouponCode))
+		}
+		rows += fmt.Sprintf(`<div style="margin-bottom: 6px;"><strong>Diskon Kupon%s:</strong> -%s</div>`,
+			couponSuffix,
+			html.EscapeString(formatEmailRupiah(order.DiscountAmount)))
+	}
+	if order.UniqueCode > 0 {
+		rows += fmt.Sprintf(`<div style="margin-bottom: 6px;"><strong>Kode Unik Transfer:</strong> +%s</div>`,
+			html.EscapeString(formatEmailRupiah(float64(order.UniqueCode))))
+	}
+	rows += fmt.Sprintf(`
+				<div style="margin-bottom: 6px;"><strong>Total Tagihan:</strong> <strong>%s</strong></div>
+				<div><strong>Status Transaksi:</strong> %s</div>`,
+		html.EscapeString(formatEmailRupiah(order.FinalAmount)),
+		html.EscapeString(orderPaymentStatusLabel(order)),
+	)
+	return fmt.Sprintf(`
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 13px; line-height: 1.6; color: #334155;">
+				%s
+			</td>
+		</tr>
+	</table>`, rows)
+}
+
+// BuildWelcomeStoreEmail creates a plan-aware onboarding email sent immediately after store registration.
+func BuildWelcomeStoreEmail(ownerName, storeTitle, storeSlug, activePlanCode, activePlanName string, maxItems int, storageLimitBytes int64, pendingOrder *models.SubscriptionOrder, targetPlanName string) (subject string, bodyHTML string) {
+	safeOwner := strings.TrimSpace(ownerName)
+	if safeOwner == "" {
+		safeOwner = "Pengelola Toko"
+	}
+	cleanActiveCode := strings.ToLower(strings.TrimSpace(activePlanCode))
+	if cleanActiveCode == "" {
+		cleanActiveCode = "free"
+	}
+	if strings.TrimSpace(activePlanName) == "" {
+		activePlanName = "Gratis Terbatas"
+	}
+
+	cleanedSlug := strings.Trim(strings.TrimSpace(storeSlug), "/")
+	dashboardURL := "/"
+	if cleanedSlug != "" {
+		dashboardURL = fmt.Sprintf("/%s/admin", url.PathEscape(cleanedSlug))
+	}
+
+	badgeText := "SELAMAT DATANG"
+	badgeColor := "#2563eb"
+	title := fmt.Sprintf("Selamat Datang di Catavor, %s", storeTitle)
+	subtitle := fmt.Sprintf("Katalog digital '%s' siap dikelola (Paket %s)", storeTitle, activePlanName)
+	ctaLabel := "Buka Dashboard Toko →"
+	ctaURL := dashboardURL
+
+	var bodySection string
+	if pendingOrder != nil {
+		subject = fmt.Sprintf("[Catavor] Selamat Datang & Status Pembayaran Paket %s Toko '%s'", targetPlanName, storeTitle)
+		badgeText = "MENUNGGU VERIFIKASI"
+		badgeColor = "#f59e0b"
+		subtitle = fmt.Sprintf("Pendaftaran toko '%s' selesai; pesanan paket %s sedang diproses", storeTitle, targetPlanName)
+		ctaLabel = "Pantau Status Pembayaran →"
+		ctaURL = subscriptionStoreAdminURL(storeSlug)
+
+		bodySection = fmt.Sprintf(`
+		<p style="margin: 0 0 14px 0;">Halo <strong>%s</strong>,</p>
+		<p style="margin: 0 0 16px 0;">Selamat datang di Catavor! Katalog digital <strong>%s</strong> telah berhasil dibuat dan sudah dapat Anda kelola langsung sekarang.</p>
+		%s
+		<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 18px;">
+			<tr>
+				<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #92400e;">
+					<strong style="display: block; margin-bottom: 4px; font-size: 13px;">Akses Sementara Selama Verifikasi:</strong>
+					• Selama pembayaran paket <strong>%s</strong> dalam proses konfirmasi, toko Anda berjalan sementara pada paket <strong>%s</strong> (%s, %s storage).<br>
+					• Anda sudah dapat melengkapi profil toko dan mengunggah produk pertama tanpa perlu menunggu.<br>
+					• Begitu pembayaran disetujui Tim Finance, paket toko otomatis ditingkatkan ke <strong>%s</strong> dan pemberitahuan lanjutan akan dikirim via email dan notifikasi dashboard.
+				</td>
+			</tr>
+		</table>`,
+			html.EscapeString(safeOwner),
+			html.EscapeString(storeTitle),
+			buildOrderAmountSummaryHTML(pendingOrder, targetPlanName),
+			html.EscapeString(targetPlanName),
+			html.EscapeString(activePlanName),
+			html.EscapeString(formatEmailQuotaItems(maxItems)),
+			html.EscapeString(formatEmailStorageLimit(storageLimitBytes)),
+			html.EscapeString(targetPlanName),
+		)
+	} else if cleanActiveCode == "pro_business" {
+		subject = fmt.Sprintf("[Catavor] Selamat Datang Paket Pro Bisnis untuk Toko '%s'", storeTitle)
+		badgeText = "PRO BISNIS AKTIF"
+		badgeColor = "#0f766e"
+		bodySection = fmt.Sprintf(`
+		<p style="margin: 0 0 14px 0;">Halo <strong>%s</strong>,</p>
+		<p style="margin: 0 0 16px 0;">Selamat bergabung di Catavor! Katalog <strong>%s</strong> kini aktif dengan paket tertinggi <strong>%s</strong>.</p>
+		<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f0fdfa; border-radius: 8px; border: 1px solid #99f6e4; margin-bottom: 18px;">
+			<tr>
+				<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.65; color: #115e59;">
+					<strong style="display: block; margin-bottom: 6px; font-size: 13px;">Hak Akses Paket Pro Bisnis Anda:</strong>
+					• <strong>Kuota Katalog:</strong> %s dengan penyimpanan media %s (hingga 10 foto HD per item).<br>
+					• <strong>Pengalaman Pengunjung Premium:</strong> 100%% bebas iklan sponsor di seluruh halaman etalase toko Anda.<br>
+					• <strong>Custom Domain &amp; Identitas:</strong> Hubungkan domain pribadi toko Anda dan dapatkan Lencana Terverifikasi resmi.<br>
+					• <strong>Dukungan Prioritas VIP:</strong> Jalur penanganan prioritas melalui Pusat Bantuan dashboard.
+				</td>
+			</tr>
+		</table>`,
+			html.EscapeString(safeOwner),
+			html.EscapeString(storeTitle),
+			html.EscapeString(activePlanName),
+			html.EscapeString(formatEmailQuotaItems(maxItems)),
+			html.EscapeString(formatEmailStorageLimit(storageLimitBytes)),
+		)
+	} else if cleanActiveCode == "pro_starter" {
+		subject = fmt.Sprintf("[Catavor] Selamat Datang Paket Pro Starter untuk Toko '%s'", storeTitle)
+		badgeText = "PRO STARTER AKTIF"
+		badgeColor = "#2563eb"
+		bodySection = fmt.Sprintf(`
+		<p style="margin: 0 0 14px 0;">Halo <strong>%s</strong>,</p>
+		<p style="margin: 0 0 16px 0;">Selamat bergabung di Catavor! Katalog <strong>%s</strong> kini aktif menggunakan paket <strong>%s</strong>.</p>
+		<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe; margin-bottom: 18px;">
+			<tr>
+				<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.65; color: #1e40af;">
+					<strong style="display: block; margin-bottom: 6px; font-size: 13px;">Hak Akses Paket Pro Starter Anda:</strong>
+					• <strong>Kuota Katalog:</strong> %s dengan penyimpanan media %s (hingga 10 foto HD per item).<br>
+					• <strong>Etalase Bersih:</strong> 100%% bebas iklan sponsor dan dilengkapi Lencana Terverifikasi.<br>
+					• <strong>Visibilitas Lebih Baik:</strong> Prioritas kemunculan pada direktori pencarian platform Catavor.
+				</td>
+			</tr>
+		</table>`,
+			html.EscapeString(safeOwner),
+			html.EscapeString(storeTitle),
+			html.EscapeString(activePlanName),
+			html.EscapeString(formatEmailQuotaItems(maxItems)),
+			html.EscapeString(formatEmailStorageLimit(storageLimitBytes)),
+		)
+	} else {
+		subject = fmt.Sprintf("[Catavor] Selamat Datang! Katalog '%s' Siap Digunakan", storeTitle)
+		badgeText = "PAKET GRATIS AKTIF"
+		badgeColor = "#2563eb"
+		bodySection = fmt.Sprintf(`
+		<p style="margin: 0 0 14px 0;">Halo <strong>%s</strong>,</p>
+		<p style="margin: 0 0 16px 0;">Selamat datang di Catavor! Katalog digital <strong>%s</strong> kini telah aktif pada paket <strong>%s</strong>.</p>
+		<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+			<tr>
+				<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.65; color: #334155;">
+					<strong style="display: block; margin-bottom: 6px; font-size: 13px;">Ringkasan Paket &amp; Langkah Awal:</strong>
+					• <strong>Kapasitas Saat Ini:</strong> %s dan penyimpanan %s (hingga 10 foto HD per item).<br>
+					• <strong>Langkah 1:</strong> Lengkapi profil &amp; jam operasional di menu Pengaturan Tentang Kami.<br>
+					• <strong>Langkah 2:</strong> Tambahkan produk pertama Anda beserta kontak WhatsApp pemesanan.<br>
+					• <strong>Langkah 3:</strong> Bagikan tautan katalog atau poster QR Code bisnis Anda. Anda dapat meningkatkan paket ke Pro kapan saja tanpa kehilangan data.
+				</td>
+			</tr>
+		</table>`,
+			html.EscapeString(safeOwner),
+			html.EscapeString(storeTitle),
+			html.EscapeString(activePlanName),
+			html.EscapeString(formatEmailQuotaItems(maxItems)),
+			html.EscapeString(formatEmailStorageLimit(storageLimitBytes)),
+		)
+	}
+
+	bodyHTML = wrapEmailLayout(badgeText, badgeColor, title, subtitle, bodySection, ctaLabel, ctaURL)
+	return
+}
+
+// BuildSubscriptionOrderPendingEmail notifies a merchant when a paid upgrade/renewal invoice enters pending or pending_verification.
+func BuildSubscriptionOrderPendingEmail(ownerName, storeTitle, storeSlug string, order *models.SubscriptionOrder, targetPlanName string) (subject string, bodyHTML string) {
+	safeOwner := strings.TrimSpace(ownerName)
+	if safeOwner == "" {
+		safeOwner = "Pengelola Toko"
+	}
+	if strings.TrimSpace(targetPlanName) == "" && order != nil {
+		targetPlanName = order.PlanCode
+	}
+	orderNum := ""
+	isVerif := false
+	if order != nil {
+		orderNum = order.OrderNumber
+		isVerif = strings.EqualFold(strings.TrimSpace(order.PaymentStatus), "pending_verification")
+	}
+
+	subject = fmt.Sprintf("[Catavor Tagihan] Invoice %s untuk Paket %s (%s)", orderNum, targetPlanName, storeTitle)
+	badgeText := "MENUNGGU PEMBAYARAN"
+	title := "Tagihan Langganan Berhasil Dibuat"
+	subtitle := fmt.Sprintf("Selesaikan pembayaran agar paket %s segera aktif untuk '%s'", targetPlanName, storeTitle)
+	statusNote := "Silakan selesaikan pembayaran sesuai nominal pada invoice di atas agar tim kami dapat memproses aktivasi paket Anda sebelum batas waktu berakhir."
+	if isVerif {
+		badgeText = "SEDANG DIVERIFIKASI"
+		title = "Bukti Pembayaran Diterima & Sedang Diverifikasi"
+		subtitle = fmt.Sprintf("Tim Finance sedang meninjau pembayaran paket %s untuk '%s'", targetPlanName, storeTitle)
+		statusNote = "Bukti pembayaran Anda sudah masuk antrean verifikasi Tim Finance (estimasi maksimal 1x24 jam). Selama verifikasi berjalan, operasional katalog Anda tetap berjalan normal pada paket saat ini."
+	}
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Berikut rincian tagihan langganan paket <strong>%s</strong> untuk katalog <strong>%s</strong>:</p>
+	%s
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #92400e;">
+				%s
+			</td>
+		</tr>
+	</table>`,
+		html.EscapeString(safeOwner),
+		html.EscapeString(targetPlanName),
+		html.EscapeString(storeTitle),
+		buildOrderAmountSummaryHTML(order, targetPlanName),
+		html.EscapeString(statusNote),
+	)
+
+	bodyHTML = wrapEmailLayout(badgeText, "#f59e0b", title, subtitle, mainContent, "Lihat Status Tagihan →", subscriptionStoreAdminURL(storeSlug))
+	return
+}
+
+// BuildSubscriptionActivatedEmail notifies a merchant when payment is confirmed and a paid plan becomes active.
+func BuildSubscriptionActivatedEmail(ownerName, storeTitle, storeSlug string, order *models.SubscriptionOrder, plan *models.SubscriptionPlan, expiresAt *time.Time) (subject string, bodyHTML string) {
+	safeOwner := strings.TrimSpace(ownerName)
+	if safeOwner == "" {
+		safeOwner = "Pengelola Toko"
+	}
+	planName := "Paket Berbayar"
+	maxItems := 150
+	var storageBytes int64 = 2 * 1024 * 1024 * 1024
+	hasCustomDomain := false
+	hasPrioritySupport := false
+	if plan != nil {
+		if strings.TrimSpace(plan.Name) != "" {
+			planName = plan.Name
+		} else if strings.TrimSpace(plan.Code) != "" {
+			planName = plan.Code
+		}
+		maxItems = plan.MaxItems
+		if plan.StorageLimitBytes > 0 {
+			storageBytes = plan.StorageLimitBytes
+		}
+		hasCustomDomain = plan.HasCustomDomain
+		hasPrioritySupport = plan.HasPrioritySupport
+	} else if order != nil && strings.TrimSpace(order.PlanCode) != "" {
+		planName = order.PlanCode
+	}
+
+	validUntil := "30 hari ke depan"
+	if expiresAt != nil {
+		validUntil = expiresAt.In(time.FixedZone("WIB", 7*3600)).Format("02 January 2006")
+	}
+
+	orderNum := "-"
+	amountPaid := "-"
+	if order != nil {
+		if strings.TrimSpace(order.OrderNumber) != "" {
+			orderNum = order.OrderNumber
+		}
+		amountPaid = formatEmailRupiah(order.FinalAmount)
+	}
+
+	extraBenefits := "• Bebas iklan sponsor & dilengkapi Lencana Terverifikasi resmi."
+	if hasCustomDomain {
+		extraBenefits += "<br>• Akses Custom Domain pribadi untuk alamat katalog Anda."
+	}
+	if hasPrioritySupport {
+		extraBenefits += "<br>• Jalur dukungan prioritas VIP pada Pusat Bantuan."
+	}
+
+	subject = fmt.Sprintf("[Catavor] Pembayaran Disetujui: Paket %s Toko '%s' Kini Aktif", planName, storeTitle)
+	title := fmt.Sprintf("Paket %s Resmi Diaktifkan", planName)
+	subtitle := fmt.Sprintf("Pembayaran terkonfirmasi untuk profil katalog '%s'", storeTitle)
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Kabar baik! Pembayaran langganan untuk toko <strong>%s</strong> telah diverifikasi dan disetujui. Seluruh fitur paket <strong>%s</strong> kini sudah aktif di katalog Anda.</p>
+
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 13px; line-height: 1.65; color: #334155;">
+				<div style="margin-bottom: 6px;"><strong>Nomor Invoice:</strong> %s</div>
+				<div style="margin-bottom: 6px;"><strong>Paket Aktif:</strong> <span style="color: #10b981; font-weight: 700;">%s</span></div>
+				<div style="margin-bottom: 6px;"><strong>Total Dibayarkan:</strong> %s</div>
+				<div><strong>Berlaku Hingga:</strong> %s</div>
+			</td>
+		</tr>
+	</table>
+
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.65; color: #166534;">
+				<strong style="display: block; margin-bottom: 6px; font-size: 13px;">Kapasitas &amp; Fitur yang Terbuka:</strong>
+				• Kuota katalog: %s | Penyimpanan media: %s.<br>
+				%s
+			</td>
+		</tr>
+	</table>`,
+		html.EscapeString(safeOwner),
+		html.EscapeString(storeTitle),
+		html.EscapeString(planName),
+		html.EscapeString(orderNum),
+		html.EscapeString(planName),
+		html.EscapeString(amountPaid),
+		html.EscapeString(validUntil),
+		html.EscapeString(formatEmailQuotaItems(maxItems)),
+		html.EscapeString(formatEmailStorageLimit(storageBytes)),
+		extraBenefits,
+	)
+
+	bodyHTML = wrapEmailLayout("PEMBAYARAN BERHASIL", "#10b981", title, subtitle, mainContent, "Kelola Katalog & Langganan →", subscriptionStoreAdminURL(storeSlug))
+	return
+}
+
+// BuildSubscriptionOrderRejectedEmail notifies a merchant when a Finance/Superadmin reviewer rejects an invoice.
+func BuildSubscriptionOrderRejectedEmail(ownerName, storeTitle, storeSlug string, order *models.SubscriptionOrder, targetPlanName string) (subject string, bodyHTML string) {
+	safeOwner := strings.TrimSpace(ownerName)
+	if safeOwner == "" {
+		safeOwner = "Pengelola Toko"
+	}
+	orderNum := "-"
+	reason := "Bukti pembayaran belum sesuai atau dana belum tercatat pada mutasi rekening."
+	couponLine := ""
+	if order != nil {
+		if strings.TrimSpace(order.OrderNumber) != "" {
+			orderNum = order.OrderNumber
+		}
+		if strings.TrimSpace(order.RejectionReason) != "" {
+			reason = strings.TrimSpace(order.RejectionReason)
+		}
+		if strings.TrimSpace(order.CouponCode) != "" {
+			couponLine = fmt.Sprintf(`<br>• Kuota penggunaan kupon <strong>%s</strong> yang terpakai pada tagihan ini telah dikembalikan otomatis.`, html.EscapeString(order.CouponCode))
+		}
+	}
+
+	subject = fmt.Sprintf("[Catavor Tagihan] Pembayaran Invoice %s Tidak Dapat Disetujui (%s)", orderNum, storeTitle)
+	title := "Verifikasi Pembayaran Ditolak"
+	subtitle := fmt.Sprintf("Tinjauan ulang diperlukan untuk tagihan paket %s toko '%s'", targetPlanName, storeTitle)
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Tim Finance kami telah meninjau tagihan <strong>%s</strong> untuk paket <strong>%s</strong> pada toko <strong>%s</strong>, namun transaksi tersebut belum dapat disetujui.</p>
+
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #fef2f2; border-radius: 8px; border-left: 4px solid #ef4444; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #991b1b;">
+				<strong style="display: block; margin-bottom: 6px; font-size: 13px;">Alasan Penolakan:</strong>
+				%s%s
+			</td>
+		</tr>
+	</table>
+
+	<p style="margin: 0 0 14px 0; font-size: 12.5px; color: #475569;">
+		Silakan buat tagihan baru melalui menu Paket &amp; Langganan dan pastikan bukti transfer maupun nama rekening pengirim sesuai dengan nominal akhir pada invoice.
+	</p>`,
+		html.EscapeString(safeOwner),
+		html.EscapeString(orderNum),
+		html.EscapeString(targetPlanName),
+		html.EscapeString(storeTitle),
+		html.EscapeString(reason),
+		couponLine,
+	)
+
+	bodyHTML = wrapEmailLayout("VERIFIKASI DITOLAK", "#ef4444", title, subtitle, mainContent, "Ajukan Pembayaran Ulang →", subscriptionStoreAdminURL(storeSlug))
+	return
+}
+
+// BuildSubscriptionOrderExpiredEmail notifies a merchant when an unpaid pending invoice expires after its payment deadline.
+func BuildSubscriptionOrderExpiredEmail(ownerName, storeTitle, storeSlug string, order *models.SubscriptionOrder, targetPlanName string) (subject string, bodyHTML string) {
+	safeOwner := strings.TrimSpace(ownerName)
+	if safeOwner == "" {
+		safeOwner = "Pengelola Toko"
+	}
+	orderNum := "-"
+	couponLine := ""
+	if order != nil {
+		if strings.TrimSpace(order.OrderNumber) != "" {
+			orderNum = order.OrderNumber
+		}
+		if strings.TrimSpace(order.CouponCode) != "" {
+			couponLine = fmt.Sprintf(` Kuota kupon <strong>%s</strong> telah dilepaskan kembali dan dapat dipakai pada transaksi baru.`, html.EscapeString(order.CouponCode))
+		}
+	}
+
+	subject = fmt.Sprintf("[Catavor Tagihan] Invoice %s Kedaluwarsa (%s)", orderNum, storeTitle)
+	title := "Batas Waktu Tagihan Telah Berakhir"
+	subtitle := fmt.Sprintf("Invoice %s untuk paket %s tidak menerima pembayaran tepat waktu", orderNum, targetPlanName)
+
+	mainContent := fmt.Sprintf(`
+	<p style="margin: 0 0 14px 0;">Halo <strong>%s</strong>,</p>
+	<p style="margin: 0 0 16px 0;">Tagihan langganan <strong>%s</strong> untuk peningkatan ke paket <strong>%s</strong> pada toko <strong>%s</strong> telah melewati batas waktu pembayaran dan otomatis ditutup sebagai kedaluwarsa.</p>
+
+	<table role="presentation" width="100%%" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 18px;">
+		<tr>
+			<td class="inner-card-pad" style="padding: 14px 16px; font-size: 12.5px; line-height: 1.6; color: #334155;">
+				Katalog toko Anda tetap berjalan normal sesuai paket aktif saat ini tanpa gangguan.%s Anda dapat membuat invoice baru kapan saja dari menu Langganan.
+			</td>
+		</tr>
+	</table>`,
+		html.EscapeString(safeOwner),
+		html.EscapeString(orderNum),
+		html.EscapeString(targetPlanName),
+		html.EscapeString(storeTitle),
+		couponLine,
+	)
+
+	bodyHTML = wrapEmailLayout("INVOICE KEDALUWARSA", "#64748b", title, subtitle, mainContent, "Buat Tagihan Baru →", subscriptionStoreAdminURL(storeSlug))
+	return
+}
+
 
 
 

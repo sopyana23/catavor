@@ -1053,7 +1053,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		validatedProofURL = cleanedProof
 	}
 
-	if requestedPlan != "free" && finalAmount > 0 && paymentSystemMode == "manual_qris" {
+	if requestedPlan != "free" && finalAmount > 0 && (paymentSystemMode == "manual_qris" || paymentSystemMode == "manual_bank") {
 		if validatedProofURL == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
@@ -1246,7 +1246,11 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		var orderExpiresAt *time.Time
 
 		if finalAmount > 0 {
-			orderPaymentStatus = "pending"
+			if validatedProofURL != "" && (paymentSystemMode == "manual_qris" || paymentSystemMode == "manual_bank") {
+				orderPaymentStatus = "pending_verification"
+			} else {
+				orderPaymentStatus = "pending"
+			}
 			orderPaidAt = nil
 			orderTTL := time.Now().UTC().Add(2 * time.Hour)
 			orderExpiresAt = &orderTTL
@@ -1394,9 +1398,16 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		regMsg = "Pendaftaran berhasil! Akun dan katalog Anda telah aktif. Bukti pembayaran paket Pro Anda sedang dalam antrean verifikasi tim kami."
 	}
 
+	var onboardingOrderPtr *models.SubscriptionOrder
+	if createdSubOrder.ID > 0 {
+		ordCopy := createdSubOrder
+		onboardingOrderPtr = &ordCopy
+	}
+	services.DispatchRegistrationOnboarding(h.db, &targetUser, &newStore, onboardingOrderPtr)
+
 	setSessionCookie(c, h.cfg, token)
 
-	return c.JSON(fiber.Map{
+	respPayload := fiber.Map{
 		"success":      true,
 		"message":      regMsg,
 		"token":        token,
@@ -1414,7 +1425,22 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			"store_plan":          newStore.Plan,
 			"payment_status":      newStore.PaymentStatus,
 		},
-	})
+	}
+	if createdSubOrder.ID > 0 && createdSubOrder.PaymentStatus != "paid" {
+		respPayload["pending_order"] = fiber.Map{
+			"id":             createdSubOrder.ID,
+			"order_number":   createdSubOrder.OrderNumber,
+			"plan_code":      createdSubOrder.PlanCode,
+			"final_amount":   createdSubOrder.FinalAmount,
+			"unique_code":    createdSubOrder.UniqueCode,
+			"payment_status": createdSubOrder.PaymentStatus,
+			"payment_method": createdSubOrder.PaymentMethod,
+			"payment_mode":   createdSubOrder.PaymentMode,
+			"expires_at":     createdSubOrder.ExpiresAt,
+		}
+	}
+
+	return c.JSON(respPayload)
 }
 
 func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
