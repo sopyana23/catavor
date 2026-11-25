@@ -433,6 +433,36 @@ func BroadcastRateLimiter() fiber.Handler {
 	})
 }
 
+// SupportMutationRateLimiter melindungi endpoint pembuatan dan balasan tiket helpdesk dari spam dan klik ganda berulang.
+func SupportMutationRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Storage:    database.GetRateLimiterStorage(),
+		Max:        15,
+		Expiration: 1 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			ipKey := canonicalRateLimitIP(c.IP())
+			if u, ok := c.Locals("user").(*models.User); ok && u != nil && u.ID > 0 {
+				return fmt.Sprintf("support_mut:u:%d:%s", u.ID, ipKey)
+			}
+			if uid, ok := c.Locals("user_id").(uint); ok && uid > 0 {
+				return fmt.Sprintf("support_mut:u:%d:%s", uid, ipKey)
+			}
+			return "support_mut:ip:" + ipKey
+		},
+		Next: func(c *fiber.Ctx) bool {
+			ip := c.IP()
+			return !isProductionRateLimitEnv() && (ip == "127.0.0.1" || ip == "::1" || ip == "" || ip == "localhost")
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"code":    "RATE_LIMIT_EXCEEDED",
+				"message": "Terlalu banyak pengiriman tiket atau balasan dalam 1 menit. Harap tunggu sebentar sebelum mencoba kembali.",
+			})
+		},
+	})
+}
+
 // IsOriginAllowed memeriksa apakah header Origin termasuk dalam daftar origin yang diizinkan aplikasi.
 func IsOriginAllowed(origin string, cfg *config.Config) bool {
 	trimmed := strings.TrimRight(strings.TrimSpace(origin), "/")

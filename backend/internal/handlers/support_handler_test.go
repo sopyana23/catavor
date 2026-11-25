@@ -1502,3 +1502,182 @@ func TestSupportP2_MessageCountAndTemplatesHygiene(t *testing.T) {
 		t.Fatalf("template long query status = %d, want 200", codeLong)
 	}
 }
+
+func TestSupportP3_OwnershipTransitionsIdempotencyAndKB(t *testing.T) {
+	db := supportDB(t)
+	if err := db.AutoMigrate(&models.HelpArticle{}, &models.SupportCannedResponse{}, &models.ActivityLog{}); err != nil {
+		t.Fatalf("automigrate P3 tables: %v", err)
+	}
+	h := NewSupportHandler(&config.Config{}, nil, db)
+
+	merchant := models.User{ID: 10, Name: "Pemilik", Email: "pemilik-p3@catavor.local", Password: "x", PlatformRole: "merchant"}
+	staff := models.User{ID: 2, Name: "Staf CS P3", Email: "cs-p3@catavor.local", Password: "x", PlatformRole: "support"}
+	otherStaff := models.User{ID: 3, Name: "Staf CS Lain", Email: "cs2-p3@catavor.local", Password: "x", PlatformRole: "support"}
+	_ = db.Create(&merchant)
+	_ = db.Create(&staff)
+	_ = db.Create(&otherStaff)
+
+	_ = db.Create(&models.HelpArticle{
+		Category:    "billing",
+		Title:       "Cara Verifikasi Pembayaran Pro",
+		Slug:        "verifikasi-pembayaran-pro",
+		Content:     "Gunakan bukti transfer resmi.",
+		IsPublished: true,
+		SortOrder:   1,
+	})
+	_ = db.Create(&models.HelpArticle{
+		Category:    "general",
+		Title:       "Diskon 25% Paket Tahunan",
+		Slug:        "diskon-25-persen",
+		Content:     "Hemat 25% untuk langganan tahunan.",
+		IsPublished: true,
+		SortOrder:   2,
+	})
+
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	withMerchant := func(c *fiber.Ctx) error {
+		c.Locals("user", &merchant)
+		return c.Next()
+	}
+	withStaff := func(c *fiber.Ctx) error {
+		c.Locals("user", &staff)
+		return c.Next()
+	}
+	app.Post("/tickets", withMerchant, h.CreateTicket)
+	app.Post("/tickets/:id/reply", withMerchant, h.ReplyTicket)
+	app.Get("/admin/tickets", withStaff, h.ListAllTickets)
+	app.Put("/admin/tickets/:id/assign", withStaff, h.AssignTicket)
+	app.Put("/admin/tickets/:id/status", withStaff, h.UpdateTicketStatus)
+	app.Get("/help/articles", h.GetHelpArticles)
+
+	// 1. Idempotency-Key on CreateTicket prevents duplicate ticket rows
+	createPayload := `{"subject":"Uji Idempotensi P3","category":"billing","priority":"medium","message":"Klik tombol dua kali"}`
+	req1 := httptest.NewRequest("POST", "/tickets", strings.NewReader(createPayload))
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("Idempotency-Key", "p3-create-key-001")
+	res1, err := app.Test(req1, -1)
+	if err != nil {
+		t.Fatalf("create1 err: %v", err)
+	}
+	defer res1.Body.Close()
+	if res1.StatusCode != 201 {
+		t.Fatalf("create1 status = %d, want 201", res1.StatusCode)
+	}
+	raw1, _ := io.ReadAll(res1.Body)
+	var body1 map[string]any
+	_ = json.Unmarshal(raw1, &body1)
+	ticket1 := body1["data"].(map[string]any)
+	ticketNum := ticket1["ticket_number"].(string)
+
+	req2 := httptest.NewRequest("POST", "/tickets", strings.NewReader(createPayload))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("Idempotency-Key", "p3-create-key-001")
+	res2, err := app.Test(req2, -1)
+	if err != nil {
+		t.Fatalf("create2 err: %v", err)
+	}
+	defer res2.Body.Close()
+	if res2.StatusCode != 201 || res2.Header.Get("X-Idempotent-Replay") != "true" {
+		t.Fatalf("create2 status=%d replay=%q, want 201 and X-Idempotent-Replay=true", res2.StatusCode, res2.Header.Get("X-Idempotent-Replay"))
+	}
+	var ticketCount int64
+	db.Model(&models.SupportTicket{}).Count(&ticketCount)
+	if ticketCount != 1 {
+		t.Fatalf("expected 1 ticket after idempotent replay, got %d", ticketCount)
+	}
+
+	// 2. Idempotency-Key on ReplyTicket prevents duplicate merchant messages
+	replyPayload := `{"message":"Balasan idempoten"}`
+	r1 := httptest.NewRequest("POST", "/tickets/"+ticketNum+"/reply", strings.NewReader(replyPayload))
+	r1.Header.Set("Content-Type", "application/json")
+	r1.Header.Set("Idempotency-Key", "p3-reply-key-001")
+	rs1, _ := app.Test(r1, -1)
+	_ = rs1.Body.Close()
+	if rs1.StatusCode != 201 {
+		t.Fatalf("reply1 status = %d, want 201", rs1.StatusCode)
+	}
+	r2 := httptest.NewRequest("POST", "/tickets/"+ticketNum+"/reply", strings.NewReader(replyPayload))
+	r2.Header.Set("Content-Type", "application/json")
+	r2.Header.Set("Idempotency-Key", "p3-reply-key-001")
+	rs2, _ := app.Test(r2, -1)
+	_ = rs2.Body.Close()
+	if rs2.StatusCode != 201 || rs2.Header.Get("X-Idempotent-Replay") != "true" {
+		t.Fatalf("reply2 status=%d replay=%q, want 201 + replay header", rs2.StatusCode, rs2.Header.Get("X-Idempotent-Replay"))
+	}
+	var userMsgCount int64
+	db.Model(&models.SupportMessage{}).Where("sender_type = 'user'").Count(&userMsgCount)
+	if userMsgCount != 2 {
+		t.Fatalf("expected 2 user messages (1 initial + 1 unique reply), got %d", userMsgCount)
+	}
+
+	// 3. AssignTicket: reject non-staff target (422), self-claim (200), assigned=me / unassigned filters, ActivityLog
+	codeBadAssign, _, _ := supportReq(t, app, "PUT", "/admin/tickets/"+ticketNum+"/assign", `{"assigned_agent_id":10}`, "staff")
+	if codeBadAssign != 422 {
+		t.Fatalf("assign non-staff status = %d, want 422", codeBadAssign)
+	}
+
+	codeClaim, bodyClaim, _ := supportReq(t, app, "PUT", "/admin/tickets/"+ticketNum+"/assign", `{"self":true}`, "staff")
+	if codeClaim != 200 {
+		t.Fatalf("self-claim status = %d, want 200 (%v)", codeClaim, bodyClaim)
+	}
+	claimedData := bodyClaim["data"].(map[string]any)
+	if uint(claimedData["assigned_agent_id"].(float64)) != staff.ID {
+		t.Fatalf("assigned_agent_id = %v, want %d", claimedData["assigned_agent_id"], staff.ID)
+	}
+
+	codeMine, bodyMine, _ := supportReq(t, app, "GET", "/admin/tickets?assigned=me", "", "staff")
+	if codeMine != 200 {
+		t.Fatalf("assigned=me status = %d", codeMine)
+	}
+	if items := bodyMine["data"].([]any); len(items) != 1 {
+		t.Fatalf("assigned=me count = %d, want 1", len(items))
+	}
+	metrics := bodyMine["metrics"].(map[string]any)
+	if int(metrics["my_assigned"].(float64)) != 1 || int(metrics["unassigned"].(float64)) != 0 {
+		t.Fatalf("unexpected assignment metrics: my_assigned=%v unassigned=%v", metrics["my_assigned"], metrics["unassigned"])
+	}
+
+	codeUnassignFilter, bodyUnassignFilter, _ := supportReq(t, app, "GET", "/admin/tickets?assigned=unassigned", "", "staff")
+	if codeUnassignFilter != 200 {
+		t.Fatalf("assigned=unassigned status = %d", codeUnassignFilter)
+	}
+	if items := bodyUnassignFilter["data"].([]any); len(items) != 0 {
+		t.Fatalf("assigned=unassigned count = %d, want 0", len(items))
+	}
+
+	// Unassign via null/0
+	codeRelease, _, _ := supportReq(t, app, "PUT", "/admin/tickets/"+ticketNum+"/assign", `{"assigned_agent_id":0}`, "staff")
+	if codeRelease != 200 {
+		t.Fatalf("release assign status = %d, want 200", codeRelease)
+	}
+
+	// 4. Workflow state machine: closed -> waiting_user blocked (422), closed -> in_progress allowed (200)
+	codeClose, _, _ := supportReq(t, app, "PUT", "/admin/tickets/"+ticketNum+"/status", `{"status":"closed"}`, "staff")
+	if codeClose != 200 {
+		t.Fatalf("close status = %d, want 200", codeClose)
+	}
+	codeIllegalJump, _, _ := supportReq(t, app, "PUT", "/admin/tickets/"+ticketNum+"/status", `{"status":"waiting_user"}`, "staff")
+	if codeIllegalJump != 422 {
+		t.Fatalf("closed -> waiting_user status = %d, want 422", codeIllegalJump)
+	}
+	codeReopen, _, _ := supportReq(t, app, "PUT", "/admin/tickets/"+ticketNum+"/status", `{"status":"in_progress"}`, "staff")
+	if codeReopen != 200 {
+		t.Fatalf("closed -> in_progress status = %d, want 200", codeReopen)
+	}
+
+	var assignLogs, updateLogs int64
+	db.Model(&models.ActivityLog{}).Where("action = ?", "support.ticket_assign").Count(&assignLogs)
+	db.Model(&models.ActivityLog{}).Where("action = ?", "support.ticket_update").Count(&updateLogs)
+	if assignLogs < 2 || updateLogs < 2 {
+		t.Fatalf("expected >=2 assign logs and >=2 update logs, got assign=%d update=%d", assignLogs, updateLogs)
+	}
+
+	// 5. GetHelpArticles LIKE escaping: % only matches the 25% article
+	codeKB, bodyKB, _ := supportReq(t, app, "GET", "/help/articles?q=25%25", "", "")
+	if codeKB != 200 {
+		t.Fatalf("help articles status = %d, want 200", codeKB)
+	}
+	if arts := bodyKB["data"].([]any); len(arts) != 1 {
+		t.Fatalf("expected 1 KB article matching literal '25%%', got %d", len(arts))
+	}
+}

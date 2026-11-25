@@ -471,6 +471,7 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS first_response_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS sla_due_at TIMESTAMP WITH TIME ZONE;").Error
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS sla_breached BOOLEAN DEFAULT FALSE;").Error
+	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS assigned_agent_id BIGINT;").Error
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS rating INT;").Error
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS rating_comment TEXT;").Error
 	_ = db.Exec("ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS rated_at TIMESTAMP WITH TIME ZONE;").Error
@@ -480,10 +481,18 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_user_status ON support_tickets(user_id, status);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_status_prio ON support_tickets(status, priority, last_message_at DESC);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_sla ON support_tickets(status, sla_due_at, sla_breached);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_assigned_agent ON support_tickets(assigned_agent_id, status);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_rating ON support_tickets(rating);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_messages_ticket_date ON support_messages(ticket_id, created_at ASC);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_attachments_message_id ON support_attachments(message_id);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_canned_active_cat ON support_canned_responses(is_active, category, sort_order);").Error
+	if db.Dialector.Name() == "postgres" {
+		if err := db.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm;").Error; err == nil {
+			_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_subject_trgm ON support_tickets USING gin (LOWER(subject) gin_trgm_ops);").Error
+			_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_tickets_number_trgm ON support_tickets USING gin (LOWER(ticket_number) gin_trgm_ops);").Error
+			_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_support_messages_trgm ON support_messages USING gin (LOWER(message) gin_trgm_ops);").Error
+		}
+	}
 
 	// 4. Ensure Dormancy Tracking Columns & Indexes on Stores Table
 	_ = db.Exec("ALTER TABLE stores ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;").Error

@@ -29,6 +29,9 @@ type SupportTicket struct {
 	SLADueAt        *time.Time `gorm:"index" json:"sla_due_at,omitempty"`
 	SLABreached     bool       `gorm:"default:false;index" json:"sla_breached"`
 
+	// Agent Ownership Assignment
+	AssignedAgentID *uint `gorm:"index" json:"assigned_agent_id,omitempty"`
+
 	// CSAT (Customer Satisfaction Score)
 	Rating        *int       `gorm:"index" json:"rating,omitempty"`
 	RatingComment string     `gorm:"type:text" json:"rating_comment,omitempty"`
@@ -40,9 +43,10 @@ type SupportTicket struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relations
-	User        *User            `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Store       *Store           `gorm:"foreignKey:StoreID" json:"store,omitempty"`
-	RatedAgent  *User            `gorm:"foreignKey:RatedAgentID" json:"rated_agent,omitempty"`
+	User            *User            `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Store           *Store           `gorm:"foreignKey:StoreID" json:"store,omitempty"`
+	AssignedAgent   *User            `gorm:"foreignKey:AssignedAgentID" json:"assigned_agent,omitempty"`
+	RatedAgent      *User            `gorm:"foreignKey:RatedAgentID" json:"rated_agent,omitempty"`
 	Messages    []SupportMessage `gorm:"foreignKey:TicketID" json:"messages"`
 	UnreadCount     int              `gorm:"-" json:"unread_count"`
 	AttachmentCount int              `gorm:"-" json:"attachment_count"`
