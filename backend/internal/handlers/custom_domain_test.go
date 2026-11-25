@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"catavor-backend/internal/middleware"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/services"
 
@@ -372,5 +373,84 @@ func TestSPAHandler_CustomDomainMetaAndRedirects(t *testing.T) {
 	unkResp := callWithHeaders(t, app, "GET", "/", nil, map[string]string{"Host": "unregistered.example.com"})
 	if unkResp.Status != http.StatusNotFound {
 		t.Fatalf("unknown host / status = %d, want 404", unkResp.Status)
+	}
+}
+
+func TestCustomDomain_CrossAccountIDORIsolation(t *testing.T) {
+	db := newTestDB(t)
+	seedCustomDomainPlans(t, db)
+
+	ownerA := models.User{Name: "Owner A", Email: "idor_a@example.invalid", Password: "x", PlatformRole: "merchant"}
+	ownerB := models.User{Name: "Owner B", Email: "idor_b@example.invalid", Password: "x", PlatformRole: "merchant"}
+	mustCreate(t, db, &ownerA)
+	mustCreate(t, db, &ownerB)
+
+	initialDomain := "toko-idor-a.example.com"
+	storeA := models.Store{
+		UserID:             ownerA.ID,
+		Slug:               "idor-store-a",
+		StoreTitle:         "IDOR Store A",
+		Plan:               "pro_business",
+		PlanStatus:         "active",
+		CustomDomain:       &initialDomain,
+		CustomDomainStatus: "active",
+	}
+	storeB := models.Store{
+		UserID:             ownerB.ID,
+		Slug:               "idor-store-b",
+		StoreTitle:         "IDOR Store B",
+		Plan:               "pro_business",
+		PlanStatus:         "active",
+		CustomDomainStatus: "none",
+	}
+	mustCreate(t, db, &storeA)
+	mustCreate(t, db, &storeB)
+
+	cfg := testCfg()
+	cfg.AppURL = "https://catavor.com"
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	subHandler := NewSubscriptionHandler(db, cfg, &stubHandlerDNSResolver{})
+
+	injectUser := func(c *fiber.Ctx) error {
+		var u models.User
+		if strings.EqualFold(c.Get("X-Test-Actor"), "ownerA") {
+			_ = db.Preload("Stores").First(&u, ownerA.ID).Error
+		} else {
+			_ = db.Preload("Stores").First(&u, ownerB.ID).Error
+		}
+		c.Locals("user", &u)
+		c.Locals("user_id", u.ID)
+		return c.Next()
+	}
+
+	app.Post("/api/subscription/custom-domain", injectUser, middleware.StoreOwnerRequired(), subHandler.UpdateCustomDomain)
+	app.Post("/api/subscription/custom-domain/verify", injectUser, middleware.StoreOwnerRequired(), subHandler.VerifyCustomDomain)
+	app.Delete("/api/subscription/custom-domain", injectUser, middleware.StoreOwnerRequired(), subHandler.RemoveCustomDomain)
+
+	// Owner B spoofing X-Store-Slug: idor-store-a must be rejected (403) across update, verify, delete
+	for _, tc := range []struct {
+		method string
+		path   string
+		body   any
+	}{
+		{"POST", "/api/subscription/custom-domain", map[string]string{"custom_domain": "evil.example.com"}},
+		{"POST", "/api/subscription/custom-domain/verify", nil},
+		{"DELETE", "/api/subscription/custom-domain", nil},
+	} {
+		r := callWithHeaders(t, app, tc.method, tc.path, tc.body, map[string]string{
+			"X-Test-Actor": "ownerB",
+			"X-Store-Slug": storeA.Slug,
+		})
+		if r.Status != http.StatusForbidden {
+			t.Fatalf("IDOR %s %s with X-Store-Slug=%s status = %d, want 403 (%s)", tc.method, tc.path, storeA.Slug, r.Status, r.Raw)
+		}
+	}
+
+	var refreshedA models.Store
+	if err := db.First(&refreshedA, storeA.ID).Error; err != nil {
+		t.Fatalf("reload storeA: %v", err)
+	}
+	if refreshedA.CustomDomain == nil || *refreshedA.CustomDomain != initialDomain || refreshedA.CustomDomainStatus != "active" {
+		t.Fatalf("storeA custom domain mutated by IDOR attempt: domain=%v status=%s", refreshedA.CustomDomain, refreshedA.CustomDomainStatus)
 	}
 }

@@ -3358,6 +3358,9 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 		if err := services.RemoveStoreMedia(c.Context(), h.db, driver, cfg, store.ID); err != nil {
 			log.Error().Err(err).Uint("store_id", store.ID).Msg("Account catalog media cleanup incomplete")
 		}
+		if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+			database.InvalidateCustomDomainCache(c.Context(), *store.CustomDomain)
+		}
 	}
 	// Blacklist all user session JTIs + clear browser cookies
 	for _, s := range activeSess {
