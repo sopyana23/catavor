@@ -673,15 +673,11 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	now := time.Now().UTC()
 
 	// Compute Multi-Tier Business-Hours SLA (Mon-Fri 08:00-17:00 WIB)
-	var slaDuration time.Duration
-	storePlan := strings.ToLower(string(store.Plan))
-	if storeID != nil && storePlan == "enterprise" {
-		slaDuration = 30 * time.Minute
-	} else if storeID != nil && storePlan == "pro" {
-		slaDuration = 2 * time.Hour
-	} else {
-		slaDuration = 8 * time.Hour
+	storePlan := ""
+	if storeID != nil {
+		storePlan = strings.ToLower(string(store.Plan))
 	}
+	slaDuration := services.ResolveSupportSLADuration(storePlan)
 	slaDueAt := services.CalculateBusinessHoursSLA(now, slaDuration)
 
 	idemCached, idemInFlight, idemKey := acquireSupportIdempotency(c.Context(), "create_ticket", user.ID, c.Get("Idempotency-Key"))
@@ -706,7 +702,7 @@ func (h *SupportHandler) CreateTicket(c *fiber.Ctx) error {
 	// Automated SLA & Welcome Auto-Responder (Instant Trigger)
 	var systemUserID uint = 1
 	var firstAdmin models.User
-	if err := h.db.Where("is_superadmin = ? OR platform_role IN ?", true, []string{"superadmin", "support"}).First(&firstAdmin).Error; err == nil && firstAdmin.ID != 0 {
+	if err := h.db.Where("platform_role IN ?", []string{"superadmin", "support"}).Order("id ASC").First(&firstAdmin).Error; err == nil && firstAdmin.ID != 0 {
 		systemUserID = firstAdmin.ID
 	}
 

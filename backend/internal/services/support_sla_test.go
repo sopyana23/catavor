@@ -94,14 +94,42 @@ func TestCalculateBusinessHoursSLA(t *testing.T) {
 	}
 }
 
+func TestResolveSupportSLADuration(t *testing.T) {
+	cases := []struct {
+		plan string
+		want time.Duration
+	}{
+		{"pro_business", 30 * time.Minute},
+		{"enterprise", 30 * time.Minute},
+		{"PRO_STARTER", 2 * time.Hour},
+		{"pro", 2 * time.Hour},
+		{"free", 8 * time.Hour},
+		{"", 8 * time.Hour},
+	}
+
+	for _, tc := range cases {
+		if got := ResolveSupportSLADuration(tc.plan); got != tc.want {
+			t.Fatalf("ResolveSupportSLADuration(%q) = %v, want %v", tc.plan, got, tc.want)
+		}
+	}
+}
+
 func TestFormatSLATargetLabel(t *testing.T) {
-	if got := FormatSLATargetLabel("enterprise"); got != "30 menit jam kerja" {
-		t.Fatalf("unexpected enterprise label: %q", got)
+	cases := []struct {
+		plan string
+		want string
+	}{
+		{"pro_business", "30 menit jam kerja"},
+		{"enterprise", "30 menit jam kerja"},
+		{"pro_starter", "2 jam jam kerja"},
+		{"PRO", "2 jam jam kerja"},
+		{"free", "8 jam jam kerja"},
+		{"", "8 jam jam kerja"},
 	}
-	if got := FormatSLATargetLabel("PRO"); got != "2 jam jam kerja" {
-		t.Fatalf("unexpected pro label: %q", got)
-	}
-	if got := FormatSLATargetLabel("free"); got != "8 jam jam kerja" {
-		t.Fatalf("unexpected free label: %q", got)
+
+	for _, tc := range cases {
+		if got := FormatSLATargetLabel(tc.plan); got != tc.want {
+			t.Fatalf("FormatSLATargetLabel(%q) = %q, want %q", tc.plan, got, tc.want)
+		}
 	}
 }

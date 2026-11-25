@@ -70,12 +70,24 @@ func CalculateBusinessHoursSLA(start time.Time, slaDuration time.Duration) time.
 	return cur.UTC()
 }
 
+// ResolveSupportSLADuration returns the business-hours first-response SLA duration per store plan.
+func ResolveSupportSLADuration(storePlan string) time.Duration {
+	switch strings.ToLower(strings.TrimSpace(storePlan)) {
+	case "pro_business", "enterprise":
+		return 30 * time.Minute
+	case "pro_starter", "pro":
+		return 2 * time.Hour
+	default:
+		return 8 * time.Hour
+	}
+}
+
 // FormatSLATargetLabel returns human-readable business-hours SLA target per store plan.
 func FormatSLATargetLabel(storePlan string) string {
 	switch strings.ToLower(strings.TrimSpace(storePlan)) {
-	case "enterprise":
+	case "pro_business", "enterprise":
 		return "30 menit jam kerja"
-	case "pro":
+	case "pro_starter", "pro":
 		return "2 jam jam kerja"
 	default:
 		return "8 jam jam kerja"
