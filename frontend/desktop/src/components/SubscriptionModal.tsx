@@ -39,12 +39,14 @@ import {
   Eye,
   AlertCircle,
   XCircle,
-  Info
+  Info,
+  Lock
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { ProofLightbox } from './ProofLightbox';
 import { useModalBackHandler } from '../utils/navigation';
 import { AuthenticatedProofImage } from '../../../shared/finance/AuthenticatedProofImage';
+import { SubscriptionPendingStatusCard } from '../../../shared/finance/SubscriptionPendingStatusCard';
 
 export const resolveProofImageUrl = (order: any, _token?: string | null): string => {
   if (!order) return '';
@@ -122,6 +124,7 @@ export interface SubscriptionModalProps {
   onScheduleDowngrade?: (planCode: string) => Promise<void>;
   onUpdateDomain?: (domain: string) => Promise<void>;
   onSuccessUpgrade?: () => void;
+  onOpenHelp?: () => void;
   apiBase?: string;
   token?: string | null;
   isLoading?: boolean;
@@ -149,6 +152,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   onScheduleDowngrade,
   onUpdateDomain,
   onSuccessUpgrade,
+  onOpenHelp,
   apiBase = 'http://localhost:8000/api',
   token,
   isLoading = false,
@@ -349,6 +353,15 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   // ke render gate di bagian akhir sebelum innerModalContent dikembalikan.
 
   const currentPlanCode = effectiveQuota?.plan?.code || 'free';
+  const activePendingOrder =
+    effectiveQuota?.pending_order ||
+    orders.find((o: any) => ['pending', 'pending_verification'].includes(String(o.payment_status || '').toLowerCase())) ||
+    null;
+  const hasActivePendingOrder = Boolean(activePendingOrder);
+  const isPendingVerifying = String(activePendingOrder?.payment_status || '').toLowerCase() === 'pending_verification';
+  const pendingTargetPlanCode = String(activePendingOrder?.plan_code || '').toLowerCase();
+  const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
+
   const canRenewCurrentPlan = Boolean(
     effectiveQuota?.is_in_grace_period ||
     effectiveQuota?.plan_status === 'grace_period' ||
@@ -370,7 +383,73 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     return `Rp ${amount.toLocaleString('id-ID')}`;
   };
 
+  const handleOpenPendingOrderDetail = async () => {
+    changeView('orders');
+    const matchedLocal = orders.find(
+      (o: any) =>
+        o.id === activePendingOrder?.id ||
+        String(o.order_number || '').toLowerCase() === String(activePendingOrder?.order_number || '').toLowerCase()
+    );
+    if (matchedLocal) {
+      handleOpenDesktopOrder(matchedLocal);
+      return;
+    }
+    try {
+      const res = await fetch(`${apiBase}/subscription/orders`, {
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const list = data.data || data.orders || [];
+        setOrders(list);
+        const found = list.find(
+          (o: any) =>
+            o.id === activePendingOrder?.id ||
+            String(o.order_number || '').toLowerCase() === String(activePendingOrder?.order_number || '').toLowerCase()
+        );
+        if (found) handleOpenDesktopOrder(found);
+      }
+    } catch {}
+  };
+
+  const handleCancelPendingOrder = async (orderId: number) => {
+    setCancellingOrderId(orderId);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const res = await fetch(`${apiBase}/subscription/orders/${orderId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
+        }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Gagal membatalkan tagihan langganan.');
+      }
+      setActionSuccess(data.message || 'Tagihan berhasil dibatalkan. Anda kini dapat memilih paket lain.');
+      await fetchOrders();
+      if (onSuccessUpgrade) onSuccessUpgrade();
+    } catch (err: any) {
+      setActionError(err.message || 'Gagal membatalkan tagihan.');
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
   const openCheckout = (targetPlan: SubscriptionPlanData, type: 'upgrade' | 'renewal') => {
+    if (hasActivePendingOrder) {
+      setActionError(
+        `Tagihan ${activePendingOrder.order_number} masih aktif (${isPendingVerifying ? 'dalam verifikasi Tim Finance' : 'menunggu pembayaran'}). Harap selesaikan atau tunggu verifikasi selesai sebelum memilih paket lain.`
+      );
+      return;
+    }
     setSelectedTargetPlan(targetPlan);
     setCheckoutType(type);
     setAppliedCoupon(null);
@@ -384,6 +463,12 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   };
 
   const openDowngradeConfirm = (targetPlan: SubscriptionPlanData) => {
+    if (hasActivePendingOrder) {
+      setActionError(
+        `Perubahan paket tidak dapat dijadwalkan saat tagihan ${activePendingOrder.order_number} sedang diproses.`
+      );
+      return;
+    }
     setSelectedTargetPlan(targetPlan);
     setModalView('downgrade_confirm');
     setActionSuccess(null);
@@ -1259,6 +1344,19 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         {/* VIEW 1: PLANS GRID */}
         {modalView === 'plans' && (
           <>
+            {hasActivePendingOrder && (
+              <SubscriptionPendingStatusCard
+                device="desktop"
+                pendingOrder={activePendingOrder}
+                currentPlanCode={currentPlanCode}
+                currentPlanName={effectiveQuota?.plan?.name}
+                onViewOrderDetail={handleOpenPendingOrderDetail}
+                onContactSupport={onOpenHelp}
+                onCancelPendingOrder={handleCancelPendingOrder}
+                cancelling={cancellingOrderId === activePendingOrder?.id}
+              />
+            )}
+
             {/* Transparent Prepaid Education Banner */}
             {currentPlanCode !== 'free' && (
               <div style={{
@@ -1318,8 +1416,11 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             }}>
               {plans.map((plan) => {
                 const isCurrent = plan.code === currentPlanCode;
+                const isPendingTarget = hasActivePendingOrder && plan.code.toLowerCase() === pendingTargetPlanCode;
                 const isProBusiness = plan.code === 'pro_business';
                 const price = plan.price_monthly;
+                const pendingAccent = isPendingVerifying ? '#d97706' : '#2563eb';
+                const pendingBg = isPendingVerifying ? 'rgba(245, 158, 11, 0.06)' : 'rgba(37, 99, 235, 0.06)';
 
                 return (
                   <div
@@ -1327,9 +1428,21 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                     style={{
                       borderRadius: '1rem',
                       padding: '1.5rem',
-                      backgroundColor: isCurrent ? 'var(--primary-glow, rgba(16, 185, 129, 0.08))' : 'var(--card-bg, rgba(255, 255, 255, 0.02))',
-                      border: isCurrent ? '2px solid var(--primary)' : '1px solid var(--border-light)',
-                      boxShadow: isCurrent ? '0 10px 30px var(--primary-glow)' : 'none',
+                      backgroundColor: isPendingTarget
+                        ? pendingBg
+                        : isCurrent
+                          ? 'var(--primary-glow, rgba(16, 185, 129, 0.08))'
+                          : 'var(--card-bg, rgba(255, 255, 255, 0.02))',
+                      border: isPendingTarget
+                        ? `2px solid ${pendingAccent}`
+                        : isCurrent
+                          ? '2px solid var(--primary)'
+                          : '1px solid var(--border-light)',
+                      boxShadow: isPendingTarget
+                        ? `0 10px 26px ${isPendingVerifying ? 'rgba(245, 158, 11, 0.16)' : 'rgba(37, 99, 235, 0.16)'}`
+                        : isCurrent
+                          ? '0 10px 30px var(--primary-glow)'
+                          : 'none',
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'space-between',
@@ -1351,24 +1464,35 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                         borderRadius: '20px',
                         boxShadow: '0 4px 12px rgba(245, 158, 11, 0.4)'
                       }}>
-                        ★ REKOMENDASI UTAMA
+                        REKOMENDASI UTAMA
                       </div>
                     )}
 
                     <div>
                       {/* Plan Name & Active Tag */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', gap: '0.4rem', flexWrap: 'wrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                           <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
                             {plan.name}
                           </h3>
                           {plan.has_verified_badge && (
                             <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', background: '#3b82f6', color: '#fff' }}>
-                              ✓ Verified
+                              Verified
                             </span>
                           )}
                         </div>
-                        {isCurrent && (
+                        {isPendingTarget ? (
+                          <span style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: pendingAccent,
+                            color: '#ffffff'
+                          }}>
+                            {isPendingVerifying ? 'Sedang Diverifikasi' : 'Menunggu Pembayaran'}
+                          </span>
+                        ) : isCurrent && (
                           <span style={{
                             fontSize: '0.72rem',
                             fontWeight: 800,
@@ -1377,7 +1501,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                             background: 'var(--primary)',
                             color: 'var(--btn-primary-text, #ffffff)'
                           }}>
-                            Paket Aktif
+                            {hasActivePendingOrder && plan.code === 'free' ? 'Aktif Sementara' : 'Paket Aktif'}
                           </span>
                         )}
                       </div>
@@ -1458,7 +1582,60 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 
                     {/* Action CTA Button */}
                     <div>
-                      {isCurrent ? (
+                      {isPendingTarget ? (
+                        <button
+                          type="button"
+                          onClick={handleOpenPendingOrderDetail}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '0.55rem',
+                            border: `1.5px solid ${pendingAccent}`,
+                            backgroundColor: isPendingVerifying ? 'rgba(245, 158, 11, 0.14)' : 'rgba(37, 99, 235, 0.14)',
+                            color: pendingAccent,
+                            fontWeight: 800,
+                            fontSize: '0.84rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.4rem'
+                          }}
+                        >
+                          <CreditCard size={15} />
+                          <span>{isPendingVerifying ? 'Lihat Detail Tagihan' : 'Lanjutkan Pembayaran'}</span>
+                        </button>
+                      ) : hasActivePendingOrder && !(isCurrent && plan.code === 'free') && plan.code !== 'free' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            disabled={true}
+                            data-testid={`locked-plan-btn-${plan.code}`}
+                            style={{
+                              width: '100%',
+                              padding: '0.75rem',
+                              borderRadius: '0.55rem',
+                              background: 'rgba(148, 163, 184, 0.12)',
+                              color: 'var(--text-muted)',
+                              border: '1px solid var(--border-light)',
+                              fontWeight: 700,
+                              fontSize: '0.82rem',
+                              cursor: 'not-allowed',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.4rem',
+                              opacity: 0.78
+                            }}
+                          >
+                            <Lock size={14} />
+                            <span>{isPendingVerifying ? 'Terkunci Selama Verifikasi' : 'Selesaikan / Batalkan Tagihan Aktif'}</span>
+                          </button>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+                            Tersedia setelah tagihan {activePendingOrder?.order_number} selesai.
+                          </span>
+                        </div>
+                      ) : isCurrent ? (
                         plan.code !== 'free' ? (
                           canRenewCurrentPlan ? (
                             <button
@@ -1534,7 +1711,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                             fontSize: '0.84rem',
                             textAlign: 'center'
                           }}>
-                            ✓ Paket Aktif Saat Ini
+                            {hasActivePendingOrder ? 'Aktif Sementara Selama Verifikasi' : 'Paket Aktif Saat Ini'}
                           </div>
                         )
                       ) : getPlanLevel(plan.code) > getPlanLevel(currentPlanCode) ? (
@@ -3432,6 +3609,7 @@ export const QuotaDashboardWidget: React.FC<{
 
   const planName = quota.plan?.name || 'Gratis Terbatas';
   const isFree = quota.plan?.code === 'free';
+  const hasPendingOrder = Boolean(quota.pending_order && ['pending', 'pending_verification'].includes(String(quota.pending_order.payment_status || '').toLowerCase()));
   const isUnlimited = quota.max_items === -1;
 
   const formatStorageShort = (bytes: number): string => {
@@ -3492,7 +3670,7 @@ export const QuotaDashboardWidget: React.FC<{
         <button
           type="button"
           onClick={onOpenUpgrade}
-          className={isFree ? "btn-primary" : "btn-secondary"}
+          className={hasPendingOrder ? "btn-secondary" : (isFree ? "btn-primary" : "btn-secondary")}
           style={{
             padding: '0.45rem 1rem',
             borderRadius: '0.5rem',
@@ -3501,10 +3679,19 @@ export const QuotaDashboardWidget: React.FC<{
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.4rem'
+            gap: '0.4rem',
+            ...(hasPendingOrder ? {
+              borderColor: 'rgba(217,119,6,0.45)',
+              color: 'var(--brand)',
+            } : {}),
           }}
         >
-          {isFree ? (
+          {hasPendingOrder ? (
+            <>
+              <Clock size={14} style={{ flexShrink: 0 }} />
+              <span>Cek Status Tagihan</span>
+            </>
+          ) : isFree ? (
             <>
               <Sparkles size={14} style={{ flexShrink: 0 }} />
               <span>Upgrade ke Pro</span>

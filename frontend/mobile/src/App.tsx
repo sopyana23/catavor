@@ -33253,6 +33253,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     }}
                                     apiBase={API_BASE}
                                     token={token}
+                                    onOpenHelp={() => {
+                                      setAdminSubTab('help');
+                                      const slug = getStoreSlug();
+                                      if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/admin/help`));
+                                    }}
                                     onBack={() => {
                                       if (mobileSubPageView !== 'plans') {
                                         if (typeof window !== 'undefined' && window.history.state?.subView) {

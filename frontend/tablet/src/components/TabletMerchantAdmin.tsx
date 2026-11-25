@@ -111,6 +111,7 @@ import { SafeImage } from './SafeImage';
 import { ProofLightbox } from './ProofLightbox';
 import { AuthenticatedProofImage } from '../../../shared/finance/AuthenticatedProofImage';
 import { PendingPaymentBanner } from '../../../shared/finance/PendingPaymentBanner';
+import { SubscriptionPendingStatusCard } from '../../../shared/finance/SubscriptionPendingStatusCard';
 import { RichTextarea, FormattedText } from './RichTextarea';
 
 export const resolveProofImageUrl = (order: any, _token?: string | null): string => {
@@ -2903,6 +2904,31 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [quota, setQuota] = useState<StoreQuotaData | null>(null);
   const [subscriptionOrders, setSubscriptionOrders] = useState<any[]>(() => initialOrders || []);
   const [isSubModalOpen, setIsSubModalOpen] = useState<boolean>(false);
+  const [cancellingPendingOrderId, setCancellingPendingOrderId] = useState<number | null>(null);
+
+  const handleCancelPendingOrder = async (orderId: number) => {
+    setCancellingPendingOrderId(orderId);
+    try {
+      const res = await fetch(`/api/subscription/orders/${orderId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {})
+        }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Gagal membatalkan tagihan langganan.');
+      }
+      showToast(data.message || 'Tagihan berhasil dibatalkan. Anda kini dapat memilih paket lain.', 'success');
+      fetchQuota();
+      fetchSubscriptionOrders();
+    } catch (err: any) {
+      showToast(err.message || 'Gagal membatalkan tagihan.', 'error');
+    } finally {
+      setCancellingPendingOrderId(null);
+    }
+  };
   const [selectedTabletOrder, setSelectedTabletOrder] = useState<any | null>(null);
   const [copiedTabletRefToast, setCopiedTabletRefToast] = useState(false);
   const [previewTabletProofImg, setPreviewTabletProofImg] = useState<string | null>(() => initialProofUrl || null);
@@ -9513,6 +9539,38 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               </button>
             </div>
 
+            {quota?.pending_order && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <SubscriptionPendingStatusCard
+                  device="tablet"
+                  compact={isNarrowScreen || isNavExpanded}
+                  pendingOrder={quota.pending_order}
+                  currentPlanCode={quota?.plan?.code || 'free'}
+                  currentPlanName={quota?.plan?.name}
+                  onViewOrderDetail={() => {
+                    const matched = subscriptionOrders.find(
+                      (o: any) => Number(o.id) === Number(quota?.pending_order?.id) ||
+                        (quota?.pending_order?.order_number && String(o.order_number) === String(quota.pending_order.order_number))
+                    );
+                    if (matched) {
+                      handleOpenTabletOrder(matched);
+                    } else if (quota?.pending_order) {
+                      handleOpenTabletOrder({
+                        ...quota.pending_order,
+                        plan: { name: quota.pending_order.plan_name, code: quota.pending_order.plan_code }
+                      });
+                    }
+                  }}
+                  onContactSupport={() => {
+                    setActiveTab('help');
+                    if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/help`);
+                  }}
+                  onCancelPendingOrder={handleCancelPendingOrder}
+                  cancelling={cancellingPendingOrderId === quota?.pending_order?.id}
+                />
+              </div>
+            )}
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
               {/* Plan Card */}
               <div style={{
@@ -9574,7 +9632,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     }}
                   >
                     <Zap size={16} />
-                    Pilih Paket & Upgrade Berlangganan
+                    {quota?.pending_order ? 'Lihat Perbandingan Paket (Terkunci)' : 'Pilih Paket & Upgrade Berlangganan'}
                   </button>
                 </div>
               </div>
@@ -13418,6 +13476,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         token={token}
         storeSlug={storeSlug}
         currentQuota={quota}
+        onViewOrders={() => setActiveTab('subscription')}
+        onOpenHelp={() => {
+          setActiveTab('help');
+          if (storeSlug) window.history.pushState({}, '', `/${storeSlug}/admin/help`);
+        }}
         onSuccessUpgrade={() => {
           fetchQuota();
           fetchSubscriptionOrders();

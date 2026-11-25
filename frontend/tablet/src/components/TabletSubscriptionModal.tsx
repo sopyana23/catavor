@@ -26,12 +26,14 @@ import {
   Settings2,
   Clock,
   RotateCcw,
-  Info
+  Info,
+  Lock
 } from 'lucide-react';
 import { createAuthFetch } from '../utils/auth';
 import { useModalBackHandler } from '../utils/navigation';
 import { SafeImage } from './SafeImage';
 import { AuthenticatedProofImage } from '../../../shared/finance/AuthenticatedProofImage';
+import { SubscriptionPendingStatusCard } from '../../../shared/finance/SubscriptionPendingStatusCard';
 
 export interface SubscriptionPlanData {
   id: number;
@@ -84,6 +86,8 @@ export interface TabletSubscriptionModalProps {
   currentQuota?: StoreQuotaData | null;
   settings?: any;
   onSuccessUpgrade?: () => void;
+  onViewOrders?: () => void;
+  onOpenHelp?: () => void;
   showToast: (msg: string, type?: 'success' | 'error') => void;
   onLogout?: () => void;
   onUnauthorized?: (msg?: string) => void;
@@ -97,6 +101,8 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   currentQuota,
   settings,
   onSuccessUpgrade,
+  onViewOrders,
+  onOpenHelp,
   showToast,
   onLogout,
   onUnauthorized
@@ -168,6 +174,15 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   const [appliedCoupon, setAppliedCoupon] = useState<any | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponSuccessMsg, setCouponSuccessMsg] = useState<string | null>(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
+
+  const activePendingOrder = currentQuota?.pending_order || null;
+  const hasActivePendingOrder = Boolean(
+    activePendingOrder &&
+    ['pending', 'pending_verification'].includes(String(activePendingOrder.payment_status || '').toLowerCase())
+  );
+  const isPendingVerifying = String(activePendingOrder?.payment_status || '').toLowerCase() === 'pending_verification';
+  const pendingTargetPlanCode = String(activePendingOrder?.plan_code || '').toLowerCase();
 
   // Load plans from API
   const fetchPlans = useCallback(async () => {
@@ -287,7 +302,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         const planParam = params.get('plan');
-        if (planParam && (planParam === 'pro_starter' || planParam === 'pro_business')) {
+        if (!hasActivePendingOrder && planParam && (planParam === 'pro_starter' || planParam === 'pro_business')) {
           setSelectedPlanCode(planParam);
           setCheckoutStep('payment_detail');
           const url = new URL(window.location.href);
@@ -430,6 +445,29 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
     }
   };
 
+  const handleCancelPendingOrder = async (orderId: number) => {
+    setCancellingOrderId(orderId);
+    try {
+      const res = await fetch(`/api/subscription/orders/${orderId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {})
+        }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Gagal membatalkan tagihan langganan.');
+      }
+      showToast(data.message || 'Tagihan berhasil dibatalkan. Anda kini dapat memilih paket lain.', 'success');
+      if (onSuccessUpgrade) onSuccessUpgrade();
+    } catch (err: any) {
+      showToast(err.message || 'Gagal membatalkan tagihan.', 'error');
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
   const canRenewCurrentPlan = Boolean(
     currentQuota?.is_in_grace_period ||
     currentQuota?.plan_status === 'grace_period' ||
@@ -439,6 +477,10 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   );
 
   const handleProceedToPayment = () => {
+    if (hasActivePendingOrder) {
+      showToast(`Tagihan ${activePendingOrder?.order_number || ''} masih aktif (${isPendingVerifying ? 'dalam verifikasi' : 'menunggu pembayaran'}). Harap selesaikan atau tunggu verifikasi selesai.`, 'error');
+      return;
+    }
     if (selectedPlan?.code === 'free') {
       showToast('Anda sudah berada pada paket Gratis atau pilih paket Pro', 'error');
       return;
@@ -753,6 +795,28 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
         <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1.75rem' }}>
           {checkoutStep === 'plan_select' ? (
             <div>
+              {hasActivePendingOrder && (
+                <div style={{ marginBottom: '1.15rem' }}>
+                  <SubscriptionPendingStatusCard
+                    device="tablet"
+                    compact={isTabletMini}
+                    pendingOrder={activePendingOrder}
+                    currentPlanCode={currentQuota?.plan?.code || 'free'}
+                    currentPlanName={currentQuota?.plan?.name}
+                    onViewOrderDetail={() => {
+                      onClose();
+                      if (onViewOrders) onViewOrders();
+                    }}
+                    onContactSupport={onOpenHelp ? () => {
+                      onClose();
+                      onOpenHelp();
+                    } : undefined}
+                    onCancelPendingOrder={handleCancelPendingOrder}
+                    cancelling={cancellingOrderId === activePendingOrder?.id}
+                  />
+                </div>
+              )}
+
               {/* Scheduled Downgrade Notice in Tablet Plans View */}
               {currentQuota?.next_plan && (
                 <div style={{
@@ -830,6 +894,11 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                   <button
                     type="button"
                     onClick={() => {
+                      if (hasActivePendingOrder) {
+                        onClose();
+                        if (onViewOrders) onViewOrders();
+                        return;
+                      }
                       setSelectedPlanCode(currentQuota.plan.code);
                       setCheckoutStep('payment_detail');
                     }}
@@ -837,7 +906,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                       minHeight: '44px',
                       padding: '0.5rem 1.15rem',
                       borderRadius: '0.55rem',
-                      backgroundColor: '#ef4444',
+                      backgroundColor: hasActivePendingOrder ? '#d97706' : '#ef4444',
                       border: 'none',
                       color: '#ffffff',
                       fontSize: '0.8rem',
@@ -846,7 +915,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    Perpanjang Sekarang
+                    {hasActivePendingOrder ? 'Lihat Tagihan Aktif' : 'Perpanjang Sekarang'}
                   </button>
                 </div>
                 );
@@ -1018,6 +1087,8 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                     const isCurrent = currentPlanCode === p.code;
                     const targetRank = planRank[p.code] || 0;
                     const isDowngrade = targetRank < currentRank;
+                    const isPendingTarget = hasActivePendingOrder && p.code.toLowerCase() === pendingTargetPlanCode;
+                    const isSoftLocked = hasActivePendingOrder && !isPendingTarget && !(p.code === 'free' && isCurrent);
                     const price = p.price_monthly;
                     const storageMB = Math.round(p.storage_limit_bytes / (1024 * 1024));
 
@@ -1025,6 +1096,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                       <div
                         key={p.code}
                         onClick={() => {
+                          if (hasActivePendingOrder) return;
                           if (p.code === 'free' && currentRank > 0) return;
                           if (isDowngrade && p.code !== 'free') {
                             setSelectedTargetPlan(p);
@@ -1036,25 +1108,34 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                         }}
                         style={{
                           borderRadius: '1rem',
-                          border: isSelected
+                          border: isPendingTarget
+                            ? `2px solid ${isPendingVerifying ? '#d97706' : '#3b82f6'}`
+                            : isSelected && !hasActivePendingOrder
                             ? '2px solid var(--primary)'
                             : '1px solid var(--border-light)',
-                          backgroundColor: isSelected ? 'rgba(30, 58, 138, 0.08)' : 'var(--bg-deep)',
+                          backgroundColor: isPendingTarget
+                            ? (isPendingVerifying ? 'rgba(217, 119, 6, 0.06)' : 'rgba(59, 130, 246, 0.06)')
+                            : isSelected && !hasActivePendingOrder
+                            ? 'rgba(30, 58, 138, 0.08)'
+                            : 'var(--bg-deep)',
                           padding: '1.25rem',
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'space-between',
-                          cursor: (p.code === 'free' && currentRank > 0) || (isCurrent && !canRenewCurrentPlan) ? 'default' : 'pointer',
+                          cursor: hasActivePendingOrder || (p.code === 'free' && currentRank > 0) || (isCurrent && !canRenewCurrentPlan) ? 'default' : 'pointer',
                           position: 'relative',
+                          opacity: isSoftLocked && !isCurrent ? 0.72 : 1,
                           transition: 'all 0.15s ease'
                         }}
                       >
-                        {p.badge_label && (
+                        {(isPendingTarget || p.badge_label) && (
                           <div style={{
                             position: 'absolute',
                             top: '-10px',
                             right: '12px',
-                            backgroundColor: p.code === 'pro_business' ? '#a855f7' : 'var(--primary)',
+                            backgroundColor: isPendingTarget
+                              ? (isPendingVerifying ? '#d97706' : '#2563eb')
+                              : (p.code === 'pro_business' ? '#a855f7' : 'var(--primary)'),
                             color: '#ffffff',
                             fontSize: '0.68rem',
                             fontWeight: 800,
@@ -1062,7 +1143,9 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                             borderRadius: '999px',
                             textTransform: 'uppercase'
                           }}>
-                            {p.badge_label}
+                            {isPendingTarget
+                              ? (isPendingVerifying ? 'Sedang Diverifikasi' : 'Menunggu Pembayaran')
+                              : p.badge_label}
                           </div>
                         )}
 
@@ -1114,7 +1197,74 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                         </div>
 
                         <div style={{ marginTop: '1.25rem' }}>
-                          {isCurrent ? (
+                          {isPendingTarget ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onClose();
+                                if (onViewOrders) onViewOrders();
+                              }}
+                              style={{
+                                width: '100%',
+                                minHeight: '44px',
+                                textAlign: 'center',
+                                padding: '0.5rem',
+                                fontSize: '0.8rem',
+                                fontWeight: 800,
+                                borderRadius: '0.5rem',
+                                backgroundColor: isPendingVerifying ? '#d97706' : '#2563eb',
+                                color: '#ffffff',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <Clock size={14} />
+                              <span>{isPendingVerifying ? 'Lihat Detail Tagihan' : 'Lanjutkan Pembayaran'}</span>
+                            </button>
+                          ) : (hasActivePendingOrder && isCurrent && p.code === 'free') ? (
+                            <div style={{
+                              textAlign: 'center',
+                              padding: '0.5rem',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              color: '#10b981',
+                              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                              borderRadius: '0.5rem'
+                            }}>
+                              Aktif Sementara
+                            </div>
+                          ) : (hasActivePendingOrder && !(p.code === 'free' && currentRank > 0)) ? (
+                            <button
+                              type="button"
+                              disabled={true}
+                              style={{
+                                width: '100%',
+                                minHeight: '44px',
+                                padding: '0.5rem 0.75rem',
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                                color: 'var(--text-muted)',
+                                border: '1px solid var(--border-light)',
+                                fontWeight: 700,
+                                fontSize: '0.76rem',
+                                cursor: 'not-allowed',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem',
+                                opacity: 0.75
+                              }}
+                              title={isPendingVerifying ? 'Menunggu tim finance memverifikasi tagihan aktif.' : 'Selesaikan atau batalkan tagihan aktif terlebih dahulu.'}
+                            >
+                              <Lock size={14} style={{ flexShrink: 0 }} />
+                              <span>{isPendingVerifying ? 'Terkunci Selama Verifikasi' : 'Selesaikan / Batalkan Tagihan Aktif'}</span>
+                            </button>
+                          ) : isCurrent ? (
                             p.code !== 'free' ? (
                               canRenewCurrentPlan ? (
                                 <button
@@ -2223,15 +2373,32 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
             justifyContent: 'space-between',
             backgroundColor: 'var(--bg-deep)'
           }}>
-            <div>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Paket dipilih: </span>
-              <strong style={{ fontSize: '0.88rem' }}>{selectedPlan?.name}</strong>
-              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--primary)', marginLeft: '0.5rem' }}>
-                (Rp {totalPrice.toLocaleString('id-ID')} / bulan)
-              </span>
-            </div>
+            {hasActivePendingOrder ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                <Lock size={14} style={{ color: isPendingVerifying ? '#d97706' : '#2563eb', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Tagihan aktif:</span>
+                <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                  {activePendingOrder?.order_number || 'Menunggu Proses'}
+                </strong>
+                <span style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  color: isPendingVerifying ? '#d97706' : '#2563eb'
+                }}>
+                  ({isPendingVerifying ? 'Sedang Diverifikasi' : 'Menunggu Pembayaran'})
+                </span>
+              </div>
+            ) : (
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Paket dipilih: </span>
+                <strong style={{ fontSize: '0.88rem' }}>{selectedPlan?.name}</strong>
+                <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--primary)', marginLeft: '0.5rem' }}>
+                  (Rp {totalPrice.toLocaleString('id-ID')} / bulan)
+                </span>
+              </div>
+            )}
 
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', flexShrink: 0 }}>
               <button
                 type="button"
                 onClick={onClose}
@@ -2247,9 +2414,34 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                   cursor: 'pointer'
                 }}
               >
-                Batal
+                {hasActivePendingOrder ? 'Tutup' : 'Batal'}
               </button>
-              {(() => {
+              {hasActivePendingOrder ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (onViewOrders) onViewOrders();
+                  }}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: '0.5rem',
+                    border: 'none',
+                    backgroundColor: isPendingVerifying ? '#d97706' : '#2563eb',
+                    color: '#ffffff',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Clock size={15} />
+                  <span>{isPendingVerifying ? 'Lihat Detail Tagihan' : 'Lanjutkan Pembayaran'}</span>
+                </button>
+              ) : (() => {
                 const currentCode = currentQuota?.plan?.code || 'free';
                 const isSelectedCurrent = selectedPlan?.code === currentCode && currentCode !== 'free';
                 const isRenewalDisabled = isSelectedCurrent && !canRenewCurrentPlan;
@@ -2293,6 +2485,10 @@ export const TabletQuotaWidget: React.FC<{
   isNavExpanded?: boolean;
 }> = ({ quota, onOpenUpgrade, isNavExpanded = false }) => {
   const isFree = !quota || quota.plan?.code === 'free';
+  const hasPendingOrder = Boolean(
+    quota?.pending_order &&
+    ['pending', 'pending_verification'].includes(String(quota.pending_order.payment_status || '').toLowerCase())
+  );
   const rawPlanName = quota?.plan?.name || (isFree ? 'Gratis Terbatas' : 'Paket Toko');
   // Adaptive plan title: when sidebar is expanded, masterPane is narrower, so use concise "Gratis" to prevent any clipping
   const planName = (isNavExpanded && isFree) ? 'Gratis' : rawPlanName;
@@ -2398,14 +2594,14 @@ export const TabletQuotaWidget: React.FC<{
         <button
           type="button"
           onClick={onOpenUpgrade}
-          title={isFree ? 'Upgrade ke Paket Pro' : 'Kelola Paket Langganan'}
+          title={hasPendingOrder ? 'Lihat Status Tagihan Langganan' : (isFree ? 'Upgrade ke Paket Pro' : 'Kelola Paket Langganan')}
           style={{
             minHeight: '34px',
             padding: '0.35rem 0.75rem',
             borderRadius: '0.5rem',
-            border: isFree ? 'none' : '1px solid var(--border-light)',
-            backgroundColor: isFree ? 'var(--primary)' : 'var(--bg-deep)',
-            color: isFree ? '#ffffff' : 'var(--text-primary)',
+            border: hasPendingOrder ? '1px solid rgba(217,119,6,0.45)' : (isFree ? 'none' : '1px solid var(--border-light)'),
+            backgroundColor: hasPendingOrder ? 'rgba(217,119,6,0.12)' : (isFree ? 'var(--primary)' : 'var(--bg-deep)'),
+            color: hasPendingOrder ? '#d97706' : (isFree ? '#ffffff' : 'var(--text-primary)'),
             fontSize: '0.74rem',
             fontWeight: 700,
             cursor: 'pointer',
@@ -2413,11 +2609,16 @@ export const TabletQuotaWidget: React.FC<{
             alignItems: 'center',
             gap: '0.35rem',
             flexShrink: 0,
-            boxShadow: isFree ? '0 2px 6px var(--primary-glow)' : 'none',
+            boxShadow: (!hasPendingOrder && isFree) ? '0 2px 6px var(--primary-glow)' : 'none',
             transition: 'all 0.15s ease'
           }}
         >
-          {isFree ? (
+          {hasPendingOrder ? (
+            <>
+              <Clock size={13} style={{ flexShrink: 0 }} />
+              <span>Cek Status Tagihan</span>
+            </>
+          ) : isFree ? (
             <>
               <Sparkles size={13} style={{ flexShrink: 0 }} />
               <span>Upgrade ke Pro</span>

@@ -29634,6 +29634,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     initialOrders={initialSubscriptionOrders || undefined}
                     initialSelectedOrder={initialProofOrder || undefined}
                     initialProofUrl={initialProofUrl || undefined}
+                    onOpenHelp={() => {
+                      setAdminTab('help');
+                      const slug = storeSlug || getStoreSlug();
+                      if (slug) window.history.pushState({}, '', appendViewParam(`/${slug}/admin/help`));
+                    }}
                     onSuccessUpgrade={() => {
                       fetchMyQuota();
                       loadData();
