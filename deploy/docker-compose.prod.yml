@@ -7,7 +7,10 @@
 #   2. catavor_edge_internal (internal: true, 172.28.10.0/24) -> Jembatan privat
 #      antara Caddy (172.28.10.10) dan Catavor; TRUSTED_PROXIES dikunci presisi
 #      hanya ke IP Caddy (172.28.10.10) dan loopback.
-#   3. Port 8000 aplikasi hanya dibuka ke loopback host (127.0.0.1:8000) untuk
+#   3. catavor_public_egress -> Dipakai Catavor untuk verifikasi DNS live custom domain
+#      (TXT/CNAME/A), SMTP email keluar, dan Google OAuth2; sementara PostgreSQL dan
+#      Redis tetap terisolasi di catavor_data_internal.
+#   4. Port 8000 aplikasi hanya dibuka ke loopback host (127.0.0.1:8000) untuk
 #      probe /healthz & /readyz lokal, TIDAK terekspos ke publik.
 #
 # Cara menjalankan (dari root repositori):
@@ -61,6 +64,8 @@ services:
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     command:
       - redis-server
       - --requirepass
@@ -77,8 +82,6 @@ services:
       - catavor_data_internal
     healthcheck:
       test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
-      environment:
-        REDIS_PASSWORD: ${REDIS_PASSWORD}
       interval: 10s
       timeout: 5s
       retries: 5
@@ -127,6 +130,7 @@ services:
     networks:
       - catavor_data_internal
       - catavor_edge_internal
+      - catavor_public_egress
 
   caddy:
     image: caddy:2-alpine
@@ -135,6 +139,7 @@ services:
       - catavor
     environment:
       CATAVOR_DOMAIN: ${CATAVOR_DOMAIN:-catavor.com}
+      ACME_EMAIL: ${ACME_EMAIL:-ops@catavor.com}
     ports:
       - "80:80"
       - "443:443"
