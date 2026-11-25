@@ -309,6 +309,43 @@ func InvalidateStoreQuotaCache(ctx context.Context, storeID uint) {
 	_ = RedisClient.Del(ctx, key).Err()
 }
 
+// GetCustomDomainCache fetches cached serialized store metadata for a resolved custom domain host.
+func GetCustomDomainCache(ctx context.Context, domain string) (string, bool) {
+	normalized := strings.ToLower(strings.TrimSpace(domain))
+	if !IsRedisAvailable() || normalized == "" {
+		return "", false
+	}
+	key := "catavor:domain:" + normalized
+	val, err := RedisClient.Get(ctx, key).Result()
+	if err != nil {
+		return "", false
+	}
+	return val, true
+}
+
+// SetCustomDomainCache stores resolved custom domain metadata with a short safety TTL.
+func SetCustomDomainCache(ctx context.Context, domain string, data string, ttl time.Duration) {
+	normalized := strings.ToLower(strings.TrimSpace(domain))
+	if !IsRedisAvailable() || normalized == "" {
+		return
+	}
+	if ttl <= 0 {
+		ttl = 2 * time.Minute
+	}
+	key := "catavor:domain:" + normalized
+	_ = RedisClient.Set(ctx, key, data, ttl).Err()
+}
+
+// InvalidateCustomDomainCache deletes cached resolution metadata for a custom domain host.
+func InvalidateCustomDomainCache(ctx context.Context, domain string) {
+	normalized := strings.ToLower(strings.TrimSpace(domain))
+	if !IsRedisAvailable() || normalized == "" {
+		return
+	}
+	key := "catavor:domain:" + normalized
+	_ = RedisClient.Del(ctx, key).Err()
+}
+
 var (
 	memoryTokenBlacklist sync.Map
 	memoryLoginFailures  sync.Map

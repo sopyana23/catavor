@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"context"
+	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -12,6 +15,7 @@ import (
 	"time"
 
 	"catavor-backend/internal/config"
+	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
@@ -23,19 +27,27 @@ import (
 )
 
 type SubscriptionHandler struct {
-	cfg     *config.Config
-	db      *gorm.DB
-	storage storage.StorageService
+	cfg         *config.Config
+	db          *gorm.DB
+	storage     storage.StorageService
+	dnsResolver services.DomainDNSResolver
 }
 
 func NewSubscriptionHandler(db *gorm.DB, opts ...interface{}) *SubscriptionHandler {
-	h := &SubscriptionHandler{db: db}
+	h := &SubscriptionHandler{
+		db:          db,
+		dnsResolver: services.DefaultDomainDNSResolver{},
+	}
 	for _, opt := range opts {
 		switch v := opt.(type) {
 		case *config.Config:
 			h.cfg = v
 		case storage.StorageService:
 			h.storage = v
+		case services.DomainDNSResolver:
+			if v != nil {
+				h.dnsResolver = v
+			}
 		}
 	}
 	return h
@@ -271,7 +283,91 @@ func (h *SubscriptionHandler) ScheduleDowngrade(c *fiber.Ctx) error {
 	})
 }
 
-// UpdateCustomDomain sets or verifies custom domain for Pro Business stores
+func (h *SubscriptionHandler) customDomainConfigTargets() (string, string) {
+	cnameTarget := "cname.catavor.com"
+	edgeIP := ""
+	if h.cfg != nil {
+		if t := strings.TrimSpace(h.cfg.CustomDomainCNAMETarget); t != "" {
+			cnameTarget = t
+		}
+		edgeIP = strings.TrimSpace(h.cfg.CustomDomainEdgeIP)
+	}
+	return cnameTarget, edgeIP
+}
+
+func (h *SubscriptionHandler) invalidateCustomDomainCaches(storeID uint, slug string, domains ...string) {
+	database.InvalidateStoreQuotaCache(context.Background(), storeID)
+	if slug != "" {
+		InvalidateStoreProfileCache(slug)
+	}
+	for _, d := range domains {
+		if clean := strings.TrimSpace(d); clean != "" {
+			database.InvalidateCustomDomainCache(context.Background(), clean)
+		}
+	}
+}
+
+func (h *SubscriptionHandler) isTrustedInternalCaller(c *fiber.Ctx) bool {
+	if c == nil || c.Context() == nil {
+		return false
+	}
+	peerIP := c.Context().RemoteIP()
+	if peerIP == nil {
+		return false
+	}
+	if peerIP.IsLoopback() {
+		return true
+	}
+	if h.cfg == nil {
+		return false
+	}
+	for _, entry := range h.cfg.TrustedProxies {
+		trimmed := strings.TrimSpace(entry)
+		if trimmed == "" {
+			continue
+		}
+		if strings.Contains(trimmed, "/") {
+			if _, cidr, err := net.ParseCIDR(trimmed); err == nil && cidr.Contains(peerIP) {
+				return true
+			}
+		} else if ip := net.ParseIP(trimmed); ip != nil && ip.Equal(peerIP) {
+			return true
+		}
+	}
+	return false
+}
+
+func buildCustomDomainPayload(store *models.Store, cnameTarget, edgeIP string) fiber.Map {
+	domainStr := ""
+	if store.CustomDomain != nil {
+		domainStr = *store.CustomDomain
+	}
+	isApex := false
+	txtHost := ""
+	txtFullHost := ""
+	if domainStr != "" {
+		isApex = services.IsApexDomain(domainStr)
+		txtHost = services.BuildCustomDomainTXTHost(domainStr)
+		txtFullHost = services.BuildCustomDomainTXTFullHost(domainStr)
+	}
+	return fiber.Map{
+		"custom_domain":        store.CustomDomain,
+		"custom_domain_status": store.CustomDomainStatus,
+		"verification_token":   store.CustomDomainVerificationToken,
+		"verified_at":          store.CustomDomainVerifiedAt,
+		"last_checked_at":      store.CustomDomainLastCheckedAt,
+		"error":                store.CustomDomainError,
+		"cname_target":         cnameTarget,
+		"edge_ip":              edgeIP,
+		"txt_host":             txtHost,
+		"txt_record_host":      txtFullHost,
+		"txt_value":            store.CustomDomainVerificationToken,
+		"is_apex":              isApex,
+	}
+}
+
+// UpdateCustomDomain sets or removes a custom domain for eligible Pro Business stores,
+// enforcing RFC hostname rules, platform anti-hijacking, uniqueness, and TXT ownership token generation.
 func (h *SubscriptionHandler) UpdateCustomDomain(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -297,11 +393,19 @@ func (h *SubscriptionHandler) UpdateCustomDomain(c *fiber.Ctx) error {
 		})
 	}
 
-	plan, _ := services.GetPlanByCode(h.db, store.Plan)
-	if plan == nil || !plan.HasCustomDomain {
+	if store.DormancyStatus == "banned" || store.DormancyStatus == "purged" || store.IsBlacklisted || store.IsSuspended || store.DormancyStatus == "suspended" {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"success": false,
-			"message": "Fitur Custom Domain hanya tersedia untuk paket Pro Bisnis. Silakan upgrade paket Anda.",
+			"message": "Pengaturan domain tidak dapat diubah saat toko berstatus nonaktif atau ditangguhkan.",
+		})
+	}
+
+	plan, _ := services.GetPlanByCode(h.db, store.Plan)
+	if plan == nil || !plan.HasCustomDomain || strings.EqualFold(store.PlanStatus, "expired") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "PLAN_UPGRADE_REQUIRED",
+			"message": "Fitur Custom Domain hanya tersedia untuk paket Pro Bisnis aktif. Silakan upgrade paket Anda.",
 		})
 	}
 
@@ -315,41 +419,372 @@ func (h *SubscriptionHandler) UpdateCustomDomain(c *fiber.Ctx) error {
 		})
 	}
 
-	domain := strings.ToLower(strings.TrimSpace(req.CustomDomain))
-	domain = strings.TrimPrefix(domain, "https://")
-	domain = strings.TrimPrefix(domain, "http://")
-	domain = strings.TrimRight(domain, "/")
+	oldDomain := ""
+	if store.CustomDomain != nil {
+		oldDomain = strings.TrimSpace(*store.CustomDomain)
+	}
+	cnameTarget, edgeIP := h.customDomainConfigTargets()
+	rawInput := strings.TrimSpace(req.CustomDomain)
 
-	if domain == "" {
+	var actorUserID *uint
+	if uidVal := c.Locals("user_id"); uidVal != nil {
+		if uid, ok := uidVal.(uint); ok && uid > 0 {
+			actorUserID = &uid
+		}
+	}
+
+	if rawInput == "" {
 		store.CustomDomain = nil
 		store.CustomDomainStatus = "none"
-	} else {
-		var existing models.Store
-		if err := h.db.Where("custom_domain = ? AND id != ?", domain, storeID).First(&existing).Error; err == nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		store.CustomDomainVerificationToken = ""
+		store.CustomDomainVerifiedAt = nil
+		store.CustomDomainLastCheckedAt = nil
+		store.CustomDomainError = ""
+
+		if err := h.db.Save(&store).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"success": false,
-				"message": "Domain ini sudah digunakan oleh toko lain.",
+				"message": "Gagal menghapus custom domain.",
+			})
+		}
+
+		h.invalidateCustomDomainCaches(storeID, store.Slug, oldDomain)
+		services.RecordActivity(services.RecordActivityParams{
+			DB:          h.db,
+			StoreID:     &storeID,
+			UserID:      actorUserID,
+			ActorRole:   "merchant",
+			Action:      "CUSTOM_DOMAIN_REMOVED",
+			Category:    "settings",
+			EntityType:  "store",
+			EntityID:    &storeID,
+			EntityTitle: store.StoreTitle,
+			Description: "Menghapus custom domain toko",
+			Changes: map[string]interface{}{
+				"old_domain": oldDomain,
+			},
+			IPAddress: c.IP(),
+			UserAgent: c.Get("User-Agent"),
+		})
+
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Custom domain berhasil dihapus.",
+			"data":    buildCustomDomainPayload(&store, cnameTarget, edgeIP),
+		})
+	}
+
+	domain, valErr := services.NormalizeAndValidateCustomDomain(rawInput, h.cfg)
+	if valErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"code":    "INVALID_DOMAIN",
+			"message": safeErrMsg(valErr, "Format domain tidak valid."),
+		})
+	}
+
+	var existing models.Store
+	if err := h.db.Where("LOWER(custom_domain) = ? AND id != ?", domain, storeID).First(&existing).Error; err == nil {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"success": false,
+			"code":    "DOMAIN_ALREADY_TAKEN",
+			"message": "Domain ini sudah digunakan atau sedang diverifikasi oleh toko lain.",
+		})
+	}
+
+	// Preserve verification state if merchant re-submits the exact same already-configured domain
+	isSameDomain := strings.EqualFold(oldDomain, domain)
+	if !isSameDomain || strings.TrimSpace(store.CustomDomainVerificationToken) == "" {
+		token, err := services.GenerateDomainVerificationToken()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal membuat token verifikasi DNS.",
 			})
 		}
 		store.CustomDomain = &domain
-		store.CustomDomainStatus = "active"
+		store.CustomDomainVerificationToken = token
+		store.CustomDomainStatus = "pending"
+		store.CustomDomainVerifiedAt = nil
+		store.CustomDomainLastCheckedAt = nil
+		store.CustomDomainError = ""
 	}
 
 	if err := h.db.Save(&store).Error; err != nil {
+		errLower := strings.ToLower(err.Error())
+		if strings.Contains(errLower, "unique") || strings.Contains(errLower, "23505") {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"success": false,
+				"code":    "DOMAIN_ALREADY_TAKEN",
+				"message": "Domain ini sudah digunakan atau sedang diverifikasi oleh toko lain.",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"message": "Gagal memperbarui custom domain.",
 		})
 	}
 
+	h.invalidateCustomDomainCaches(storeID, store.Slug, oldDomain, domain)
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		StoreID:     &storeID,
+		UserID:      actorUserID,
+		ActorRole:   "merchant",
+		Action:      "CUSTOM_DOMAIN_UPDATED",
+		Category:    "settings",
+		EntityType:  "store",
+		EntityID:    &storeID,
+		EntityTitle: store.StoreTitle,
+		Description: fmt.Sprintf("Mengatur custom domain ke %s", domain),
+		Changes: map[string]interface{}{
+			"old_domain": oldDomain,
+			"new_domain": domain,
+			"status":     store.CustomDomainStatus,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+
+	msg := "Domain tersimpan. Silakan tambahkan record TXT dan CNAME/A di DNS Anda lalu klik Verifikasi DNS."
+	if store.CustomDomainStatus == "active" {
+		msg = "Pengaturan custom domain berhasil disimpan dan berstatus aktif."
+	}
+
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "Pengaturan custom domain berhasil disimpan.",
-		"data": fiber.Map{
-			"custom_domain":        store.CustomDomain,
-			"custom_domain_status": store.CustomDomainStatus,
-		},
+		"message": msg,
+		"data":    buildCustomDomainPayload(&store, cnameTarget, edgeIP),
 	})
+}
+
+// VerifyCustomDomain runs real DNS TXT ownership and CNAME/A routing checks before activating custom_domain_status.
+func (h *SubscriptionHandler) VerifyCustomDomain(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	storeIDVal := c.Locals("store_id")
+	if storeIDVal == nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "STORE_REQUIRED",
+			"message": "Autentikasi toko diperlukan.",
+		})
+	}
+	storeID := storeIDVal.(uint)
+
+	var store models.Store
+	if err := h.db.First(&store, storeID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Toko tidak ditemukan.",
+		})
+	}
+
+	if store.DormancyStatus == "banned" || store.DormancyStatus == "purged" || store.IsBlacklisted || store.IsSuspended || store.DormancyStatus == "suspended" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Verifikasi domain tidak tersedia saat toko ditangguhkan atau dinonaktifkan.",
+		})
+	}
+
+	plan, _ := services.GetPlanByCode(h.db, store.Plan)
+	if plan == nil || !plan.HasCustomDomain || strings.EqualFold(store.PlanStatus, "expired") {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "PLAN_UPGRADE_REQUIRED",
+			"message": "Fitur Custom Domain membutuhkan paket Pro Bisnis yang aktif.",
+		})
+	}
+
+	if store.CustomDomain == nil || strings.TrimSpace(*store.CustomDomain) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Belum ada nama domain yang disimpan untuk diverifikasi.",
+		})
+	}
+
+	if strings.TrimSpace(store.CustomDomainVerificationToken) == "" {
+		tok, err := services.GenerateDomainVerificationToken()
+		if err == nil {
+			store.CustomDomainVerificationToken = tok
+		}
+	}
+
+	domain := *store.CustomDomain
+	cnameTarget, edgeIP := h.customDomainConfigTargets()
+	resolver := h.dnsResolver
+	if resolver == nil {
+		resolver = services.DefaultDomainDNSResolver{}
+	}
+
+	dnsRes := services.VerifyCustomDomainDNS(c.Context(), domain, store.CustomDomainVerificationToken, cnameTarget, edgeIP, resolver)
+	now := time.Now().UTC()
+	store.CustomDomainLastCheckedAt = &now
+	if dnsRes.Verified {
+		store.CustomDomainStatus = "active"
+		store.CustomDomainVerifiedAt = &now
+		store.CustomDomainError = ""
+	} else {
+		store.CustomDomainStatus = "failed"
+		store.CustomDomainError = dnsRes.ErrorMessage
+	}
+
+	if err := h.db.Save(&store).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menyimpan status verifikasi DNS.",
+		})
+	}
+
+	h.invalidateCustomDomainCaches(storeID, store.Slug, domain)
+
+	var actorUserID *uint
+	if uidVal := c.Locals("user_id"); uidVal != nil {
+		if uid, ok := uidVal.(uint); ok && uid > 0 {
+			actorUserID = &uid
+		}
+	}
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		StoreID:     &storeID,
+		UserID:      actorUserID,
+		ActorRole:   "merchant",
+		Action:      "CUSTOM_DOMAIN_VERIFIED",
+		Category:    "settings",
+		EntityType:  "store",
+		EntityID:    &storeID,
+		EntityTitle: store.StoreTitle,
+		Description: fmt.Sprintf("Verifikasi DNS custom domain %s (%s)", domain, store.CustomDomainStatus),
+		Changes: map[string]interface{}{
+			"domain":             domain,
+			"verified":           dnsRes.Verified,
+			"ownership_verified": dnsRes.OwnershipVerified,
+			"routing_verified":   dnsRes.RoutingVerified,
+			"status":             store.CustomDomainStatus,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+
+	payload := buildCustomDomainPayload(&store, cnameTarget, edgeIP)
+	payload["dns_check"] = dnsRes
+
+	if !dnsRes.Verified {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"success": false,
+			"code":    "DNS_VERIFICATION_FAILED",
+			"message": dnsRes.ErrorMessage,
+			"data":    payload,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Verifikasi DNS berhasil! Custom domain Anda kini aktif.",
+		"data":    payload,
+	})
+}
+
+// RemoveCustomDomain removes any custom domain attached to the authenticated store.
+func (h *SubscriptionHandler) RemoveCustomDomain(c *fiber.Ctx) error {
+	if h.db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"message": "Database belum diinisialisasi.",
+		})
+	}
+	storeIDVal := c.Locals("store_id")
+	if storeIDVal == nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"code":    "STORE_REQUIRED",
+			"message": "Autentikasi toko diperlukan.",
+		})
+	}
+	storeID := storeIDVal.(uint)
+
+	var store models.Store
+	if err := h.db.First(&store, storeID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": "Toko tidak ditemukan.",
+		})
+	}
+
+	oldDomain := ""
+	if store.CustomDomain != nil {
+		oldDomain = strings.TrimSpace(*store.CustomDomain)
+	}
+	store.CustomDomain = nil
+	store.CustomDomainStatus = "none"
+	store.CustomDomainVerificationToken = ""
+	store.CustomDomainVerifiedAt = nil
+	store.CustomDomainLastCheckedAt = nil
+	store.CustomDomainError = ""
+
+	if err := h.db.Save(&store).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal menghapus custom domain.",
+		})
+	}
+
+	h.invalidateCustomDomainCaches(storeID, store.Slug, oldDomain)
+	cnameTarget, edgeIP := h.customDomainConfigTargets()
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Custom domain berhasil dihapus.",
+		"data":    buildCustomDomainPayload(&store, cnameTarget, edgeIP),
+	})
+}
+
+// ResolveCustomDomain resolves the active store bound to the incoming request Host header.
+func (h *SubscriptionHandler) ResolveCustomDomain(c *fiber.Ctx) error {
+	host := c.Hostname()
+	if services.IsPlatformHost(host, h.cfg) {
+		return c.JSON(fiber.Map{
+			"success":          true,
+			"is_custom_domain": false,
+		})
+	}
+	resolved, err := services.ResolveActiveStoreByCustomDomain(h.db, h.cfg, host)
+	if err != nil || resolved == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success":          false,
+			"is_custom_domain": true,
+			"code":             "CUSTOM_DOMAIN_NOT_FOUND",
+			"message":          "Custom domain tidak terdaftar atau belum terverifikasi aktif.",
+		})
+	}
+	return c.JSON(fiber.Map{
+		"success":          true,
+		"is_custom_domain": true,
+		"data":             resolved,
+	})
+}
+
+// CheckTLSAsk authorizes Caddy On-Demand TLS certificate issuance only for verified/active eligible store domains.
+func (h *SubscriptionHandler) CheckTLSAsk(c *fiber.Ctx) error {
+	if !h.isTrustedInternalCaller(c) {
+		return c.Status(fiber.StatusForbidden).SendString("forbidden")
+	}
+	if h.cfg != nil && strings.TrimSpace(h.cfg.CustomDomainTLSAskSecret) != "" {
+		provided := strings.TrimSpace(c.Get("X-TLS-Ask-Secret"))
+		expected := strings.TrimSpace(h.cfg.CustomDomainTLSAskSecret)
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+			return c.Status(fiber.StatusForbidden).SendString("forbidden")
+		}
+	}
+	domain := strings.TrimSpace(c.Query("domain"))
+	if domain == "" || !services.IsAllowedForTLSAsk(h.db, h.cfg, domain) {
+		return c.Status(fiber.StatusForbidden).SendString("domain not authorized")
+	}
+	return c.Status(fiber.StatusOK).SendString("ok")
 }
 
 // CreateOrder handles creating a new subscription invoice, processing payment/coupon, and activating plan

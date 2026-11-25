@@ -42,10 +42,19 @@ type StoreQuotaInfo struct {
 	StorageLimitBytes   int64                    `json:"storage_limit_bytes"`
 	StorageUsagePercent float64                  `json:"storage_usage_percent"`
 	ItemsUsagePercent   float64                  `json:"items_usage_percent"`
-	IsStorageOverLimit  bool                     `json:"is_storage_over_limit"`
-	IsItemsOverLimit    bool                     `json:"is_items_over_limit"`
-	CustomDomain        *string                  `json:"custom_domain,omitempty"`
-	CustomDomainStatus  string                   `json:"custom_domain_status"`
+	IsStorageOverLimit            bool                     `json:"is_storage_over_limit"`
+	IsItemsOverLimit              bool                     `json:"is_items_over_limit"`
+	CustomDomain                  *string                  `json:"custom_domain,omitempty"`
+	CustomDomainStatus            string                   `json:"custom_domain_status"`
+	CustomDomainVerificationToken string                   `json:"custom_domain_verification_token,omitempty"`
+	CustomDomainVerifiedAt        *time.Time               `json:"custom_domain_verified_at,omitempty"`
+	CustomDomainLastCheckedAt     *time.Time               `json:"custom_domain_last_checked_at,omitempty"`
+	CustomDomainError             string                   `json:"custom_domain_error,omitempty"`
+	CustomDomainDNSTarget         string                   `json:"custom_domain_dns_target,omitempty"`
+	CustomDomainEdgeIP            string                   `json:"custom_domain_edge_ip,omitempty"`
+	CustomDomainTXTHost           string                   `json:"custom_domain_txt_host,omitempty"`
+	CustomDomainTXTRecordHost     string                   `json:"custom_domain_txt_record_host,omitempty"`
+	CustomDomainIsApex            bool                     `json:"custom_domain_is_apex"`
 }
 
 // SeedSubscriptionPlans seeds default subscription tiers into the database if not present.
@@ -235,29 +244,54 @@ func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 	isStorageOver := plan.StorageLimitBytes > 0 && store.StorageUsedBytes > plan.StorageLimitBytes
 	isItemsOver := plan.MaxItems > 0 && totalCount >= int64(plan.MaxItems)
 
+	cnameTarget := "cname.catavor.com"
+	edgeIP := ""
+	if config.AppConfig != nil {
+		if t := strings.TrimSpace(config.AppConfig.CustomDomainCNAMETarget); t != "" {
+			cnameTarget = t
+		}
+		edgeIP = strings.TrimSpace(config.AppConfig.CustomDomainEdgeIP)
+	}
+	var txtHost, txtRecordHost string
+	isApex := false
+	if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+		txtHost = BuildCustomDomainTXTFullHost(*store.CustomDomain)
+		txtRecordHost = BuildCustomDomainTXTHost(*store.CustomDomain)
+		isApex = IsApexDomain(*store.CustomDomain)
+	}
+
 	quota := &StoreQuotaInfo{
-		StoreID:             store.ID,
-		StoreSlug:           store.Slug,
-		StoreTitle:          store.StoreTitle,
-		Plan:                *plan,
-		NextPlan:            nextPlan,
-		PlanStatus:          store.PlanStatus,
-		PlanExpiresAt:       store.PlanExpiresAt,
-		GracePeriodUntil:    store.GracePeriodUntil,
-		DaysRemaining:       daysRemaining,
-		IsInGracePeriod:     isInGrace,
-		ActiveItemsCount:    activeCount,
-		ArchivedItemsCount:  archivedCount,
-		TotalItemsCount:     totalCount,
-		MaxItems:            plan.MaxItems,
-		StorageUsedBytes:    store.StorageUsedBytes,
-		StorageLimitBytes:   plan.StorageLimitBytes,
-		StorageUsagePercent: storagePercent,
-		ItemsUsagePercent:   itemsPercent,
-		IsStorageOverLimit:  isStorageOver,
-		IsItemsOverLimit:    isItemsOver,
-		CustomDomain:        store.CustomDomain,
-		CustomDomainStatus:  store.CustomDomainStatus,
+		StoreID:                       store.ID,
+		StoreSlug:                     store.Slug,
+		StoreTitle:                    store.StoreTitle,
+		Plan:                          *plan,
+		NextPlan:                      nextPlan,
+		PlanStatus:                    store.PlanStatus,
+		PlanExpiresAt:                 store.PlanExpiresAt,
+		GracePeriodUntil:              store.GracePeriodUntil,
+		DaysRemaining:                 daysRemaining,
+		IsInGracePeriod:               isInGrace,
+		ActiveItemsCount:              activeCount,
+		ArchivedItemsCount:            archivedCount,
+		TotalItemsCount:               totalCount,
+		MaxItems:                      plan.MaxItems,
+		StorageUsedBytes:              store.StorageUsedBytes,
+		StorageLimitBytes:             plan.StorageLimitBytes,
+		StorageUsagePercent:           storagePercent,
+		ItemsUsagePercent:             itemsPercent,
+		IsStorageOverLimit:            isStorageOver,
+		IsItemsOverLimit:              isItemsOver,
+		CustomDomain:                  store.CustomDomain,
+		CustomDomainStatus:            store.CustomDomainStatus,
+		CustomDomainVerificationToken: store.CustomDomainVerificationToken,
+		CustomDomainVerifiedAt:        store.CustomDomainVerifiedAt,
+		CustomDomainLastCheckedAt:     store.CustomDomainLastCheckedAt,
+		CustomDomainError:             store.CustomDomainError,
+		CustomDomainDNSTarget:         cnameTarget,
+		CustomDomainEdgeIP:            edgeIP,
+		CustomDomainTXTHost:           txtHost,
+		CustomDomainTXTRecordHost:     txtRecordHost,
+		CustomDomainIsApex:            isApex,
 	}
 
 	// Cache in Redis with 10-minute safety TTL
@@ -425,6 +459,9 @@ func UpgradeStorePlan(db *gorm.DB, storeID uint, targetPlanCode string, duration
 		Msg("Store subscription successfully updated")
 
 	database.InvalidateStoreQuotaCache(context.Background(), storeID)
+	if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+		database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
+	}
 	GetNotificationHub().UpdateStorePlan(storeID, store.Plan)
 	freshQuota, qErr := GetStoreQuotaInfo(db, storeID)
 	if qErr == nil && freshQuota != nil {
@@ -718,6 +755,9 @@ func ProcessSubscriptionLifecycle(db *gorm.DB) (cycleErr error) {
 		}
 
 		database.InvalidateStoreQuotaCache(context.Background(), store.ID)
+		if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
+			database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
+		}
 		GetNotificationHub().UpdateStorePlan(store.ID, targetPlanCode)
 		log.Info().
 			Uint("store_id", store.ID).

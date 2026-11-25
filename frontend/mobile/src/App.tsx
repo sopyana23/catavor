@@ -139,6 +139,8 @@ import {
 } from 'lucide-react'
 import './App.css'
 import { getItemModerationMeta } from '../../shared/moderation/itemModerationBadge'
+import { CustomDomainSettingsPanel } from '../../shared/custom-domain/CustomDomainSettingsPanel'
+import { getCustomDomainMeta } from '../../shared/custom-domain/hostContext'
 import logoHeaderImg from './assets/logo-header.png'
 import appLogoImg from './assets/logo.png'
 import { APP_LOGO_BASE64 } from './assets/logoBase64'
@@ -4119,11 +4121,13 @@ function App() {
     return false;
   };
 
-  // Parse path for store slug: /u/{slug}
+  // Parse path for store slug: /u/{slug} or verified custom domain host
   const getStoreSlug = () => {
     const path = window.location.pathname.toLowerCase();
     const parts = path.split('/').filter(Boolean);
-    if (parts.length === 0) return null;
+    if (parts.length === 0) {
+      return getCustomDomainMeta().slug;
+    }
 
     if (parts[0] === 'login' && parts.length > 1 && !isReservedStoreSlug(parts[1])) {
       return parts[1];
@@ -4160,6 +4164,10 @@ function App() {
         p === '/moderation' || p === '/standar-moderasi' ||
         p === '/' || p === ''
       ) {
+        const customSlug = getCustomDomainMeta().slug;
+        if ((p === '/' || p === '') && customSlug && !isReservedStoreSlug(customSlug)) {
+          return customSlug;
+        }
         return null;
       }
     }
@@ -11763,7 +11771,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
             }
           }
           const currentP = window.location.pathname.toLowerCase();
-          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTabRef.current === 'register' || portalTabRef.current === 'checkout';
+          const isCustomHost = Boolean(getCustomDomainMeta().slug);
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTabRef.current === 'login' || ((currentP === '/' || currentP === '') && !isCustomHost) || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTabRef.current === 'register' || portalTabRef.current === 'checkout';
           if (isGenericAuthOrRoot) {
             clearRegistrationDrafts();
             const rawUser = localStorage.getItem('catavor_user');
@@ -11883,7 +11892,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
 
           const currentP = window.location.pathname.toLowerCase();
-          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login' || currentP === '/' || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTab === 'register' || portalTab === 'checkout';
+          const isCustomHost = Boolean(getCustomDomainMeta().slug);
+          const isGenericAuthOrRoot = currentP === '/login' || currentP.endsWith('/login') || portalTab === 'login' || ((currentP === '/' || currentP === '') && !isCustomHost) || currentP === '/admin' || currentP === '/catalogs' || currentP === '/register' || currentP.startsWith('/register/') || currentP === '/checkout' || currentP.startsWith('/checkout/') || portalTab === 'register' || portalTab === 'checkout';
           if (isGenericAuthOrRoot) {
             clearRegistrationDrafts();
             const rawUser = localStorage.getItem('catavor_user');
@@ -16726,7 +16736,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.76rem', color: '#334155' }}>
                         <li>✅ Maksimal 15 item produk</li>
                         <li>✅ 100 MB Storage &amp; 5 foto/item</li>
-                        <li>✅ Subdomain kustom &amp; WhatsApp Order</li>
+                        <li>✅ Tautan toko kustom &amp; WhatsApp Order</li>
                         <li>✅ Download QR Code siap cetak</li>
                       </ul>
                     <button className="btn-portal-secondary" style={{ padding: '0.7rem', fontSize: '0.8rem', justifyContent: 'center', fontWeight: 700 }} onClick={() => handleLandingPlanSelect('free')}>
@@ -28205,57 +28215,65 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
                                       </div>
 
-                                      {storeQuota?.plan?.has_custom_domain && (
-                                        <div
-                                          className="glass-panel"
-                                          onClick={() => {
-                                            const slug = getStoreSlug();
-                                            setMobileSettingsTab('domain');
-                                            if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/domain`);
-                                          }}
-                                          style={{
-                                            padding: '1rem 1.25rem',
-                                            borderRadius: '0.75rem',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            gap: '1rem',
-                                            alignItems: 'center',
-                                            border: '1px solid var(--border-light)'
-                                          }}
-                                        >
-                                          <div style={{
-                                            width: '40px',
-                                            height: '40px',
-                                            borderRadius: '0.65rem',
-                                            background: 'var(--primary-glow)',
-                                            border: '1px solid var(--border-light)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: 'var(--primary)',
-                                            flexShrink: 0
-                                          }}>
-                                            <Globe size={20} style={{ color: 'var(--primary)' }} />
-                                          </div>
-                                          <div style={{ flex: 1 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                              <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Custom Domain</h4>
-                                              <span style={{
-                                                fontSize: '0.6rem',
-                                                fontWeight: 800,
-                                                padding: '2px 6px',
-                                                borderRadius: '4px',
-                                                backgroundColor: 'var(--primary)',
-                                                color: '#ffffff'
-                                              }}>PRO</span>
-                                            </div>
-                                            <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
-                                              {storeQuota?.custom_domain ? storeQuota.custom_domain : 'Hubungkan domain kustom Anda (brand.com)'}
-                                            </p>
-                                          </div>
-                                          <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                                      <div
+                                        className="glass-panel"
+                                        data-testid="mobile-settings-domain-card"
+                                        onClick={() => {
+                                          const slug = getStoreSlug();
+                                          setMobileSettingsTab('domain');
+                                          if (slug) window.history.pushState({}, '', `/${slug}/admin/settings/domain`);
+                                        }}
+                                        style={{
+                                          padding: '1rem 1.25rem',
+                                          borderRadius: '0.75rem',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          gap: '1rem',
+                                          alignItems: 'center',
+                                          border: '1px solid var(--border-light)'
+                                        }}
+                                      >
+                                        <div style={{
+                                          width: '40px',
+                                          height: '40px',
+                                          borderRadius: '0.65rem',
+                                          background: storeQuota?.plan?.has_custom_domain ? 'var(--primary-glow)' : 'rgba(245, 158, 11, 0.12)',
+                                          border: '1px solid var(--border-light)',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          color: storeQuota?.plan?.has_custom_domain ? 'var(--primary)' : '#d97706',
+                                          flexShrink: 0
+                                        }}>
+                                          <Globe size={20} style={{ color: storeQuota?.plan?.has_custom_domain ? 'var(--primary)' : '#d97706' }} />
                                         </div>
-                                      )}
+                                        <div style={{ flex: 1 }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                            <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Custom Domain</h4>
+                                            <span style={{
+                                              fontSize: '0.58rem',
+                                              fontWeight: 900,
+                                              padding: '2px 6px',
+                                              borderRadius: '4px',
+                                              backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                                              color: '#d97706',
+                                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '2px'
+                                            }}>
+                                              {!storeQuota?.plan?.has_custom_domain && <Lock size={10} />}
+                                              PRO BISNIS
+                                            </span>
+                                          </div>
+                                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' }}>
+                                            {storeQuota?.plan?.has_custom_domain
+                                              ? (storeQuota?.custom_domain ? storeQuota.custom_domain : 'Hubungkan domain kustom Anda (brand.com)')
+                                              : 'Eksklusif Pro Bisnis — Hubungkan domain brand.com'}
+                                          </p>
+                                        </div>
+                                        <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                                      </div>
 
                                       {/* Akun & Keamanan (Menu Khusus) */}
                                       <div
@@ -29068,139 +29086,27 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         </div>
                                       )}
 
-                                      {/* Custom Domain Settings View on Mobile */}
-                                      {mobileSettingsTab === 'domain' && storeQuota?.plan?.has_custom_domain && (
-                                        <div className="glass-panel animate-fade-in" style={{ padding: '1.15rem', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                          <div style={{ paddingBottom: '0.65rem', borderBottom: '1px solid var(--border-light)' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                                              <div style={{
-                                                width: '32px',
-                                                height: '32px',
-                                                borderRadius: '8px',
-                                                backgroundColor: 'var(--primary-glow)',
-                                                color: 'var(--primary)',
-                                                border: '1px solid var(--border-light)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center'
-                                              }}>
-                                                <Globe size={18} style={{ color: 'var(--primary)' }} />
-                                              </div>
-                                              <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-                                                Konfigurasi Custom Domain
-                                              </h3>
-                                              <span style={{
-                                                fontSize: '0.6rem',
-                                                fontWeight: 800,
-                                                padding: '2px 6px',
-                                                borderRadius: '4px',
-                                                backgroundColor: 'var(--primary)',
-                                                color: '#ffffff'
-                                              }}>PRO</span>
-                                            </div>
-                                            <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.45 }}>
-                                              Gunakan nama domain kustom Anda sendiri (contoh: <code>brandanda.com</code> atau <code>katalog.brand.com</code>).
-                                            </p>
-                                          </div>
-
-                                          <form onSubmit={handleCustomDomainSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                              <label className="form-label" style={{ fontSize: '0.76rem', fontWeight: 800 }}>Nama Domain Kustom</label>
-                                              <input
-                                                type="text"
-                                                className="form-input"
-                                                placeholder="Contoh: brandanda.id atau katalog.brand.com"
-                                                value={customDomainInput}
-                                                onChange={(e) => setCustomDomainInput(e.target.value)}
-                                                style={{ width: '100%', fontSize: '0.82rem' }}
-                                              />
-                                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>
-                                                * Masukkan domain tanpa http:// atau https://. Kosongkan lalu simpan jika ingin menghapus custom domain.
-                                              </span>
-                                            </div>
-
-                                            <button
-                                              type="submit"
-                                              disabled={customDomainLoading}
-                                              className="btn-primary btn-full"
-                                              style={{ padding: '0.65rem', fontWeight: 800, fontSize: '0.82rem' }}
-                                            >
-                                              {customDomainLoading ? 'Menyimpan...' : 'Simpan Domain'}
-                                            </button>
-                                          </form>
-
-                                          {storeQuota?.custom_domain && (
-                                            <div style={{
-                                              padding: '0.75rem 0.9rem',
-                                              borderRadius: '0.55rem',
-                                              background: 'var(--primary-glow)',
-                                              border: '1px solid var(--border-light)',
-                                              display: 'flex',
-                                              alignItems: 'center',
-                                              justifyContent: 'space-between',
-                                              fontSize: '0.76rem'
-                                            }}>
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                                <CheckCircle2 size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                                                <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Aktif: <strong style={{ color: 'var(--primary)' }}>{storeQuota.custom_domain}</strong></span>
-                                              </div>
-                                              <a
-                                                href={`https://${storeQuota.custom_domain}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                style={{ color: 'var(--primary)', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '2px', textDecoration: 'none', fontSize: '0.72rem' }}
-                                              >
-                                                Buka <ExternalLink size={11} />
-                                              </a>
-                                            </div>
-                                          )}
-
-                                          {/* DNS Instructions */}
-                                          <div style={{
-                                            padding: '0.9rem',
-                                            borderRadius: '0.65rem',
-                                            background: 'var(--bg-deep, rgba(0,0,0,0.03))',
-                                            border: '1px solid var(--border-light)',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '0.55rem'
-                                          }}>
-                                            <h4 style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                              <FileCode size={15} style={{ color: 'var(--primary)' }} />
-                                              Petunjuk Pengaturan DNS (Registrar)
-                                            </h4>
-                                            <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                                              Tambahkan 1 baris CNAME record di panel domain registrar Anda:
-                                            </p>
-                                            <div style={{
-                                              background: 'var(--bg-card)',
-                                              padding: '0.65rem 0.8rem',
-                                              borderRadius: '0.5rem',
-                                              fontFamily: 'monospace',
-                                              fontSize: '0.74rem',
-                                              display: 'flex',
-                                              flexDirection: 'column',
-                                              gap: '0.35rem',
-                                              border: '1px solid var(--border-light)'
-                                            }}>
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed var(--border-light)', paddingBottom: '0.25rem' }}>
-                                                <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Tipe:</span>
-                                                <span style={{ color: 'var(--primary)', fontWeight: 800 }}>CNAME</span>
-                                              </div>
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed var(--border-light)', paddingBottom: '0.25rem' }}>
-                                                <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Host:</span>
-                                                <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>@ atau subdomain</span>
-                                              </div>
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Target:</span>
-                                                <span style={{ color: 'var(--primary)', fontWeight: 800 }}>cname.catavor.com</span>
-                                              </div>
-                                            </div>
-                                            <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', display: 'block', lineHeight: 1.4 }}>
-                                              * Propagasi DNS biasanya memakan waktu antara 10–60 menit.
-                                            </span>
-                                          </div>
-                                        </div>
+                                      {/* Custom Domain Settings View on Mobile (Visible on all plans) */}
+                                      {mobileSettingsTab === 'domain' && (
+                                        <CustomDomainSettingsPanel
+                                          variant="mobile"
+                                          storeSlug={storeSlug || ''}
+                                          quota={storeQuota}
+                                          apiBase={API_BASE}
+                                          authFetch={(url, init) =>
+                                            fetch(url, {
+                                              ...init,
+                                              headers: {
+                                                Accept: 'application/json',
+                                                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                                                ...(init?.headers || {}),
+                                              },
+                                            })
+                                          }
+                                          showToast={showToast}
+                                          onRefreshQuota={fetchMyQuota}
+                                          onOpenUpgrade={() => setShowSubscriptionModal(true)}
+                                        />
                                       )}
 
                                       {/* Master Data Subtab on Mobile (Touch-Optimized Hub) */}

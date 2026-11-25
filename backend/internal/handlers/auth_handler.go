@@ -1013,9 +1013,6 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			paymentStatus = "paid"
 			exp := now.AddDate(0, durationMonths, 0)
 			planExpiresAt = &exp
-			if requestedPlan == "pro_business" {
-				customDomainStatus = "active"
-			}
 		} else {
 			actualStorePlan = "free"
 			paymentStatus = "pending_verification"

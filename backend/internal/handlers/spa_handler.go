@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"fmt"
+	"html"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"catavor-backend/internal/config"
+	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -75,6 +78,37 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 			"success": false,
 			"message": "Berkas tidak ditemukan.",
 		})
+	}
+
+	host := c.Hostname()
+	isCustomHost := h.cfg != nil && !services.IsPlatformHost(host, h.cfg)
+	var customResolved *services.ResolvedCustomDomain
+	if isCustomHost {
+		lowerPath := strings.ToLower(strings.TrimRight(path, "/"))
+		if lowerPath == "" {
+			lowerPath = "/"
+		}
+		customResolved, _ = services.ResolveActiveStoreByCustomDomain(h.db, h.cfg, host)
+		canonicalBase := strings.TrimRight(h.cfg.AppURL, "/")
+		if canonicalBase != "" && (lowerPath == "/admin" || strings.HasPrefix(lowerPath, "/admin/") ||
+			lowerPath == "/login" || strings.HasPrefix(lowerPath, "/login/") ||
+			lowerPath == "/register" || strings.HasPrefix(lowerPath, "/register/") ||
+			lowerPath == "/platform" || strings.HasPrefix(lowerPath, "/platform/") ||
+			lowerPath == "/ops" || strings.HasPrefix(lowerPath, "/ops/") ||
+			lowerPath == "/catalogs" || lowerPath == "/select-catalog" ||
+			lowerPath == "/checkout" || strings.HasPrefix(lowerPath, "/checkout") ||
+			lowerPath == "/auth" || strings.HasPrefix(lowerPath, "/auth/")) {
+			targetURL := canonicalBase + c.OriginalURL()
+			if customResolved != nil && (lowerPath == "/admin" || strings.HasPrefix(lowerPath, "/admin/")) {
+				targetURL = canonicalBase + "/" + customResolved.StoreSlug + c.OriginalURL()
+			}
+			return c.Redirect(targetURL, fiber.StatusFound)
+		}
+		if customResolved == nil {
+			c.Set("Content-Type", "text/html; charset=utf-8")
+			c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			return c.Status(fiber.StatusNotFound).SendString("<!doctype html><html lang=\"id\"><head><meta charset=\"utf-8\"><title>Domain Belum Aktif</title></head><body style=\"font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;\"><div style=\"max-width:440px;padding:24px;text-align:center;\"><h1 style=\"font-size:20px;margin:0 0 8px;\">Domain Kustom Belum Aktif</h1><p style=\"font-size:14px;color:#94a3b8;margin:0;\">Domain ini belum terhubung ke etalase aktif atau sedang menunggu verifikasi DNS.</p></div></body></html>")
+		}
 	}
 
 	// Check if the root slug in path is blacklisted
@@ -185,6 +219,23 @@ func (h *SPAHandler) ServeSPA(c *fiber.Ctx) error {
 	c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	c.Set("Pragma", "no-cache")
 	c.Set("Expires", "0")
+
+	if customResolved != nil {
+		if rawHTML, err := os.ReadFile(indexPath); err == nil {
+			escapedHost := html.EscapeString(customResolved.CustomDomain)
+			escapedSlug := html.EscapeString(customResolved.StoreSlug)
+			escapedCanonical := html.EscapeString("https://" + customResolved.CustomDomain + c.Path())
+			metaTags := fmt.Sprintf(
+				"\n    <meta name=\"catavor-custom-domain\" content=\"%s\" />\n    <meta name=\"catavor-custom-domain-slug\" content=\"%s\" />\n    <link rel=\"canonical\" href=\"%s\" />\n  </head>",
+				escapedHost, escapedSlug, escapedCanonical,
+			)
+			htmlStr := strings.Replace(string(rawHTML), "</head>", metaTags, 1)
+			if isBlacklistedSlug {
+				return c.Status(fiber.StatusNotFound).SendString(htmlStr)
+			}
+			return c.SendString(htmlStr)
+		}
+	}
 
 	if isBlacklistedSlug {
 		return c.Status(fiber.StatusNotFound).SendFile(indexPath)

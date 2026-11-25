@@ -9647,7 +9647,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
                   <ShieldCheck size={18} color={quota?.plan?.has_custom_domain ? 'var(--primary)' : 'var(--text-muted)'} />
-                  <span>Custom Domain: {quota?.plan?.has_custom_domain ? (storeSettings.custom_domain || 'Tersedia') : 'Paket Pro / Enterprise'}</span>
+                  <span>Custom Domain: {quota?.plan?.has_custom_domain ? (storeSettings.custom_domain || 'Tersedia') : 'Paket Pro Bisnis'}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
                   <ShieldCheck size={18} color={quota?.plan?.has_priority_support ? 'var(--primary)' : 'var(--text-muted)'} />
@@ -10804,6 +10804,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
             }}
             showToast={showToast}
             onOpenSubscriptionModal={() => setIsSubModalOpen(true)}
+            onRefreshQuota={fetchQuota}
             onViewPublicCatalog={onViewPublicCatalog}
             onUnauthorized={onUnauthorized}
             onSlugChanged={(_newSlug) => {

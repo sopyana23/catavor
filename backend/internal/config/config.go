@@ -72,9 +72,13 @@ type Config struct {
 	DesktopDistDir        string
 	TabletDistDir         string
 	MobileDistDir         string
-	AllowedOrigins        []string
-	HSTSIncludeSubDomains bool
-	HSTSPreload           bool
+	AllowedOrigins             []string
+	HSTSIncludeSubDomains      bool
+	HSTSPreload                bool
+	PlatformDomains            []string
+	CustomDomainCNAMETarget    string
+	CustomDomainEdgeIP         string
+	CustomDomainTLSAskSecret   string
 }
 
 var AppConfig *Config
@@ -249,6 +253,14 @@ func LoadConfig() *Config {
 
 	mfaKey := resolveMFAKey(jwtSecret, appEnv)
 
+	platformDomainsRaw := getEnv("PLATFORM_DOMAINS", "")
+	var platformDomains []string
+	for _, d := range strings.Split(platformDomainsRaw, ",") {
+		if trimmed := strings.TrimSpace(d); trimmed != "" {
+			platformDomains = append(platformDomains, trimmed)
+		}
+	}
+
 	AppConfig = &Config{
 		Port:               port,
 		BindAddr:           bindAddr,
@@ -290,9 +302,13 @@ func LoadConfig() *Config {
 		DesktopDistDir:        resolveDir("DESKTOP_DIST_DIR", "public/desktop"),
 		TabletDistDir:         resolveDir("TABLET_DIST_DIR", "public/tablet"),
 		MobileDistDir:         resolveDir("MOBILE_DIST_DIR", "public/mobile"),
-		AllowedOrigins:        origins,
-		HSTSIncludeSubDomains: hstsIncludeSub,
-		HSTSPreload:           hstsPreload,
+		AllowedOrigins:             origins,
+		HSTSIncludeSubDomains:      hstsIncludeSub,
+		HSTSPreload:                hstsPreload,
+		PlatformDomains:            platformDomains,
+		CustomDomainCNAMETarget:    strings.TrimSpace(getEnv("CUSTOM_DOMAIN_CNAME_TARGET", "cname.catavor.com")),
+		CustomDomainEdgeIP:         strings.TrimSpace(getEnv("CUSTOM_DOMAIN_EDGE_IP", "")),
+		CustomDomainTLSAskSecret:   strings.TrimSpace(getEnv("CUSTOM_DOMAIN_TLS_ASK_SECRET", "")),
 	}
 
 	return AppConfig

@@ -1297,8 +1297,11 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	var merchantOwnerUserID uint
 	if report.StoreID > 0 {
 		var st models.Store
-		if err := h.db.Select("id, user_id").Where("id = ?", report.StoreID).First(&st).Error; err == nil {
+		if err := h.db.Select("id, user_id, custom_domain").Where("id = ?", report.StoreID).First(&st).Error; err == nil {
 			merchantOwnerUserID = st.UserID
+			if st.CustomDomain != nil && strings.TrimSpace(*st.CustomDomain) != "" {
+				database.InvalidateCustomDomainCache(context.Background(), *st.CustomDomain)
+			}
 		}
 	}
 
