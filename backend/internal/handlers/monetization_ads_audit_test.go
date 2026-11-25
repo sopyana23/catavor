@@ -322,7 +322,54 @@ func TestAdRotator_ProductClickURLAlignmentAndCapEnforcement(t *testing.T) {
 	}
 }
 
+func TestAdHandler_SponsoredAdsDisabledByDefault(t *testing.T) {
+	t.Setenv("FEATURE_MERCHANT_SPONSORED_ADS_ENABLED", "")
+	db := openMonetizationAuditDB(t)
+	h := NewAdHandler(&config.Config{JWTSecret: "ops-secret"}, db, nil)
+
+	owner := models.User{Name: "Merchant Free", Email: "mf@test.id", Password: "x", PlatformRole: "merchant"}
+	_ = db.Create(&owner).Error
+	store := models.Store{UserID: owner.ID, Slug: "toko-free", StoreTitle: "Toko Free", Plan: "free"}
+	_ = db.Create(&store).Error
+
+	app := fiber.New()
+	app.Get("/api/public/showcase/featured", h.GetFeaturedShowcase)
+	merchantGroup := app.Group("/api", func(c *fiber.Ctx) error {
+		c.Locals("user", &owner)
+		c.Locals("store", &store)
+		return c.Next()
+	})
+	merchantGroup.Post("/ads/campaigns", h.CreateCampaign)
+
+	pubResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/api/public/showcase/featured", nil))
+	if err != nil {
+		t.Fatalf("showcase req: %v", err)
+	}
+	if pubResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on disabled showcase, got %d", pubResp.StatusCode)
+	}
+	var pubBody struct {
+		FeatureDisabled bool `json:"feature_disabled"`
+	}
+	_ = json.NewDecoder(pubResp.Body).Decode(&pubBody)
+	if !pubBody.FeatureDisabled {
+		t.Fatalf("expected feature_disabled=true on disabled showcase")
+	}
+
+	campBody := bytes.NewBufferString(`{"slot_code":"landing_hero_showcase","target_type":"store","campaign_name":"Test","duration_days":3}`)
+	campReq := httptest.NewRequest(http.MethodPost, "/api/ads/campaigns", campBody)
+	campReq.Header.Set("Content-Type", "application/json")
+	campResp, err := app.Test(campReq)
+	if err != nil {
+		t.Fatalf("campaign req: %v", err)
+	}
+	if campResp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 on disabled CreateCampaign, got %d", campResp.StatusCode)
+	}
+}
+
 func TestAdHandler_CreateCampaignValidationAndAdminOpsWorkflow(t *testing.T) {
+	t.Setenv("FEATURE_MERCHANT_SPONSORED_ADS_ENABLED", "true")
 	db := openMonetizationAuditDB(t)
 	tmpPrivate := t.TempDir()
 	cfg := &config.Config{JWTSecret: "ops-secret", StoragePrivateRoot: tmpPrivate, StorageLocalRoot: tmpPrivate}

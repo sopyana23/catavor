@@ -55,6 +55,11 @@ type AdHandler struct {
 	storage storage.StorageService
 }
 
+func isMerchantSponsoredAdsEnabled() bool {
+	val := strings.ToLower(strings.TrimSpace(os.Getenv("FEATURE_MERCHANT_SPONSORED_ADS_ENABLED")))
+	return val == "1" || val == "true" || val == "yes" || val == "on"
+}
+
 func NewAdHandler(cfg *config.Config, db *gorm.DB, storage storage.StorageService) *AdHandler {
 	return &AdHandler{
 		cfg:     cfg,
@@ -71,6 +76,16 @@ func NewAdHandler(cfg *config.Config, db *gorm.DB, storage storage.StorageServic
 // - Section 1: Profil Toko Pilihan (Kombinasi Sponsored & Organik Trending 7-Hari)
 // - Section 2: Flash Spotlight Item Produk Unggulan Lintas Kategori
 func (h *AdHandler) GetFeaturedShowcase(c *fiber.Ctx) error {
+	if !isMerchantSponsoredAdsEnabled() {
+		return c.JSON(fiber.Map{
+			"success":          true,
+			"feature_disabled": true,
+			"data": fiber.Map{
+				"featured_stores": fiber.Map{"items": []interface{}{}},
+				"spotlight_items": fiber.Map{"items": []interface{}{}},
+			},
+		})
+	}
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"success": false,
@@ -118,6 +133,14 @@ func (h *AdHandler) GetFeaturedShowcase(c *fiber.Ctx) error {
 
 // GetSectorShowcase menyajikan produk unggulan bersponsor & organik khusus untuk 1 dari 7 sektor format katalog.
 func (h *AdHandler) GetSectorShowcase(c *fiber.Ctx) error {
+	if !isMerchantSponsoredAdsEnabled() {
+		return c.JSON(fiber.Map{
+			"success":          true,
+			"feature_disabled": true,
+			"product_type":     strings.ToLower(strings.TrimSpace(c.Params("product_type"))),
+			"showcase":         fiber.Map{"items": []interface{}{}},
+		})
+	}
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"success": false,
@@ -303,6 +326,13 @@ func (h *AdHandler) RecordImpressionBatch(c *fiber.Ctx) error {
 
 // GetAvailableSlots mengembalikan daftar slot iklan yang dibuka untuk sewa beserta tarif per hari.
 func (h *AdHandler) GetAvailableSlots(c *fiber.Ctx) error {
+	if !isMerchantSponsoredAdsEnabled() {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"code":    "FEATURE_DISABLED",
+			"message": "Fitur promosi & iklan internal merchant sedang dinonaktifkan sementara untuk peluncuran awal.",
+		})
+	}
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"success": false,
@@ -326,6 +356,13 @@ func (h *AdHandler) GetAvailableSlots(c *fiber.Ctx) error {
 
 // GetMyCampaigns mengembalikan seluruh riwayat pengajuan iklan milik toko yang sedang aktif.
 func (h *AdHandler) GetMyCampaigns(c *fiber.Ctx) error {
+	if !isMerchantSponsoredAdsEnabled() {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"code":    "FEATURE_DISABLED",
+			"message": "Fitur promosi & iklan internal merchant sedang dinonaktifkan sementara untuk peluncuran awal.",
+		})
+	}
 	store, ok := c.Locals("store").(*models.Store)
 	if !ok || store == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -368,6 +405,13 @@ func (h *AdHandler) GetMyCampaigns(c *fiber.Ctx) error {
 // CreateCampaign menangani pembuatan kampanye sewa iklan baru oleh merchant.
 // Melindungi dari IDOR: Verifikasi ketat bahwa target produk atau toko sah milik merchant pemanggil!
 func (h *AdHandler) CreateCampaign(c *fiber.Ctx) error {
+	if !isMerchantSponsoredAdsEnabled() {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"code":    "FEATURE_DISABLED",
+			"message": "Fitur promosi & iklan internal merchant sedang dinonaktifkan sementara untuk peluncuran awal.",
+		})
+	}
 	store, ok := c.Locals("store").(*models.Store)
 	if !ok || store == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -646,6 +690,13 @@ func (h *AdHandler) CreateCampaign(c *fiber.Ctx) error {
 
 // UploadPaymentProof menangani pengunggahan bukti bayar sewa iklan dengan validasi magic bytes.
 func (h *AdHandler) UploadPaymentProof(c *fiber.Ctx) error {
+	if !isMerchantSponsoredAdsEnabled() {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"code":    "FEATURE_DISABLED",
+			"message": "Fitur promosi & iklan internal merchant sedang dinonaktifkan sementara untuk peluncuran awal.",
+		})
+	}
 	store, ok := c.Locals("store").(*models.Store)
 	if !ok || store == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -751,6 +802,13 @@ func (h *AdHandler) UploadPaymentProof(c *fiber.Ctx) error {
 
 // GetCampaignAnalytics mengembalikan data agregasi metrik harian untuk satu kampanye tertentu.
 func (h *AdHandler) GetCampaignAnalytics(c *fiber.Ctx) error {
+	if !isMerchantSponsoredAdsEnabled() {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"success": false,
+			"code":    "FEATURE_DISABLED",
+			"message": "Fitur promosi & iklan internal merchant sedang dinonaktifkan sementara untuk peluncuran awal.",
+		})
+	}
 	store, ok := c.Locals("store").(*models.Store)
 	if !ok || store == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
