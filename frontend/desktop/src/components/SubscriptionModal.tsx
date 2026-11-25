@@ -44,6 +44,7 @@ import {
 import { SafeImage } from './SafeImage';
 import { ProofLightbox } from './ProofLightbox';
 import { useModalBackHandler } from '../utils/navigation';
+import { AuthenticatedProofImage } from '../../../shared/finance/AuthenticatedProofImage';
 
 export const resolveProofImageUrl = (order: any, _token?: string | null): string => {
   if (!order) return '';
@@ -87,6 +88,7 @@ export interface StoreQuotaData {
   grace_period_until?: string | null;
   days_remaining: number;
   is_in_grace_period: boolean;
+  remaining_credit_amount?: number;
   active_items_count: number;
   archived_items_count: number;
   max_items: number;
@@ -154,6 +156,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
   initialProofUrl
 }) => {
   const effectiveQuota = currentQuota || quota;
+  const activeStoreSlug = effectiveQuota?.store_slug || '';
   const [modalView, setModalView] = useState<'plans' | 'checkout' | 'downgrade_confirm' | 'orders'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -164,7 +167,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     }
     return 'plans';
   });
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const billingCycle: 'monthly' = 'monthly';
+  const [restoringArchived, setRestoringArchived] = useState(false);
   const [selectedTargetPlan, setSelectedTargetPlan] = useState<SubscriptionPlanData | null>(null);
   const [checkoutType, setCheckoutType] = useState<'upgrade' | 'renewal'>('upgrade');
   
@@ -524,7 +528,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         },
         body: JSON.stringify({
           code: couponInput.trim(),
@@ -575,7 +580,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       const res = await fetch(`${apiBase}/storage/upload?category=billing`, {
         method: 'POST',
         headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         },
         body: formData
       });
@@ -595,13 +601,19 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
     }
   };
 
-  const calculateFinalPrice = (plan: SubscriptionPlanData, cycle: 'monthly' | 'annual') => {
-    const originalPrice = cycle === 'monthly' ? plan.price_monthly : (plan.price_annual > 0 ? plan.price_annual : plan.price_monthly * 12);
+  const calculateFinalPrice = (plan: SubscriptionPlanData, _cycle: 'monthly' | 'annual') => {
+    const originalPrice = Number(plan.price_monthly || 0);
+    const prorationCredit =
+      checkoutType === 'upgrade' &&
+      getPlanLevel(plan.code) > getPlanLevel(effectiveQuota?.plan?.code || 'free')
+        ? Math.min(originalPrice, Number(effectiveQuota?.remaining_credit_amount || 0))
+        : 0;
+    const netBeforeCoupon = Math.max(0, originalPrice - prorationCredit);
     let discountAmount = 0;
 
     if (appliedCoupon) {
       if (appliedCoupon.type === 'free') {
-        discountAmount = originalPrice;
+        discountAmount = netBeforeCoupon;
       } else if (appliedCoupon.discount !== undefined && appliedCoupon.discount !== null) {
         discountAmount = Number(appliedCoupon.discount) || 0;
       } else if (appliedCoupon.discount_amount !== undefined && appliedCoupon.discount_amount !== null) {
@@ -609,23 +621,23 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       } else if (appliedCoupon.discount_value !== undefined && appliedCoupon.discount_value !== null) {
         discountAmount = Number(appliedCoupon.discount_value) || 0;
       } else if (appliedCoupon.discount_percent !== undefined && appliedCoupon.discount_percent !== null) {
-        discountAmount = Math.round((originalPrice * Number(appliedCoupon.discount_percent)) / 100);
+        discountAmount = Math.round((netBeforeCoupon * Number(appliedCoupon.discount_percent)) / 100);
       }
     }
 
-    if (discountAmount > originalPrice) {
-      discountAmount = originalPrice;
+    if (discountAmount > netBeforeCoupon) {
+      discountAmount = netBeforeCoupon;
     }
-    const finalAmount = Math.max(0, originalPrice - discountAmount);
-    const discountPercent = originalPrice > 0 ? Math.round((discountAmount / originalPrice) * 100) : 0;
+    const finalAmount = Math.max(0, netBeforeCoupon - discountAmount);
+    const discountPercent = netBeforeCoupon > 0 ? Math.round((discountAmount / netBeforeCoupon) * 100) : 0;
 
-    return { originalPrice, discountPercent, discountAmount, finalAmount };
+    return { originalPrice, prorationCredit, discountPercent, discountAmount, finalAmount };
   };
 
   const calculateFinalCheckoutPrice = () => {
-    if (!selectedTargetPlan) return { originalPrice: 0, discountPercent: 0, discountAmount: 0, finalPrice: 0 };
-    const { originalPrice, discountPercent, discountAmount, finalAmount } = calculateFinalPrice(selectedTargetPlan, billingCycle);
-    return { originalPrice, discountPercent, discountAmount, finalPrice: finalAmount };
+    if (!selectedTargetPlan) return { originalPrice: 0, prorationCredit: 0, discountPercent: 0, discountAmount: 0, finalPrice: 0 };
+    const { originalPrice, prorationCredit, discountPercent, discountAmount, finalAmount } = calculateFinalPrice(selectedTargetPlan, billingCycle);
+    return { originalPrice, prorationCredit, discountPercent, discountAmount, finalPrice: finalAmount };
   };
 
   const handleSubmitOrder = async () => {
@@ -675,7 +687,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         },
         body: JSON.stringify({
           plan_code: selectedTargetPlan.code,
@@ -733,7 +746,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         method: 'POST',
         headers: {
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         }
       });
       const data = await res.json();
@@ -760,7 +774,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       const res = await fetch(`${apiBase}/subscription/orders`, {
         headers: {
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         }
       });
       const data = await res.json();
@@ -809,7 +824,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         },
         body: JSON.stringify({
           target_plan_code: selectedTargetPlan.code
@@ -840,7 +856,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         }
       });
       const data = await res.json();
@@ -854,6 +871,31 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
       setActionError(err.message || 'Gagal membatalkan jadwal downgrade.');
     } finally {
       setInternalLoading(false);
+    }
+  };
+
+  const handleRestoreArchived = async () => {
+    setActionError(null);
+    setRestoringArchived(true);
+    try {
+      const res = await fetch(`${apiBase}/products/restore-archived`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
+        }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Gagal memulihkan produk terarsip.');
+      }
+      setActionSuccess(data.message || `${data.restored_count || 0} produk terarsip berhasil dipulihkan.`);
+      if (onSuccessUpgrade) onSuccessUpgrade();
+    } catch (err: any) {
+      setActionError(err.message || 'Gagal memulihkan produk terarsip.');
+    } finally {
+      setRestoringArchived(false);
     }
   };
 
@@ -1120,7 +1162,11 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
         )}
 
         {/* Grace Period Alert */}
-        {modalView === 'plans' && quota?.is_in_grace_period && (
+        {modalView === 'plans' && effectiveQuota?.is_in_grace_period && (() => {
+          const graceDaysLeft = effectiveQuota.grace_period_until
+            ? Math.max(0, Math.ceil((new Date(effectiveQuota.grace_period_until).getTime() - Date.now()) / 86400000))
+            : 0;
+          return (
           <div style={{
             margin: '1rem 2rem 0',
             padding: '1rem 1.25rem',
@@ -1135,15 +1181,17 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <AlertTriangle size={24} style={{ color: '#ef4444', flexShrink: 0 }} />
               <div>
-                <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>Akun Dalam Masa Tenggang (Grace Period 7 Hari)</strong>
+                <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                  Akun Dalam Masa Tenggang {graceDaysLeft > 0 ? `(Sisa ${graceDaysLeft} Hari)` : '(Berakhir Hari Ini)'}
+                </strong>
                 <p style={{ margin: '0.15rem 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                  Masa aktif langganan Anda telah berakhir. Segera lakukan perpanjangan agar katalog Anda tidak diarsipkan otomatis.
+                  Masa aktif langganan telah habis. Segera perpanjang sebelum domain kustom dinonaktifkan dan item berlebih diarsipkan otomatis.
                 </p>
               </div>
             </div>
             <button
               type="button"
-              onClick={() => openCheckout(quota.plan, 'renewal')}
+              onClick={() => openCheckout(effectiveQuota.plan, 'renewal')}
               style={{
                 padding: '0.5rem 1.25rem',
                 borderRadius: '0.5rem',
@@ -1157,6 +1205,52 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               }}
             >
               Perpanjang Sekarang
+            </button>
+          </div>
+          );
+        })()}
+
+        {/* Bulk Restore Archived Products Banner */}
+        {modalView === 'plans' && (effectiveQuota?.archived_items_count || 0) > 0 && !effectiveQuota?.is_items_over_limit && (
+          <div style={{
+            margin: '0.85rem 2rem 0',
+            padding: '0.9rem 1.25rem',
+            borderRadius: '0.75rem',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            border: '1px solid rgba(16, 185, 129, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <Archive size={20} style={{ color: '#10b981', flexShrink: 0 }} />
+              <div>
+                <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                  {effectiveQuota?.archived_items_count} Produk Terarsip Siap Dipulihkan
+                </strong>
+                <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  Kuota paket aktif Anda mencukupi untuk mengaktifkan kembali produk yang sebelumnya terarsip otomatis.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={restoringArchived}
+              onClick={handleRestoreArchived}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '0.5rem',
+                background: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 800,
+                fontSize: '0.82rem',
+                cursor: restoringArchived ? 'wait' : 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {restoringArchived ? 'Memulihkan...' : `Pulihkan ${effectiveQuota?.archived_items_count} Produk`}
             </button>
           </div>
         )}
@@ -1224,7 +1318,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
               {plans.map((plan) => {
                 const isCurrent = plan.code === currentPlanCode;
                 const isProBusiness = plan.code === 'pro_business';
-                const price = billingCycle === 'annual' ? (plan.price_annual / 12) : plan.price_monthly;
+                const price = plan.price_monthly;
 
                 return (
                   <div
@@ -1303,11 +1397,6 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                             </span>
                           )}
                         </div>
-                        {billingCycle === 'annual' && plan.price_annual > 0 && (
-                          <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 700 }}>
-                            Ditagih tahunan Rp {plan.price_annual.toLocaleString('id-ID')}
-                          </span>
-                        )}
                       </div>
 
                       {/* Feature Checklist */}
@@ -1574,14 +1663,14 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                   <div>
                     <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)', display: 'block' }}>{selectedTargetPlan.name}</strong>
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      Durasi: {billingCycle === 'annual' ? '12 Bulan (Tahunan)' : '1 Bulan'}
+                      Durasi: 1 Bulan
                     </span>
                   </div>
                 </div>
 
                 {/* Calculations */}
                 {(() => {
-                  const { originalPrice, discountAmount, finalPrice } = calculateFinalCheckoutPrice();
+                  const { originalPrice, prorationCredit, discountAmount, finalPrice } = calculateFinalCheckoutPrice();
 
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.82rem' }}>
@@ -1589,6 +1678,13 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                         <span>Harga Paket:</span>
                         <strong style={{ color: 'var(--text-primary)' }}>Rp {originalPrice.toLocaleString('id-ID')}</strong>
                       </div>
+
+                      {prorationCredit > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0284c7', background: 'rgba(2, 132, 199, 0.1)', padding: '0.45rem 0.65rem', borderRadius: '0.45rem', border: '1px solid rgba(2, 132, 199, 0.25)' }}>
+                          <span>Kredit Prorata Sisa Paket:</span>
+                          <strong>- Rp {prorationCredit.toLocaleString('id-ID')}</strong>
+                        </div>
+                      )}
 
                       {discountAmount > 0 && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '0.45rem 0.65rem', borderRadius: '0.45rem', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
@@ -1619,7 +1715,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                   );
                 })()}
 
-                {/* Coupon Code Input */}
+                {/* Coupon Code Input (hidden when billing is in maintenance mode) */}
+                {!isMaintenance && (
                 <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '0.85rem' }}>
                   <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem', display: 'block' }}>
                     Punya Kode Kupon / Diskon?
@@ -1709,6 +1806,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                     </div>
                   )}
                 </div>
+                )}
               </div>
 
               {/* Right Column: Payment Instructions & Proof Upload */}
@@ -3083,9 +3181,11 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
                                           position: 'relative'
                                         }}
                                       >
-                                        <SafeImage
+                                        <AuthenticatedProofImage
                                           src={resolvedProof}
                                           alt="Bukti Transfer"
+                                          apiToken={token}
+                                          storeSlug={activeStoreSlug}
                                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                         />
                                       </div>

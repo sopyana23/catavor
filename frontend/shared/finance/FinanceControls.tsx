@@ -57,12 +57,13 @@ const paymentModes = [
 ] as const
 
 export function PaymentModePicker({ value, select }: { value: string, select: (value: string) => void }) {
+  const normalizedValue = value === 'manual_bank' ? 'manual_qris' : value;
   return <fieldset className="finance-modes">
     <legend>Metode checkout</legend>
     <p>Pilih mode untuk dikonfigurasi. Perubahan berlaku setelah Anda menyimpan pengaturan.</p>
     <div>{paymentModes.map(([id, label, description]) =>
-      <label key={id} className={value === id ? 'selected' : ''}>
-        <input type="radio" name="payment-checkout-mode" value={id} checked={value === id} onChange={() => select(id)}/>
+      <label key={id} className={normalizedValue === id ? 'selected' : ''}>
+        <input type="radio" name="payment-checkout-mode" value={id} checked={normalizedValue === id} onChange={() => select(id)}/>
         <span><strong>{label}</strong><small>{description}</small></span>
       </label>)}</div>
   </fieldset>

@@ -311,11 +311,11 @@ export const MerchantAdsView: React.FC<MerchantAdsViewProps> = ({
     }
   };
 
-  const surface = isDark ? '#0f172a' : '#ffffff';
-  const cardAlt = isDark ? '#1e293b' : '#f8fafc';
-  const border = isDark ? 'rgba(148, 163, 184, 0.22)' : '#e2e8f0';
-  const textPrimary = isDark ? '#f8fafc' : '#0f172a';
-  const textSecondary = isDark ? '#cbd5e1' : '#475569';
+  const surface = `var(--bg-card, ${isDark ? '#0f172a' : '#ffffff'})`;
+  const cardAlt = `var(--bg-secondary, ${isDark ? '#1e293b' : '#f8fafc'})`;
+  const border = `var(--border-light, ${isDark ? 'rgba(148, 163, 184, 0.22)' : '#e2e8f0'})`;
+  const textPrimary = `var(--text-primary, ${isDark ? '#f8fafc' : '#0f172a'})`;
+  const textSecondary = `var(--text-secondary, ${isDark ? '#cbd5e1' : '#475569'})`;
   const btnH = device === 'desktop' ? '38px' : '44px';
 
   return (

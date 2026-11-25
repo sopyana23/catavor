@@ -1,4 +1,5 @@
 import { FinancePager, useFinancePage } from '../../../shared/finance/FinancePaging';
+import { AuthenticatedProofImage } from '../../../shared/finance/AuthenticatedProofImage';
 import { formatReportStatusLabel, formatReportActionLabel } from '../../../shared/moderation/itemModerationBadge';
 import { paymentChannel, formatGatewayResponse } from '../../../shared/finance/paymentChannel';
 import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColors, useFinanceSection } from '../../../shared/finance/FinanceControls';
@@ -3943,7 +3944,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           title: `Pesanan #${desc.orderNumber}`,
           subtitle: `${desc.storeName} • Rp ${desc.finalAmount.toLocaleString('id-ID')}`,
           items: [
-            ...(canManageFinance && !desc.isActive ? [
+            ...(canManageFinance && !desc.isActive && !desc.isRejected ? [
               {
                 id: 'approve_payment',
                 label: 'Terima & Aktifkan Paket',
@@ -7089,18 +7090,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     fontSize: '0.55rem',
                     padding: '0.06rem 0.35rem',
                     borderRadius: '4px',
-                    background: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' 
-                      ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' 
-                      : getStorePlanBadge(selectedTicket) === 'PRO' 
-                        ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                    background: ['ENTERPRISE', 'PRO_BUSINESS'].includes(getStorePlanBadge(selectedTicket))
+                      ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                      : ['PRO', 'PRO_STARTER'].includes(getStorePlanBadge(selectedTicket))
+                        ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
                         : (isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(100, 116, 139, 0.15)'),
-                    color: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' || getStorePlanBadge(selectedTicket) === 'PRO' ? '#ffffff' : (isDark ? '#94a3b8' : '#475569'),
+                    color: ['ENTERPRISE', 'PRO_BUSINESS', 'PRO', 'PRO_STARTER'].includes(getStorePlanBadge(selectedTicket)) ? '#ffffff' : (isDark ? '#94a3b8' : '#475569'),
                     fontWeight: 800,
                     letterSpacing: '0.03em',
-                    boxShadow: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' 
-                      ? '0 1px 3px rgba(124, 58, 237, 0.3)' 
-                      : getStorePlanBadge(selectedTicket) === 'PRO' 
-                        ? '0 1px 3px rgba(217, 119, 6, 0.35)' 
+                    boxShadow: ['ENTERPRISE', 'PRO_BUSINESS'].includes(getStorePlanBadge(selectedTicket))
+                      ? '0 1px 3px rgba(217, 119, 6, 0.35)'
+                      : ['PRO', 'PRO_STARTER'].includes(getStorePlanBadge(selectedTicket))
+                        ? '0 1px 3px rgba(2, 132, 199, 0.3)'
                         : 'none'
                   }}>
                     {getStorePlanBadge(selectedTicket)}
@@ -15069,18 +15070,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}>
-                        <SafeImage
+                        <AuthenticatedProofImage
                           src={desc.proofUrl}
                           alt="Bukti Pembayaran"
-                          emptyLabel="Belum Ada Bukti Pembayaran"
-                          emptySubLabel="Merchant belum mengunggah tangkapan layar atau foto bukti transfer"
-                          errorLabel="Bukti Pembayaran Rusak"
-                          errorSubLabel="Berkas bukti transfer tidak dapat ditampilkan atau tautan terputus"
-                          isDark={isDark}
-                          objectFit="contain"
-                          onPreview={() => {
-                            if (desc.proofUrl) {
-                              openAttachmentLightbox([{ file_url: desc.proofUrl, file_name: `Bukti_Bayar_${desc.orderNumber}.jpg` }]);
+                          apiToken={token}
+                          fallbackText="Berkas bukti transfer tidak dapat ditampilkan atau tautan terputus"
+                          onClick={(resolvedSrc) => {
+                            if (resolvedSrc || desc.proofUrl) {
+                              openAttachmentLightbox([{ file_url: resolvedSrc || desc.proofUrl, file_name: `Bukti_Bayar_${desc.orderNumber}.jpg` }]);
                             }
                           }}
                           style={{ maxWidth: '100%', maxHeight: '290px', objectFit: 'contain' }}

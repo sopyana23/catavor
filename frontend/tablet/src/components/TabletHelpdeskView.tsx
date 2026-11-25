@@ -1626,12 +1626,12 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
                           fontSize: '0.58rem',
                           padding: '0.08rem 0.42rem',
                           borderRadius: '4px',
-                          background: ticketDetails.store.plan === 'enterprise'
-                            ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)'
-                            : ticketDetails.store.plan === 'pro'
-                              ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                          background: ['enterprise', 'pro_business'].includes(ticketDetails.store.plan || '')
+                            ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                            : ['pro', 'pro_starter'].includes(ticketDetails.store.plan || '')
+                              ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
                               : 'rgba(148, 163, 184, 0.2)',
-                          color: (ticketDetails.store.plan === 'enterprise' || ticketDetails.store.plan === 'pro') ? '#ffffff' : 'var(--text-secondary)',
+                          color: ['enterprise', 'pro_business', 'pro', 'pro_starter'].includes(ticketDetails.store.plan || '') ? '#ffffff' : 'var(--text-secondary)',
                           fontWeight: 800,
                           letterSpacing: '0.04em'
                         }}>

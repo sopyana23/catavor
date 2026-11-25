@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import { SafeImage } from './SafeImage';
 import { ProofLightbox } from './ProofLightbox';
+import { AuthenticatedProofImage } from '../../../shared/finance/AuthenticatedProofImage';
 
 export const resolveProofImageUrl = (order: any, _token?: string | null): string => {
   if (!order) return '';
@@ -154,6 +155,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
   initialProofUrl
 }) => {
   const effectiveQuota = currentQuota || quota;
+  const activeStoreSlug = (effectiveQuota as any)?.store_slug || '';
   const [modalView, setModalView] = useState<'plans' | 'checkout' | 'downgrade_confirm' | 'orders'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -164,7 +166,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
     }
     return activeView || 'plans';
   });
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const billingCycle: 'monthly' = 'monthly';
+  const [restoringArchived, setRestoringArchived] = useState(false);
   const [selectedTargetPlan, setSelectedTargetPlan] = useState<SubscriptionPlanData | null>(null);
   const [checkoutType, setCheckoutType] = useState<'upgrade' | 'renewal'>('upgrade');
 
@@ -722,6 +725,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
 
     setIsUploadingProof(true);
     setActionError(null);
+    setPaymentProofUrl('');
     try {
       const formData = new FormData();
       formData.append('image', file);
@@ -730,7 +734,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
       const res = await fetch(`${apiBase}/storage/upload?category=billing`, {
         method: 'POST',
         headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         },
         body: formData
       });
@@ -739,10 +744,12 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
       if (res.ok && data.success && uploadedUrl) {
         setPaymentProofUrl(uploadedUrl);
       } else {
-        setPaymentProofUrl(proofPreview || '');
+        setPaymentProofUrl('');
+        setActionError(data.message || 'Gagal mengunggah bukti pembayaran ke server. Silakan coba lagi.');
       }
-    } catch (err) {
-      setPaymentProofUrl(proofPreview || '');
+    } catch {
+      setPaymentProofUrl('');
+      setActionError('Gagal mengunggah bukti pembayaran ke server. Periksa koneksi lalu coba ulang.');
     } finally {
       setIsUploadingProof(false);
     }
@@ -763,7 +770,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         },
         body: JSON.stringify({
           code: cleanCode,
@@ -780,23 +788,11 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
         setCouponMsg({ type: 'success', text: `Kupon "${couponObj.code}" aktif! (${couponObj.label || discountLabel})` });
         return;
       }
-    } catch {}
-
-    // Fallback checking against database settings without hardcoded dummy free coupons
-    let masterCoupons = [];
-    try {
-      if (settings?.master_coupons) {
-        masterCoupons = typeof settings.master_coupons === 'string' ? JSON.parse(settings.master_coupons) : settings.master_coupons;
-      }
-    } catch {}
-
-    const found = Array.isArray(masterCoupons) ? masterCoupons.find((c: any) => c.code.toUpperCase() === cleanCode) : null;
-    if (found) {
-      setAppliedCoupon(found);
-      setCouponMsg({ type: 'success', text: `Kupon "${found.code}" berhasil diterapkan!` });
-    } else {
       setAppliedCoupon(null);
-      setCouponMsg({ type: 'error', text: `Kode kupon "${cleanCode}" tidak valid atau telah kedaluwarsa.` });
+      setCouponMsg({ type: 'error', text: data.message || `Kode kupon tidak valid atau tidak dapat digunakan.` });
+    } catch {
+      setAppliedCoupon(null);
+      setCouponMsg({ type: 'error', text: 'Gagal memverifikasi kupon. Periksa koneksi internet.' });
     }
   };
 
@@ -807,14 +803,20 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
   };
 
   const calculateFinalCheckoutPrice = () => {
-    if (!selectedTargetPlan) return { originalPrice: 0, discountAmount: 0, finalPrice: 0 };
+    if (!selectedTargetPlan) return { originalPrice: 0, prorationCredit: 0, discountAmount: 0, finalPrice: 0 };
 
-    const originalPrice = billingCycle === 'annual' ? selectedTargetPlan.price_annual : selectedTargetPlan.price_monthly;
+    const originalPrice = Number(selectedTargetPlan.price_monthly || 0);
+    const prorationCredit =
+      checkoutType === 'upgrade' &&
+      getPlanLevel(selectedTargetPlan.code) > getPlanLevel(effectiveQuota?.plan?.code || 'free')
+        ? Math.min(originalPrice, Number((effectiveQuota as any)?.remaining_credit_amount || 0))
+        : 0;
+    const netBeforeCoupon = Math.max(0, originalPrice - prorationCredit);
     let discountAmount = 0;
 
     if (appliedCoupon) {
       if (appliedCoupon.type === 'free') {
-        discountAmount = originalPrice;
+        discountAmount = netBeforeCoupon;
       } else if (appliedCoupon.discount !== undefined && appliedCoupon.discount !== null) {
         discountAmount = Number(appliedCoupon.discount) || 0;
       } else if (appliedCoupon.discount_amount !== undefined && appliedCoupon.discount_amount !== null) {
@@ -822,14 +824,14 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
       } else if (appliedCoupon.discount_value !== undefined && appliedCoupon.discount_value !== null) {
         discountAmount = Number(appliedCoupon.discount_value) || 0;
       } else if (appliedCoupon.discount_percent !== undefined && appliedCoupon.discount_percent !== null) {
-        discountAmount = Math.round((originalPrice * Number(appliedCoupon.discount_percent)) / 100);
+        discountAmount = Math.round((netBeforeCoupon * Number(appliedCoupon.discount_percent)) / 100);
       }
     }
 
-    if (discountAmount > originalPrice) discountAmount = originalPrice;
-    const finalPrice = Math.max(0, originalPrice - discountAmount);
+    if (discountAmount > netBeforeCoupon) discountAmount = netBeforeCoupon;
+    const finalPrice = Math.max(0, netBeforeCoupon - discountAmount);
 
-    return { originalPrice, discountAmount, finalPrice };
+    return { originalPrice, prorationCredit, discountAmount, finalPrice };
   };
 
   const handleProcessCheckout = async () => {
@@ -847,8 +849,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
     const { finalPrice } = calculateFinalCheckoutPrice();
     const isGateway = finalPrice > 0 && systemPaymentMode === 'gateway_aulaa';
 
-    if (finalPrice > 0 && !isGateway && !paymentProofUrl && !proofPreview) {
-      setActionError('Mohon unggah bukti transfer pembayaran terlebih dahulu.');
+    if (finalPrice > 0 && !isGateway && !paymentProofUrl) {
+      setActionError('Mohon unggah bukti transfer pembayaran hingga selesai terlebih dahulu.');
       setInternalLoading(false);
       return;
     }
@@ -868,14 +870,15 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
             ? 'manual_qris' 
             : 'manual_bank';
 
-      const durationMonths = billingCycle === 'annual' ? 12 : 1;
+      const durationMonths = 1;
 
       const res = await fetch(`${apiBase}/subscription/order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         },
         body: JSON.stringify({
           plan_code: selectedTargetPlan.code,
@@ -888,7 +891,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
           payment_mode: finalPrice === 0 ? 'coupon_free' : orderPaymentMode,
           sender_account_name: senderAccountName.trim(),
           sender_phone: senderPhone.trim(),
-          payment_proof_url: paymentProofUrl || proofPreview || '',
+          payment_proof_url: finalPrice === 0 || isGateway ? '' : paymentProofUrl,
           redirect_url: window.location.href
         })
       });
@@ -938,7 +941,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
         method: 'POST',
         headers: {
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         }
       });
       const data = await res.json();
@@ -972,7 +976,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
           },
           body: JSON.stringify({ target_plan_code: selectedTargetPlan.code })
         });
@@ -1001,7 +1006,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
         }
       });
       const data = await res.json();
@@ -1015,6 +1021,31 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
       setActionError(err.message || 'Gagal membatalkan jadwal downgrade.');
     } finally {
       setInternalLoading(false);
+    }
+  };
+
+  const handleRestoreArchived = async () => {
+    setActionError(null);
+    setRestoringArchived(true);
+    try {
+      const res = await fetch(`${apiBase}/products/restore-archived`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(activeStoreSlug ? { 'X-Store-Slug': activeStoreSlug } : {})
+        }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Gagal memulihkan produk terarsip.');
+      }
+      setActionSuccess(data.message || `${data.restored_count || 0} produk terarsip berhasil dipulihkan.`);
+      if (onSuccessUpgrade) onSuccessUpgrade();
+    } catch (err: any) {
+      setActionError(err.message || 'Gagal memulihkan produk terarsip.');
+    } finally {
+      setRestoringArchived(false);
     }
   };
 
@@ -1280,7 +1311,11 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
           )}
 
           {/* Grace Period Alert */}
-          {modalView === 'plans' && quota?.is_in_grace_period && (
+          {modalView === 'plans' && effectiveQuota?.is_in_grace_period && (() => {
+            const graceDaysLeft = effectiveQuota.grace_period_until
+              ? Math.max(0, Math.ceil((new Date(effectiveQuota.grace_period_until).getTime() - Date.now()) / 86400000))
+              : 0;
+            return (
             <div style={{
               padding: '0.85rem 1rem',
               borderRadius: '0.65rem',
@@ -1289,7 +1324,9 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
                 <AlertTriangle size={17} style={{ color: '#ef4444' }} />
-                <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>Masa Tenggang Aktif (7 Hari)</strong>
+                <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                  Masa Tenggang Aktif {graceDaysLeft > 0 ? `(Sisa ${graceDaysLeft} Hari)` : '(Berakhir Hari Ini)'}
+                </strong>
               </div>
               <p style={{ margin: '0 0 0.65rem', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
                 Masa langganan telah berakhir. Segera perpanjang agar produk katalog tidak diarsipkan otomatis.
@@ -1297,9 +1334,10 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
               <button
                 type="button"
                 className="btn-primary"
-                onClick={() => openCheckout(quota.plan, 'renewal')}
+                onClick={() => openCheckout(effectiveQuota.plan, 'renewal')}
                 style={{
                   width: '100%',
+                  minHeight: '44px',
                   padding: '0.55rem',
                   borderRadius: '0.45rem',
                   fontWeight: 800,
@@ -1307,6 +1345,47 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                 }}
               >
                 Perpanjang Sekarang
+              </button>
+            </div>
+            );
+          })()}
+
+          {/* Bulk Restore Archived Products Banner */}
+          {modalView === 'plans' && (effectiveQuota?.archived_items_count || 0) > 0 && !effectiveQuota?.is_items_over_limit && (
+            <div style={{
+              padding: '0.85rem 1rem',
+              borderRadius: '0.65rem',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.6rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Archive size={16} style={{ color: '#10b981', flexShrink: 0 }} />
+                <strong style={{ fontSize: '0.84rem', color: 'var(--text-primary)' }}>
+                  {effectiveQuota?.archived_items_count} Produk Terarsip Siap Dipulihkan
+                </strong>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Kuota paket aktif mencukupi untuk mengaktifkan kembali produk yang terarsip sistem.
+              </p>
+              <button
+                type="button"
+                disabled={restoringArchived}
+                onClick={handleRestoreArchived}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  minHeight: '44px',
+                  padding: '0.55rem',
+                  borderRadius: '0.45rem',
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  backgroundColor: '#10b981'
+                }}
+              >
+                {restoringArchived ? 'Memulihkan...' : `Pulihkan ${effectiveQuota?.archived_items_count} Produk`}
               </button>
             </div>
           )}
@@ -1374,8 +1453,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                   const isCurrent = currentPlanCode === plan.code;
                   const isProBusiness = plan.code === 'pro_business';
                   const isProStarter = plan.code === 'pro_starter';
-                  const price = billingCycle === 'annual' ? plan.price_annual : plan.price_monthly;
-                  const monthlyEquivalent = billingCycle === 'annual' ? Math.round(plan.price_annual / 12) : plan.price_monthly;
+                  const price = plan.price_monthly;
+                  const monthlyEquivalent = plan.price_monthly;
 
                   return (
                     <div
@@ -1687,7 +1766,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
 
               {/* 2. Price Breakdown & Order Summary */}
               {(() => {
-                const { originalPrice, discountAmount, finalPrice } = calculateFinalCheckoutPrice();
+                const { originalPrice, prorationCredit, discountAmount, finalPrice } = calculateFinalCheckoutPrice();
 
                 return (
                   <div 
@@ -1712,6 +1791,13 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                       <span>Harga Paket:</span>
                       <strong style={{ color: 'var(--text-primary)' }}>Rp {originalPrice.toLocaleString('id-ID')}</strong>
                     </div>
+
+                    {prorationCredit > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#0284c7', background: 'rgba(2, 132, 199, 0.1)', padding: '0.4rem 0.6rem', borderRadius: '0.5rem', border: '1px solid rgba(2, 132, 199, 0.25)' }}>
+                        <span>Kredit Prorata Sisa Paket:</span>
+                        <strong>- Rp {prorationCredit.toLocaleString('id-ID')}</strong>
+                      </div>
+                    )}
 
                     {discountAmount > 0 && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '0.4rem 0.6rem', borderRadius: '0.5rem', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
@@ -1750,7 +1836,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
               })()}
 
               {/* 3. Kupon Diskon Voucher */}
-              {(() => {
+              {!isMaintenance && (() => {
                 const { discountAmount } = calculateFinalCheckoutPrice();
                 return (
               <div 
@@ -3362,10 +3448,11 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                                         flexShrink: 0
                                       }}
                                     >
-                                      <SafeImage
+                                      <AuthenticatedProofImage
                                         src={resolvedProof}
                                         alt="Bukti Transfer"
-                                        isDark={true}
+                                        apiToken={token}
+                                        storeSlug={activeStoreSlug}
                                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                       />
                                     </div>

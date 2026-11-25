@@ -202,8 +202,8 @@ export const TabletProductFilterSheet: React.FC<TabletProductFilterSheetProps> =
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
               {[
                 { key: 'all', label: 'Semua', count: catalogMetrics?.total_items },
-                { key: 'active', label: '✓ Aktif', count: catalogMetrics?.active_items },
-                { key: 'archived', label: '🔒 Arsip', count: catalogMetrics?.archived_items }
+                { key: 'active', label: 'Aktif', count: catalogMetrics?.active_items },
+                { key: 'archived', label: 'Diarsipkan', count: catalogMetrics?.archived_items }
               ].map((st) => {
                 const isSelected = tempStatus === st.key;
                 return (

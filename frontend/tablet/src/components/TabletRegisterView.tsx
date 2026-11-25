@@ -656,7 +656,7 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
                   <Lock size={18} color="#64748b" />
                   <input
                     type="password"
-                    placeholder="Minimal 6 karakter"
+                    placeholder="Minimal 10 karakter"
                     value={registerForm.password}
                     onChange={(e) => {
                       setRegisterForm({ ...registerForm, password: e.target.value });

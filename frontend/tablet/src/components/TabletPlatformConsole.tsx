@@ -1,4 +1,5 @@
 import { FinancePager, useFinancePage } from '../../../shared/finance/FinancePaging';
+import { AuthenticatedProofImage } from '../../../shared/finance/AuthenticatedProofImage';
 import { formatReportStatusLabel, formatReportActionLabel } from '../../../shared/moderation/itemModerationBadge';
 import { paymentChannel, formatGatewayResponse } from '../../../shared/finance/paymentChannel';
 import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColors, useFinanceSection } from '../../../shared/finance/FinanceControls';
@@ -1124,6 +1125,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
 
   const getStorePlanBadge = useCallback((ticket: any) => {
     const plan = String(ticket?.store?.plan || ticket?.store_plan || 'free').toLowerCase();
+    if (plan === 'pro_business') return 'PRO BISNIS';
+    if (plan === 'pro_starter') return 'PRO STARTER';
     if (plan === 'enterprise') return 'ENTERPRISE';
     if (plan === 'pro') return 'PRO';
     return 'FREE';
@@ -5315,9 +5318,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     fontWeight: 800,
                                     padding: '0.06rem 0.35rem',
                                     borderRadius: '4px',
-                                    backgroundColor: planBadge === 'ENTERPRISE' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                                    color: planBadge === 'ENTERPRISE' ? '#a855f7' : '#f59e0b',
-                                    border: `1px solid ${planBadge === 'ENTERPRISE' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
+                                    backgroundColor: ['ENTERPRISE', 'PRO BISNIS'].includes(planBadge) ? 'rgba(245, 158, 11, 0.15)' : 'rgba(2, 132, 199, 0.15)',
+                                    color: ['ENTERPRISE', 'PRO BISNIS'].includes(planBadge) ? '#f59e0b' : '#0284c7',
+                                    border: `1px solid ${['ENTERPRISE', 'PRO BISNIS'].includes(planBadge) ? 'rgba(245, 158, 11, 0.3)' : 'rgba(2, 132, 199, 0.3)'}`
                                   }}>
                                     {planBadge}
                                   </span>
@@ -5481,7 +5484,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             fontSize: '0.58rem',
                             padding: '0.08rem 0.35rem',
                             borderRadius: '4px',
-                            backgroundColor: getStorePlanBadge(ticketDetail) === 'ENTERPRISE' ? '#a855f7' : getStorePlanBadge(ticketDetail) === 'PRO' ? '#f59e0b' : 'rgba(100, 116, 139, 0.2)',
+                            backgroundColor: ['ENTERPRISE', 'PRO BISNIS'].includes(getStorePlanBadge(ticketDetail)) ? '#d97706' : ['PRO', 'PRO STARTER'].includes(getStorePlanBadge(ticketDetail)) ? '#0284c7' : 'rgba(100, 116, 139, 0.2)',
                             color: '#ffffff',
                             fontWeight: 800
                           }}>
@@ -6704,7 +6707,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                             Tolak
                                           </button>
                                         )}
-                                        {!desc.isActive && (
+                                        {!desc.isActive && !desc.isRejected && (
                                           <button
                                             type="button"
                                             disabled={actionLoadingOrder}
@@ -7009,14 +7012,14 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     {desc.proofUrl ? (
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                                         <div style={{ width: '110px', height: '110px', borderRadius: '0.55rem', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
-                                          <SafeImage
+                                          <AuthenticatedProofImage
                                             src={desc.proofUrl}
                                             alt="Bukti Pembayaran"
-                                            emptyText="Belum Ada Bukti"
-                                            errorText="Bukti Rusak"
-                                            onClick={() => {
+                                            apiToken={token}
+                                            fallbackText="Bukti Rusak"
+                                            onClick={(resolvedSrc) => {
                                               openDocumentPreview({
-                                                file_url: desc.proofUrl,
+                                                file_url: resolvedSrc || desc.proofUrl,
                                                 file_name: `Bukti_Bayar_Invoice_${desc.orderNumber}.jpg`
                                               });
                                             }}

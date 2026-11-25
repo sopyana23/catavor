@@ -2381,17 +2381,21 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                     {settings.store_title || 'Katalog Resmi'}
                   </h1>
 
-                  {settings.plan === 'pro_business' && (
+                  {(settings.has_verified_badge || settings.plan === 'pro_business' || settings.plan === 'pro_starter') && (
                     <span style={{
                       fontSize: '0.72rem',
                       fontWeight: 800,
                       padding: '0.15rem 0.55rem',
                       borderRadius: '6px',
-                      backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                      color: '#f59e0b',
-                      border: '1px solid rgba(245, 158, 11, 0.3)'
+                      backgroundColor: settings.plan === 'pro_business' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(2, 132, 199, 0.15)',
+                      color: settings.plan === 'pro_business' ? '#f59e0b' : '#0284c7',
+                      border: settings.plan === 'pro_business' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(2, 132, 199, 0.3)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem'
                     }}>
-                      PRO BISNIS
+                      <ShieldCheck size={12} />
+                      <span>{settings.plan === 'pro_business' ? 'TERVERIFIKASI PRO BISNIS' : 'TERVERIFIKASI PRO'}</span>
                     </span>
                   )}
                 </div>

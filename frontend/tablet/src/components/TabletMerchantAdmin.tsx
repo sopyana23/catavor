@@ -109,6 +109,7 @@ import { TabletCustomSelect } from './TabletCustomSelect';
 import { TabletImageLightbox } from './TabletImageLightbox';
 import { SafeImage } from './SafeImage';
 import { ProofLightbox } from './ProofLightbox';
+import { AuthenticatedProofImage } from '../../../shared/finance/AuthenticatedProofImage';
 import { RichTextarea, FormattedText } from './RichTextarea';
 
 export const resolveProofImageUrl = (order: any, _token?: string | null): string => {
@@ -4752,7 +4753,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         onClick={() => { setProductStatusFilter('archived'); setProductPage(1); }}
                         style={{
                           padding: '0.35rem 0.75rem',
-                          minHeight: '34px',
+                          minHeight: '44px',
                           borderRadius: '6px',
                           fontSize: '0.76rem',
                           fontWeight: 700,
@@ -4760,10 +4761,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           backgroundColor: productStatusFilter === 'archived' ? '#ef4444' : 'transparent',
                           color: productStatusFilter === 'archived' ? '#ffffff' : 'var(--text-secondary)',
                           cursor: 'pointer',
-                          transition: 'all 0.15s ease'
+                          transition: 'all 0.15s ease',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
                         }}
                       >
-                        🔒 Diarsipkan ({catalogMetrics?.archived_items ?? (products.filter(p => p.is_active === false).length)})
+                        <Lock size={12} />
+                        <span>Diarsipkan ({catalogMetrics?.archived_items ?? (products.filter(p => p.is_active === false).length)})</span>
                       </button>
                     </div>
                   </div>
@@ -5830,7 +5835,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   {opt.tagline}
                                 </p>
                                 <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
-                                  ⚡ Form: {opt.formHighlights}
+                                  Form: {opt.formHighlights}
                                 </div>
                               </div>
 
@@ -9575,7 +9580,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.35rem' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Kuota Item Produk Aktif</span>
                     <span style={{ fontWeight: 700 }}>
-                      {quota?.active_items_count ?? productTotalRecords} / {quota?.max_items ?? 15} Item
+                      {quota?.active_items_count ?? productTotalRecords} / {quota?.max_items === -1 ? 'Unlimited' : `${quota?.max_items ?? 15} Item`}
                     </span>
                   </div>
                   <div style={{ height: '8px', backgroundColor: 'var(--bg-deep)', borderRadius: '999px', overflow: 'hidden' }}>
@@ -10599,9 +10604,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                           position: 'relative'
                                         }}
                                       >
-                                        <SafeImage
+                                        <AuthenticatedProofImage
                                           src={resolvedProof}
                                           alt="Bukti Transfer"
+                                          apiToken={token}
+                                          storeSlug={storeSlug}
                                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                         />
                                       </div>

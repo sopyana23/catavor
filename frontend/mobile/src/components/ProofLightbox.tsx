@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw, X } from 'lucide-react';
+import { useAuthenticatedMediaUrl } from '../../../shared/finance/AuthenticatedProofImage';
 
 export interface ProofLightboxProps {
   imageUrl: string;
@@ -12,6 +13,7 @@ export const ProofLightbox: React.FC<ProofLightboxProps> = ({
   onClose,
   isMobile = true
 }) => {
+  const { resolvedUrl } = useAuthenticatedMediaUrl(imageUrl);
   const [zoom, setZoom] = useState<number>(1.0);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -384,7 +386,7 @@ export const ProofLightbox: React.FC<ProofLightboxProps> = ({
           }}
         >
           <img
-            src={imageUrl}
+            src={resolvedUrl || imageUrl}
             alt="Foto Bukti Pembayaran"
             draggable={false}
             style={{

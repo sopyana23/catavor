@@ -13463,10 +13463,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
 
         const planName = registerPlan === 'pro_business' ? 'Pro Bisnis' : 'Pro Starter';
+        const matchedRegPlan = subscriptionPlans.find(p => p.code === registerPlan);
         const newNotifs: any[] = [
           {
             id: Date.now() + 1,
-            title: '🎉 Selamat Datang di Catavor!',
+            title: 'Selamat Datang di Catavor',
             message: isFreeCoupon
               ? `Akun usaha Anda berhasil dibuat! Selamat menikmati seluruh fitur premium paket ${planName}.`
               : 'Akun usaha Anda berhasil dibuat! Selamat datang di platform katalog digital Catavor.',
@@ -13480,7 +13481,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           if (appliedCoupon.type === 'free') {
             newNotifs.push({
               id: Date.now() + 2,
-              title: `🏷️ Kupon Gratis Diterapkan: ${appliedCoupon.code}`,
+              title: `Kupon Gratis Diterapkan: ${appliedCoupon.code}`,
               message: `Kupon "${appliedCoupon.code}" (${appliedCoupon.label}) berhasil membebaskan seluruh biaya pendaftaran 100%.`,
               time: 'Baru saja',
               read: false,
@@ -13488,18 +13489,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
             });
             newNotifs.push({
               id: Date.now() + 3,
-              title: `⚡ Aktivasi Paket ${planName} Berhasil (100% Gratis)`,
+              title: `Aktivasi Paket ${planName} Berhasil (100% Gratis)`,
               message: `Selamat! Paket ${planName} Anda langsung aktif tanpa perlu menunggu verifikasi admin. Nikmati postingan produk dan fitur katalog eksklusif.`,
               time: 'Baru saja',
               read: false,
               type: 'success'
             });
           } else {
-            const basePrice = registerPlan === 'pro_business' ? 129000 : 30000;
+            const basePrice = Number(matchedRegPlan?.price_monthly || (registerPlan === 'pro_business' ? 129000 : 30000));
             const finalPrice = Math.max(0, basePrice - appliedCoupon.discount);
             newNotifs.push({
               id: Date.now() + 2,
-              title: `🏷️ Kupon Diskon Diterapkan: ${appliedCoupon.code}`,
+              title: `Kupon Diskon Diterapkan: ${appliedCoupon.code}`,
               message: `Kupon "${appliedCoupon.code}" memberikan potongan harga Rp ${appliedCoupon.discount.toLocaleString('id-ID')}. Total tagihan Anda menjadi Rp ${finalPrice.toLocaleString('id-ID')}.`,
               time: 'Baru saja',
               read: false,
@@ -13507,7 +13508,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             });
             newNotifs.push({
               id: Date.now() + 3,
-              title: '⏳ Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
+              title: 'Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
               message: `Bukti pembayaran sebesar Rp ${finalPrice.toLocaleString('id-ID')} telah kami terima dan sedang diverifikasi oleh Tim Admin.`,
               time: 'Baru saja',
               read: false,
@@ -13515,7 +13516,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             });
             newNotifs.push({
               id: Date.now() + 4,
-              title: 'ℹ️ Informasi Akses Sementara (Plan Free)',
+              title: 'Informasi Akses Sementara (Plan Free)',
               message: 'Selama proses verifikasi berlangsung, fitur Plan Free aktif sementara sehingga Anda tetap dapat mengelola katalog usaha Anda.',
               time: 'Baru saja',
               read: false,
@@ -13524,10 +13525,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
         } else {
           // Bayar biasa tanpa kupon
-          const basePrice = registerPlan === 'pro_business' ? 129000 : 30000;
+          const basePrice = Number(matchedRegPlan?.price_monthly || (registerPlan === 'pro_business' ? 129000 : 30000));
           newNotifs.push({
             id: Date.now() + 2,
-            title: '⏳ Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
+            title: 'Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
             message: `Bukti pembayaran sebesar Rp ${basePrice.toLocaleString('id-ID')} untuk paket ${planName} telah kami terima. Tim Admin akan melakukan verifikasi transaksi dalam maksimal 1x24 jam.`,
             time: 'Baru saja',
             read: false,
@@ -13535,7 +13536,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           });
           newNotifs.push({
             id: Date.now() + 3,
-            title: 'ℹ️ Informasi Akses Sementara (Plan Free)',
+            title: 'Informasi Akses Sementara (Plan Free)',
             message: 'Selama proses verifikasi berlangsung, fitur Plan Free aktif sementara sehingga Anda tetap dapat mengelola katalog usaha Anda.',
             time: 'Baru saja',
             read: false,
@@ -16726,6 +16727,17 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     {/* Free Card Mobile */}
+                  {(() => {
+                    const starterPlan = subscriptionPlans.find(p => p.code === 'pro_starter');
+                    const bizPlan = subscriptionPlans.find(p => p.code === 'pro_business');
+                    const freePlan = subscriptionPlans.find(p => p.code === 'free');
+                    const starterPrice = Number(starterPlan?.price_monthly ?? 30000);
+                    const bizPrice = Number(bizPlan?.price_monthly ?? 129000);
+                    const freeMaxPhotos = freePlan?.max_images_per_item || 5;
+                    const starterMaxPhotos = starterPlan?.max_images_per_item || 10;
+                    const bizMaxPhotos = bizPlan?.max_images_per_item || 10;
+                    return (
+                      <>
                     <div className="portal-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                       <div>
                         <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Gratis (Free)</div>
@@ -16734,12 +16746,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         </div>
                       </div>
                       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.76rem', color: '#334155' }}>
-                        <li>✅ Maksimal 15 item produk</li>
-                        <li>✅ 100 MB Storage &amp; 5 foto/item</li>
-                        <li>✅ Tautan toko kustom &amp; WhatsApp Order</li>
-                        <li>✅ Download QR Code siap cetak</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Check size={14} color="#16a34a" /> Maksimal {freePlan?.max_items || 15} item produk</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Check size={14} color="#16a34a" /> 100 MB Storage &amp; {freeMaxPhotos} foto/item</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Check size={14} color="#16a34a" /> Tautan toko kustom &amp; WhatsApp Order</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Check size={14} color="#16a34a" /> Download QR Code siap cetak</li>
                       </ul>
-                    <button className="btn-portal-secondary" style={{ padding: '0.7rem', fontSize: '0.8rem', justifyContent: 'center', fontWeight: 700 }} onClick={() => handleLandingPlanSelect('free')}>
+                    <button className="btn-portal-secondary" style={{ minHeight: '44px', padding: '0.7rem', fontSize: '0.8rem', justifyContent: 'center', fontWeight: 700 }} onClick={() => handleLandingPlanSelect('free')}>
                         Daftar Gratis Sekarang
                       </button>
                     </div>
@@ -16754,16 +16766,16 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase' }}>Pro Starter</span>
                         </div>
                         <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#0f172a', margin: '0.2rem 0' }}>
-                          Rp 30.000 <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>/ bulan</span>
+                          Rp {starterPrice.toLocaleString('id-ID')} <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>/ bulan</span>
                         </div>
                       </div>
                       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.76rem', color: '#0f172a' }}>
-                        <li>⚡ <strong>150 item produk aktif</strong></li>
-                        <li>⚡ <strong>2 GB Storage &amp; 8 foto/item</strong></li>
-                        <li>⚡ Lencana Katalog Terverifikasi</li>
-                        <li>⚡ <strong>100% Bebas Watermark</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckCheck size={14} color="#0284c7" /> <strong>{starterPlan?.max_items || 150} item produk aktif</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckCheck size={14} color="#0284c7" /> <strong>2 GB Storage &amp; {starterMaxPhotos} foto/item</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckCheck size={14} color="#0284c7" /> Lencana Katalog Terverifikasi</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckCheck size={14} color="#0284c7" /> <strong>100% Bebas Watermark</strong></li>
                       </ul>
-                    <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 800, justifyContent: 'center', background: '#0284c7' }} onClick={() => handleLandingPlanSelect('pro_starter')}>
+                    <button className="btn-portal-primary" style={{ minHeight: '44px', padding: '0.7rem', fontSize: '0.8rem', fontWeight: 800, justifyContent: 'center', background: '#0284c7' }} onClick={() => handleLandingPlanSelect('pro_starter')}>
                         <span>Pilih Pro Starter</span>
                         <ArrowRight size={14} />
                       </button>
@@ -16771,28 +16783,31 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
                     {/* Pro Business Card Mobile */}
                     <div className="portal-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', border: '2px solid #f59e0b', position: 'relative' }}>
-                      <div style={{ position: 'absolute', top: '-8px', right: '12px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000', fontSize: '0.55rem', fontWeight: 900, padding: '0.12rem 0.5rem', borderRadius: '999px' }}>
-                        👑 UNLIMITED + DOMAIN
+                      <div style={{ position: 'absolute', top: '-8px', right: '12px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000', fontSize: '0.55rem', fontWeight: 900, padding: '0.12rem 0.5rem', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <Crown size={10} /> <span>UNLIMITED + DOMAIN</span>
                       </div>
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase' }}>Pro Bisnis</span>
                         </div>
                         <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#0f172a', margin: '0.2rem 0' }}>
-                          Rp 129.000 <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>/ bulan</span>
+                          Rp {bizPrice.toLocaleString('id-ID')} <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>/ bulan</span>
                         </div>
                       </div>
                       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.76rem', color: '#0f172a' }}>
-                        <li>👑 <strong>Unlimited Produk &amp; Jasa</strong></li>
-                        <li>👑 <strong>10 GB Storage &amp; 10 foto/item</strong></li>
-                        <li>👑 <strong>Custom Domain (brand.com)</strong></li>
-                        <li>👑 Prioritas VIP Support 24/7</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckCheck size={14} color="#d97706" /> <strong>Unlimited Produk &amp; Jasa</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckCheck size={14} color="#d97706" /> <strong>10 GB Storage &amp; {bizMaxPhotos} foto/item</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckCheck size={14} color="#d97706" /> <strong>Custom Domain (brand.com)</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckCheck size={14} color="#d97706" /> Prioritas VIP Support 24/7</li>
                       </ul>
-                    <button className="btn-portal-primary" style={{ padding: '0.7rem', fontSize: '0.8rem', fontWeight: 900, justifyContent: 'center', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000' }} onClick={() => handleLandingPlanSelect('pro_business')}>
+                    <button className="btn-portal-primary" style={{ minHeight: '44px', padding: '0.7rem', fontSize: '0.8rem', fontWeight: 900, justifyContent: 'center', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000' }} onClick={() => handleLandingPlanSelect('pro_business')}>
                         <span>Pilih Pro Bisnis</span>
                         <ArrowRight size={14} />
                       </button>
                     </div>
+                      </>
+                    );
+                  })()}
                   </div>
                 </div>
                 {/* FAQ ACCORDION MOBILE */}
@@ -17321,7 +17336,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem', display: 'block' }}>Kata Sandi *</label>
                         <input
                           type="password"
-                          placeholder="Minimal 6 karakter..."
+                          placeholder="Minimal 10 karakter..."
                           value={registerForm.password}
                           onChange={(e) => {
                             setRegisterForm({ ...registerForm, password: e.target.value });
@@ -26789,10 +26804,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         </div>
                                         <div style={{ minWidth: 0 }}>
                                           <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--text-primary)' }}>
-                                            Buka Fitur Unlimited (Plan Pro)
+                                            Upgrade ke Pro Starter / Bisnis
                                           </div>
-                                          <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            Item tanpa batas &amp; Lencana Terverifikasi
+                                          <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                                            Kuota hingga Unlimited &amp; bebas watermark
                                           </div>
                                         </div>
                                       </div>
@@ -26801,6 +26816,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         type="button"
                                         className="btn-warning"
                                         style={{
+                                          minHeight: '44px',
                                           display: 'inline-flex',
                                           alignItems: 'center',
                                           gap: '0.3rem',
@@ -31693,18 +31709,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                 fontSize: '0.55rem',
                                                 padding: '0.06rem 0.35rem',
                                                 borderRadius: '3px',
-                                                background: selectedTicket.store.plan === 'enterprise'
-                                                  ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)'
-                                                  : selectedTicket.store.plan === 'pro'
-                                                    ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                                                background: ['enterprise', 'pro_business'].includes(selectedTicket.store.plan || '')
+                                                  ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                                                  : ['pro', 'pro_starter'].includes(selectedTicket.store.plan || '')
+                                                    ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
                                                     : 'rgba(148, 163, 184, 0.2)',
-                                                color: selectedTicket.store.plan === 'enterprise' || selectedTicket.store.plan === 'pro' ? '#ffffff' : 'var(--text-secondary)',
+                                                color: ['enterprise', 'pro_business', 'pro', 'pro_starter'].includes(selectedTicket.store.plan || '') ? '#ffffff' : 'var(--text-secondary)',
                                                 fontWeight: 800,
                                                 letterSpacing: '0.03em',
-                                                boxShadow: selectedTicket.store.plan === 'enterprise'
-                                                  ? '0 1px 3px rgba(124, 58, 237, 0.3)'
-                                                  : selectedTicket.store.plan === 'pro'
-                                                    ? '0 1px 3px rgba(217, 119, 6, 0.35)'
+                                                boxShadow: ['enterprise', 'pro_business'].includes(selectedTicket.store.plan || '')
+                                                  ? '0 1px 3px rgba(217, 119, 6, 0.35)'
+                                                  : ['pro', 'pro_starter'].includes(selectedTicket.store.plan || '')
+                                                    ? '0 1px 3px rgba(2, 132, 199, 0.3)'
                                                     : 'none'
                                               }}>
                                                 {String(selectedTicket.store.plan || 'FREE').toUpperCase()}
@@ -33258,12 +33274,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                             fontSize: '0.52rem',
                                                             padding: '0.04rem 0.28rem',
                                                             borderRadius: '3px',
-                                                            background: ticket.store.plan === 'enterprise'
-                                                              ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)'
-                                                              : ticket.store.plan === 'pro'
-                                                                ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                                                            background: ['enterprise', 'pro_business'].includes(ticket.store.plan || '')
+                                                              ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                                                              : ['pro', 'pro_starter'].includes(ticket.store.plan || '')
+                                                                ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
                                                                 : 'rgba(148, 163, 184, 0.2)',
-                                                            color: ticket.store.plan === 'enterprise' || ticket.store.plan === 'pro' ? '#ffffff' : 'var(--text-secondary)',
+                                                            color: ['enterprise', 'pro_business', 'pro', 'pro_starter'].includes(ticket.store.plan || '') ? '#ffffff' : 'var(--text-secondary)',
                                                             fontWeight: 800,
                                                             letterSpacing: '0.03em'
                                                           }}>
@@ -33420,6 +33436,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   />
                                   <MerchantAdsView
                                     device="mobile"
+                                    isDark={themeMode === 'dark'}
                                     token={token}
                                     storeSlug={storeSlug}
                                     products={filteredFaunas as any}

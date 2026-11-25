@@ -2052,7 +2052,7 @@ export const TabletPublicLanding: React.FC<TabletPublicLandingProps> = ({
                 </p>
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: isMiniTablet ? '0.78rem' : '0.84rem', color: '#0f172a' }}>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#0284c7" /> <strong>150 item produk aktif</strong></li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#0284c7" /> <strong>2 GB Storage &amp; 8 foto/item</strong></li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#0284c7" /> <strong>2 GB Storage &amp; 10 foto/item</strong></li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#0284c7" /> Lencana Toko Terverifikasi</li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#0284c7" /> Prioritas Pencarian Platform</li>
                   <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={16} color="#0284c7" /> <strong>100% Bebas Watermark</strong></li>

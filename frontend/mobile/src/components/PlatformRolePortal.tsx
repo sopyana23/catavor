@@ -1,4 +1,5 @@
 import { FinancePager, useFinancePage } from '../../../shared/finance/FinancePaging';
+import { AuthenticatedProofImage } from '../../../shared/finance/AuthenticatedProofImage';
 import { formatReportStatusLabel, formatReportActionLabel } from '../../../shared/moderation/itemModerationBadge';
 import { paymentChannel } from '../../../shared/finance/paymentChannel';
 import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColors, useFinanceSection } from '../../../shared/finance/FinanceControls';
@@ -1503,6 +1504,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
 
   // Coupons State (Mobile Platform Admin)
   const [showCouponModal, setShowCouponModal] = useState(false);
+  const [couponDragY, setCouponDragY] = useState(0);
+  const [isDraggingCoupon, setIsDraggingCoupon] = useState(false);
+  const couponTouchStartYRef = useRef<number | null>(null);
+  const couponDragYRef = useRef<number>(0);
   const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
   const [savingCoupon, setSavingCoupon] = useState(false);
   const [deletingCouponCode, setDeletingCouponCode] = useState<string | null>(null);
@@ -6906,18 +6911,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     fontSize: '0.55rem',
                     padding: '0.06rem 0.35rem',
                     borderRadius: '4px',
-                    background: getStorePlanBadge(selectedTicket) === 'ENTERPRISE'
-                      ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)'
-                      : getStorePlanBadge(selectedTicket) === 'PRO'
-                        ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                    background: ['ENTERPRISE', 'PRO_BUSINESS'].includes(getStorePlanBadge(selectedTicket))
+                      ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                      : ['PRO', 'PRO_STARTER'].includes(getStorePlanBadge(selectedTicket))
+                        ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
                         : (isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(100, 116, 139, 0.15)'),
-                    color: getStorePlanBadge(selectedTicket) === 'ENTERPRISE' || getStorePlanBadge(selectedTicket) === 'PRO' ? '#ffffff' : (isDark ? '#94a3b8' : '#475569'),
+                    color: ['ENTERPRISE', 'PRO_BUSINESS', 'PRO', 'PRO_STARTER'].includes(getStorePlanBadge(selectedTicket)) ? '#ffffff' : (isDark ? '#94a3b8' : '#475569'),
                     fontWeight: 800,
                     letterSpacing: '0.03em',
-                    boxShadow: getStorePlanBadge(selectedTicket) === 'ENTERPRISE'
-                      ? '0 1px 3px rgba(124, 58, 237, 0.3)'
-                      : getStorePlanBadge(selectedTicket) === 'PRO'
-                        ? '0 1px 3px rgba(217, 119, 6, 0.35)'
+                    boxShadow: ['ENTERPRISE', 'PRO_BUSINESS'].includes(getStorePlanBadge(selectedTicket))
+                      ? '0 1px 3px rgba(217, 119, 6, 0.35)'
+                      : ['PRO', 'PRO_STARTER'].includes(getStorePlanBadge(selectedTicket))
+                        ? '0 1px 3px rgba(2, 132, 199, 0.3)'
                         : 'none'
                   }}>
                     {getStorePlanBadge(selectedTicket)}
@@ -8749,18 +8754,19 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               </button>
                             </div>
                           ) : (
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '0.45rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                               <button
                                 type="button"
                                 onClick={() => handleUpdateOrderStatus(o.id, 'pending_verification')}
                                 style={{
-                                  minHeight: '40px',
+                                  width: '100%',
+                                  minHeight: '44px',
                                   padding: '0.4rem',
                                   borderRadius: '0.6rem',
                                   backgroundColor: theme.cardAlt,
                                   border: `1px solid ${theme.border}`,
                                   color: theme.textSecondary,
-                                  fontSize: '0.7rem',
+                                  fontSize: '0.72rem',
                                   fontWeight: 700,
                                   cursor: 'pointer',
                                   display: 'flex',
@@ -8771,28 +8777,6 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               >
                                 <RotateCcw size={13} />
                                 <span>Kembalikan Pending</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateOrderStatus(o.id, 'active')}
-                                style={{
-                                  minHeight: '40px',
-                                  padding: '0.4rem',
-                                  borderRadius: '0.6rem',
-                                  backgroundColor: '#10b981',
-                                  color: '#ffffff',
-                                  border: 'none',
-                                  fontSize: '0.72rem',
-                                  fontWeight: 800,
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '0.3rem'
-                                }}
-                              >
-                                <CheckCircle2 size={13} />
-                                <span>Setujui &amp; Aktifkan</span>
                               </button>
                             </div>
                           )
@@ -9801,7 +9785,35 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           )}
 
           {/* Modal Bottom Sheet Add/Edit Coupon (Mobile) */}
-          {showCouponModal && (
+          {showCouponModal && (() => {
+            const onCouponTouchStart = (e: React.TouchEvent) => {
+              couponTouchStartYRef.current = e.touches[0].clientY;
+              couponDragYRef.current = 0;
+              setIsDraggingCoupon(true);
+            };
+            const onCouponTouchMove = (e: React.TouchEvent) => {
+              if (couponTouchStartYRef.current === null) return;
+              const rawDelta = e.touches[0].clientY - couponTouchStartYRef.current;
+              const damped = rawDelta < 0 ? rawDelta * 0.18 : rawDelta;
+              couponDragYRef.current = damped;
+              setCouponDragY(damped);
+            };
+            const onCouponTouchEnd = () => {
+              const delta = couponDragYRef.current;
+              couponTouchStartYRef.current = null;
+              couponDragYRef.current = 0;
+              setIsDraggingCoupon(false);
+              if (delta >= 70) {
+                setCouponDragY(520);
+                setTimeout(() => {
+                  setCouponDragY(0);
+                  setShowCouponModal(false);
+                }, 220);
+              } else {
+                setCouponDragY(0);
+              }
+            };
+            return (
             <div
               style={{
                 position: 'fixed',
@@ -9817,7 +9829,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 justifyContent: 'flex-end',
                 animation: 'fadeIn 0.2s ease'
               }}
-              onClick={() => setShowCouponModal(false)}
+              onClick={() => { setCouponDragY(0); setShowCouponModal(false); }}
             >
               <div
                 style={{
@@ -9828,25 +9840,34 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   display: 'flex',
                   flexDirection: 'column',
                   boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.3)',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  transform: `translateY(${couponDragY}px)`,
+                  transition: isDraggingCoupon ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Drag Handle Bar (Anti-Stiff touchAction: none) */}
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '0.75rem 0 0.35rem 0', touchAction: 'none' }}>
-                  <div style={{ width: '38px', height: '4px', borderRadius: '999px', backgroundColor: theme.border }} />
-                </div>
+                {/* Drag Handle Bar + Clean Header (Anti-Stiff touchAction: none, no X button) */}
+                <div
+                  onTouchStart={onCouponTouchStart}
+                  onTouchMove={onCouponTouchMove}
+                  onTouchEnd={onCouponTouchEnd}
+                  style={{ touchAction: 'none', userSelect: 'none' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: '0.75rem 0 0.35rem 0' }}>
+                    <div style={{ width: '38px', height: '4px', borderRadius: '999px', backgroundColor: theme.border }} />
+                  </div>
 
-                {/* Clean Header (Haram tombol close 'X' di header per standard mobile) */}
-                <div style={{ padding: '0.5rem 1.25rem 0.85rem 1.25rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Tag size={18} color="#10b981" />
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
-                      {editingCoupon ? `Edit Kupon ${editingCoupon.code}` : 'Tambah Kupon Baru'}
-                    </h3>
-                    <p style={{ margin: 0, fontSize: '0.72rem', color: theme.textSecondary }}>
-                      Konfigurasi aturan pemotongan biaya pendaftaran &amp; paket.
-                    </p>
+                  {/* Clean Header (Haram tombol close 'X' di header per standard mobile) */}
+                  <div style={{ padding: '0.5rem 1.25rem 0.85rem 1.25rem', borderBottom: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Tag size={18} color="#10b981" />
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
+                        {editingCoupon ? `Edit Kupon ${editingCoupon.code}` : 'Tambah Kupon Baru'}
+                      </h3>
+                      <p style={{ margin: 0, fontSize: '0.72rem', color: theme.textSecondary }}>
+                        Konfigurasi aturan pemotongan biaya pendaftaran &amp; paket.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -10098,7 +10119,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </form>
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
@@ -13515,18 +13537,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         Lampiran Bukti {d.isManualQRIS ? 'Scan QRIS' : 'Transfer Bank'}:
                       </span>
                       <div style={{ width: '100%', minHeight: '150px', maxHeight: '260px', overflow: 'hidden', borderRadius: '0.75rem', backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <SafeImage
+                        <AuthenticatedProofImage
                           src={d.proofUrl}
                           alt="Bukti Pembayaran"
-                          emptyLabel="Belum Ada Bukti Pembayaran"
-                          emptySubLabel="Pelanggan belum mengunggah foto struk/bukti pembayaran"
-                          errorLabel="Bukti Pembayaran Rusak"
-                          errorSubLabel="Berkas bukti tidak dapat ditampilkan"
-                          isDark={isDark}
-                          objectFit="contain"
-                          onPreview={() => {
-                            if (d.proofUrl) {
-                              openAttachmentLightbox([{ file_url: d.proofUrl, file_name: `Bukti_Bayar_${d.orderNumber}.jpg` }]);
+                          apiToken={token}
+                          fallbackText="Berkas bukti tidak dapat ditampilkan"
+                          onClick={(resolvedSrc) => {
+                            if (resolvedSrc || d.proofUrl) {
+                              openAttachmentLightbox([{ file_url: resolvedSrc || d.proofUrl, file_name: `Bukti_Bayar_${d.orderNumber}.jpg` }]);
                             }
                           }}
                           style={{ maxWidth: '100%', maxHeight: '260px', objectFit: 'contain' }}

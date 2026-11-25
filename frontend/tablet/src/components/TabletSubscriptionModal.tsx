@@ -31,6 +31,7 @@ import {
 import { createAuthFetch } from '../utils/auth';
 import { useModalBackHandler } from '../utils/navigation';
 import { SafeImage } from './SafeImage';
+import { AuthenticatedProofImage } from '../../../shared/finance/AuthenticatedProofImage';
 
 export interface SubscriptionPlanData {
   id: number;
@@ -60,6 +61,7 @@ export interface StoreQuotaData {
   grace_period_until?: string | null;
   days_remaining: number;
   is_in_grace_period: boolean;
+  remaining_credit_amount?: number;
   active_items_count: number;
   archived_items_count: number;
   max_items: number;
@@ -121,8 +123,14 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   const [plans, setPlans] = useState<SubscriptionPlanData[]>([]);
   const [platformSettings, setPlatformSettings] = useState<any>(settings || {});
   const [loading, setLoading] = useState<boolean>(false);
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
-  const [selectedPlanCode, setSelectedPlanCode] = useState<string>('pro_starter');
+  const billingCycle: 'monthly' = 'monthly';
+  const [selectedPlanCode, setSelectedPlanCode] = useState<string>(() => {
+    const cur = currentQuota?.plan?.code || 'free';
+    if (cur === 'pro_business') return 'pro_business';
+    if (cur === 'pro_starter') return 'pro_business';
+    return 'pro_starter';
+  });
+  const [restoringArchived, setRestoringArchived] = useState<boolean>(false);
   const [activeMiniTabPlan, setActiveMiniTabPlan] = useState<string>('pro_starter');
   const [isTabletMini, setIsTabletMini] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.innerWidth < 880 : false
@@ -272,6 +280,8 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       setCouponError(null);
       setCouponSuccessMsg(null);
       setAulaaChannel('qris');
+      const cur = currentQuota?.plan?.code || 'free';
+      setSelectedPlanCode(cur === 'free' ? 'pro_starter' : 'pro_business');
 
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
@@ -305,15 +315,23 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
   if (!isOpen) return null;
 
   const selectedPlan = plans.find(p => p.code === selectedPlanCode) || plans[1] || plans[0];
-  const months = billingCycle === 'annual' ? 12 : 1;
-  const unitPrice = billingCycle === 'annual' ? (selectedPlan?.price_annual || 0) : (selectedPlan?.price_monthly || 0);
+  const months = 1;
+  const unitPrice = Number(selectedPlan?.price_monthly || 0);
   const totalPrice = unitPrice * months;
+  const rankMap: Record<string, number> = { free: 0, pro_starter: 1, pro_business: 2 };
+  const curPlanCode = currentQuota?.plan?.code || 'free';
+  const prorationCredit =
+    selectedPlan &&
+    (rankMap[selectedPlan.code] || 0) > (rankMap[curPlanCode] || 0)
+      ? Math.min(totalPrice, Number(currentQuota?.remaining_credit_amount || 0))
+      : 0;
+  const netBeforeCoupon = Math.max(0, totalPrice - prorationCredit);
 
   // Calculate discount from applied coupon
   let discountAmount = 0;
   if (appliedCoupon) {
     if (appliedCoupon.type === 'free') {
-      discountAmount = totalPrice;
+      discountAmount = netBeforeCoupon;
     } else if (appliedCoupon.discount !== undefined && appliedCoupon.discount !== null) {
       discountAmount = Number(appliedCoupon.discount) || 0;
     } else if (appliedCoupon.discount_amount !== undefined && appliedCoupon.discount_amount !== null) {
@@ -321,18 +339,18 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
     } else if (appliedCoupon.discount_value !== undefined && appliedCoupon.discount_value !== null) {
       discountAmount = Number(appliedCoupon.discount_value) || 0;
     } else if (appliedCoupon.discount_percent !== undefined && appliedCoupon.discount_percent !== null) {
-      discountAmount = Math.round((totalPrice * Number(appliedCoupon.discount_percent)) / 100);
+      discountAmount = Math.round((netBeforeCoupon * Number(appliedCoupon.discount_percent)) / 100);
     } else if (appliedCoupon.discount_type === 'percentage') {
-      discountAmount = Math.round((totalPrice * (appliedCoupon.discount_value || 0)) / 100);
+      discountAmount = Math.round((netBeforeCoupon * (appliedCoupon.discount_value || 0)) / 100);
       if (appliedCoupon.max_discount && appliedCoupon.max_discount > 0) {
         discountAmount = Math.min(discountAmount, appliedCoupon.max_discount);
       }
     }
   }
-  if (discountAmount > totalPrice) {
-    discountAmount = totalPrice;
+  if (discountAmount > netBeforeCoupon) {
+    discountAmount = netBeforeCoupon;
   }
-  const finalPrice = Math.max(0, totalPrice - discountAmount);
+  const finalPrice = Math.max(0, netBeforeCoupon - discountAmount);
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -342,7 +360,10 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
     try {
       const res = await fetch('/api/subscription/verify-coupon', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {})
+        },
         body: JSON.stringify({
           code: couponCode.trim(),
           plan_code: selectedPlan?.code || '',
@@ -435,7 +456,10 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
     try {
       const res = await fetch('/api/subscription/schedule-downgrade', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {})
+        },
         body: JSON.stringify({ target_plan_code: selectedTargetPlan.code })
       });
       const data = await res.json();
@@ -457,7 +481,10 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
     try {
       const res = await fetch('/api/subscription/cancel-downgrade', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {})
+        }
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -469,6 +496,29 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       showToast(err.message || 'Gagal membatalkan jadwal downgrade.', 'error');
     } finally {
       setInternalLoading(false);
+    }
+  };
+
+  const handleRestoreArchived = async () => {
+    setRestoringArchived(true);
+    try {
+      const res = await fetch('/api/products/restore-archived', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {})
+        }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Gagal memulihkan produk terarsip.');
+      }
+      showToast(data.message || `${data.restored_count || 0} produk terarsip berhasil dipulihkan.`, 'success');
+      if (onSuccessUpgrade) onSuccessUpgrade();
+    } catch (err: any) {
+      showToast(err.message || 'Gagal memulihkan produk terarsip.', 'error');
+    } finally {
+      setRestoringArchived(false);
     }
   };
 
@@ -490,7 +540,8 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
       const res = await fetch('/api/storage/upload?category=billing', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {})
         },
         body: formData
       });
@@ -746,6 +797,107 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                 </div>
               )}
 
+              {/* Grace Period Alert in Tablet Plans View */}
+              {currentQuota?.is_in_grace_period && (() => {
+                const graceDaysLeft = currentQuota.grace_period_until
+                  ? Math.max(0, Math.ceil((new Date(currentQuota.grace_period_until).getTime() - Date.now()) / 86400000))
+                  : 0;
+                return (
+                <div style={{
+                  marginBottom: '1.25rem',
+                  padding: '1rem 1.25rem',
+                  borderRadius: '0.75rem',
+                  background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.16) 0%, rgba(245, 158, 11, 0.16) 100%)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: '1 1 280px' }}>
+                    <AlertTriangle size={22} style={{ color: '#ef4444', flexShrink: 0 }} />
+                    <div>
+                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 800 }}>
+                        Akun Dalam Masa Tenggang {graceDaysLeft > 0 ? `(Sisa ${graceDaysLeft} Hari)` : '(Berakhir Hari Ini)'}
+                      </strong>
+                      <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        Segera perpanjang agar domain kustom tidak dinonaktifkan dan item berlebih tidak terarsip otomatis.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPlanCode(currentQuota.plan.code);
+                      setCheckoutStep('payment_detail');
+                    }}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.5rem 1.15rem',
+                      borderRadius: '0.55rem',
+                      backgroundColor: '#ef4444',
+                      border: 'none',
+                      color: '#ffffff',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Perpanjang Sekarang
+                  </button>
+                </div>
+                );
+              })()}
+
+              {/* Bulk Restore Archived Products Banner */}
+              {(currentQuota?.archived_items_count || 0) > 0 && !currentQuota?.is_items_over_limit && (
+                <div style={{
+                  marginBottom: '1.25rem',
+                  padding: '0.95rem 1.25rem',
+                  borderRadius: '0.75rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: '1 1 280px' }}>
+                    <Archive size={20} style={{ color: '#10b981', flexShrink: 0 }} />
+                    <div>
+                      <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                        {currentQuota?.archived_items_count} Produk Terarsip Siap Dipulihkan
+                      </strong>
+                      <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        Kuota paket aktif mencukupi untuk mengaktifkan kembali produk yang terarsip sistem.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={restoringArchived}
+                    onClick={handleRestoreArchived}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0.5rem 1.1rem',
+                      borderRadius: '0.55rem',
+                      backgroundColor: '#10b981',
+                      border: 'none',
+                      color: '#ffffff',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      cursor: restoringArchived ? 'wait' : 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {restoringArchived ? 'Memulihkan...' : `Pulihkan ${currentQuota?.archived_items_count} Produk`}
+                  </button>
+                </div>
+              )}
+
               {/* Prepaid Manual Education Banner */}
               <div style={{
                 marginBottom: '1.25rem',
@@ -865,7 +1017,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                     const isCurrent = currentPlanCode === p.code;
                     const targetRank = planRank[p.code] || 0;
                     const isDowngrade = targetRank < currentRank;
-                    const price = billingCycle === 'annual' ? p.price_annual : p.price_monthly;
+                    const price = p.price_monthly;
                     const storageMB = Math.round(p.storage_limit_bytes / (1024 * 1024));
 
                     return (
@@ -930,7 +1082,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                             </div>
                             {price > 0 && (
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                / bulan (ditagih {billingCycle === 'annual' ? 'tahunan' : 'bulanan'})
+                                / bulan (ditagih bulanan)
                               </span>
                             )}
                           </div>
@@ -939,7 +1091,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                               <Package size={15} color="var(--primary)" />
-                              <span>Maksimal <strong>{p.max_items} Item</strong> Produk</span>
+                              <span>{p.max_items === -1 ? <strong>Unlimited Item Produk</strong> : <>Maksimal <strong>{p.max_items} Item</strong> Produk</>}</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                               <HardDrive size={15} color="var(--primary)" />
@@ -1083,18 +1235,29 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                               Pilih untuk Siklus Berikutnya
                             </div>
                           ) : (
-                            <div style={{
-                              textAlign: 'center',
-                              padding: '0.5rem',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              borderRadius: '0.5rem',
-                              backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-card)',
-                              color: isSelected ? '#ffffff' : 'var(--text-primary)',
-                              border: isSelected ? 'none' : '1px solid var(--border-light)'
-                            }}>
-                              {isSelected ? 'Paket Terpilih' : 'Pilih Paket Ini'}
-                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPlanCode(p.code);
+                                setCheckoutStep('payment_detail');
+                              }}
+                              style={{
+                                width: '100%',
+                                minHeight: '44px',
+                                textAlign: 'center',
+                                padding: '0.5rem',
+                                fontSize: '0.8rem',
+                                fontWeight: 800,
+                                borderRadius: '0.5rem',
+                                backgroundColor: 'var(--primary)',
+                                color: '#ffffff',
+                                border: 'none',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {currentRank === 0 ? `Upgrade ke ${p.name}` : `Pindah ke ${p.name}`}
+                            </button>
                           )}
                         </div>
                       </div>
@@ -1495,7 +1658,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: 'var(--text-muted)' }}>Siklus Penagihan</span>
-                          <strong>{billingCycle === 'annual' ? 'Tahunan (12 Bulan)' : 'Bulanan (1 Bulan)'}</strong>
+                          <strong>Bulanan (1 Bulan)</strong>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: 'var(--text-muted)' }}>Kapasitas Item</span>
@@ -1508,7 +1671,8 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                       </div>
                     </div>
 
-                    {/* Coupon Input Section */}
+                    {/* Coupon Input Section (hidden during maintenance) */}
+                    {!isMaintenance && (
                     <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid var(--border-light)' }}>
                       <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.4rem' }}>
                         <Tag size={13} color="var(--primary)" />
@@ -1585,22 +1749,31 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                         </div>
                       )}
                     </div>
+                    )}
 
                     <div style={{
                       paddingTop: '0.85rem',
                       borderTop: '1px solid var(--border-light)',
                       marginTop: '1rem'
                     }}>
-                      {appliedCoupon && (
+                      {(appliedCoupon || prorationCredit > 0) && (
                         <>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
                             <span>Subtotal Normal</span>
                             <span>Rp {totalPrice.toLocaleString('id-ID')}</span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: '#10b981', fontWeight: 700, marginBottom: '0.5rem' }}>
-                            <span>Diskon Promo ({appliedCoupon.code})</span>
-                            <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
-                          </div>
+                          {prorationCredit > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: '#0284c7', fontWeight: 700, marginBottom: '0.35rem' }}>
+                              <span>Kredit Prorata Sisa Paket</span>
+                              <span>- Rp {prorationCredit.toLocaleString('id-ID')}</span>
+                            </div>
+                          )}
+                          {appliedCoupon && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: '#10b981', fontWeight: 700, marginBottom: '0.5rem' }}>
+                              <span>Diskon Promo ({appliedCoupon.code})</span>
+                              <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
+                            </div>
+                          )}
                         </>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -2053,7 +2226,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Paket dipilih: </span>
               <strong style={{ fontSize: '0.88rem' }}>{selectedPlan?.name}</strong>
               <span style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--primary)', marginLeft: '0.5rem' }}>
-                (Rp {totalPrice.toLocaleString('id-ID')} / {billingCycle === 'annual' ? 'tahun' : 'bulan'})
+                (Rp {totalPrice.toLocaleString('id-ID')} / bulan)
               </span>
             </div>
 

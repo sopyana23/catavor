@@ -2541,6 +2541,7 @@ interface ShopSettings {
   aulaa_api_key?: string
   aulaa_base_url?: string
   aulaa_webhook_secret?: string
+  has_verified_badge?: boolean
 }
 
 interface CommentItem {
@@ -13020,10 +13021,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
         setShowPaymentSuccessModal(true);
 
         const planName = registerPlan === 'pro_business' ? 'Pro Bisnis' : 'Pro Starter';
+        const matchedRegPlan = subscriptionPlans.find(p => p.code === registerPlan);
         const newNotifs: any[] = [
           {
             id: Date.now() + 1,
-            title: '🎉 Selamat Datang di Catavor!',
+            title: 'Selamat Datang di Catavor',
             message: isFreeCoupon 
               ? `Akun usaha Anda berhasil dibuat! Selamat menikmati seluruh fitur premium paket ${planName}.`
               : 'Akun usaha Anda berhasil dibuat! Selamat datang di platform katalog digital Catavor.',
@@ -13037,7 +13039,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           if (appliedCoupon.type === 'free') {
             newNotifs.push({
               id: Date.now() + 2,
-              title: `🏷️ Kupon Gratis Diterapkan: ${appliedCoupon.code}`,
+              title: `Kupon Gratis Diterapkan: ${appliedCoupon.code}`,
               message: `Kupon "${appliedCoupon.code}" (${appliedCoupon.label}) berhasil membebaskan seluruh biaya pendaftaran 100%.`,
               time: 'Baru saja',
               read: false,
@@ -13045,20 +13047,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
             });
             newNotifs.push({
               id: Date.now() + 3,
-              title: `⚡ Aktivasi Paket ${planName} Berhasil (100% Gratis)`,
+              title: `Aktivasi Paket ${planName} Berhasil (100% Gratis)`,
               message: `Selamat! Paket ${planName} Anda langsung aktif tanpa perlu menunggu verifikasi admin. Nikmati akses eksklusif dan fitur toko premium.`,
               time: 'Baru saja',
               read: false,
               type: 'success'
             });
           } else {
-            const basePrice = registerPlan === 'pro_business' 
-              ? (registerBillingCycle === 'annual' ? 1290000 : 129000)
-              : (registerBillingCycle === 'annual' ? 490000 : 49000);
+            const basePrice = Number(matchedRegPlan?.price_monthly || (registerPlan === 'pro_business' ? 129000 : 30000));
             const finalPrice = Math.max(0, basePrice - appliedCoupon.discount);
             newNotifs.push({
               id: Date.now() + 2,
-              title: `🏷️ Kupon Diskon Diterapkan: ${appliedCoupon.code}`,
+              title: `Kupon Diskon Diterapkan: ${appliedCoupon.code}`,
               message: `Kupon "${appliedCoupon.code}" memberikan potongan harga Rp ${appliedCoupon.discount.toLocaleString('id-ID')}. Total tagihan Anda menjadi Rp ${finalPrice.toLocaleString('id-ID')}.`,
               time: 'Baru saja',
               read: false,
@@ -13066,7 +13066,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             });
             newNotifs.push({
               id: Date.now() + 3,
-              title: '⏳ Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
+              title: 'Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
               message: `Bukti pembayaran sebesar Rp ${finalPrice.toLocaleString('id-ID')} telah kami terima dan sedang diverifikasi oleh Tim Admin.`,
               time: 'Baru saja',
               read: false,
@@ -13074,7 +13074,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             });
             newNotifs.push({
               id: Date.now() + 4,
-              title: 'ℹ️ Informasi Akses Sementara (Plan Free)',
+              title: 'Informasi Akses Sementara (Plan Free)',
               message: 'Selama proses verifikasi berlangsung, fitur Plan Free aktif sementara sehingga Anda tetap dapat mengelola katalog usaha Anda.',
               time: 'Baru saja',
               read: false,
@@ -13083,12 +13083,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
           }
         } else {
           // Bayar biasa tanpa kupon
-          const basePrice = registerPlan === 'pro_business' 
-            ? (registerBillingCycle === 'annual' ? 1290000 : 129000)
-            : (registerBillingCycle === 'annual' ? 490000 : 49000);
+          const basePrice = Number(matchedRegPlan?.price_monthly || (registerPlan === 'pro_business' ? 129000 : 30000));
           newNotifs.push({
             id: Date.now() + 2,
-            title: '⏳ Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
+            title: 'Status Pembayaran: Dalam Verifikasi (Est. 1x24 Jam)',
             message: `Bukti pembayaran sebesar Rp ${basePrice.toLocaleString('id-ID')} untuk paket ${planName} telah kami terima. Tim Admin akan melakukan verifikasi transaksi dalam maksimal 1x24 jam.`,
             time: 'Baru saja',
             read: false,
@@ -13096,7 +13094,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           });
           newNotifs.push({
             id: Date.now() + 3,
-            title: 'ℹ️ Informasi Akses Sementara (Plan Free)',
+            title: 'Informasi Akses Sementara (Plan Free)',
             message: 'Selama proses verifikasi berlangsung, fitur Plan Free aktif sementara sehingga Anda tetap dapat mengelola katalog usaha Anda.',
             time: 'Baru saja',
             read: false,
@@ -16202,6 +16200,17 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', maxWidth: '1100px', margin: '0 auto' }}>
+                  {(() => {
+                    const starterPlan = subscriptionPlans.find(p => p.code === 'pro_starter');
+                    const bizPlan = subscriptionPlans.find(p => p.code === 'pro_business');
+                    const freePlan = subscriptionPlans.find(p => p.code === 'free');
+                    const starterPrice = Number(starterPlan?.price_monthly ?? 30000);
+                    const bizPrice = Number(bizPlan?.price_monthly ?? 129000);
+                    const starterMaxPhotos = starterPlan?.max_images_per_item || 10;
+                    const bizMaxPhotos = bizPlan?.max_images_per_item || 10;
+                    const freeMaxPhotos = freePlan?.max_images_per_item || 5;
+                    return (
+                      <>
                   {/* Free Plan Card */}
                   <div className="portal-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: '1rem', background: '#ffffff', border: '1px solid #e2e8f0' }}>
                     <div>
@@ -16216,8 +16225,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         Cocok untuk usaha rintisan yang baru memulai digitalisasi produk &amp; katalog online.
                       </p>
                       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', color: '#334155' }}>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Maksimal 15 item produk</li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> 100 MB Storage &amp; 5 foto/item</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Maksimal {freePlan?.max_items || 15} item produk</li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> 100 MB Storage &amp; {freeMaxPhotos} foto/item</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Halaman "Tentang Kami" profil bisnis</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> Tautan toko kustom (catavor.com/toko)</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Check size={16} style={{ color: '#16a34a' }} /> WhatsApp Direct Order</li>
@@ -16239,15 +16248,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pro Starter</span>
                       </div>
                       <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', margin: '0.75rem 0 1rem 0', display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                        <span style={{ color: '#0284c7' }}>Rp 30.000</span>
+                        <span style={{ color: '#0284c7' }}>Rp {starterPrice.toLocaleString('id-ID')}</span>
                         <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>/ bulan</span>
                       </div>
                       <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem', lineHeight: 1.5 }}>
                         Untuk toko aktif &amp; UKM berkembang dengan kuota item besar &amp; branding mandiri.
                       </p>
                       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', color: '#0f172a' }}>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>150 item produk aktif</strong></li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>2 GB Storage &amp; 8 foto/item</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>{starterPlan?.max_items || 150} item produk aktif</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>2 GB Storage &amp; {starterMaxPhotos} foto/item</strong></li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> Lencana Toko Terverifikasi</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> Prioritas Pencarian Platform</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#0284c7' }} /> <strong>100% Bebas Watermark</strong></li>
@@ -16261,15 +16270,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
 
                   {/* Pro Business Plan Card */}
                   <div className="portal-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '2px solid #f59e0b', background: '#ffffff', boxShadow: '0 20px 40px -10px rgba(245, 158, 11, 0.2)', position: 'relative', borderRadius: '1rem' }}>
-                    <div style={{ position: 'absolute', top: '-0.75rem', right: '1.5rem', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000', fontSize: '0.68rem', fontWeight: 900, padding: '0.2rem 0.75rem', borderRadius: '999px' }}>
-                      👑 UNLIMITED + DOMAIN
+                    <div style={{ position: 'absolute', top: '-0.75rem', right: '1.5rem', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: '#000000', fontSize: '0.68rem', fontWeight: 900, padding: '0.2rem 0.75rem', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Crown size={12} /> <span>UNLIMITED + DOMAIN</span>
                     </div>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pro Bisnis</span>
                       </div>
                       <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', margin: '0.75rem 0 1rem 0', display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                        <span style={{ color: '#d97706' }}>Rp 129.000</span>
+                        <span style={{ color: '#d97706' }}>Rp {bizPrice.toLocaleString('id-ID')}</span>
                         <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>/ bulan</span>
                       </div>
                       <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: '1.25rem', lineHeight: 1.5 }}>
@@ -16277,7 +16286,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       </p>
                       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', color: '#0f172a' }}>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> <strong>Unlimited Produk &amp; Jasa</strong></li>
-                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> <strong>10 GB Storage &amp; 10 foto/item</strong></li>
+                        <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> <strong>10 GB Storage &amp; {bizMaxPhotos} foto/item</strong></li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> <strong>Custom Domain (toko.com)</strong></li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> Lencana Toko Terverifikasi</li>
                         <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><CheckCheck size={18} style={{ color: '#d97706' }} /> Prioritas VIP Support 24/7</li>
@@ -16288,6 +16297,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       <ArrowRight size={16} />
                     </button>
                   </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </section>
 
@@ -16815,7 +16827,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.4rem', display: 'block' }}>Kata Sandi Akun *</label>
                       <input 
                         type="password" 
-                        placeholder="Minimal 6 karakter" 
+                        placeholder="Minimal 10 karakter" 
                         value={registerForm.password} 
                         onChange={(e) => {
                           setRegisterForm({ ...registerForm, password: e.target.value });
@@ -20092,17 +20104,21 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         <h1 className="desktop-store-title" style={{ margin: 0 }}>
                           {settings.store_title || 'Katalog Resmi'}
                         </h1>
-                        {settings.plan === 'pro_business' && (
+                        {(settings.has_verified_badge || settings.plan === 'pro_business' || settings.plan === 'pro_starter') && (
                           <span style={{
                             fontSize: '0.72rem',
                             fontWeight: 800,
                             padding: '0.15rem 0.55rem',
                             borderRadius: '6px',
-                            backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                            color: '#f59e0b',
-                            border: '1px solid rgba(245, 158, 11, 0.3)'
+                            backgroundColor: settings.plan === 'pro_business' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(2, 132, 199, 0.15)',
+                            color: settings.plan === 'pro_business' ? '#f59e0b' : '#0284c7',
+                            border: settings.plan === 'pro_business' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(2, 132, 199, 0.3)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
                           }}>
-                            PRO BISNIS
+                            <ShieldCheck size={12} />
+                            <span>{settings.plan === 'pro_business' ? 'TERVERIFIKASI PRO BISNIS' : 'TERVERIFIKASI PRO'}</span>
                           </span>
                         )}
                       </div>
@@ -28579,18 +28595,18 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                       fontSize: '0.58rem', 
                                       padding: '0.08rem 0.42rem', 
                                       borderRadius: '4px', 
-                                      background: selectedTicket.store.plan === 'enterprise' 
-                                        ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' 
-                                        : selectedTicket.store.plan === 'pro' 
-                                          ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                                      background: ['enterprise', 'pro_business'].includes(selectedTicket.store.plan || '')
+                                        ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                                        : ['pro', 'pro_starter'].includes(selectedTicket.store.plan || '')
+                                          ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' 
                                           : 'rgba(148, 163, 184, 0.2)', 
-                                      color: selectedTicket.store.plan === 'enterprise' || selectedTicket.store.plan === 'pro' ? '#ffffff' : 'var(--text-secondary)',
+                                      color: ['enterprise', 'pro_business', 'pro', 'pro_starter'].includes(selectedTicket.store.plan || '') ? '#ffffff' : 'var(--text-secondary)',
                                       fontWeight: 800,
                                       letterSpacing: '0.04em',
-                                      boxShadow: selectedTicket.store.plan === 'enterprise' 
-                                        ? '0 1px 3px rgba(124, 58, 237, 0.3)' 
-                                        : selectedTicket.store.plan === 'pro' 
-                                          ? '0 1px 3px rgba(217, 119, 6, 0.35)' 
+                                      boxShadow: ['enterprise', 'pro_business'].includes(selectedTicket.store.plan || '')
+                                        ? '0 1px 3px rgba(217, 119, 6, 0.35)' 
+                                        : ['pro', 'pro_starter'].includes(selectedTicket.store.plan || '')
+                                          ? '0 1px 3px rgba(2, 132, 199, 0.3)' 
                                           : 'none'
                                     }}>
                                        {String(selectedTicket.store.plan || 'FREE').toUpperCase()}
@@ -29732,6 +29748,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   />
                   <MerchantAdsView
                     device="desktop"
+                    isDark={themeMode === 'dark'}
                     token={token}
                     storeSlug={storeSlug}
                     products={filteredFaunas as any}
