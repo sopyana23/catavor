@@ -238,7 +238,8 @@ export const App: React.FC = () => {
   });
 
   // Store Profile & Settings (Cached / Live)
-  const [storeInfo, setStoreInfo] = useState<{ title?: string; logo_url?: string; theme?: string } | null>(() => {
+  const [platformSettings, setPlatformSettings] = useState<Record<string, any>>({});
+  const [storeInfo, setStoreInfo] = useState<{ title?: string; logo_url?: string; theme?: string; plan?: string } | null>(() => {
     if (typeof localStorage !== 'undefined') {
       try {
         const raw = localStorage.getItem('catavor_settings');
@@ -363,6 +364,7 @@ export const App: React.FC = () => {
           const data = await res.json();
           const s = data.data || data;
           if (s) {
+            setPlatformSettings(s);
             // Identitas mitra escrow dipakai landing publik (kartu Rekber).
             // Desktop & mobile sudah memakainya; tablet belum, sehingga
             // landing tablet menampilkan ikon generik alih-alih logo mitra.
@@ -375,9 +377,6 @@ export const App: React.FC = () => {
               initGoogleAnalytics(s.ga_measurement_id, isGaEnabled);
               trackPageView(window.location.pathname + window.location.search);
             }
-            syncGoogleAdSenseHead(s, {
-              isPublicCatalog: Boolean(activeSlug),
-            });
           }
         }
       } catch (err) {
@@ -387,9 +386,29 @@ export const App: React.FC = () => {
     fetchPlatformSettings();
   }, []);
 
+  // Reaktif sinkronkan Google AdSense di head setiap rute, status admin, atau plan toko berubah
+  useEffect(() => {
+    const isAdminRoute =
+      currentPath === '/admin' ||
+      currentPath.startsWith('/admin/') ||
+      currentPath.includes('/admin') ||
+      currentPath.startsWith('/platform') ||
+      currentPath.startsWith('/ops');
+    syncGoogleAdSenseHead(platformSettings, {
+      storePlan: storeInfo?.plan,
+      isAdminView: isAdminRoute,
+      isPublicCatalog: Boolean(activeSlug) && !isAdminRoute,
+      pathname: currentPath,
+    });
+  }, [platformSettings, storeInfo?.plan, activeSlug, currentPath]);
+
   // Fetch store profile and dynamic theme when activeSlug is available
   useEffect(() => {
-    if (!activeSlug) return;
+    if (!activeSlug) {
+      setStoreInfo(null);
+      return;
+    }
+    setStoreInfo(null);
     let isMounted = true;
     const fetchStoreProfile = async () => {
       try {
@@ -401,7 +420,8 @@ export const App: React.FC = () => {
             setStoreInfo({
               title: st.store_title || st.name,
               logo_url: st.store_logo_url,
-              theme: st.store_theme
+              theme: st.store_theme,
+              plan: st.plan || 'free',
             });
             if (st.store_theme) {
               setStoreTheme(st.store_theme);
@@ -2654,7 +2674,23 @@ export const App: React.FC = () => {
           }}
         />
       )}
-      <CookieConsentBanner />
+      <CookieConsentBanner
+        settings={platformSettings}
+        storePlan={storeInfo?.plan}
+        isAdminView={
+          currentPath === '/admin' ||
+          currentPath.startsWith('/admin/') ||
+          currentPath.includes('/admin') ||
+          currentPath.startsWith('/platform') ||
+          currentPath.startsWith('/ops')
+        }
+        isPublicCatalog={
+          Boolean(activeSlug) &&
+          !currentPath.includes('/admin') &&
+          !currentPath.startsWith('/platform') &&
+          !currentPath.startsWith('/ops')
+        }
+      />
       <TabletGlobalSecurityModal />
     </>
   );

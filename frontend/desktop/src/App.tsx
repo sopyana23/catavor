@@ -178,6 +178,7 @@ import { initGoogleAdSense, syncGoogleAdSenseHead } from './utils/googleAdSense'
 import { CookieConsentBanner } from '../../shared/monetization/CookieConsentBanner'
 import { PublicFeaturedShowcase } from '../../shared/monetization/PublicFeaturedShowcase'
 import { MerchantAdsView } from '../../shared/monetization/MerchantAdsView'
+import { FEATURE_MERCHANT_SPONSORED_ADS_ENABLED } from '../../shared/monetization/featureFlags'
 import { PendingPaymentBanner } from '../../shared/finance/PendingPaymentBanner'
 import { SwipeableToast } from './components/SwipeableToast'
 import { RichTextarea, FormattedText, ExternalLinkWarningModal, type RichTextareaProps } from './components/RichTextarea';
@@ -5357,11 +5358,6 @@ Terima kasih.`;
             initGoogleAnalytics(settingsData.ga_measurement_id, isGaEnabled);
             trackPageView(window.location.pathname + window.location.search);
           }
-          syncGoogleAdSenseHead(settingsData, {
-            storePlan: settings.plan || 'free',
-            isAdminView: view === 'admin',
-            isPublicCatalog: view !== 'admin' && Boolean(storeSlug),
-          });
         }
       }
     } catch (err) {
@@ -5796,10 +5792,21 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
     }
     return 'catalog';
   });
+  // Reaktif sinkronkan Google AdSense di head hanya pada katalog publik paket Free
+  useEffect(() => {
+    const isAdminOrSystemView = view === 'admin';
+    syncGoogleAdSenseHead(platformSettings, {
+      storePlan: settings?.plan,
+      isAdminView: isAdminOrSystemView,
+      isPublicCatalog: view === 'catalog' && Boolean(storeSlug),
+      pathname: typeof window !== 'undefined' ? window.location.pathname : '',
+    });
+  }, [platformSettings, settings?.plan, view, storeSlug]);
+
   const [adminTab, setAdminTab] = useState<'items' | 'categories' | 'analytics' | 'ads' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal' | 'share'>(() => {
     if (typeof window !== 'undefined') {
       const savedTab = sessionStorage.getItem('catavor_desktop_admin_tab');
-      if (savedTab && ['items', 'categories', 'analytics', 'ads', 'notifications', 'settings', 'profile', 'policies', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(savedTab)) {
+      if (savedTab && ['items', 'categories', 'analytics', ...(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? ['ads'] : []), 'notifications', 'settings', 'profile', 'policies', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(savedTab)) {
         sessionStorage.removeItem('catavor_desktop_admin_tab');
         return savedTab as any;
       }
@@ -5850,18 +5857,18 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
       }
       if (parts[0] === 'admin' && parts[1]) {
         const sub = parts[1];
-        if (['items', 'categories', 'analytics', 'ads', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
+        if (['items', 'categories', 'analytics', ...(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? ['ads'] : []), 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
           return sub as any;
         }
       }
       if (parts.length >= 3 && parts[1] === 'admin') {
         const sub = parts[2];
-        if (['items', 'categories', 'analytics', 'ads', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
+        if (['items', 'categories', 'analytics', ...(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? ['ads'] : []), 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'audit_logs', 'rbac', 'portal', 'share'].includes(sub)) {
           return sub as any;
         }
       }
       if (['analytics', 'analisis'].includes(rawTabParam)) return 'analytics';
-      if (['ads', 'promotions', 'promosi', 'iklan'].includes(rawTabParam)) return 'ads';
+      if (FEATURE_MERCHANT_SPONSORED_ADS_ENABLED && ['ads', 'promotions', 'promosi', 'iklan'].includes(rawTabParam)) return 'ads';
       if (['settings', 'pengaturan'].includes(rawTabParam)) return 'settings';
       if (['profile', 'profil'].includes(rawTabParam)) return 'profile';
       if (['policies', 'kebijakan'].includes(rawTabParam)) return 'policies';
@@ -10037,7 +10044,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             fetchAnalytics(analyticsPeriod);
           }
           else if (pageSub === 'ads' || pageSub === 'promotions' || pageSub === 'promosi' || pageSub === 'iklan') {
-            setAdminTab('ads');
+            setAdminTab(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? 'ads' : 'items');
           }
           else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket' || pageSub === 'orders' || pageSub === 'riwayat' || pageSub === 'tagihan') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan' || pageSub === 'support') {
@@ -10123,7 +10130,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             fetchAnalytics(analyticsPeriod);
           }
           else if (pageSub === 'ads' || pageSub === 'promotions' || pageSub === 'promosi' || pageSub === 'iklan') {
-            setAdminTab('ads');
+            setAdminTab(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? 'ads' : 'items');
           }
           else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket' || pageSub === 'orders' || pageSub === 'riwayat' || pageSub === 'tagihan') setAdminTab('subscription');
           else if (pageSub === 'help' || pageSub === 'bantuan') {
@@ -10435,7 +10442,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
               setView('admin');
               fetchAnalytics(analyticsPeriod);
             } else if (pageSub === 'ads' || pageSub === 'promotions' || pageSub === 'promosi' || pageSub === 'iklan') {
-              setAdminTab('ads');
+              setAdminTab(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? 'ads' : 'items');
               setView('admin');
             } else if (pageSub === 'subscription' || pageSub === 'langganan' || pageSub === 'paket') {
               setAdminTab('subscription');
@@ -15406,7 +15413,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
     return (
       <>
         {/* Floating Toast Notification Desktop Portal */}
-        <CookieConsentBanner settings={{ ...platformSettings, ...settings }} />
+        <CookieConsentBanner
+          settings={{ ...platformSettings, ...settings }}
+          storePlan={settings?.plan}
+          isAdminView={false}
+          isPublicCatalog={false}
+        />
       <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />
 
         <div className="portal-container" style={{ minHeight: '100vh', color: '#0f172a', fontFamily: "'Plus Jakarta Sans', sans-serif", position: 'relative' }}>
@@ -18977,9 +18989,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 {/* Important Information with Dynamic Contextual Action Buttons */}
                 <ProductImportantInfoSection item={selectedFauna} isMobile={false} />
 
-                {view !== 'admin' && (
+                {view === 'catalog' && Boolean(storeSlug) && (
                   <AdSenseUnit
-                    storePlan={settings.plan || 'free'}
+                    storePlan={settings?.plan}
+                    isAdminView={false}
+                    isPublicCatalog={true}
                     slotType="product_detail"
                     format="horizontal"
                     settings={{ ...platformSettings, ...settings }}
@@ -20928,10 +20942,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       </div>
                     ) : (
                       <>
-                        {/* Google AdSense Slim Header Leaderboard (Free Tier only) */}
+                        {/* Google AdSense Slim Header Leaderboard (Public Catalog Free Tier only) */}
                         <div style={{ maxWidth: '970px', margin: '0 auto 0.75rem auto', width: '100%' }}>
                           <AdSenseUnit
-                            storePlan={settings.plan || 'free'}
+                            storePlan={settings?.plan}
+                            isAdminView={false}
+                            isPublicCatalog={Boolean(storeSlug)}
                             slotType="header"
                             settings={{ ...platformSettings, ...settings }}
                             onUpgradeClick={() => setShowSubscriptionModal(true)}
@@ -21273,7 +21289,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         {faunaIdx === 3 && filteredFaunas.length >= 4 && (
                           <div style={{ gridColumn: '1 / -1' }}>
                             <AdSenseUnit
-                              storePlan={settings.plan || 'free'}
+                              storePlan={settings?.plan}
+                              isAdminView={false}
+                              isPublicCatalog={Boolean(storeSlug)}
                               slotType="infeed"
                               settings={{ ...platformSettings, ...settings }}
                               onUpgradeClick={() => setShowSubscriptionModal(true)}
@@ -21284,9 +21302,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     ))}
                   </div>
 
-                  {/* Google AdSense Bottom Banner (Desktop Free Tier only) */}
+                  {/* Google AdSense Bottom Banner (Public Catalog Free Tier only) */}
                   <AdSenseUnit
-                    storePlan={settings.plan || 'free'}
+                    storePlan={settings?.plan}
+                    isAdminView={false}
+                    isPublicCatalog={Boolean(storeSlug)}
                     slotType="bottom"
                     settings={{ ...platformSettings, ...settings }}
                     onUpgradeClick={() => setShowSubscriptionModal(true)}
@@ -23677,7 +23697,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 />
               )}
 
-              {adminTab === 'ads' && (
+              {FEATURE_MERCHANT_SPONSORED_ADS_ENABLED && adminTab === 'ads' && (
                 <div className="animate-fade-in" style={{ padding: '0.25rem 0 2rem 0' }}>
                   <MerchantAdsView
                     device="desktop"
@@ -34804,7 +34824,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
           onStepUpVerify={mfaStepUpAction.execute}
         />
       )}
-      <CookieConsentBanner settings={{ ...platformSettings, ...settings }} />
+      <CookieConsentBanner
+        settings={{ ...platformSettings, ...settings }}
+        storePlan={settings?.plan}
+        isAdminView={view === 'admin'}
+        isPublicCatalog={view === 'catalog' && Boolean(storeSlug)}
+      />
       <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />
     </>
   )

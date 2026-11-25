@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NotificationHeaderPopover } from './NotificationHeaderPopover';
+import { FEATURE_MERCHANT_SPONSORED_ADS_ENABLED } from '../../../shared/monetization/featureFlags';
 import {
   PackageCheck,
   BarChart3,
@@ -214,11 +215,11 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
           label: 'Statistik & Trafik',
           icon: <BarChart3 size={18} />
         },
-        {
-          id: 'ads',
+        ...(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? [{
+          id: 'ads' as const,
           label: 'Promosi & Iklan',
           icon: <Megaphone size={18} />
-        }
+        }] : [])
       ]
     },
     {

@@ -25,6 +25,7 @@ import {
   isValidGaMeasurementId,
   normalizeAdSenseClientId,
 } from './adsenseRuntime';
+import { FEATURE_MERCHANT_SPONSORED_ADS_ENABLED } from './featureFlags';
 
 export interface AdminMonetizationConsoleProps {
   token?: string | null;
@@ -268,7 +269,9 @@ export const AdminMonetizationConsole: React.FC<AdminMonetizationConsoleProps> =
 
   useEffect(() => {
     loadSettings();
-    loadSponsoredOps(1, 'all', '');
+    if (FEATURE_MERCHANT_SPONSORED_ADS_ENABLED) {
+      loadSponsoredOps(1, 'all', '');
+    }
   }, [loadSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -496,7 +499,11 @@ export const AdminMonetizationConsole: React.FC<AdminMonetizationConsoleProps> =
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: device === 'mobile' ? '1fr' : 'repeat(3, minmax(0, 1fr))',
+          gridTemplateColumns: device === 'mobile'
+            ? '1fr'
+            : FEATURE_MERCHANT_SPONSORED_ADS_ENABLED
+              ? 'repeat(3, minmax(0, 1fr))'
+              : 'repeat(2, minmax(0, 1fr))',
           gap: '0.45rem',
           padding: '0.35rem',
           borderRadius: '0.85rem',
@@ -507,7 +514,9 @@ export const AdminMonetizationConsole: React.FC<AdminMonetizationConsoleProps> =
         {[
           { id: 'adsense', label: 'Google AdSense', Icon: DollarSign },
           { id: 'analytics', label: 'Google Analytics 4', Icon: BarChart3 },
-          { id: 'sponsored', label: `Iklan Internal${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ''}`, Icon: Megaphone },
+          ...(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED
+            ? [{ id: 'sponsored', label: `Iklan Internal${pendingOrders.length > 0 ? ` (${pendingOrders.length})` : ''}`, Icon: Megaphone }]
+            : []),
         ].map(({ id, label, Icon }) => {
           const active = subTab === id;
           return (

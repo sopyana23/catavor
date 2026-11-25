@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Sparkles, Store } from 'lucide-react';
 import { formatRupiah } from './adsenseRuntime';
+import { FEATURE_MERCHANT_SPONSORED_ADS_ENABLED } from './featureFlags';
 
 export interface PublicFeaturedShowcaseProps {
   device?: 'desktop' | 'tablet' | 'mobile';
@@ -105,10 +106,13 @@ export const PublicFeaturedShowcase: React.FC<PublicFeaturedShowcaseProps> = ({
   }, []);
 
   useEffect(() => {
+    if (!FEATURE_MERCHANT_SPONSORED_ADS_ENABLED) {
+      return;
+    }
     fetchShowcase(sector);
   }, [sector, fetchShowcase]);
 
-  if (!initialHasContent && items.length === 0) {
+  if (!FEATURE_MERCHANT_SPONSORED_ADS_ENABLED || (!initialHasContent && items.length === 0)) {
     return null;
   }
 

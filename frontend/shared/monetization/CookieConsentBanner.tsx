@@ -3,18 +3,25 @@ import { ShieldCheck } from 'lucide-react';
 import {
   type CookieConsentChoice,
   getStoredConsent,
+  isPublicCatalogAdAllowed,
   isRestrictedAdRoute,
   setStoredConsent,
 } from './adsenseRuntime';
 
 export interface CookieConsentBannerProps {
   settings?: Record<string, any> | null;
+  storePlan?: string | null;
+  isAdminView?: boolean;
+  isPublicCatalog?: boolean;
   isDark?: boolean;
   onChoiceSaved?: (choice: CookieConsentChoice) => void;
 }
 
 export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({
   settings,
+  storePlan,
+  isAdminView = false,
+  isPublicCatalog = false,
   isDark = false,
   onChoiceSaved,
 }) => {
@@ -34,11 +41,18 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({
         : null;
   const adsOn = effectiveSettings?.ads_enabled === '1' || effectiveSettings?.ads_enabled === 'true';
   const gaOn = effectiveSettings?.ga_enabled === '1' || effectiveSettings?.ga_enabled === 'true';
+  const adsAllowedHere =
+    adsOn &&
+    isPublicCatalogAdAllowed({
+      storePlan,
+      isAdminView,
+      isPublicCatalog,
+    });
 
-  if ((!adsOn && !gaOn) || choice !== null) {
+  if ((!adsAllowedHere && !gaOn) || choice !== null) {
     return null;
   }
-  if (typeof window !== 'undefined' && isRestrictedAdRoute(window.location.pathname)) {
+  if (isAdminView || (typeof window !== 'undefined' && isRestrictedAdRoute(window.location.pathname))) {
     return null;
   }
 

@@ -95,6 +95,7 @@ import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { TabletAnalyticsView } from './TabletAnalyticsView';
 import { TabletSubscriptionModal, TabletQuotaWidget, type StoreQuotaData } from './TabletSubscriptionModal';
 import { MerchantAdsView } from '../../../shared/monetization/MerchantAdsView';
+import { FEATURE_MERCHANT_SPONSORED_ADS_ENABLED } from '../../../shared/monetization/featureFlags';
 import { TabletConnectedDevicesView } from './TabletConnectedDevicesView';
 import { MFASettingsView } from './MFASettingsView';
 import { MFAChallengeView, type MFAChallengeFactor } from './MFAChallengeView';
@@ -400,14 +401,14 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         return 'profile';
       }
       if (['ads', 'promotions', 'promosi', 'iklan'].includes(rawTab)) {
-        return 'ads';
+        return FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? 'ads' : 'items';
       }
       const v = (params.get('view') || params.get('sub') || '').toLowerCase();
       if (['orders', 'riwayat', 'tagihan', 'billing'].includes(v) || params.get('order') || params.get('proof')) {
         return 'subscription';
       }
       const validTabs: TabletMerchantTab[] = [
-        'items', 'categories', 'analytics', 'ads', 'subscription', 'settings',
+        'items', 'categories', 'analytics', ...(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? ['ads' as TabletMerchantTab] : []), 'subscription', 'settings',
         'profile', 'notifications', 'help', 'policies', 'share'
       ];
       if (rawTab && validTabs.includes(rawTab as TabletMerchantTab)) {
@@ -2027,7 +2028,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         tabParam = 'subscription';
       }
       const validTabs: TabletMerchantTab[] = [
-        'items', 'categories', 'analytics', 'ads', 'subscription', 'settings',
+        'items', 'categories', 'analytics', ...(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? ['ads' as TabletMerchantTab] : []), 'subscription', 'settings',
         'profile', 'notifications', 'help', 'policies', 'share'
       ];
       const activeT = (tabParam && validTabs.includes(tabParam)) ? tabParam : 'items';
@@ -3946,7 +3947,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       title: 'Performa & Bisnis',
       items: [
         { key: 'analytics', label: 'Statistik & Trafik', icon: BarChart3 },
-        { key: 'ads', label: 'Promosi & Iklan', icon: Megaphone }
+        ...(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? [{ key: 'ads', label: 'Promosi & Iklan', icon: Megaphone }] : [])
       ]
     },
     {
@@ -9507,7 +9508,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           />
         )}
 
-        {activeTab === 'ads' && (
+        {FEATURE_MERCHANT_SPONSORED_ADS_ENABLED && activeTab === 'ads' && (
           <div style={{ padding: isNarrowScreen ? '1.15rem' : '2rem', maxWidth: '1040px', margin: '0 auto', width: '100%', boxSizing: 'border-box', overflowY: 'auto', height: '100vh' }}>
             <MerchantAdsView
               device="tablet"

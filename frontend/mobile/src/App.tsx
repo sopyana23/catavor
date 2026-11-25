@@ -164,6 +164,7 @@ import { initGoogleAdSense, syncGoogleAdSenseHead } from './utils/googleAdSense'
 import { CookieConsentBanner } from '../../shared/monetization/CookieConsentBanner'
 import { PublicFeaturedShowcase } from '../../shared/monetization/PublicFeaturedShowcase'
 import { MerchantAdsView } from '../../shared/monetization/MerchantAdsView'
+import { FEATURE_MERCHANT_SPONSORED_ADS_ENABLED } from '../../shared/monetization/featureFlags'
 import { PendingPaymentBanner } from '../../shared/finance/PendingPaymentBanner'
 import { ConnectedDevicesView } from './components/ConnectedDevicesView'
 import { MFASettingsView } from './components/MFASettingsView'
@@ -5295,11 +5296,6 @@ Terima kasih.`;
             initGoogleAnalytics(settingsData.ga_measurement_id, isGaEnabled);
             trackPageView(window.location.pathname + window.location.search);
           }
-          syncGoogleAdSenseHead(settingsData, {
-            storePlan: settings.plan || 'free',
-            isAdminView: activeTab === 'admin',
-            isPublicCatalog: activeTab !== 'admin' && Boolean(storeSlug),
-          });
         }
       }
     } catch (err) {
@@ -5952,6 +5948,16 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
     }
     return false;
   }, [storeSlug, settings.dormancy_status, settings.is_suspended, userStores]);
+  // Reaktif sinkronkan Google AdSense di head hanya pada katalog publik paket Free
+  useEffect(() => {
+    syncGoogleAdSenseHead(platformSettings, {
+      storePlan: settings?.plan,
+      isAdminView: activeTab === 'admin',
+      isPublicCatalog: view === 'tabs' && activeTab !== 'admin' && Boolean(storeSlug),
+      pathname: typeof window !== 'undefined' ? window.location.pathname : '',
+    });
+  }, [platformSettings, settings?.plan, view, activeTab, storeSlug]);
+
   const [mobileSuspendedView, setMobileSuspendedView] = useState<'hub' | 'chat'>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
@@ -6024,24 +6030,24 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
         return 'rbac';
       }
       if (path.includes('/admin/ads') || ['ads', 'promotions', 'promosi', 'iklan'].includes(rawTabParam) || ['ads', 'promotions', 'promosi', 'iklan'].includes(rawSubParam)) {
-        return 'ads';
+        return FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? 'ads' : 'menu';
       }
       if (path.includes('/admin/items') || ['items', 'produk', 'katalog'].includes(rawTabParam) || ['items', 'produk', 'katalog'].includes(rawSubParam)) {
         return 'items';
       }
       if (parts.length >= 3 && parts[1] === 'admin') {
         const sub = parts[2];
-        if (['items', 'analytics', 'ads', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+        if (['items', 'analytics', ...(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? ['ads'] : []), 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
           return sub as any;
         }
       }
       if (parts.length === 2 && parts[0] === 'admin') {
         const sub = parts[1];
-        if (['items', 'analytics', 'ads', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
+        if (['items', 'analytics', ...(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? ['ads'] : []), 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(sub)) {
           return sub as any;
         }
       }
-      if (rawSubParam && ['items', 'analytics', 'ads', 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(rawSubParam)) {
+      if (rawSubParam && ['items', 'analytics', ...(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? ['ads'] : []), 'settings', 'profile', 'policies', 'notifications', 'help', 'subscription', 'share', 'audit_logs', 'rbac', 'portal'].includes(rawSubParam)) {
         return rawSubParam as any;
       }
     }
@@ -10386,7 +10392,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
             setAdminSubTab('analytics');
             setView('tabs');
           } else if (pageSub === 'ads' || pageSub === 'promotions' || pageSub === 'promosi' || pageSub === 'iklan') {
-            setAdminSubTab('ads');
+            setAdminSubTab(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? 'ads' : 'menu');
             setView('tabs');
           } else if (pageSub === 'profile') {
             const profileSub = urlParams.get('sub') || subSub;
@@ -10783,7 +10789,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
               setView('tabs');
               fetchAnalytics(analyticsPeriod);
             } else if (pageSub === 'ads' || pageSub === 'promotions' || pageSub === 'promosi' || pageSub === 'iklan') {
-              setAdminSubTab('ads');
+              setAdminSubTab(FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? 'ads' : 'menu');
               setView('tabs');
             } else if (pageSub === 'profile') {
               const profileSub = urlParams.get('sub');
@@ -20614,10 +20620,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
             {/* Important Information with Dynamic Contextual Action Buttons */}
             <ProductImportantInfoSection item={selectedFauna} isMobile={true} />
 
-            {activeTab !== 'admin' && (
+            {activeTab !== 'admin' && Boolean(storeSlug) && (
               <div style={{ padding: '0.5rem 1rem' }}>
                 <AdSenseUnit
-                  storePlan={settings.plan || 'free'}
+                  storePlan={settings?.plan}
+                  isAdminView={false}
+                  isPublicCatalog={true}
                   slotType="product_detail"
                   settings={{ ...platformSettings, ...settings }}
                 />
@@ -25211,7 +25219,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 ) : (
                                   <>
                                     <AdSenseUnit
-                                      storePlan={settings.plan || 'free'}
+                                      storePlan={settings?.plan}
+                                      isAdminView={false}
+                                      isPublicCatalog={Boolean(storeSlug)}
                                       slotType="header"
                                       settings={{ ...platformSettings, ...settings }}
                                     />
@@ -25421,7 +25431,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                           {itemIdx === 3 && (
                                             <div style={{ gridColumn: '1 / -1' }}>
                                               <AdSenseUnit
-                                                storePlan={settings.plan || 'free'}
+                                                storePlan={settings?.plan}
+                                                isAdminView={false}
+                                                isPublicCatalog={Boolean(storeSlug)}
                                                 slotType="infeed"
                                                 settings={{ ...platformSettings, ...settings }}
                                                 onUpgradeClick={() => {
@@ -25437,9 +25449,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       ))}
                                     </div>
 
-                                    {/* Google AdSense Bottom Banner (Free Tier only) */}
+                                    {/* Google AdSense Bottom Banner (Public Catalog Free Tier only) */}
                                     <AdSenseUnit
-                                      storePlan={settings.plan || 'free'}
+                                      storePlan={settings?.plan}
+                                      isAdminView={false}
+                                      isPublicCatalog={Boolean(storeSlug)}
                                       slotType="bottom"
                                       settings={{ ...platformSettings, ...settings }}
                                       onUpgradeClick={() => {
@@ -26954,7 +26968,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                         MENU &amp; FITUR KATALOG
                                       </span>
                                       <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                                        9 Fitur Pintar
+                                        {FEATURE_MERCHANT_SPONSORED_ADS_ENABLED ? '9 Fitur Pintar' : '8 Fitur Pintar'}
                                       </span>
                                     </div>
 
@@ -27002,41 +27016,43 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       </button>
 
                                       {/* 2. Promosi & Iklan */}
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setAdminSubTab('ads');
-                                          const slug = getStoreSlug();
-                                          if (slug) window.history.pushState({}, '', `/${slug}/admin/ads`);
-                                        }}
-                                        style={{
-                                          display: 'flex',
-                                          flexDirection: 'column',
-                                          alignItems: 'center',
-                                          gap: '0.35rem',
-                                          background: 'none',
-                                          border: 'none',
-                                          padding: 0,
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        <div style={{
-                                          width: '44px',
-                                          height: '44px',
-                                          borderRadius: '0.75rem',
-                                          backgroundColor: 'var(--bg-deep)',
-                                          border: '1px solid var(--border-light)',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          color: 'var(--primary)'
-                                        }}>
-                                          <Megaphone size={20} />
-                                        </div>
-                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
-                                          Promosi
-                                        </span>
-                                      </button>
+                                      {FEATURE_MERCHANT_SPONSORED_ADS_ENABLED && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setAdminSubTab('ads');
+                                            const slug = getStoreSlug();
+                                            if (slug) window.history.pushState({}, '', `/${slug}/admin/ads`);
+                                          }}
+                                          style={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            gap: '0.35rem',
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: 0,
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          <div style={{
+                                            width: '44px',
+                                            height: '44px',
+                                            borderRadius: '0.75rem',
+                                            backgroundColor: 'var(--bg-deep)',
+                                            border: '1px solid var(--border-light)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: 'var(--primary)'
+                                          }}>
+                                            <Megaphone size={20} />
+                                          </div>
+                                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                                            Promosi
+                                          </span>
+                                        </button>
+                                      )}
 
                                       {/* 2. Langganan */}
                                       <button
@@ -33331,7 +33347,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                 </div>
                               )}
 
-                              {adminSubTab === 'ads' && (
+                              {FEATURE_MERCHANT_SPONSORED_ADS_ENABLED && adminSubTab === 'ads' && (
                                 <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', width: '100%', paddingBottom: '30px' }}>
                                   <MerchantAdsView
                                     device="mobile"
@@ -37508,7 +37524,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
           </div>
         </div>
       )}
-      <CookieConsentBanner settings={{ ...platformSettings, ...settings }} />
+      <CookieConsentBanner
+        settings={{ ...platformSettings, ...settings }}
+        storePlan={settings?.plan}
+        isAdminView={activeTab === 'admin'}
+        isPublicCatalog={view === 'tabs' && activeTab !== 'admin' && Boolean(storeSlug)}
+      />
     </>
   )
 }

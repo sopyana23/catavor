@@ -84,18 +84,20 @@ export function isPublicCatalogAdAllowed(options?: {
   isPublicCatalog?: boolean;
 }): boolean {
   if (options?.isAdminView) return false;
+  // Fail-closed: hanya katalog publik eksplisit & paket 'free' yang terverifikasi.
+  // Plan yang belum termuat ('') maupun paket berbayar (pro_starter / pro_business) dilarang menampilkan iklan.
+  if (options?.isPublicCatalog !== true) {
+    return false;
+  }
   const plan = String(options?.storePlan ?? '').trim().toLowerCase();
-  if (plan !== '' && plan !== 'free') {
+  if (plan !== 'free') {
     return false;
   }
   const path = options?.pathname ?? (typeof window !== 'undefined' ? window.location.pathname : '');
   if (isRestrictedAdRoute(path)) {
     return false;
   }
-  if (options?.isPublicCatalog === false) {
-    return false;
-  }
-  if ((path === '/' || path === '') && options?.isPublicCatalog !== true) {
+  if (path === '/' || path === '') {
     return false;
   }
   return true;
@@ -183,6 +185,9 @@ function removeAdSenseFromHead(): void {
   });
   const metas = document.querySelectorAll('meta[name="google-adsense-account"]');
   metas.forEach((m) => m.parentNode?.removeChild(m));
+  // Bersihkan wadah iklan Auto Ads Google jika user berpindah SPA ke admin atau paket Pro
+  const autoAdsNodes = document.querySelectorAll('ins.adsbygoogle-noablate, .google-auto-placed');
+  autoAdsNodes.forEach((n) => n.parentNode?.removeChild(n));
 }
 
 export function syncGoogleAdSenseHead(

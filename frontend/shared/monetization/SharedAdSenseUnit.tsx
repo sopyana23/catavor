@@ -17,6 +17,8 @@ export interface SharedAdSenseUnitProps {
   className?: string;
   isDark?: boolean;
   device?: 'desktop' | 'tablet' | 'mobile';
+  isAdminView?: boolean;
+  isPublicCatalog?: boolean;
   onUpgradeClick?: () => void;
 }
 
@@ -43,6 +45,8 @@ export const SharedAdSenseUnit: React.FC<SharedAdSenseUnitProps> = ({
   className,
   isDark = false,
   device = 'desktop',
+  isAdminView = false,
+  isPublicCatalog = true,
 }) => {
   const insRef = useRef<HTMLModElement | null>(null);
   const pushedRef = useRef(false);
@@ -56,12 +60,13 @@ export const SharedAdSenseUnit: React.FC<SharedAdSenseUnitProps> = ({
     }
   });
 
-  // Strict Policy Enforcement: No dashboard ads, no Paid Tier ads, no restricted routes
+  // Strict Policy Enforcement: No dashboard ads, no Paid Tier ads, no restricted/admin routes
   const policyAllowed =
     slotType !== 'dashboard' &&
     isPublicCatalogAdAllowed({
       storePlan,
-      isPublicCatalog: true,
+      isAdminView,
+      isPublicCatalog,
     });
 
   const adsEnabled = settings?.ads_enabled === '1' || settings?.ads_enabled === 'true';
@@ -124,6 +129,7 @@ export const SharedAdSenseUnit: React.FC<SharedAdSenseUnitProps> = ({
 
     return (
       <div
+        data-testid={`adsense-unit-${slotType}`}
         className={className}
         style={{
           position: 'relative',
@@ -212,6 +218,7 @@ export const SharedAdSenseUnit: React.FC<SharedAdSenseUnitProps> = ({
 
   return (
     <div
+      data-testid={`adsense-unit-${slotType}`}
       className={className}
       style={{
         position: 'relative',
@@ -228,7 +235,7 @@ export const SharedAdSenseUnit: React.FC<SharedAdSenseUnitProps> = ({
     >
       <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
         <span style={{ fontSize: '0.62rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: isDark ? '#94a3b8' : '#64748b' }}>
-          Sponsor
+          Iklan
         </span>
         {slotType === 'bottom' && (
           <button

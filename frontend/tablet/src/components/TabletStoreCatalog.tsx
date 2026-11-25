@@ -1718,7 +1718,9 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
               <ProductImportantInfoSection item={selectedFauna} isMobile={false} />
 
               <AdSenseUnit
-                storePlan={settings?.plan || 'free'}
+                storePlan={settings?.plan}
+                isAdminView={false}
+                isPublicCatalog={true}
                 slotType="product_detail"
                 settings={adSettings}
               />
@@ -3306,7 +3308,9 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                 <>
                   <div style={{ marginBottom: '0.85rem' }}>
                     <AdSenseUnit
-                      storePlan={settings?.plan || 'free'}
+                      storePlan={settings?.plan}
+                      isAdminView={false}
+                      isPublicCatalog={true}
                       slotType="header"
                       settings={adSettings}
                     />
@@ -3555,7 +3559,9 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                     {faunaIdx === 2 && filteredFaunas.length >= 3 && (
                       <div style={{ gridColumn: '1 / -1', margin: '0.5rem 0' }}>
                         <AdSenseUnit
-                          storePlan={settings?.plan || 'free'}
+                          storePlan={settings?.plan}
+                          isAdminView={false}
+                          isPublicCatalog={true}
                           slotType="infeed"
                           settings={adSettings}
                         />
@@ -3570,7 +3576,9 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
             {/* Google AdSense Bottom Banner (Tablet Free Tier only) */}
             <div style={{ marginTop: '1.25rem', marginBottom: '1.25rem' }}>
               <AdSenseUnit
-                storePlan={settings?.plan || 'free'}
+                storePlan={settings?.plan}
+                isAdminView={false}
+                isPublicCatalog={true}
                 slotType="bottom"
                 settings={adSettings}
               />
