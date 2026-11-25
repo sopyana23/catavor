@@ -129,6 +129,11 @@ func (h *SettingHandler) PublicIndex(c *fiber.Ctx) error {
 	}
 
 	h.applyFallbacks(res)
+	for key := range res {
+		if !publicKeys[key] {
+			delete(res, key)
+		}
+	}
 
 	return c.JSON(fiber.Map{
 		"success": true,

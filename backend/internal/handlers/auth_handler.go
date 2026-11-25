@@ -984,14 +984,14 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 		if cleanCoupon != "" {
 			validCoupon, disc, fin, err := services.ValidateCoupon(h.db, cleanCoupon, requestedPlan, origAmount)
-			if err == nil && validCoupon != nil {
-				discountAmount = disc
-				finalAmount = fin
-			} else {
-				// Kupon tidak valid atau kedaluwarsa, abaikan dan gunakan harga normal
-				finalAmount = origAmount
-				cleanCoupon = ""
+			if err != nil || validCoupon == nil {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"success": false,
+					"message": "Kode kupon tidak valid atau tidak dapat digunakan.",
+				})
 			}
+			discountAmount = disc
+			finalAmount = fin
 		} else {
 			finalAmount = origAmount
 		}
@@ -1024,7 +1024,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	if err := h.db.Where("key = ?", "payment_system_mode").First(&modeSetting).Error; err == nil && modeSetting.Value != "" {
 		paymentSystemMode = strings.TrimSpace(strings.ToLower(modeSetting.Value))
 	}
-	if requestedPlan != "free" && finalAmount > 0 && paymentSystemMode == "maintenance" {
+	if requestedPlan != "free" && paymentSystemMode == "maintenance" {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"success": false,
 			"code":    "PAYMENT_GATEWAY_MAINTENANCE",
@@ -1188,26 +1188,57 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		MasterShippingCoverages: datatypes.JSON(defaultShipping),
 	}
 
-	if err := h.db.Create(&newStore).Error; err != nil {
-		if createdNewUser {
-			h.db.Unscoped().Delete(&models.User{}, targetUser.ID)
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal membuat profil toko.",
-		})
-	}
-
-	// If paid plan, record initial SubscriptionOrder
 	var paymentURL string
 	var uniqueCode int
-	if requestedPlan != "free" {
+	var createdSubOrder models.SubscriptionOrder
+
+	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&newStore).Error; err != nil {
+			return err
+		}
+		if requestedPlan == "free" {
+			return nil
+		}
+
+		var redemptionID uint
+		if cleanCoupon != "" {
+			validCoupon, disc, fin, redemption, cErr := services.ValidateAndReserveCouponInTx(tx, cleanCoupon, newStore.ID, targetUser.ID, nil, origAmount)
+			if cErr != nil || validCoupon == nil {
+				return fmt.Errorf("INVALID_COUPON: Kode kupon tidak valid atau tidak dapat digunakan.")
+			}
+			discountAmount = disc
+			finalAmount = fin
+			if redemption != nil {
+				redemptionID = redemption.ID
+			}
+		}
+
 		payMethod := strings.ToLower(strings.TrimSpace(req.PaymentMethod))
-		if payMethod == "" {
+		if payMethod != "qris" && payMethod != "bank" {
 			payMethod = "bank"
 		}
 		if finalAmount == 0 {
 			payMethod = "coupon_free"
+			exp := now.AddDate(0, durationMonths, 0)
+			if err := tx.Model(&newStore).Updates(map[string]interface{}{
+				"plan":            requestedPlan,
+				"payment_status":  "paid",
+				"plan_expires_at": &exp,
+			}).Error; err != nil {
+				return err
+			}
+			newStore.Plan = requestedPlan
+			newStore.PaymentStatus = "paid"
+			newStore.PlanExpiresAt = &exp
+		} else {
+			if err := tx.Model(&newStore).Updates(map[string]interface{}{
+				"plan":           "free",
+				"payment_status": "pending_verification",
+			}).Error; err != nil {
+				return err
+			}
+			newStore.Plan = "free"
+			newStore.PaymentStatus = "pending_verification"
 		}
 
 		orderPaymentStatus := "paid"
@@ -1220,14 +1251,19 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			orderTTL := time.Now().UTC().Add(2 * time.Hour)
 			orderExpiresAt = &orderTTL
 
-			if paymentSystemMode == "manual_qris" && payMethod == "bank" {
-				uniqueCode, finalAmount = services.AllocateUniqueNominal(h.db, finalAmount)
+			if (paymentSystemMode == "manual_qris" || paymentSystemMode == "manual_bank") && payMethod == "bank" {
+				uniqueCode, finalAmount = services.AllocateUniqueNominal(tx, finalAmount)
 			}
+		}
+
+		effectiveMode := paymentSystemMode
+		if effectiveMode == "manual_bank" {
+			effectiveMode = "manual_qris"
 		}
 
 		orderNumber := fmt.Sprintf("INV-SUB-%s-%04d-%04d", time.Now().Format("20060102150405"), newStore.ID%10000, (time.Now().Nanosecond()/1000)%10000)
 		senderName := strings.TrimSpace(req.SenderAccountName)
-		if senderName == "" && paymentSystemMode == "manual_qris" {
+		if senderName == "" && effectiveMode == "manual_qris" {
 			senderName = strings.TrimSpace(req.Name)
 		}
 		senderPhone := strings.TrimSpace(req.SenderPhone)
@@ -1238,7 +1274,8 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		if orderNotes == "" {
 			orderNotes = fmt.Sprintf("Pendaftaran awal toko %s (%s)", storeTitle, requestedPlan)
 		}
-		subOrder := models.SubscriptionOrder{
+
+		createdSubOrder = models.SubscriptionOrder{
 			StoreID:           newStore.ID,
 			UserID:            targetUser.ID,
 			OrderNumber:       orderNumber,
@@ -1252,7 +1289,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			UniqueCode:        uniqueCode,
 			CouponCode:        cleanCoupon,
 			PaymentMethod:     payMethod,
-			PaymentMode:       paymentSystemMode,
+			PaymentMode:       effectiveMode,
 			SenderAccountName: senderName,
 			SenderPhone:       senderPhone,
 			PaymentProofURL:   validatedProofURL,
@@ -1261,42 +1298,66 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			PaidAt:            orderPaidAt,
 			ExpiresAt:         orderExpiresAt,
 		}
-
-		if paymentSystemMode == "gateway_aulaa" && finalAmount > 0 {
-			subOrder.PaymentMode = "gateway_aulaa"
-			subOrder.GatewayProvider = "aulaa"
-			aulaaCfg := services.GetAulaaConfig(h.db)
-			if aulaaCfg.APIKey != "" && !strings.Contains(aulaaCfg.APIKey, "xxxxxxxx") {
-				baseOrigin := ""
-				if h.cfg != nil && strings.TrimSpace(h.cfg.AppURL) != "" {
-					baseOrigin = strings.TrimRight(h.cfg.AppURL, "/")
-				} else {
-					baseOrigin = strings.TrimRight(c.BaseURL(), "/")
-				}
-				redirectURL := fmt.Sprintf("%s/%s/admin?payment=success&order_number=%s", baseOrigin, newStore.Slug, orderNumber)
-				aulaaResp, aErr := services.CreateAulaaPayment(aulaaCfg, services.AulaaCreatePaymentRequest{
-					OrderID:       orderNumber,
-					Amount:        finalAmount,
-					RedirectURL:   redirectURL,
-					PaymentMethod: payMethod,
-				})
-				if aErr == nil && aulaaResp != nil && aulaaResp.PaymentLink != "" {
-					subOrder.GatewayReference = aulaaResp.ID
-					subOrder.GatewayPaymentLink = aulaaResp.PaymentLink
-					rawB, _ := json.Marshal(aulaaResp)
-					subOrder.GatewayRawResponse = datatypes.JSON(rawB)
-					paymentURL = aulaaResp.PaymentLink
-				} else if aErr != nil {
-					log.Warn().Err(aErr).Str("order_number", orderNumber).Msg("Aulaa payment initiation failed; proceeding with pending order")
-				}
-			} else {
-				log.Warn().Str("order_number", orderNumber).Msg("Aulaa API key not configured in platform settings; proceeding with pending gateway order")
-			}
+		if effectiveMode == "gateway_aulaa" && finalAmount > 0 {
+			createdSubOrder.GatewayProvider = "aulaa"
 		}
 
-		_ = h.db.Create(&subOrder).Error
-		if cleanCoupon != "" && discountAmount > 0 {
-			_ = services.IncrementCouponUsage(h.db, cleanCoupon)
+		if err := tx.Create(&createdSubOrder).Error; err != nil {
+			return err
+		}
+		if redemptionID > 0 {
+			if err := services.AttachOrderToCouponRedemptionInTx(tx, redemptionID, createdSubOrder.ID, newStore.ID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if txErr != nil {
+		if createdNewUser {
+			h.db.Unscoped().Delete(&models.User{}, targetUser.ID)
+		}
+		if strings.Contains(txErr.Error(), "INVALID_COUPON:") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Kode kupon tidak valid atau tidak dapat digunakan.",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal membuat profil toko.",
+		})
+	}
+
+	if requestedPlan != "free" && paymentSystemMode == "gateway_aulaa" && createdSubOrder.ID > 0 && createdSubOrder.FinalAmount > 0 {
+		aulaaCfg := services.GetAulaaConfig(h.db)
+		if aulaaCfg.APIKey != "" && !strings.Contains(aulaaCfg.APIKey, "xxxxxxxx") {
+			baseOrigin := ""
+			if h.cfg != nil && strings.TrimSpace(h.cfg.AppURL) != "" {
+				baseOrigin = strings.TrimRight(h.cfg.AppURL, "/")
+			} else {
+				baseOrigin = strings.TrimRight(c.BaseURL(), "/")
+			}
+			redirectURL := fmt.Sprintf("%s/%s/admin?payment=success&order_number=%s", baseOrigin, newStore.Slug, createdSubOrder.OrderNumber)
+			aulaaResp, aErr := services.CreateAulaaPayment(aulaaCfg, services.AulaaCreatePaymentRequest{
+				OrderID:       createdSubOrder.OrderNumber,
+				Amount:        createdSubOrder.FinalAmount,
+				RedirectURL:   redirectURL,
+				PaymentMethod: createdSubOrder.PaymentMethod,
+			})
+			if aErr == nil && aulaaResp != nil && aulaaResp.PaymentLink != "" {
+				rawB, _ := json.Marshal(aulaaResp)
+				_ = h.db.Model(&models.SubscriptionOrder{}).Where("id = ?", createdSubOrder.ID).Updates(map[string]interface{}{
+					"gateway_reference":    aulaaResp.ID,
+					"gateway_payment_link": aulaaResp.PaymentLink,
+					"gateway_raw_response": datatypes.JSON(rawB),
+				}).Error
+				paymentURL = aulaaResp.PaymentLink
+			} else if aErr != nil {
+				log.Warn().Err(aErr).Str("order_number", createdSubOrder.OrderNumber).Msg("Aulaa payment initiation failed; proceeding with pending order")
+			}
+		} else {
+			log.Warn().Str("order_number", createdSubOrder.OrderNumber).Msg("Aulaa API key not configured in platform settings; proceeding with pending gateway order")
 		}
 	}
 

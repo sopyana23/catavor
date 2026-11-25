@@ -459,8 +459,8 @@ func main() {
 	// Public Subscription Plans & Payment Webhooks
 	api.Get("/domain/resolve", subscriptionHandler.ResolveCustomDomain)
 	api.Get("/subscription/plans", subscriptionHandler.GetPlans)
-	api.Post("/subscription/verify-coupon", subscriptionHandler.VerifyCoupon)
-	api.Post("/auth/verify-coupon", subscriptionHandler.VerifyCoupon)
+	api.Post("/subscription/verify-coupon", middleware.AuthRateLimiter(), subscriptionHandler.VerifyCoupon)
+	api.Post("/auth/verify-coupon", middleware.AuthRateLimiter(), subscriptionHandler.VerifyCoupon)
 	api.Post("/webhooks/payment/aulaa", paymentHandler.HandleAulaaWebhook)
 	api.Post("/payments/webhook/aulaa", paymentHandler.HandleAulaaWebhook)
 	api.Post("/webhook/payment/aulaa", paymentHandler.HandleAulaaWebhook)
@@ -582,6 +582,7 @@ func main() {
 		guardedMutations.Post("/products", productHandler.Store)
 		guardedMutations.Put("/products/:id", productHandler.Update)
 		guardedMutations.Post("/products/:id/resubmit-review", productHandler.ResubmitForReview)
+		guardedMutations.Post("/products/restore-archived", productHandler.RestoreArchived)
 		guardedMutations.Delete("/products/:id", productHandler.Destroy)
 
 		guarded.Get("/admin/categories", categoryHandler.Index)
@@ -635,7 +636,6 @@ func main() {
 		guardedMutations.Post("/subscription/custom-domain/verify", middleware.AuthRateLimiter(), subscriptionHandler.VerifyCustomDomain)
 		guardedMutations.Delete("/subscription/custom-domain", subscriptionHandler.RemoveCustomDomain)
 		guardedMutations.Post("/subscription/order", subscriptionHandler.CreateOrder)
-		guardedMutations.Post("/subscription/verify-coupon", middleware.AuthRateLimiter(), subscriptionHandler.VerifyCoupon)
 		guardedMutations.Post("/subscription/orders/:id/sync", paymentHandler.SyncOrderStatus)
 		guarded.Get("/subscription/orders", subscriptionHandler.GetOrders)
 		guarded.Get("/subscription/orders/:id/proof", subscriptionHandler.GetOrderProof)
