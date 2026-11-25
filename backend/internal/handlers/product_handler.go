@@ -1536,3 +1536,38 @@ func (h *ProductHandler) ResubmitForReview(c *fiber.Ctx) error {
 		"data":    product,
 	})
 }
+
+// RestoreArchived memulihkan produk berstatus terarsip (archived_at IS NOT NULL) hingga sisa kuota paket aktif toko.
+func (h *ProductHandler) RestoreArchived(c *fiber.Ctx) error {
+	store, ok := c.Locals("store").(*models.Store)
+	if !ok || store == nil {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Akses ditolak.",
+		})
+	}
+
+	restoredCount, quota, err := services.RestoreArchivedProducts(h.db, store.ID)
+	if err != nil {
+		log.Error().Err(err).Uint("store_id", store.ID).Msg("product: gagal memulihkan produk terarsip")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "Gagal memulihkan produk terarsip.",
+		})
+	}
+
+	InvalidateStoreProductsCache(store.ID)
+	InvalidateStoreProfileCache(store.Slug)
+
+	msg := fmt.Sprintf("%d produk terarsip berhasil dipulihkan ke etalase.", restoredCount)
+	if restoredCount == 0 {
+		msg = "Tidak ada produk terarsip yang dapat dipulihkan atau kuota aktif telah penuh."
+	}
+
+	return c.JSON(fiber.Map{
+		"success":        true,
+		"message":        msg,
+		"restored_count": restoredCount,
+		"quota":          quota,
+	})
+}

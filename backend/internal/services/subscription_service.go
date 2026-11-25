@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -33,8 +34,9 @@ type StoreQuotaInfo struct {
 	PlanExpiresAt       *time.Time               `json:"plan_expires_at,omitempty"`
 	GracePeriodUntil    *time.Time               `json:"grace_period_until,omitempty"`
 	DaysRemaining       int                      `json:"days_remaining"`
-	IsInGracePeriod     bool                     `json:"is_in_grace_period"`
-	ActiveItemsCount    int64                    `json:"active_items_count"`
+	IsInGracePeriod               bool                     `json:"is_in_grace_period"`
+	RemainingCreditAmount         float64                  `json:"remaining_credit_amount"`
+	ActiveItemsCount              int64                    `json:"active_items_count"`
 	ArchivedItemsCount  int64                    `json:"archived_items_count"`
 	TotalItemsCount     int64                    `json:"total_items_count"`
 	MaxItems            int                      `json:"max_items"`
@@ -271,6 +273,7 @@ func GetStoreQuotaInfo(db *gorm.DB, storeID uint) (*StoreQuotaInfo, error) {
 		GracePeriodUntil:              store.GracePeriodUntil,
 		DaysRemaining:                 daysRemaining,
 		IsInGracePeriod:               isInGrace,
+		RemainingCreditAmount:         CalculateRemainingPlanCredit(db, &store, plan, now),
 		ActiveItemsCount:              activeCount,
 		ArchivedItemsCount:            archivedCount,
 		TotalItemsCount:               totalCount,
@@ -445,11 +448,17 @@ func UpgradeStorePlan(db *gorm.DB, storeID uint, targetPlanCode string, duration
 			if store.CustomDomainStatus == "inactive_expired" || store.CustomDomainStatus == "none" {
 				store.CustomDomainStatus = "active"
 			}
+		} else if !plan.HasCustomDomain && store.CustomDomainStatus == "active" {
+			store.CustomDomainStatus = "inactive_expired"
 		}
 	}
 
 	if err := db.Save(&store).Error; err != nil {
 		return nil, err
+	}
+
+	if plan.MaxItems > 0 {
+		_ = archiveExcessProducts(db, storeID, plan.MaxItems, now)
 	}
 
 	log.Info().
@@ -792,13 +801,82 @@ type CreateOrderRequest struct {
 	Notes             string `json:"notes"`
 }
 
-// AllocateUniqueNominal generates a non-colliding 3-digit unique code for manual QRIS
+// CalculateRemainingPlanCredit computes unused plan monetary value (rounded to nearest Rp 100)
+// for transparent mid-cycle upgrade proration.
+func CalculateRemainingPlanCredit(db *gorm.DB, store *models.Store, currentPlan *models.SubscriptionPlan, now time.Time) float64 {
+	if store == nil || currentPlan == nil || strings.EqualFold(strings.TrimSpace(store.Plan), "free") {
+		return 0
+	}
+	if !strings.EqualFold(store.PlanStatus, "active") || store.PlanExpiresAt == nil || !store.PlanExpiresAt.After(now) || currentPlan.PriceMonthly <= 0 {
+		return 0
+	}
+	remainingHours := store.PlanExpiresAt.Sub(now).Hours()
+	if remainingHours <= 0 {
+		return 0
+	}
+	if remainingHours > 720.0 {
+		remainingHours = 720.0
+	}
+	raw := (remainingHours / 720.0) * currentPlan.PriceMonthly
+	credit := math.Round(raw/100.0) * 100.0
+	if credit < 0 {
+		return 0
+	}
+	return credit
+}
+
+// CalculateUpgradeProrationCredit calculates prorated credit when upgrading from an active paid tier to a higher tier.
+func CalculateUpgradeProrationCredit(db *gorm.DB, store *models.Store, targetPlan *models.SubscriptionPlan, now time.Time) float64 {
+	if db == nil || store == nil || targetPlan == nil {
+		return 0
+	}
+	currentCode := strings.ToLower(strings.TrimSpace(store.Plan))
+	if currentCode == "" || currentCode == "free" {
+		return 0
+	}
+	oldPlan, err := getPlanByCodeStrict(db, currentCode)
+	if err != nil || oldPlan == nil || targetPlan.SortOrder <= oldPlan.SortOrder {
+		return 0
+	}
+	credit := CalculateRemainingPlanCredit(db, store, oldPlan, now)
+	if credit > targetPlan.PriceMonthly {
+		credit = targetPlan.PriceMonthly
+	}
+	return credit
+}
+
+func archiveExcessProducts(db *gorm.DB, storeID uint, maxItems int, now time.Time) error {
+	if db == nil || storeID == 0 || maxItems <= 0 {
+		return nil
+	}
+	var activeProductIDs []uint
+	if err := db.Model(&models.Product{}).
+		Where("store_id = ? AND is_active = ?", storeID, true).
+		Order("created_at desc, id desc").
+		Pluck("id", &activeProductIDs).Error; err != nil {
+		return err
+	}
+	if len(activeProductIDs) <= maxItems {
+		return nil
+	}
+	archiveIDs := activeProductIDs[maxItems:]
+	return db.Model(&models.Product{}).
+		Where("store_id = ? AND id IN ?", storeID, archiveIDs).
+		Updates(map[string]interface{}{
+			"is_active":   false,
+			"archived_at": now,
+		}).Error
+}
+
+// AllocateUniqueNominal generates a non-colliding 3-digit unique code matching uq_sub_orders_active_unique_code.
 func AllocateUniqueNominal(db *gorm.DB, baseAmount float64) (int, float64) {
-	now := time.Now().UTC()
+	if db != nil && db.Dialector.Name() == "postgres" {
+		_ = db.Exec("SELECT pg_advisory_xact_lock(918273645)").Error
+	}
 	var usedCodes []int
 	if db != nil {
 		db.Model(&models.SubscriptionOrder{}).
-			Where("payment_status IN ? AND expires_at > ? AND unique_code > 0", []string{"pending", "pending_verification"}, now).
+			Where("payment_status IN ? AND unique_code > 0", []string{"pending", "pending_verification"}).
 			Pluck("unique_code", &usedCodes)
 	}
 
@@ -824,20 +902,51 @@ func AllocateUniqueNominal(db *gorm.DB, baseAmount float64) (int, float64) {
 	return selectedCode, finalAmount
 }
 
-// ProcessExpiredPendingOrders expires manual orders that exceeded TTL
+// ProcessExpiredPendingOrders expires manual orders that exceeded TTL and releases any reserved coupon quota.
 func ProcessExpiredPendingOrders(db *gorm.DB) error {
 	if db == nil {
 		return nil
 	}
 	now := time.Now().UTC()
-	return db.Model(&models.SubscriptionOrder{}).
-		Where("payment_status = ? AND expires_at IS NOT NULL AND expires_at <= ?", "pending", now).
-		Update("payment_status", "expired").Error
+	return db.Transaction(func(tx *gorm.DB) error {
+		var expired []models.SubscriptionOrder
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("payment_status = ? AND expires_at IS NOT NULL AND expires_at <= ?", "pending", now).
+			Find(&expired).Error; err != nil {
+			return err
+		}
+		for _, ord := range expired {
+			if err := tx.Model(&models.SubscriptionOrder{}).Where("id = ?", ord.ID).Updates(map[string]interface{}{
+				"payment_status": "expired",
+				"updated_at":     now,
+			}).Error; err != nil {
+				return err
+			}
+			_ = ReleaseCouponRedemptionInTx(tx, ord.ID, ord.CouponCode)
+		}
+		return nil
+	})
 }
 
-// CreateSubscriptionOrder handles checkout calculation, coupon discount, invoice creation, and plan activation.
+func resolveOrderPaymentFamily(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "gateway_aulaa":
+		return "gateway_aulaa"
+	case "manual_qris", "manual_bank":
+		return "manual"
+	case "maintenance":
+		return "maintenance"
+	default:
+		return "unknown"
+	}
+}
+
+// CreateSubscriptionOrder handles checkout calculation, mid-cycle proration, relational coupon reservation, invoice creation, and plan activation.
 func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateOrderRequest) (*models.SubscriptionOrder, *StoreQuotaInfo, error) {
-	// Guard: Check Platform Payment System Mode (gateway_aulaa | manual_qris | maintenance)
+	// Sweep expired pending invoices first so freed unique_codes & coupons are immediately available.
+	_ = ProcessExpiredPendingOrders(db)
+
+	// Guard: Check Platform Payment System Mode (gateway_aulaa | manual_qris | manual_bank | maintenance)
 	var modeSetting models.Setting
 	if err := db.Where("key = ?", "payment_system_mode").First(&modeSetting).Error; err == nil {
 		if strings.TrimSpace(strings.ToLower(modeSetting.Value)) == "maintenance" {
@@ -849,24 +958,31 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 	if planCode == "" {
 		planCode = "pro_starter"
 	}
+	if planCode == "free" {
+		return nil, nil, fmt.Errorf("penurunan ke paket Gratis hanya dapat dijadwalkan untuk akhir periode aktif melalui menu jadwal penurunan paket")
+	}
 
-	plan, err := GetPlanByCode(db, planCode)
+	plan, err := getPlanByCodeStrict(db, planCode)
 	if err != nil {
 		return nil, nil, fmt.Errorf("paket langganan '%s' tidak valid", planCode)
 	}
 
-	// SECURITY (SEC-09): Validasi status toko & jendela perpanjangan H-3 WAJIB dijalankan
-	// SEBELUM memanggil AllocateUniqueNominal maupun API eksternal CreateAulaaPayment,
-	// agar percobaan di luar H-3 tidak membuat tagihan yatim atau menghabiskan kode unik.
+	// SECURITY (SEC-09 & Entitlement Guard): Validasi status toko, jendela perpanjangan H-3, dan arah transisi tier
 	orderType := strings.ToLower(strings.TrimSpace(req.Type))
 	if orderType == "" {
 		orderType = strings.ToLower(strings.TrimSpace(req.OrderType))
 	}
+	now := time.Now().UTC()
 	var currentStore models.Store
 	if err := db.First(&currentStore, storeID).Error; err == nil {
-		if strings.EqualFold(strings.TrimSpace(currentStore.Plan), planCode) && planCode != "free" {
+		currCode := strings.ToLower(strings.TrimSpace(currentStore.Plan))
+		if currCode == "" {
+			currCode = "free"
+		}
+		currPlan, _ := getPlanByCodeStrict(db, currCode)
+
+		if strings.EqualFold(currCode, planCode) {
 			orderType = "renewal"
-			now := time.Now().UTC()
 			if currentStore.PlanStatus == "active" && currentStore.PlanExpiresAt != nil {
 				renewalWindowStart := currentStore.PlanExpiresAt.Add(-3 * 24 * time.Hour)
 				if now.Before(renewalWindowStart) {
@@ -877,6 +993,15 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 					return nil, nil, fmt.Errorf("paket langganan Anda masih aktif (%d hari tersisa). Perpanjangan baru dapat dilakukan saat memasuki masa kedaluwarsa (H-3) atau masa tenggang", daysRemaining)
 				}
 			}
+		} else if currCode != "free" && currPlan != nil && plan.SortOrder < currPlan.SortOrder {
+			inGrace := strings.EqualFold(currentStore.PlanStatus, "grace_period") ||
+				(currentStore.PlanExpiresAt != nil && !currentStore.PlanExpiresAt.After(now))
+			inH3Window := currentStore.PlanExpiresAt != nil && !now.Before(currentStore.PlanExpiresAt.Add(-3*24*time.Hour))
+			hasMatchingSchedule := currentStore.NextPlanCode != nil && strings.EqualFold(strings.TrimSpace(*currentStore.NextPlanCode), planCode)
+			if !(hasMatchingSchedule && (inGrace || inH3Window)) {
+				return nil, nil, fmt.Errorf("penurunan paket dari %s ke %s tidak dapat diproses langsung; silakan jadwalkan untuk akhir periode aktif Anda", currPlan.Name, plan.Name)
+			}
+			orderType = "downgrade_renewal"
 		} else if orderType == "" {
 			orderType = "upgrade"
 		}
@@ -889,36 +1014,65 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 	durationMonths := 1
 	originalAmount := plan.PriceMonthly
 
-	// Calculate Coupon Discount via master_coupons setting
+	// Mid-cycle upgrade proration credit from remaining active paid plan duration
+	prorationCredit := CalculateUpgradeProrationCredit(db, &currentStore, plan, now)
+	netAfterProration := originalAmount - prorationCredit
+	if netAfterProration < 0 {
+		netAfterProration = 0
+	}
+
+	// Pre-validate coupon cleanly (legacy master_coupons JSON backfilled into relational coupons): NEVER drop invalid coupon silently!
 	var discountAmount float64
 	cleanCoupon := strings.ToUpper(strings.TrimSpace(req.CouponCode))
 	if cleanCoupon != "" {
-		coupon, disc, _, err := ValidateCoupon(db, cleanCoupon, plan.Code, originalAmount)
-		if err == nil && coupon != nil {
-			discountAmount = disc
-		} else {
-			cleanCoupon = ""
+		_, disc, _, err := ValidateCouponForStore(db, cleanCoupon, storeID, netAfterProration)
+		if err != nil {
+			return nil, nil, fmt.Errorf("kupon tidak valid: %w", err)
 		}
+		discountAmount = disc
 	}
 
-	if discountAmount > originalAmount {
-		discountAmount = originalAmount
+	if discountAmount > netAfterProration {
+		discountAmount = netAfterProration
 	}
-	baseFinalAmount := originalAmount - discountAmount
+	baseFinalAmount := netAfterProration - discountAmount
 
 	orderNumber := fmt.Sprintf("INV-SUB-%s-%04d-%04d", time.Now().Format("20060102150405"), storeID%10000, (time.Now().Nanosecond()/1000)%10000)
 
-	paymentMethod := strings.ToLower(strings.TrimSpace(req.PaymentMethod))
-	if paymentMethod == "" {
-		paymentMethod = "bank"
+	// Server-authoritative payment_mode enforcement (blocks gateway <-> manual tampering)
+	serverMode := strings.ToLower(strings.TrimSpace(modeSetting.Value))
+	if serverMode == "" {
+		serverMode = "gateway_aulaa"
+	}
+	serverFamily := resolveOrderPaymentFamily(serverMode)
+	requestedMode := strings.ToLower(strings.TrimSpace(req.PaymentMode))
+	if requestedMode != "" && baseFinalAmount > 0 {
+		reqFamily := resolveOrderPaymentFamily(requestedMode)
+		if reqFamily == "unknown" || reqFamily != serverFamily {
+			return nil, nil, fmt.Errorf("mode pembayaran tidak sesuai dengan konfigurasi platform yang sedang aktif")
+		}
 	}
 
-	paymentMode := strings.ToLower(strings.TrimSpace(req.PaymentMode))
-	if paymentMode == "" {
-		if modeSetting.Value != "" {
-			paymentMode = strings.ToLower(strings.TrimSpace(modeSetting.Value))
+	paymentMethod := strings.ToLower(strings.TrimSpace(req.PaymentMethod))
+	if paymentMethod == "" {
+		if serverMode == "manual_bank" {
+			paymentMethod = "bank"
+		} else if serverMode == "manual_qris" {
+			paymentMethod = "qris"
 		} else {
-			paymentMode = "gateway_aulaa"
+			paymentMethod = "bank"
+		}
+	}
+
+	paymentMode := serverMode
+	if serverFamily == "manual" {
+		if paymentMethod != "bank" && paymentMethod != "qris" {
+			return nil, nil, fmt.Errorf("metode pembayaran manual harus 'qris' atau 'bank'")
+		}
+		if paymentMethod == "bank" {
+			paymentMode = "manual_bank"
+		} else {
+			paymentMode = "manual_qris"
 		}
 	}
 
@@ -936,75 +1090,65 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 		paymentMethod = "coupon_free"
 		paymentMode = "coupon_free"
 		paymentStatus = "paid"
-		now := time.Now().UTC()
 		paidAt = &now
 		// SECURITY (N-61 Defense-in-Depth): Pesanan gratis/kupon 100% tidak pernah memiliki
 		// bukti transfer manual. Kosongkan agar input liar tidak tersimpan dan dibaca GetOrderProof.
 		req.PaymentProofURL = ""
 	} else if paymentMode == "manual_qris" || paymentMode == "manual_bank" {
-		// Kode unik 3-digit hanya ditambahkan pada transfer bank manual untuk verifikasi mutasi rekening
-		// Untuk pembayaran QRIS manual, tidak perlu kode unik nominal tambahan
-		if paymentMethod == "bank" {
-			uniqueCode, finalAmount = AllocateUniqueNominal(db, baseFinalAmount)
+		// Strict manual payment integrity (B6): require sender name AND valid uploaded proof
+		if strings.TrimSpace(req.SenderAccountName) == "" {
+			return nil, nil, fmt.Errorf("nama pengirim / pemilik rekening wajib diisi untuk pembayaran manual")
 		}
-		// 2-Hour TTL for manual transfer
-		exp := time.Now().UTC().Add(2 * time.Hour)
+		if strings.TrimSpace(req.PaymentProofURL) == "" {
+			return nil, nil, fmt.Errorf("bukti pembayaran wajib diunggah untuk pembayaran manual")
+		}
+		cleanedProof, proofErr := security.ValidatePaymentProofURL(req.PaymentProofURL)
+		if proofErr != nil {
+			return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: %w", proofErr)
+		}
+		lowerProof := strings.ToLower(cleanedProof)
+		subKey := strings.TrimPrefix(lowerProof, "private/")
+		if strings.HasPrefix(subKey, "stores/") {
+			expectedPrefix := fmt.Sprintf("stores/%d/billing/", storeID)
+			if !strings.HasPrefix(subKey, expectedPrefix) {
+				return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: berkas bukan milik toko Anda")
+			}
+		} else if strings.HasPrefix(subKey, "billing/users/") {
+			expectedPrefix := fmt.Sprintf("billing/users/%d/", userID)
+			if !strings.HasPrefix(subKey, expectedPrefix) {
+				return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: berkas bukan milik akun Anda")
+			}
+		} else if !strings.HasPrefix(lowerProof, "data:image/") {
+			return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: namespace penyimpanan tidak memiliki identitas pemilik")
+		}
+		req.PaymentProofURL = cleanedProof
+		paymentStatus = "pending_verification"
+		exp := now.Add(2 * time.Hour)
 		expiresAt = &exp
-		if strings.TrimSpace(req.PaymentProofURL) != "" {
-			cleanedProof, proofErr := security.ValidatePaymentProofURL(req.PaymentProofURL)
-			if proofErr != nil {
-				return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: %w", proofErr)
-			}
-			// SECURITY (N-61 IDOR Tenant Binding & R3-1): Validasi kepemilikan tenant bila bukan data URL
-			lowerProof := strings.ToLower(cleanedProof)
-			subKey := strings.TrimPrefix(lowerProof, "private/")
-			if strings.HasPrefix(subKey, "stores/") {
-				expectedPrefix := fmt.Sprintf("stores/%d/billing/", storeID)
-				if !strings.HasPrefix(subKey, expectedPrefix) {
-					return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: berkas bukan milik toko Anda")
-				}
-			} else if strings.HasPrefix(subKey, "billing/users/") {
-				expectedPrefix := fmt.Sprintf("billing/users/%d/", userID)
-				if !strings.HasPrefix(subKey, expectedPrefix) {
-					return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: berkas bukan milik akun Anda")
-				}
-			} else if !strings.HasPrefix(lowerProof, "data:image/") {
-				// SECURITY (R3-1): Any storage key MUST have explicit tenant binding (stores/<id>/ or billing/users/<id>/)
-				return nil, nil, fmt.Errorf("bukti pembayaran tidak valid: namespace penyimpanan tidak memiliki identitas pemilik")
-			}
-			req.PaymentProofURL = cleanedProof
-			paymentStatus = "pending_verification"
-		}
 	} else if paymentMode == "gateway_aulaa" {
-		// SECURITY (N-61): Jalur payment gateway tidak menerima bukti transfer manual dari klien.
-		// Jangan pernah menyimpan req.PaymentProofURL mentah ke DB karena dapat menyelundupkan
-		// storage key privat tenant lain untuk dieksfiltrasi via GetOrderProof.
 		req.PaymentProofURL = ""
 		gatewayProvider = "aulaa"
 		aulaaCfg := GetAulaaConfig(db)
-		// Only invoke Aulaa if API key is configured and not dummy placeholder
 		if aulaaCfg.APIKey != "" && !strings.Contains(aulaaCfg.APIKey, "xxxxxxxx") {
 			redirectURL := strings.TrimSpace(req.RedirectURL)
 			if redirectURL == "" {
 				redirectURL = fmt.Sprintf("/admin/subscription?payment=success&order_number=%s", orderNumber)
-			} else {
-				if parsed, err := url.Parse(redirectURL); err == nil {
-					q := parsed.Query()
-					if q.Get("payment") == "" {
-						q.Set("payment", "success")
-					}
-					if q.Get("order_number") == "" {
-						q.Set("order_number", orderNumber)
-					}
-					parsed.RawQuery = q.Encode()
-					redirectURL = parsed.String()
-				} else {
-					separator := "?"
-					if strings.Contains(redirectURL, "?") {
-						separator = "&"
-					}
-					redirectURL = fmt.Sprintf("%s%spayment=success&order_number=%s", redirectURL, separator, orderNumber)
+			} else if parsed, err := url.Parse(redirectURL); err == nil {
+				q := parsed.Query()
+				if q.Get("payment") == "" {
+					q.Set("payment", "success")
 				}
+				if q.Get("order_number") == "" {
+					q.Set("order_number", orderNumber)
+				}
+				parsed.RawQuery = q.Encode()
+				redirectURL = parsed.String()
+			} else {
+				separator := "?"
+				if strings.Contains(redirectURL, "?") {
+					separator = "&"
+				}
+				redirectURL = fmt.Sprintf("%s%spayment=success&order_number=%s", redirectURL, separator, orderNumber)
 			}
 			aulaaResp, err := CreateAulaaPayment(aulaaCfg, AulaaCreatePaymentRequest{
 				OrderID:       orderNumber,
@@ -1021,105 +1165,158 @@ func CreateSubscriptionOrder(db *gorm.DB, storeID uint, userID uint, req CreateO
 				gatewayRawResponse = datatypes.JSON(rawB)
 			}
 		}
-	} else if paymentMode != "manual_qris" && paymentMode != "manual_bank" {
+	} else {
 		req.PaymentProofURL = ""
 	}
 
 	notes := strings.TrimSpace(req.Notes)
 
 	order := models.SubscriptionOrder{
-		StoreID:            storeID,
-		UserID:             userID,
-		OrderNumber:        orderNumber,
-		Type:               orderType,
-		PlanCode:           planCode,
-		BillingCycle:       req.BillingCycle,
-		DurationMonths:     durationMonths,
-		OriginalAmount:     originalAmount,
-		DiscountAmount:     discountAmount,
-		FinalAmount:        finalAmount,
-		CouponCode:         cleanCoupon,
-		PaymentMethod:      paymentMethod,
-		PaymentMode:        paymentMode,
-		UniqueCode:         uniqueCode,
-		SenderAccountName:  strings.TrimSpace(req.SenderAccountName),
-		SenderPhone:        strings.TrimSpace(req.SenderPhone),
-		PaymentProofURL:    req.PaymentProofURL,
-		PaymentStatus:      paymentStatus,
-		Notes:              notes,
-		GatewayProvider:    gatewayProvider,
-		GatewayReference:   gatewayReference,
-		GatewayPaymentLink: gatewayPaymentLink,
-		GatewayRawResponse: gatewayRawResponse,
-		ExpiresAt:          expiresAt,
-		PaidAt:             paidAt,
+		StoreID:               storeID,
+		UserID:                userID,
+		OrderNumber:           orderNumber,
+		Type:                  orderType,
+		PlanCode:              planCode,
+		BillingCycle:          req.BillingCycle,
+		DurationMonths:        durationMonths,
+		OriginalAmount:        originalAmount,
+		ProrationCreditAmount: prorationCredit,
+		DiscountAmount:        discountAmount,
+		FinalAmount:           finalAmount,
+		CouponCode:            cleanCoupon,
+		PaymentMethod:         paymentMethod,
+		PaymentMode:           paymentMode,
+		UniqueCode:            uniqueCode,
+		SenderAccountName:     strings.TrimSpace(req.SenderAccountName),
+		SenderPhone:           strings.TrimSpace(req.SenderPhone),
+		PaymentProofURL:       req.PaymentProofURL,
+		PaymentStatus:         paymentStatus,
+		Notes:                 notes,
+		GatewayProvider:       gatewayProvider,
+		GatewayReference:      gatewayReference,
+		GatewayPaymentLink:    gatewayPaymentLink,
+		GatewayRawResponse:    gatewayRawResponse,
+		ExpiresAt:             expiresAt,
+		PaidAt:                paidAt,
 	}
 
-	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
 	var quota *StoreQuotaInfo
-	if finalAmount == 0 {
-		// Instant free activation: create order, increment coupon, and upgrade store plan atomically
-		txErr := db.Transaction(func(tx *gorm.DB) error {
-			if cleanCoupon != "" && discountAmount > 0 {
-				if err := IncrementCouponUsage(tx, cleanCoupon); err != nil {
-					return err
-				}
+	txErr := db.Transaction(func(tx *gorm.DB) error {
+		var redemption *models.CouponRedemption
+		if cleanCoupon != "" {
+			_, _, _, red, cErr := ValidateAndReserveCouponInTx(tx, cleanCoupon, storeID, userID, nil, netAfterProration)
+			if cErr != nil {
+				return cErr
 			}
-			if err := tx.Create(&order).Error; err != nil {
+			redemption = red
+		}
+		if baseFinalAmount > 0 && (paymentMode == "manual_bank" || (paymentMode == "manual_qris" && paymentMethod == "bank")) {
+			codeAlloc, finAlloc := AllocateUniqueNominal(tx, baseFinalAmount)
+			order.UniqueCode = codeAlloc
+			order.FinalAmount = finAlloc
+		}
+		if err := tx.Create(&order).Error; err != nil {
+			return err
+		}
+		if redemption != nil {
+			if err := AttachOrderToCouponRedemptionInTx(tx, redemption.ID, order.ID, storeID); err != nil {
 				return err
 			}
-			var err error
-			quota, err = UpgradeStorePlan(tx, storeID, planCode, durationMonths)
-			return err
-		})
-		if txErr != nil {
-			return nil, nil, fmt.Errorf("gagal membuat dan mengaktifkan paket langganan: %w", txErr)
 		}
-	} else {
-		// Non-free orders require payment verification / admin approval before plan activation
-		txErr := db.Transaction(func(tx *gorm.DB) error {
-			if cleanCoupon != "" && discountAmount > 0 {
-				if err := IncrementCouponUsage(tx, cleanCoupon); err != nil {
-					return err
-				}
-			}
-			return tx.Create(&order).Error
-		})
-		if txErr != nil {
-			return nil, nil, fmt.Errorf("gagal membuat invoice langganan: %w", txErr)
+		if baseFinalAmount == 0 {
+			var uErr error
+			quota, uErr = UpgradeStorePlan(tx, storeID, planCode, durationMonths)
+			return uErr
 		}
-		quota, _ = GetStoreQuotaInfo(db, storeID)
+		return nil
+	})
+	if txErr != nil {
+		return nil, nil, fmt.Errorf("gagal membuat pesanan langganan: %w", txErr)
 	}
 
+	if baseFinalAmount > 0 {
+		quota, _ = GetStoreQuotaInfo(db, storeID)
+	}
 	return &order, quota, nil
 }
 
-// RejectSubscriptionOrder marks a subscription invoice as rejected with a reason
+// reconcileStorePlanAfterOrderRevertInTx ensures reverting a historical paid invoice only rolls back the store
+// when no other active paid invoice currently entitles the store to a plan.
+func reconcileStorePlanAfterOrderRevertInTx(tx *gorm.DB, storeID uint, revertedOrderID uint) error {
+	now := time.Now().UTC()
+	var candidates []models.SubscriptionOrder
+	if err := tx.Where("store_id = ? AND payment_status = ? AND id <> ? AND plan_code <> ?",
+		storeID, "paid", revertedOrderID, "free").
+		Order("paid_at DESC, id DESC").Find(&candidates).Error; err == nil {
+		for _, cand := range candidates {
+			if cand.PaidAt == nil {
+				continue
+			}
+			dur := cand.DurationMonths
+			if dur <= 0 {
+				dur = 1
+			}
+			calcExp := cand.PaidAt.AddDate(0, dur, 0)
+			if calcExp.After(now) {
+				plan, pErr := getPlanByCodeStrict(tx, cand.PlanCode)
+				if pErr != nil || plan == nil {
+					continue
+				}
+				var st models.Store
+				if err := tx.First(&st, storeID).Error; err != nil {
+					return err
+				}
+				st.Plan = cand.PlanCode
+				st.PlanStatus = "active"
+				st.PlanExpiresAt = &calcExp
+				st.GracePeriodUntil = nil
+				st.NextPlanCode = nil
+				if !plan.HasCustomDomain && st.CustomDomainStatus == "active" {
+					st.CustomDomainStatus = "inactive_expired"
+				}
+				if err := tx.Save(&st).Error; err != nil {
+					return err
+				}
+				database.InvalidateStoreQuotaCache(context.Background(), storeID)
+				if st.CustomDomain != nil && strings.TrimSpace(*st.CustomDomain) != "" {
+					database.InvalidateCustomDomainCache(context.Background(), *st.CustomDomain)
+				}
+				return nil
+			}
+		}
+	}
+	_, err := UpgradeStorePlan(tx, storeID, "free", 0)
+	return err
+}
+
+// RejectSubscriptionOrder marks a subscription invoice as rejected, releases reserved coupon quota,
+// and reconciles store tier cleanly without wiping a newer active paid plan.
 func RejectSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint, reason string) (*models.SubscriptionOrder, error) {
 	var order models.SubscriptionOrder
-	if err := db.First(&order, orderID).Error; err != nil {
-		return nil, fmt.Errorf("invoice langganan tidak ditemukan: %w", err)
-	}
-
-	wasPaid := order.PaymentStatus == "paid"
-
-	order.PaymentStatus = "rejected"
-	order.PaidAt = nil
 	cleanReason := strings.TrimSpace(reason)
 	if cleanReason == "" {
 		cleanReason = "Bukti transfer tidak valid atau dana belum masuk mutasi rekening."
 	}
-	order.RejectionReason = cleanReason
-	if adminID > 0 {
-		order.ApprovedByUserID = &adminID
-	}
 
 	txErr := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&order, orderID).Error; err != nil {
+			return fmt.Errorf("invoice langganan tidak ditemukan: %w", err)
+		}
+		wasPaid := order.PaymentStatus == "paid"
+		order.PaymentStatus = "rejected"
+		order.PaidAt = nil
+		order.RejectionReason = cleanReason
+		if adminID > 0 {
+			order.ApprovedByUserID = &adminID
+		}
 		if err := tx.Save(&order).Error; err != nil {
 			return fmt.Errorf("gagal memperbarui status penolakan invoice: %w", err)
 		}
+		if err := ReleaseCouponRedemptionInTx(tx, order.ID, order.CouponCode); err != nil {
+			return err
+		}
 		if wasPaid {
-			_, _ = UpgradeStorePlan(tx, order.StoreID, "free", 0)
+			return reconcileStorePlanAfterOrderRevertInTx(tx, order.StoreID, order.ID)
 		}
 		return nil
 	})
@@ -1137,31 +1334,30 @@ func RejectSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint, reason str
 	return &order, nil
 }
 
-// ResetSubscriptionOrderToPending returns a rejected, expired, or paid subscription invoice back to pending verification queue
+// ResetSubscriptionOrderToPending returns an invoice back to pending verification queue cleanly
+// without wiping a newer active paid plan when resetting an older historical invoice.
 func ResetSubscriptionOrderToPending(db *gorm.DB, orderID uint, adminID uint) (*models.SubscriptionOrder, error) {
 	var order models.SubscriptionOrder
-	if err := db.First(&order, orderID).Error; err != nil {
-		return nil, fmt.Errorf("invoice langganan tidak ditemukan: %w", err)
-	}
-
-	wasPaid := order.PaymentStatus == "paid"
-	if strings.TrimSpace(order.PaymentProofURL) != "" {
-		order.PaymentStatus = "pending_verification"
-	} else {
-		order.PaymentStatus = "pending"
-	}
-	order.PaidAt = nil
-	order.RejectionReason = ""
-	if adminID > 0 {
-		order.ApprovedByUserID = &adminID
-	}
-
 	txErr := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&order, orderID).Error; err != nil {
+			return fmt.Errorf("invoice langganan tidak ditemukan: %w", err)
+		}
+		wasPaid := order.PaymentStatus == "paid"
+		if strings.TrimSpace(order.PaymentProofURL) != "" {
+			order.PaymentStatus = "pending_verification"
+		} else {
+			order.PaymentStatus = "pending"
+		}
+		order.PaidAt = nil
+		order.RejectionReason = ""
+		if adminID > 0 {
+			order.ApprovedByUserID = &adminID
+		}
 		if err := tx.Save(&order).Error; err != nil {
 			return fmt.Errorf("gagal mengembalikan status invoice ke antrean verifikasi: %w", err)
 		}
 		if wasPaid {
-			_, _ = UpgradeStorePlan(tx, order.StoreID, "free", 0)
+			return reconcileStorePlanAfterOrderRevertInTx(tx, order.StoreID, order.ID)
 		}
 		return nil
 	})
@@ -1173,7 +1369,7 @@ func ResetSubscriptionOrderToPending(db *gorm.DB, orderID uint, adminID uint) (*
 }
 
 // ApproveSubscriptionOrder confirms payment and activates the subscription plan for an order
-// with strict row-level locking (clause.Locking{Strength: "UPDATE"}) inside an ACID transaction.
+// strictly allowing transitions only from pending or pending_verification states.
 func ApproveSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint) (*models.SubscriptionOrder, *StoreQuotaInfo, error) {
 	if db == nil {
 		return nil, nil, errors.New("database connection unavailable")
@@ -1183,8 +1379,6 @@ func ApproveSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint) (*models.
 	var quota *StoreQuotaInfo
 	now := time.Now().UTC()
 
-	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
-	// Mutasi status invoice dan aktivasi paket toko wajib atomik dengan row lock (anti-double-extension race)
 	txErr := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&order, orderID).Error; err != nil {
 			return fmt.Errorf("invoice langganan tidak ditemukan: %w", err)
@@ -1194,6 +1388,9 @@ func ApproveSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint) (*models.
 			var qErr error
 			quota, qErr = GetStoreQuotaInfo(tx, order.StoreID)
 			return qErr
+		}
+		if order.PaymentStatus != "pending" && order.PaymentStatus != "pending_verification" {
+			return fmt.Errorf("INVALID_ORDER_STATE: invoice berstatus '%s' tidak dapat disetujui", order.PaymentStatus)
 		}
 
 		order.PaymentStatus = "paid"
@@ -1205,6 +1402,7 @@ func ApproveSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint) (*models.
 		if err := tx.Save(&order).Error; err != nil {
 			return fmt.Errorf("gagal memperbarui status invoice: %w", err)
 		}
+		_ = CommitCouponRedemptionInTx(tx, order.ID)
 
 		var err error
 		quota, err = UpgradeStorePlan(tx, order.StoreID, order.PlanCode, order.DurationMonths)
@@ -1226,6 +1424,56 @@ func ApproveSubscriptionOrder(db *gorm.DB, orderID uint, adminID uint) (*models.
 		Msg("Subscription order approved and store plan activated")
 
 	return &order, quota, nil
+}
+
+// RestoreArchivedProducts reactivates non-moderated system-archived products up to the current plan limit.
+func RestoreArchivedProducts(db *gorm.DB, storeID uint) (int64, *StoreQuotaInfo, error) {
+	if db == nil || storeID == 0 {
+		return 0, nil, errors.New("database connection unavailable")
+	}
+	var restored int64
+	err := db.Transaction(func(tx *gorm.DB) error {
+		quota, qErr := GetStoreQuotaInfo(tx, storeID)
+		if qErr != nil {
+			return qErr
+		}
+		var candidateIDs []uint
+		q := tx.Model(&models.Product{}).
+			Where("store_id = ? AND is_active = ? AND archived_at IS NOT NULL AND (moderation_status IS NULL OR moderation_status NOT IN ('locked','hidden','banned','needs_fix','suspended','in_review'))",
+				storeID, false).
+			Order("archived_at DESC, id DESC")
+		if quota.MaxItems > 0 {
+			remainingSlots := int64(quota.MaxItems) - quota.ActiveItemsCount
+			if remainingSlots <= 0 {
+				return fmt.Errorf("kuota produk aktif paket %s sudah penuh (%d/%d)", quota.Plan.Name, quota.ActiveItemsCount, quota.MaxItems)
+			}
+			q = q.Limit(int(remainingSlots))
+		}
+		if err := q.Pluck("id", &candidateIDs).Error; err != nil {
+			return err
+		}
+		if len(candidateIDs) == 0 {
+			return nil
+		}
+		res := tx.Model(&models.Product{}).
+			Where("store_id = ? AND id IN ?", storeID, candidateIDs).
+			Updates(map[string]interface{}{
+				"is_active":   true,
+				"archived_at": nil,
+				"updated_at":  time.Now().UTC(),
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		restored = res.RowsAffected
+		return nil
+	})
+	if err != nil {
+		return 0, nil, err
+	}
+	database.InvalidateStoreQuotaCache(context.Background(), storeID)
+	freshQuota, qErr := GetStoreQuotaInfo(db, storeID)
+	return restored, freshQuota, qErr
 }
 
 // GetStoreSubscriptionOrders returns all subscription invoices / orders for a store.
