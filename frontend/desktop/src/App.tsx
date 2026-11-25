@@ -23568,26 +23568,78 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                           <Archive size={12} />
                                           Arsipkan
                                         </button>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          className="btn-secondary btn-small"
-                                          onClick={() => openArchiveConfirmModal(item, true)}
-                                          style={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '0.25rem',
-                                            padding: '0.3rem 0.6rem',
-                                            fontSize: '0.74rem',
-                                            color: '#10b981',
-                                            borderColor: 'rgba(16, 185, 129, 0.3)'
-                                          }}
-                                          title="Aktifkan Kembali ke Katalog"
-                                        >
-                                          <CheckCircle2 size={12} />
-                                          Aktifkan
-                                        </button>
-                                      )}
+                                      ) : (() => {
+                                        const rowModMeta = getItemModerationMeta((item as any).moderation_status);
+                                        if (rowModMeta && rowModMeta.status === 'needs_fix') {
+                                          return (
+                                            <button
+                                              type="button"
+                                              className="btn-secondary btn-small"
+                                              onClick={() => openEditModal(item)}
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '0.25rem',
+                                                padding: '0.3rem 0.6rem',
+                                                fontSize: '0.74rem',
+                                                color: rowModMeta.color,
+                                                borderColor: rowModMeta.border,
+                                                backgroundColor: rowModMeta.bg
+                                              }}
+                                              title={rowModMeta.title}
+                                            >
+                                              <Edit3 size={12} />
+                                              Perbaiki
+                                            </button>
+                                          );
+                                        }
+                                        if (rowModMeta && rowModMeta.isLocked) {
+                                          return (
+                                            <button
+                                              type="button"
+                                              className="btn-secondary btn-small"
+                                              disabled
+                                              aria-disabled="true"
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '0.25rem',
+                                                padding: '0.3rem 0.6rem',
+                                                fontSize: '0.74rem',
+                                                color: rowModMeta.color,
+                                                borderColor: rowModMeta.border,
+                                                backgroundColor: rowModMeta.bg,
+                                                cursor: 'not-allowed',
+                                                opacity: 0.65
+                                              }}
+                                              title={rowModMeta.title}
+                                            >
+                                              <Lock size={12} />
+                                              {rowModMeta.shortLabel}
+                                            </button>
+                                          );
+                                        }
+                                        return (
+                                          <button
+                                            type="button"
+                                            className="btn-secondary btn-small"
+                                            onClick={() => openArchiveConfirmModal(item, true)}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '0.25rem',
+                                              padding: '0.3rem 0.6rem',
+                                              fontSize: '0.74rem',
+                                              color: '#10b981',
+                                              borderColor: 'rgba(16, 185, 129, 0.3)'
+                                            }}
+                                            title="Aktifkan Kembali ke Katalog"
+                                          >
+                                            <CheckCircle2 size={12} />
+                                            Aktifkan
+                                          </button>
+                                        );
+                                      })()}
                                     </div>
                                   </td>
                                 </tr>

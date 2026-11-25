@@ -81,7 +81,7 @@ func GetReportMetrics(db *gorm.DB) map[string]int64 {
 	db.Model(&models.Report{}).Where("status = ?", "pending").Count(&pendingCount)
 	db.Model(&models.Report{}).Where("status = ?", "investigating").Count(&investigatingCount)
 	db.Model(&models.Report{}).Where("status = ?", "re_review").Count(&reReviewCount)
-	db.Model(&models.Report{}).Where("status = ?", "action_taken").Count(&actionCount)
+	db.Model(&models.Report{}).Where("status = ? AND COALESCE(action_taken, '') != 'catalog_banned'", "action_taken").Count(&actionCount)
 	db.Model(&models.Report{}).Where("status = ? OR action_taken = 'catalog_banned'", "banned").Count(&bannedCount)
 	db.Model(&models.Report{}).Where("status = ?", "dismissed").Count(&dismissedCount)
 	db.Model(&models.Report{}).Where("status = ?", "resolved").Count(&resolvedCount)

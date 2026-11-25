@@ -1,4 +1,5 @@
 import { FinancePager, useFinancePage } from '../../../shared/finance/FinancePaging';
+import { formatReportStatusLabel, formatReportActionLabel } from '../../../shared/moderation/itemModerationBadge';
 import { paymentChannel, formatGatewayResponse } from '../../../shared/finance/paymentChannel';
 import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColors, useFinanceSection } from '../../../shared/finance/FinanceControls';
 import { AutomationConsole } from '../../../shared/automation/AutomationConsole';
@@ -1363,7 +1364,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       { value: 'pending', label: 'Menunggu', count: reportMetrics ? reportMetrics.pending : reports.filter(r => r.status === 'pending').length },
       { value: 'investigating', label: 'Investigasi', count: reportMetrics ? reportMetrics.investigating : reports.filter(r => r.status === 'investigating' || r.status === 'in_review').length },
       { value: 're_review', label: 'Revisi Masuk', count: reportMetrics ? (reportMetrics.re_review || 0) : reports.filter(r => r.status === 're_review').length },
-      { value: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
+      { value: 'action_taken', label: 'Ditindak', count: reportMetrics ? (reportMetrics.action_taken || 0) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length },
       { value: 'banned', label: 'Banned', count: reportMetrics ? (reportMetrics.banned || 0) : reports.filter(r => r.status === 'banned' || r.action_taken === 'catalog_banned').length },
       { value: 'dismissed', label: 'Ditolak', count: reportMetrics ? reportMetrics.dismissed : reports.filter(r => r.status === 'dismissed').length },
       { value: 'resolved', label: 'Selesai', count: reportMetrics ? reportMetrics.resolved : reports.filter(r => r.status === 'resolved').length }
@@ -5615,8 +5616,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 </div>
                 <div>
                   <span style={{ fontSize: '0.66rem', color: theme.textMuted, display: 'block', marginBottom: '0.15rem' }}>Status Peninjauan</span>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary, textTransform: 'capitalize' }}>
-                    {moderationModalReport.status || 'Pending'}
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.textPrimary }}>
+                    {formatReportStatusLabel(moderationModalReport.status)}
                   </span>
                 </div>
                 <div>
@@ -5665,7 +5666,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                     <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <AlertTriangle size={14} />
-                      <span>🔥 {reportActiveEvidence.length} Laporan Lain untuk Entitas Ini</span>
+                      <span>{reportActiveEvidence.length} Laporan Lain untuk Entitas Ini</span>
                     </div>
                     <span style={{ fontSize: '0.64rem', padding: '0.1rem 0.4rem', borderRadius: '0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', fontWeight: 800 }}>
                       KASUS JAMAK
@@ -5723,7 +5724,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 }}>
                   <div style={{ fontSize: '0.74rem', fontWeight: 800, color: isDark ? '#38bdf8' : '#0284c7', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <Clock size={14} />
-                    <span>📜 Rekam Jejak Peninjauan Terdahulu ({reportPriorHistory.length})</span>
+                    <span>Rekam Jejak Peninjauan Terdahulu ({reportPriorHistory.length})</span>
                   </div>
                   <p style={{ margin: 0, fontSize: '0.7rem', color: theme.textSecondary, lineHeight: 1.35 }}>
                     Entitas ini pernah dilaporkan dan diselesaikan sebelumnya:
@@ -5742,7 +5743,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontWeight: 700, color: theme.textPrimary }}>
-                            {ph.report_number || `#RPT-${ph.id}`} • Status: <strong style={{ color: ph.status === 'dismissed' ? '#94a3b8' : (ph.status === 'action_taken' ? '#f43f5e' : '#10b981') }}>{ph.status}</strong>
+                            {ph.report_number || `#RPT-${ph.id}`} • Status: <strong style={{ color: ph.status === 'dismissed' ? '#94a3b8' : (ph.status === 'action_taken' ? '#f43f5e' : '#10b981') }}>{formatReportStatusLabel(ph.status)}</strong>
                           </span>
                           <span style={{ fontSize: '0.65rem', color: theme.textMuted }}>
                             {ph.reviewed_at ? new Date(ph.reviewed_at).toLocaleDateString('id-ID') : '-'}
@@ -5750,7 +5751,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         </div>
                         {ph.action_taken && ph.action_taken !== 'none' && (
                           <div style={{ fontSize: '0.68rem', color: '#f43f5e', fontWeight: 700 }}>
-                            Sanksi Diterapkan: {ph.action_taken}
+                            Sanksi Diterapkan: {formatReportActionLabel(ph.action_taken)}
                           </div>
                         )}
                         {ph.admin_notes && (
@@ -6143,7 +6144,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               }}>
                 <Info size={16} style={{ color: isDark ? '#38bdf8' : '#0284c7', flexShrink: 0 }} />
                 <span style={{ fontSize: '0.72rem', color: theme.textSecondary, lineHeight: 1.45 }}>
-                  Eksekusi sanksi bersifat seketika (*instant*). Pemilik merchant akan melihat status item/katalog terbarui di portal mereka.
+                  Eksekusi sanksi bersifat seketika (instan). Pemilik merchant akan melihat status item/katalog terbarui di portal mereka.
                 </span>
               </div>
             </div>
@@ -6314,7 +6315,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
               <span style={{ fontSize: '0.66rem', color: theme.textSecondary, fontWeight: 700 }}>Sanksi Ditindak</span>
               <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f43f5e' }}>
-                {reportMetrics ? (reportMetrics.action_taken - (reportMetrics.banned || 0) > 0 ? reportMetrics.action_taken - (reportMetrics.banned || 0) : reportMetrics.action_taken) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length}
+                {reportMetrics ? (reportMetrics.action_taken || 0) : reports.filter(r => (r.status === 'action_taken' || (r.action_taken && r.action_taken !== 'none')) && r.action_taken !== 'catalog_banned' && r.status !== 'banned').length}
               </span>
             </div>
             <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.9rem', backgroundColor: theme.surface, border: '1px solid rgba(239, 68, 68, 0.35)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -6456,7 +6457,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   investigating: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
                   in_review: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
                   action_taken: { label: 'Ditindak Sanksi', bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.35)' },
-                  banned: { label: '🚫 Banned Permanen', bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.55)' },
+                  banned: { label: 'Banned Permanen', bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444', border: 'rgba(239, 68, 68, 0.55)' },
                   dismissed: { label: 'Laporan Ditolak', bg: isDark ? 'rgba(148, 163, 184, 0.15)' : 'rgba(100, 116, 139, 0.1)', text: isDark ? '#94a3b8' : '#64748b', border: 'rgba(148, 163, 184, 0.25)' },
                   resolved: { label: 'Selesai', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' }
                 };
@@ -6634,7 +6635,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             alignItems: 'center',
                             gap: '0.3rem'
                           }}>
-                            <span>{r.action_taken === 'catalog_banned' ? '🚫' : '⚡'} {actionLabel}</span>
+                            {r.action_taken === 'catalog_banned' ? <AlertTriangle size={12} /> : <ShieldAlert size={12} />}
+                            <span>{actionLabel}</span>
                           </span>
                         )}
                       </div>

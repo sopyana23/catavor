@@ -76,3 +76,58 @@ export function getItemModerationMeta(status?: string | null): ItemModerationMet
       return null;
   }
 }
+
+export function formatReportStatusLabel(status?: string | null): string {
+  const normalized = String(status || '').trim().toLowerCase();
+  switch (normalized) {
+    case 'pending':
+    case '':
+      return 'Menunggu';
+    case 'investigating':
+    case 'in_review':
+      return 'Investigasi';
+    case 're_review':
+      return 'Revisi Masuk';
+    case 'action_taken':
+      return 'Ditindak';
+    case 'banned':
+      return 'Banned';
+    case 'dismissed':
+      return 'Ditolak';
+    case 'resolved':
+      return 'Selesai';
+    default:
+      return String(status).trim();
+  }
+}
+
+export function formatReportActionLabel(action?: string | null): string {
+  const normalized = String(action || '').trim().toLowerCase();
+  switch (normalized) {
+    case 'warning_issued':
+      return 'Peringatan Diterbitkan';
+    case 'item_needs_fix':
+      return 'Item Perlu Perbaikan';
+    case 'item_locked':
+      return 'Item Dikunci';
+    case 'item_hidden':
+      return 'Item Disembunyikan';
+    case 'item_banned':
+      return 'Item Diblokir Permanen';
+    case 'item_restored':
+      return 'Item Dipulihkan';
+    case 'catalog_suspended':
+      return 'Katalog Ditangguhkan';
+    case 'catalog_banned':
+      return 'Katalog Diblokir Permanen';
+    case 'account_banned':
+      return 'Akun Diblokir Permanen';
+    case 'catalog_reactivated':
+      return 'Katalog Diaktifkan Kembali';
+    case 'none':
+    case '':
+      return 'Tidak Ada Sanksi';
+    default:
+      return String(action).trim();
+  }
+}

@@ -5375,31 +5375,90 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   <Archive size={13} />
                                   <span>Arsipkan</span>
                                 </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => openArchiveConfirmModal(item, true)}
-                                  title="Aktifkan Kembali ke Katalog"
-                                  style={{
-                                    minHeight: '34px',
-                                    padding: '0.35rem 0.7rem',
-                                    borderRadius: '0.5rem',
-                                    border: '1px solid rgba(16, 185, 129, 0.3)',
-                                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                                    color: '#10b981',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 700,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.3rem',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s ease'
-                                  }}
-                                >
-                                  <CheckCircle2 size={13} />
-                                  <span>Aktifkan</span>
-                                </button>
-                              )}
+                              ) : (() => {
+                                const rowModMeta = getItemModerationMeta((item as any).moderation_status);
+                                if (rowModMeta && rowModMeta.status === 'needs_fix') {
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSelectProduct(item)}
+                                      title={rowModMeta.title}
+                                      style={{
+                                        minHeight: '34px',
+                                        padding: '0.35rem 0.7rem',
+                                        borderRadius: '0.5rem',
+                                        border: `1px solid ${rowModMeta.border}`,
+                                        backgroundColor: rowModMeta.bg,
+                                        color: rowModMeta.color,
+                                        fontSize: '0.75rem',
+                                        fontWeight: 700,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease'
+                                      }}
+                                    >
+                                      <Edit3 size={13} />
+                                      <span>Perbaiki</span>
+                                    </button>
+                                  );
+                                }
+                                if (rowModMeta && rowModMeta.isLocked) {
+                                  return (
+                                    <button
+                                      type="button"
+                                      disabled
+                                      aria-disabled="true"
+                                      title={rowModMeta.title}
+                                      style={{
+                                        minHeight: '34px',
+                                        padding: '0.35rem 0.7rem',
+                                        borderRadius: '0.5rem',
+                                        border: `1px solid ${rowModMeta.border}`,
+                                        backgroundColor: rowModMeta.bg,
+                                        color: rowModMeta.color,
+                                        fontSize: '0.75rem',
+                                        fontWeight: 700,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem',
+                                        cursor: 'not-allowed',
+                                        opacity: 0.65,
+                                        transition: 'all 0.15s ease'
+                                      }}
+                                    >
+                                      <Lock size={13} />
+                                      <span>{rowModMeta.shortLabel}</span>
+                                    </button>
+                                  );
+                                }
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => openArchiveConfirmModal(item, true)}
+                                    title="Aktifkan Kembali ke Katalog"
+                                    style={{
+                                      minHeight: '34px',
+                                      padding: '0.35rem 0.7rem',
+                                      borderRadius: '0.5rem',
+                                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                                      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                                      color: '#10b981',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.3rem',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    <CheckCircle2 size={13} />
+                                    <span>Aktifkan</span>
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </td>
                         </tr>

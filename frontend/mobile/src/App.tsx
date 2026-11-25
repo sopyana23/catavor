@@ -27903,34 +27903,97 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                   <Archive size={12} />
                                                   <span>Arsip</span>
                                                 </button>
-                                              ) : (
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    openArchiveConfirmModal(item, true);
-                                                  }}
-                                                  style={{
-                                                    padding: '0.24rem 0.5rem',
-                                                    borderRadius: '0.45rem',
-                                                    fontSize: '0.71rem',
-                                                    fontWeight: 700,
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    gap: '0.25rem',
-                                                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                                                    color: '#10b981',
-                                                    border: '1px solid rgba(16, 185, 129, 0.3)',
-                                                    cursor: 'pointer',
-                                                    width: '100%'
-                                                  }}
-                                                  title="Aktifkan Kembali ke Katalog"
-                                                >
-                                                  <CheckCircle2 size={12} />
-                                                  <span>Aktifkan</span>
-                                                </button>
-                                              )}
+                                              ) : (() => {
+                                                const rowModMeta = getItemModerationMeta((item as any).moderation_status);
+                                                if (rowModMeta && rowModMeta.status === 'needs_fix') {
+                                                  return (
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openEditSheet(item);
+                                                      }}
+                                                      style={{
+                                                        padding: '0.24rem 0.5rem',
+                                                        borderRadius: '0.45rem',
+                                                        fontSize: '0.71rem',
+                                                        fontWeight: 700,
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '0.25rem',
+                                                        backgroundColor: rowModMeta.bg,
+                                                        color: rowModMeta.color,
+                                                        border: `1px solid ${rowModMeta.border}`,
+                                                        cursor: 'pointer',
+                                                        width: '100%'
+                                                      }}
+                                                      title={rowModMeta.title}
+                                                    >
+                                                      <Edit3 size={12} />
+                                                      <span>Perbaiki</span>
+                                                    </button>
+                                                  );
+                                                }
+                                                if (rowModMeta && rowModMeta.isLocked) {
+                                                  return (
+                                                    <button
+                                                      type="button"
+                                                      disabled
+                                                      aria-disabled="true"
+                                                      onClick={(e) => e.stopPropagation()}
+                                                      style={{
+                                                        padding: '0.24rem 0.5rem',
+                                                        borderRadius: '0.45rem',
+                                                        fontSize: '0.71rem',
+                                                        fontWeight: 700,
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '0.25rem',
+                                                        backgroundColor: rowModMeta.bg,
+                                                        color: rowModMeta.color,
+                                                        border: `1px solid ${rowModMeta.border}`,
+                                                        cursor: 'not-allowed',
+                                                        opacity: 0.65,
+                                                        width: '100%'
+                                                      }}
+                                                      title={rowModMeta.title}
+                                                    >
+                                                      <Lock size={12} />
+                                                      <span>{rowModMeta.shortLabel}</span>
+                                                    </button>
+                                                  );
+                                                }
+                                                return (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      openArchiveConfirmModal(item, true);
+                                                    }}
+                                                    style={{
+                                                      padding: '0.24rem 0.5rem',
+                                                      borderRadius: '0.45rem',
+                                                      fontSize: '0.71rem',
+                                                      fontWeight: 700,
+                                                      display: 'inline-flex',
+                                                      alignItems: 'center',
+                                                      justifyContent: 'center',
+                                                      gap: '0.25rem',
+                                                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                                      color: '#10b981',
+                                                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                                                      cursor: 'pointer',
+                                                      width: '100%'
+                                                    }}
+                                                    title="Aktifkan Kembali ke Katalog"
+                                                  >
+                                                    <CheckCircle2 size={12} />
+                                                    <span>Aktifkan</span>
+                                                  </button>
+                                                );
+                                              })()}
                                             </div>
                                           </div>
                                         );
