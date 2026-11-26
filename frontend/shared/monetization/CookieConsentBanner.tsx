@@ -13,6 +13,10 @@ export interface CookieConsentBannerProps {
   storePlan?: string | null;
   isAdminView?: boolean;
   isPublicCatalog?: boolean;
+  itemCount?: number | null;
+  isSuspended?: boolean;
+  dormancyStatus?: string | null;
+  isBlacklisted?: boolean;
   isDark?: boolean;
   onChoiceSaved?: (choice: CookieConsentChoice) => void;
 }
@@ -22,6 +26,10 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({
   storePlan,
   isAdminView = false,
   isPublicCatalog = false,
+  itemCount,
+  isSuspended = false,
+  dormancyStatus,
+  isBlacklisted = false,
   isDark = false,
   onChoiceSaved,
 }) => {
@@ -47,6 +55,10 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({
       storePlan,
       isAdminView,
       isPublicCatalog,
+      itemCount,
+      isSuspended,
+      dormancyStatus,
+      isBlacklisted,
     });
 
   if ((!adsAllowedHere && !gaOn) || choice !== null) {

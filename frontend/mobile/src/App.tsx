@@ -829,6 +829,7 @@ interface ShopSettings {
   suspension_reason?: string
   dormancy_suspended_at?: string
   is_suspended?: boolean
+  is_blacklisted?: boolean
   default_is_comments_enabled?: string
   default_require_comment_approval?: string
   default_require_comment_email?: string
@@ -2541,6 +2542,7 @@ interface ShopSettings {
   suspension_reason?: string
   dormancy_suspended_at?: string
   is_suspended?: boolean
+  is_blacklisted?: boolean
   default_is_comments_enabled?: string
   default_require_comment_approval?: string
   default_require_comment_email?: string
@@ -5971,15 +5973,7 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
     }
     return false;
   }, [storeSlug, settings.dormancy_status, settings.is_suspended, userStores]);
-  // Reaktif sinkronkan Google AdSense di head hanya pada katalog publik paket Free
-  useEffect(() => {
-    syncGoogleAdSenseHead(platformSettings, {
-      storePlan: settings?.plan,
-      isAdminView: activeTab === 'admin',
-      isPublicCatalog: view === 'tabs' && activeTab !== 'admin' && Boolean(storeSlug),
-      pathname: typeof window !== 'undefined' ? window.location.pathname : '',
-    });
-  }, [platformSettings, settings?.plan, view, activeTab, storeSlug]);
+
 
   const [mobileSuspendedView, setMobileSuspendedView] = useState<'hub' | 'chat'>(() => {
     if (typeof window !== 'undefined') {
@@ -6768,6 +6762,26 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
   const activeDetailItemIdRef = useRef<string | null>(
     typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('item') : null
   )
+  const mobileAdItemCount = useMemo(() => {
+    if (view !== 'tabs' || activeTab === 'admin' || !storeSlug) return 0;
+    if (isDetailActive && selectedFauna) return Math.max(filteredFaunas.length, 1);
+    if (activeTab !== 'catalog') return 0;
+    return filteredFaunas.length;
+  }, [view, activeTab, storeSlug, isDetailActive, selectedFauna, filteredFaunas.length]);
+
+  useEffect(() => {
+    syncGoogleAdSenseHead(platformSettings, {
+      storePlan: settings?.plan,
+      isAdminView: activeTab === 'admin',
+      isPublicCatalog: view === 'tabs' && activeTab !== 'admin' && Boolean(storeSlug) && (activeTab === 'catalog' || isDetailActive),
+      pathname: typeof window !== 'undefined' ? window.location.pathname : '',
+      itemCount: mobileAdItemCount,
+      isSuspended: isStoreSuspended,
+      dormancyStatus: settings?.dormancy_status,
+      isBlacklisted: Boolean(settings?.is_blacklisted),
+    });
+  }, [platformSettings, settings?.plan, settings?.dormancy_status, settings?.is_blacklisted, view, activeTab, storeSlug, isDetailActive, mobileAdItemCount, isStoreSuspended]);
+
   const isDetailActiveRef = useRef<boolean>(false)
   useEffect(() => {
     isDetailActiveRef.current = isDetailActive;
@@ -20703,6 +20717,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   storePlan={settings?.plan}
                   isAdminView={false}
                   isPublicCatalog={true}
+                  itemCount={selectedFauna ? 1 : 0}
+                  isSuspended={isStoreSuspended}
+                  dormancyStatus={settings?.dormancy_status}
+                  isBlacklisted={Boolean(settings?.is_blacklisted)}
                   slotType="product_detail"
                   settings={{ ...platformSettings, ...settings }}
                 />
@@ -25300,6 +25318,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       storePlan={settings?.plan}
                                       isAdminView={false}
                                       isPublicCatalog={Boolean(storeSlug)}
+                                      itemCount={filteredFaunas.length}
+                                      isSuspended={isStoreSuspended}
+                                      dormancyStatus={settings?.dormancy_status}
+                                      isBlacklisted={Boolean(settings?.is_blacklisted)}
                                       slotType="header"
                                       settings={{ ...platformSettings, ...settings }}
                                     />
@@ -25512,6 +25534,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                 storePlan={settings?.plan}
                                                 isAdminView={false}
                                                 isPublicCatalog={Boolean(storeSlug)}
+                                                itemCount={filteredFaunas.length}
+                                                isSuspended={isStoreSuspended}
+                                                dormancyStatus={settings?.dormancy_status}
+                                                isBlacklisted={Boolean(settings?.is_blacklisted)}
                                                 slotType="infeed"
                                                 settings={{ ...platformSettings, ...settings }}
                                                 onUpgradeClick={() => {
@@ -25532,6 +25558,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       storePlan={settings?.plan}
                                       isAdminView={false}
                                       isPublicCatalog={Boolean(storeSlug)}
+                                      itemCount={filteredFaunas.length}
+                                      isSuspended={isStoreSuspended}
+                                      dormancyStatus={settings?.dormancy_status}
+                                      isBlacklisted={Boolean(settings?.is_blacklisted)}
                                       slotType="bottom"
                                       settings={{ ...platformSettings, ...settings }}
                                       onUpgradeClick={() => {
@@ -37569,6 +37599,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         storePlan={settings?.plan}
         isAdminView={activeTab === 'admin'}
         isPublicCatalog={view === 'tabs' && activeTab !== 'admin' && Boolean(storeSlug)}
+        itemCount={mobileAdItemCount}
+        isSuspended={isStoreSuspended}
+        dormancyStatus={settings?.dormancy_status}
+        isBlacklisted={Boolean(settings?.is_blacklisted)}
       />
     </>
   )

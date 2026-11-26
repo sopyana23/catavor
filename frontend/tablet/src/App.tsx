@@ -13,7 +13,7 @@ import {
   Home
 } from 'lucide-react';
 import { TabletPublicLanding } from './components/TabletPublicLanding';
-import { TabletStoreCatalog } from './components/TabletStoreCatalog';
+import { TabletStoreCatalog, type TabletCatalogAdContext } from './components/TabletStoreCatalog';
 import { TabletMerchantAdmin, resolveProofImageUrl } from './components/TabletMerchantAdmin';
 import { TabletPlatformConsole } from './components/TabletPlatformConsole';
 import { TabletCheckoutView } from './components/TabletCheckoutView';
@@ -239,7 +239,14 @@ export const App: React.FC = () => {
 
   // Store Profile & Settings (Cached / Live)
   const [platformSettings, setPlatformSettings] = useState<Record<string, any>>({});
-  const [storeInfo, setStoreInfo] = useState<{ title?: string; logo_url?: string; theme?: string; plan?: string } | null>(() => {
+  const [tabletCatalogAdCtx, setTabletCatalogAdCtx] = useState<TabletCatalogAdContext>({
+    itemCount: 0,
+    isSuspended: false,
+    dormancyStatus: undefined,
+    isBlacklisted: false,
+    isPublicCatalogTab: false,
+  });
+  const [storeInfo, setStoreInfo] = useState<{ title?: string; logo_url?: string; theme?: string; plan?: string; is_suspended?: boolean; dormancy_status?: string; is_blacklisted?: boolean } | null>(() => {
     if (typeof localStorage !== 'undefined') {
       try {
         const raw = localStorage.getItem('catavor_settings');
@@ -386,7 +393,7 @@ export const App: React.FC = () => {
     fetchPlatformSettings();
   }, []);
 
-  // Reaktif sinkronkan Google AdSense di head setiap rute, status admin, atau plan toko berubah
+  // Reaktif sinkronkan Google AdSense di head hanya pada katalog publik paket Free yang aktif & berkonten
   useEffect(() => {
     const isAdminRoute =
       currentPath === '/admin' ||
@@ -397,13 +404,24 @@ export const App: React.FC = () => {
     syncGoogleAdSenseHead(platformSettings, {
       storePlan: storeInfo?.plan,
       isAdminView: isAdminRoute,
-      isPublicCatalog: Boolean(activeSlug) && !isAdminRoute,
+      isPublicCatalog: Boolean(activeSlug) && !isAdminRoute && tabletCatalogAdCtx.isPublicCatalogTab,
       pathname: currentPath,
+      itemCount: tabletCatalogAdCtx.itemCount,
+      isSuspended: Boolean(storeInfo?.is_suspended || tabletCatalogAdCtx.isSuspended),
+      dormancyStatus: tabletCatalogAdCtx.dormancyStatus ?? storeInfo?.dormancy_status,
+      isBlacklisted: Boolean(storeInfo?.is_blacklisted || tabletCatalogAdCtx.isBlacklisted),
     });
-  }, [platformSettings, storeInfo?.plan, activeSlug, currentPath]);
+  }, [platformSettings, storeInfo?.plan, storeInfo?.is_suspended, storeInfo?.dormancy_status, storeInfo?.is_blacklisted, activeSlug, currentPath, tabletCatalogAdCtx]);
 
   // Fetch store profile and dynamic theme when activeSlug is available
   useEffect(() => {
+    setTabletCatalogAdCtx({
+      itemCount: 0,
+      isSuspended: false,
+      dormancyStatus: undefined,
+      isBlacklisted: false,
+      isPublicCatalogTab: false,
+    });
     if (!activeSlug) {
       setStoreInfo(null);
       return;
@@ -422,6 +440,9 @@ export const App: React.FC = () => {
               logo_url: st.store_logo_url,
               theme: st.store_theme,
               plan: st.plan || 'free',
+              is_suspended: Boolean(st.is_suspended),
+              dormancy_status: st.dormancy_status,
+              is_blacklisted: Boolean(st.is_blacklisted),
             });
             if (st.store_theme) {
               setStoreTheme(st.store_theme);
@@ -1279,6 +1300,7 @@ export const App: React.FC = () => {
       <TabletStoreCatalog
         slug={activeSlug}
         onBackToExplore={() => smartBack('/')}
+        onAdContextChange={setTabletCatalogAdCtx}
       />
     );
   }
@@ -2688,8 +2710,13 @@ export const App: React.FC = () => {
           Boolean(activeSlug) &&
           !currentPath.includes('/admin') &&
           !currentPath.startsWith('/platform') &&
-          !currentPath.startsWith('/ops')
+          !currentPath.startsWith('/ops') &&
+          tabletCatalogAdCtx.isPublicCatalogTab
         }
+        itemCount={tabletCatalogAdCtx.itemCount}
+        isSuspended={Boolean(storeInfo?.is_suspended || tabletCatalogAdCtx.isSuspended)}
+        dormancyStatus={tabletCatalogAdCtx.dormancyStatus ?? storeInfo?.dormancy_status}
+        isBlacklisted={Boolean(storeInfo?.is_blacklisted || tabletCatalogAdCtx.isBlacklisted)}
       />
       <TabletGlobalSecurityModal />
     </>

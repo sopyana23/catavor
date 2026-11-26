@@ -72,9 +72,18 @@ import {
 } from './TabletAboutComponents';
 import { AdSenseUnit } from './AdSenseUnit';
 
+export interface TabletCatalogAdContext {
+  itemCount: number;
+  isSuspended: boolean;
+  dormancyStatus?: string;
+  isBlacklisted?: boolean;
+  isPublicCatalogTab: boolean;
+}
+
 export interface TabletStoreCatalogProps {
   slug: string;
   onBackToExplore?: () => void;
+  onAdContextChange?: (ctx: TabletCatalogAdContext) => void;
 }
 
 export interface WAContactItem {
@@ -288,7 +297,8 @@ export { getCatalogReportReasons };
 
 export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   slug,
-  onBackToExplore
+  onBackToExplore,
+  onAdContextChange
 }) => {
   const [settings, setSettings] = useState<any>(null);
   const [platformSettings, setPlatformSettings] = useState<any>({});
@@ -754,6 +764,32 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     }
     return faunas;
   }, [serverCatalogItems, faunas, debouncedSearch, productTypeFilter, classFilter, habitatFilter, sortBy]);
+
+  const isTabletStoreSuspended = Boolean(settings?.is_suspended || settings?.dormancy_status === 'suspended');
+
+  useEffect(() => {
+    if (!onAdContextChange) return;
+    const isContentTab = activePublicTab === 'catalog' || Boolean(isDetailActive && selectedFauna);
+    const effectiveCount = !isContentTab
+      ? 0
+      : (isDetailActive && selectedFauna ? Math.max(filteredFaunas.length, 1) : filteredFaunas.length);
+    onAdContextChange({
+      itemCount: effectiveCount,
+      isSuspended: isTabletStoreSuspended,
+      dormancyStatus: settings?.dormancy_status,
+      isBlacklisted: Boolean(settings?.is_blacklisted),
+      isPublicCatalogTab: isContentTab,
+    });
+  }, [
+    onAdContextChange,
+    activePublicTab,
+    isDetailActive,
+    selectedFauna,
+    filteredFaunas.length,
+    isTabletStoreSuspended,
+    settings?.dormancy_status,
+    settings?.is_blacklisted,
+  ]);
 
   // -------------------------------------------------------------
   // DETAIL PRODUCT FETCHING & FLOW (Identical to Desktop)
@@ -1721,6 +1757,10 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                 storePlan={settings?.plan}
                 isAdminView={false}
                 isPublicCatalog={true}
+                itemCount={selectedFauna ? 1 : 0}
+                isSuspended={isTabletStoreSuspended}
+                dormancyStatus={settings?.dormancy_status}
+                isBlacklisted={Boolean(settings?.is_blacklisted)}
                 slotType="product_detail"
                 settings={adSettings}
               />
@@ -3311,6 +3351,10 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                       storePlan={settings?.plan}
                       isAdminView={false}
                       isPublicCatalog={true}
+                      itemCount={filteredFaunas.length}
+                      isSuspended={isTabletStoreSuspended}
+                      dormancyStatus={settings?.dormancy_status}
+                      isBlacklisted={Boolean(settings?.is_blacklisted)}
                       slotType="header"
                       settings={adSettings}
                     />
@@ -3562,6 +3606,10 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                           storePlan={settings?.plan}
                           isAdminView={false}
                           isPublicCatalog={true}
+                          itemCount={filteredFaunas.length}
+                          isSuspended={isTabletStoreSuspended}
+                          dormancyStatus={settings?.dormancy_status}
+                          isBlacklisted={Boolean(settings?.is_blacklisted)}
                           slotType="infeed"
                           settings={adSettings}
                         />
@@ -3570,19 +3618,23 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                   </React.Fragment>
                 ))}
               </div>
+
+              {/* Google AdSense Bottom Banner (Tablet Free Tier only, strictly inside non-empty catalog branch) */}
+              <div style={{ marginTop: '1.25rem', marginBottom: '1.25rem' }}>
+                <AdSenseUnit
+                  storePlan={settings?.plan}
+                  isAdminView={false}
+                  isPublicCatalog={true}
+                  itemCount={filteredFaunas.length}
+                  isSuspended={isTabletStoreSuspended}
+                  dormancyStatus={settings?.dormancy_status}
+                  isBlacklisted={Boolean(settings?.is_blacklisted)}
+                  slotType="bottom"
+                  settings={adSettings}
+                />
+              </div>
               </>
             )}
-
-            {/* Google AdSense Bottom Banner (Tablet Free Tier only) */}
-            <div style={{ marginTop: '1.25rem', marginBottom: '1.25rem' }}>
-              <AdSenseUnit
-                storePlan={settings?.plan}
-                isAdminView={false}
-                isPublicCatalog={true}
-                slotType="bottom"
-                settings={adSettings}
-              />
-            </div>
 
               {/* Tablet Native Server-Side Pagination Bar (Rule 7.C: Touch-Segmented Page Bar) */}
               {serverPagination.totalPages > 1 && (

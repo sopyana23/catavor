@@ -82,11 +82,23 @@ export function isPublicCatalogAdAllowed(options?: {
   isAdminView?: boolean;
   pathname?: string;
   isPublicCatalog?: boolean;
+  itemCount?: number | null;
+  isSuspended?: boolean;
+  dormancyStatus?: string | null;
+  isBlacklisted?: boolean;
 }): boolean {
   if (options?.isAdminView) return false;
-  // Fail-closed: hanya katalog publik eksplisit & paket 'free' yang terverifikasi.
-  // Plan yang belum termuat ('') maupun paket berbayar (pro_starter / pro_business) dilarang menampilkan iklan.
+  if (options?.isSuspended || options?.isBlacklisted) return false;
+  const dormancy = String(options?.dormancyStatus ?? '').trim().toLowerCase();
+  if (dormancy === 'suspended' || dormancy === 'banned' || dormancy === 'purged') {
+    return false;
+  }
+  // Fail-closed: hanya katalog publik eksplisit & paket 'free' yang terverifikasi & memiliki konten.
+  // Plan yang belum termuat (''), paket berbayar, atau halaman tanpa konten produk dilarang menampilkan iklan.
   if (options?.isPublicCatalog !== true) {
+    return false;
+  }
+  if (options?.itemCount !== undefined && options?.itemCount !== null && options.itemCount <= 0) {
     return false;
   }
   const plan = String(options?.storePlan ?? '').trim().toLowerCase();
@@ -197,6 +209,10 @@ export function syncGoogleAdSenseHead(
     isAdminView?: boolean;
     isPublicCatalog?: boolean;
     pathname?: string;
+    itemCount?: number | null;
+    isSuspended?: boolean;
+    dormancyStatus?: string | null;
+    isBlacklisted?: boolean;
   }
 ): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -212,6 +228,10 @@ export function syncGoogleAdSenseHead(
     isAdminView: context?.isAdminView,
     isPublicCatalog: context?.isPublicCatalog,
     pathname: context?.pathname,
+    itemCount: context?.itemCount,
+    isSuspended: context?.isSuspended,
+    dormancyStatus: context?.dormancyStatus,
+    isBlacklisted: context?.isBlacklisted,
   });
 
   if (!adsEnabled || testMode || !clientId || !allowed) {

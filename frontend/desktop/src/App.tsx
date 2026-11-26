@@ -2541,6 +2541,7 @@ interface ShopSettings {
   suspension_reason?: string
   dormancy_suspended_at?: string
   is_suspended?: boolean
+  is_blacklisted?: boolean
   default_is_comments_enabled?: string
   default_require_comment_approval?: string
   default_require_comment_email?: string
@@ -5809,16 +5810,7 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
     }
     return 'catalog';
   });
-  // Reaktif sinkronkan Google AdSense di head hanya pada katalog publik paket Free
-  useEffect(() => {
-    const isAdminOrSystemView = view === 'admin';
-    syncGoogleAdSenseHead(platformSettings, {
-      storePlan: settings?.plan,
-      isAdminView: isAdminOrSystemView,
-      isPublicCatalog: view === 'catalog' && Boolean(storeSlug),
-      pathname: typeof window !== 'undefined' ? window.location.pathname : '',
-    });
-  }, [platformSettings, settings?.plan, view, storeSlug]);
+
 
   const [adminTab, setAdminTab] = useState<'items' | 'categories' | 'analytics' | 'ads' | 'notifications' | 'settings' | 'profile' | 'policies' | 'help' | 'subscription' | 'audit_logs' | 'rbac' | 'portal' | 'share'>(() => {
     if (typeof window !== 'undefined') {
@@ -6573,6 +6565,28 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
   const activeDetailItemIdRef = useRef<string | null>(
     typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('item') : null
   )
+  // Reaktif sinkronkan Google AdSense di head hanya pada katalog publik paket Free yang aktif & berkonten
+  const desktopAdItemCount = useMemo(() => {
+    if (view !== 'catalog' || !storeSlug) return 0;
+    if (isDetailActive && selectedFauna) return Math.max(filteredFaunas.length, 1);
+    if (activePublicTab !== 'catalog') return 0;
+    return filteredFaunas.length;
+  }, [view, storeSlug, isDetailActive, selectedFauna, activePublicTab, filteredFaunas.length]);
+
+  useEffect(() => {
+    const isAdminOrSystemView = view === 'admin';
+    syncGoogleAdSenseHead(platformSettings, {
+      storePlan: settings?.plan,
+      isAdminView: isAdminOrSystemView,
+      isPublicCatalog: view === 'catalog' && Boolean(storeSlug) && (activePublicTab === 'catalog' || isDetailActive),
+      pathname: typeof window !== 'undefined' ? window.location.pathname : '',
+      itemCount: desktopAdItemCount,
+      isSuspended: isStoreSuspended,
+      dormancyStatus: settings?.dormancy_status,
+      isBlacklisted: Boolean(settings?.is_blacklisted),
+    });
+  }, [platformSettings, settings?.plan, settings?.dormancy_status, settings?.is_blacklisted, view, storeSlug, activePublicTab, isDetailActive, desktopAdItemCount, isStoreSuspended]);
+
   const isDetailActiveRef = useRef<boolean>(false)
   useEffect(() => {
     isDetailActiveRef.current = isDetailActive;
@@ -19001,6 +19015,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     storePlan={settings?.plan}
                     isAdminView={false}
                     isPublicCatalog={true}
+                    itemCount={selectedFauna ? 1 : 0}
+                    isSuspended={isStoreSuspended}
+                    dormancyStatus={settings?.dormancy_status}
+                    isBlacklisted={Boolean(settings?.is_blacklisted)}
                     slotType="product_detail"
                     format="horizontal"
                     settings={{ ...platformSettings, ...settings }}
@@ -20955,6 +20973,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             storePlan={settings?.plan}
                             isAdminView={false}
                             isPublicCatalog={Boolean(storeSlug)}
+                            itemCount={filteredFaunas.length}
+                            isSuspended={isStoreSuspended}
+                            dormancyStatus={settings?.dormancy_status}
+                            isBlacklisted={Boolean(settings?.is_blacklisted)}
                             slotType="header"
                             settings={{ ...platformSettings, ...settings }}
                             onUpgradeClick={() => setShowSubscriptionModal(true)}
@@ -21299,6 +21321,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               storePlan={settings?.plan}
                               isAdminView={false}
                               isPublicCatalog={Boolean(storeSlug)}
+                              itemCount={filteredFaunas.length}
+                              isSuspended={isStoreSuspended}
+                              dormancyStatus={settings?.dormancy_status}
+                              isBlacklisted={Boolean(settings?.is_blacklisted)}
                               slotType="infeed"
                               settings={{ ...platformSettings, ...settings }}
                               onUpgradeClick={() => setShowSubscriptionModal(true)}
@@ -21314,6 +21340,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     storePlan={settings?.plan}
                     isAdminView={false}
                     isPublicCatalog={Boolean(storeSlug)}
+                    itemCount={filteredFaunas.length}
+                    isSuspended={isStoreSuspended}
+                    dormancyStatus={settings?.dormancy_status}
+                    isBlacklisted={Boolean(settings?.is_blacklisted)}
                     slotType="bottom"
                     settings={{ ...platformSettings, ...settings }}
                     onUpgradeClick={() => setShowSubscriptionModal(true)}
@@ -34842,6 +34872,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
         storePlan={settings?.plan}
         isAdminView={view === 'admin'}
         isPublicCatalog={view === 'catalog' && Boolean(storeSlug)}
+        itemCount={desktopAdItemCount}
+        isSuspended={isStoreSuspended}
+        dormancyStatus={settings?.dormancy_status}
+        isBlacklisted={Boolean(settings?.is_blacklisted)}
       />
       <SwipeableToast toast={toast} onClose={() => setToast(null)} position="top" />
     </>

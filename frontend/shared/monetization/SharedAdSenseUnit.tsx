@@ -19,6 +19,10 @@ export interface SharedAdSenseUnitProps {
   device?: 'desktop' | 'tablet' | 'mobile';
   isAdminView?: boolean;
   isPublicCatalog?: boolean;
+  itemCount?: number | null;
+  isSuspended?: boolean;
+  dormancyStatus?: string | null;
+  isBlacklisted?: boolean;
   onUpgradeClick?: () => void;
 }
 
@@ -47,6 +51,10 @@ export const SharedAdSenseUnit: React.FC<SharedAdSenseUnitProps> = ({
   device = 'desktop',
   isAdminView = false,
   isPublicCatalog = true,
+  itemCount,
+  isSuspended = false,
+  dormancyStatus,
+  isBlacklisted = false,
 }) => {
   const insRef = useRef<HTMLModElement | null>(null);
   const pushedRef = useRef(false);
@@ -60,13 +68,24 @@ export const SharedAdSenseUnit: React.FC<SharedAdSenseUnitProps> = ({
     }
   });
 
-  // Strict Policy Enforcement: No dashboard ads, no Paid Tier ads, no restricted/admin routes
+  // Strict Policy Enforcement: No dashboard ads, no Paid Tier ads, no restricted/admin/empty/suspended routes,
+  // and enforce balanced ad-to-content density when catalog has <= 1 item.
+  const meetsDensityRule =
+    slotType !== 'bottom' ||
+    itemCount === undefined ||
+    itemCount === null ||
+    itemCount >= 2;
   const policyAllowed =
     slotType !== 'dashboard' &&
+    meetsDensityRule &&
     isPublicCatalogAdAllowed({
       storePlan,
       isAdminView,
       isPublicCatalog,
+      itemCount,
+      isSuspended,
+      dormancyStatus,
+      isBlacklisted,
     });
 
   const adsEnabled = settings?.ads_enabled === '1' || settings?.ads_enabled === 'true';
@@ -135,20 +154,21 @@ export const SharedAdSenseUnit: React.FC<SharedAdSenseUnitProps> = ({
           position: 'relative',
           width: '100%',
           minHeight,
-          margin: slotType === 'bottom' ? '0' : '0.65rem 0',
+          margin: slotType === 'bottom' ? (device === 'desktop' ? '1.35rem 0 0 0' : '0.85rem 0 0 0') : '0.65rem 0',
           padding: device === 'mobile' ? '0.65rem 0.75rem' : '0.75rem 1rem',
           borderRadius: '0.75rem',
           backgroundColor: bg,
           border: `1px dashed ${borderCol}`,
           display: 'flex',
-          alignItems: 'center',
+          alignItems: device === 'mobile' ? 'flex-start' : 'center',
           justifyContent: 'space-between',
-          gap: '0.65rem',
+          flexDirection: device === 'mobile' ? 'column' : 'row',
+          gap: device === 'mobile' ? '0.5rem' : '0.65rem',
           boxSizing: 'border-box',
           ...style,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, width: device === 'mobile' ? '100%' : 'auto', flex: 1 }}>
           <div
             style={{
               width: '34px',
@@ -164,7 +184,7 @@ export const SharedAdSenseUnit: React.FC<SharedAdSenseUnitProps> = ({
           >
             {slotType === 'product_detail' ? <Sparkles size={16} /> : <Megaphone size={16} />}
           </div>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: '0.74rem', fontWeight: 700, color: titleCol, display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
               <span>Mode Sandbox AdSense</span>
               <span
@@ -180,13 +200,13 @@ export const SharedAdSenseUnit: React.FC<SharedAdSenseUnitProps> = ({
                 {slotType}
               </span>
             </div>
-            <div style={{ fontSize: '0.68rem', color: subCol, marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: '0.68rem', color: subCol, marginTop: '0.15rem', lineHeight: 1.35, whiteSpace: device === 'mobile' ? 'normal' : 'nowrap', overflow: device === 'mobile' ? 'visible' : 'hidden', textOverflow: device === 'mobile' ? 'clip' : 'ellipsis' }}>
               {LABEL_BY_SLOT[slotType] || slotType} {hasValidSlot ? `(#${rawSlotId})` : '(Belum ada Slot ID manual)'}
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: device === 'mobile' ? 'space-between' : 'flex-end', width: device === 'mobile' ? '100%' : 'auto', gap: '0.35rem', flexShrink: 0 }}>
           <span style={{ fontSize: '0.65rem', color: subCol, display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
             <ExternalLink size={12} /> Gratis Iklan di Pro
           </span>
@@ -224,7 +244,7 @@ export const SharedAdSenseUnit: React.FC<SharedAdSenseUnitProps> = ({
         position: 'relative',
         width: '100%',
         minHeight: MIN_HEIGHT_BY_SLOT[slotType] || '90px',
-        margin: slotType === 'bottom' ? '0' : '0.65rem 0',
+        margin: slotType === 'bottom' ? (device === 'desktop' ? '1.35rem 0 0 0' : '0.85rem 0 0 0') : '0.65rem 0',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
