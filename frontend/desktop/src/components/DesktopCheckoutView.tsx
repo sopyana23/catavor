@@ -5,6 +5,14 @@ import {
   resolveAuthenticatedRedirect,
   appendViewParam
 } from '../utils/authSync';
+import { useModalBackHandler } from '../utils/navigation';
+import {
+  clearStoredRegistrationToken,
+  getStoredRegistrationToken,
+  isVerificationTokenErrorResponse,
+  sendRegistrationOtpApi
+} from '../../../shared/auth/registrationOtp';
+import { SharedRegistrationOtpModal } from '../../../shared/auth/SharedRegistrationOtpModal';
 import {
   Sparkles,
   ShieldAlert,
@@ -161,6 +169,16 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
 
   const [showAccountFormEdit, setShowAccountFormEdit] = useState<boolean>(() => {
     return !registerForm.name || !registerForm.email || !registerForm.store_name;
+  });
+
+  const [showOtpModal, setShowOtpModal] = useState<boolean>(false);
+  const [otpNotice, setOtpNotice] = useState<string | null>(null);
+  const [pendingSubmitArgs, setPendingSubmitArgs] = useState<{ isFreeBypass: boolean; planOverride?: 'free' | 'pro_starter' | 'pro_business' } | null>(null);
+
+  useModalBackHandler({
+    isOpen: showOtpModal,
+    onClose: () => setShowOtpModal(false),
+    modalId: 'desktop-checkout-otp-modal'
   });
 
   // 3. Payment Method & Settings State
@@ -390,7 +408,11 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
   };
 
   // Submission Handler
-  const handleSubmitCheckout = async (isFreeBypass: boolean = false, planOverride?: 'free' | 'pro_starter' | 'pro_business') => {
+  const handleSubmitCheckout = async (
+    isFreeBypass: boolean = false,
+    planOverride?: 'free' | 'pro_starter' | 'pro_business',
+    overrideVerificationToken?: string
+  ) => {
     setRegisterError(null);
 
     // Validation
@@ -436,6 +458,26 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
       return;
     }
 
+    const effectiveVerifToken = !isGoogleAuth
+      ? (overrideVerificationToken || getStoredRegistrationToken(registerForm.email))
+      : '';
+    if (!isGoogleAuth && !effectiveVerifToken) {
+      setRegisterLoading(true);
+      try {
+        const otpRes = await sendRegistrationOtpApi('/api', registerForm.email, registerForm.name);
+        if (!otpRes.ok && otpRes.status !== 429) {
+          setRegisterError(otpRes.message);
+          return;
+        }
+        setOtpNotice(otpRes.status === 429 ? otpRes.message : null);
+        setPendingSubmitArgs({ isFreeBypass, planOverride });
+        setShowOtpModal(true);
+      } finally {
+        setRegisterLoading(false);
+      }
+      return;
+    }
+
     setRegisterLoading(true);
     try {
       let effectiveGoogleId = registerForm.google_id;
@@ -462,6 +504,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
         password: isGoogleAuth ? undefined : registerForm.password,
         google_id: effectiveGoogleId || undefined,
         google_registration_token: registerForm.google_registration_token || undefined,
+        verification_token: !isGoogleAuth ? effectiveVerifToken : undefined,
         store_name: registerForm.store_name.trim(),
         store_slug: registerForm.store_slug.trim().toLowerCase(),
         plan: effectivePlan,
@@ -486,15 +529,7 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
 
       const data = await res.json();
       if (res.ok && data.success) {
-        // Clear registration drafts
-        try {
-          sessionStorage.removeItem('catavor_register_form');
-          sessionStorage.removeItem('catavor_register_plan');
-          sessionStorage.removeItem('catavor_register_billing');
-          sessionStorage.removeItem('catavor_applied_coupon');
-          sessionStorage.removeItem('catavor_payment_method');
-          sessionStorage.removeItem('catavor_aulaa_channel');
-        } catch {}
+        clearRegistrationDrafts();
 
         if (data.token) {
           localStorage.setItem('catavor_token', data.token);
@@ -531,6 +566,14 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
           : '/';
         return;
       } else {
+        if (!isGoogleAuth && isVerificationTokenErrorResponse(res.status, data?.message)) {
+          clearStoredRegistrationToken();
+          const otpRes = await sendRegistrationOtpApi('/api', registerForm.email, registerForm.name);
+          setOtpNotice(otpRes.ok ? data.message : otpRes.message);
+          setPendingSubmitArgs({ isFreeBypass, planOverride });
+          setShowOtpModal(true);
+          return;
+        }
         setRegisterError(data.message || 'Pendaftaran gagal. Silakan periksa kembali data Anda.');
       }
     } catch {
@@ -2416,6 +2459,28 @@ export const DesktopCheckoutView: React.FC<DesktopCheckoutViewProps> = ({
           </div>
         </div>
       )}
+
+      <SharedRegistrationOtpModal
+        isOpen={showOtpModal}
+        email={registerForm.email}
+        recipientName={registerForm.name}
+        apiBase="/api"
+        device="desktop"
+        initialNotice={otpNotice}
+        submitLabel="Verifikasi & Selesaikan Checkout"
+        onClose={() => {
+          setShowOtpModal(false);
+          setPendingSubmitArgs(null);
+        }}
+        onVerified={(verifiedToken) => {
+          setShowOtpModal(false);
+          const args = pendingSubmitArgs;
+          setPendingSubmitArgs(null);
+          if (args) {
+            handleSubmitCheckout(args.isFreeBypass, args.planOverride, verifiedToken);
+          }
+        }}
+      />
 
       {/* Confirmation Modal Batalkan Pendaftaran */}
       {showCancelModal && (

@@ -77,6 +77,9 @@ export function clearRegistrationDrafts(): void {
     'catavor_portal_tab',
     'catavor_policy_return_tab',
     'catavor_register_step_completed',
+    'catavor_reg_verification_token',
+    'catavor_reg_verified_email',
+    'catavor_reg_verified_at',
   ];
   registrationKeys.forEach((key) => {
     try {

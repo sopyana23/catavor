@@ -18,6 +18,16 @@ import {
   Calendar,
   Home
 } from 'lucide-react';
+import { setupModalBackInterceptor } from '../utils/navigation';
+import { clearRegistrationDrafts } from '../utils/authSync';
+import {
+  clearStoredRegistrationToken,
+  getStoredRegistrationToken,
+  isVerificationTokenErrorResponse,
+  normalizeRegEmail,
+  sendRegistrationOtpApi
+} from '../../../shared/auth/registrationOtp';
+import { SharedRegistrationOtpModal } from '../../../shared/auth/SharedRegistrationOtpModal';
 
 export interface TabletRegisterViewProps {
   initialStep?: 1 | 2 | 3;
@@ -91,6 +101,16 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
   const [registerLoading, setRegisterLoading] = useState<boolean>(false);
   const [agreeTerms, setAgreeTerms] = useState<boolean>(false);
   const [agreeTermsError, setAgreeTermsError] = useState<boolean>(false);
+  const [showOtpModal, setShowOtpModal] = useState<boolean>(false);
+  const [otpNotice, setOtpNotice] = useState<string | null>(null);
+  const [otpCooldown, setOtpCooldown] = useState<number>(60);
+  const [otpNextAction, setOtpNextAction] = useState<'step2' | 'free_submit'>('step2');
+  const [verificationToken, setVerificationToken] = useState<string>(() => getStoredRegistrationToken(registerForm.email));
+
+  useEffect(() => {
+    if (!showOtpModal) return;
+    return setupModalBackInterceptor(() => setShowOtpModal(false));
+  }, [showOtpModal]);
 
   // Sync step prop changes & re-sync draft when step changes
   useEffect(() => {
@@ -232,7 +252,21 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
       try {
         sessionStorage.setItem('catavor_register_form', JSON.stringify(registerForm));
       } catch {}
-      onNavigateStep(2);
+      const existingToken = getStoredRegistrationToken(registerForm.email);
+      if (registerForm.google_id || existingToken) {
+        if (existingToken) setVerificationToken(existingToken);
+        onNavigateStep(2);
+        return;
+      }
+      const otpRes = await sendRegistrationOtpApi('/api', registerForm.email, registerForm.name);
+      if (!otpRes.ok && otpRes.status !== 429) {
+        setRegisterError(otpRes.message);
+        return;
+      }
+      setOtpNotice(otpRes.status === 429 ? otpRes.message : null);
+      setOtpCooldown(otpRes.ok ? 60 : 30);
+      setOtpNextAction('step2');
+      setShowOtpModal(true);
     } catch {
       setRegisterError('Gagal memverifikasi ketersediaan alamat email. Periksa koneksi internet Anda.');
     } finally {
@@ -250,9 +284,31 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
   };
 
   // Submit Free Plan Registration directly
-  const handleFreeSubmit = async () => {
+  const handleFreeSubmit = async (overrideToken?: string) => {
     if (!agreeTerms) {
       setAgreeTermsError(true);
+      return;
+    }
+
+    const effectiveToken = !registerForm.google_id
+      ? (overrideToken || getStoredRegistrationToken(registerForm.email) || (verificationToken && getStoredRegistrationToken(registerForm.email) ? verificationToken : ''))
+      : '';
+    if (!registerForm.google_id && !effectiveToken) {
+      setRegisterLoading(true);
+      setRegisterError(null);
+      try {
+        const otpRes = await sendRegistrationOtpApi('/api', registerForm.email, registerForm.name);
+        if (!otpRes.ok && otpRes.status !== 429) {
+          setRegisterError(otpRes.message);
+          return;
+        }
+        setOtpNotice(otpRes.status === 429 ? otpRes.message : null);
+        setOtpCooldown(otpRes.ok ? 60 : 30);
+        setOtpNextAction('free_submit');
+        setShowOtpModal(true);
+      } finally {
+        setRegisterLoading(false);
+      }
       return;
     }
 
@@ -269,6 +325,7 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
           password: registerForm.password,
           google_id: registerForm.google_id || undefined,
           google_registration_token: registerForm.google_registration_token || undefined,
+          verification_token: !registerForm.google_id ? effectiveToken : undefined,
           store_name: registerForm.store_name.trim(),
           store_title: registerForm.store_name.trim(),
           store_slug: registerForm.store_slug.trim().toLowerCase(),
@@ -281,14 +338,8 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
 
       const data = await res.json();
       if (res.ok && data.success) {
-        // Clear drafts upon successful registration
-        try {
-          sessionStorage.removeItem('catavor_register_form');
-          sessionStorage.removeItem('catavor_register_plan');
-          sessionStorage.removeItem('catavor_register_billing');
-          sessionStorage.removeItem('catavor_applied_coupon');
-          sessionStorage.removeItem('catavor_payment_method');
-        } catch {}
+        setVerificationToken('');
+        clearRegistrationDrafts();
 
         if (data.token) {
           localStorage.setItem('catavor_token', data.token);
@@ -307,6 +358,16 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
         localStorage.setItem('catavor_password_changed', 'true');
         onSuccess(data.user || { store_slug: resolvedSlug });
       } else {
+        if (!registerForm.google_id && isVerificationTokenErrorResponse(res.status, data?.message)) {
+          clearStoredRegistrationToken();
+          setVerificationToken('');
+          const otpRes = await sendRegistrationOtpApi('/api', registerForm.email, registerForm.name);
+          setOtpNotice(otpRes.ok ? data.message : otpRes.message);
+          setOtpCooldown(otpRes.ok ? 60 : 30);
+          setOtpNextAction('free_submit');
+          setShowOtpModal(true);
+          return;
+        }
         setRegisterError(data.message || 'Pendaftaran gagal diproses. Silakan periksa kembali data Anda.');
       }
     } catch {
@@ -585,7 +646,11 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
                     placeholder="nama@domain.com"
                     value={registerForm.email}
                     onChange={(e) => {
-                      setRegisterForm({ ...registerForm, email: e.target.value });
+                      const nextEmail = e.target.value;
+                      setRegisterForm({ ...registerForm, email: nextEmail });
+                      if (verificationToken && normalizeRegEmail(nextEmail) !== normalizeRegEmail(registerForm.email)) {
+                        setVerificationToken('');
+                      }
                       if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: '' }));
                     }}
                     style={{ flex: 1, background: 'transparent', border: 'none', color: '#0f172a', fontSize: '0.92rem', outline: 'none' }}
@@ -1166,6 +1231,27 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
             </div>
           </div>
         )}
+
+        <SharedRegistrationOtpModal
+          isOpen={showOtpModal}
+          email={registerForm.email}
+          recipientName={registerForm.name}
+          apiBase="/api"
+          device="tablet"
+          initialCooldown={otpCooldown}
+          initialNotice={otpNotice}
+          submitLabel={otpNextAction === 'free_submit' ? 'Verifikasi & Buka Toko' : 'Verifikasi & Lanjutkan'}
+          onClose={() => setShowOtpModal(false)}
+          onVerified={(tok) => {
+            setVerificationToken(tok);
+            setShowOtpModal(false);
+            if (otpNextAction === 'free_submit') {
+              handleFreeSubmit(tok);
+            } else {
+              onNavigateStep(2);
+            }
+          }}
+        />
 
         {/* Footer Login Link */}
         <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.82rem', color: '#64748b' }}>

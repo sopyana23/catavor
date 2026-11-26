@@ -29,8 +29,15 @@ import {
   Trash2,
   LogIn
 } from 'lucide-react';
-import { smartBack } from '../utils/navigation';
+import { smartBack, setupModalBackInterceptor } from '../utils/navigation';
 import { hasValidSessionToken, clearRegistrationDrafts, resolveAuthenticatedRedirect } from '../utils/authSync';
+import {
+  clearStoredRegistrationToken,
+  getStoredRegistrationToken,
+  isVerificationTokenErrorResponse,
+  sendRegistrationOtpApi
+} from '../../../shared/auth/registrationOtp';
+import { SharedRegistrationOtpModal } from '../../../shared/auth/SharedRegistrationOtpModal';
 
 export interface TabletCheckoutViewProps {
   initialPlan?: 'pro_starter' | 'pro_business' | 'free';
@@ -164,6 +171,15 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
   const [showAccountFormEdit, setShowAccountFormEdit] = useState<boolean>(() => {
     return !registerForm.name || !registerForm.email || !registerForm.store_name;
   });
+
+  const [showOtpModal, setShowOtpModal] = useState<boolean>(false);
+  const [otpNotice, setOtpNotice] = useState<string | null>(null);
+  const [pendingSubmitArgs, setPendingSubmitArgs] = useState<{ isFreeBypass: boolean; planOverride?: 'free' | 'pro_starter' | 'pro_business' } | null>(null);
+
+  useEffect(() => {
+    if (!showOtpModal) return;
+    return setupModalBackInterceptor(() => setShowOtpModal(false));
+  }, [showOtpModal]);
 
   // Payment Method & Settings State
   const [paymentMethod, setPaymentMethod] = useState<'bank' | 'qris'>(() => {
@@ -388,7 +404,11 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
   };
 
   // Submission Handler
-  const handleSubmitCheckout = async (isFreeBypass: boolean = false, planOverride?: 'free' | 'pro_starter' | 'pro_business') => {
+  const handleSubmitCheckout = async (
+    isFreeBypass: boolean = false,
+    planOverride?: 'free' | 'pro_starter' | 'pro_business',
+    overrideVerificationToken?: string
+  ) => {
     setRegisterError(null);
 
     // Validation
@@ -434,6 +454,26 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
       return;
     }
 
+    const effectiveVerifToken = !isGoogleAuth
+      ? (overrideVerificationToken || getStoredRegistrationToken(registerForm.email))
+      : '';
+    if (!isGoogleAuth && !effectiveVerifToken) {
+      setRegisterLoading(true);
+      try {
+        const otpRes = await sendRegistrationOtpApi('/api', registerForm.email, registerForm.name);
+        if (!otpRes.ok && otpRes.status !== 429) {
+          setRegisterError(otpRes.message);
+          return;
+        }
+        setOtpNotice(otpRes.status === 429 ? otpRes.message : null);
+        setPendingSubmitArgs({ isFreeBypass, planOverride });
+        setShowOtpModal(true);
+      } finally {
+        setRegisterLoading(false);
+      }
+      return;
+    }
+
     setRegisterLoading(true);
     try {
       let effectiveGoogleId = registerForm.google_id;
@@ -460,6 +500,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
         password: isGoogleAuth ? undefined : registerForm.password,
         google_id: effectiveGoogleId || undefined,
         google_registration_token: registerForm.google_registration_token || undefined,
+        verification_token: !isGoogleAuth ? effectiveVerifToken : undefined,
         store_name: registerForm.store_name.trim(),
         store_slug: registerForm.store_slug.trim().toLowerCase(),
         plan: effectivePlan,
@@ -484,15 +525,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
 
       const data = await res.json();
       if (res.ok && data.success) {
-        // Clear registration drafts
-        try {
-          sessionStorage.removeItem('catavor_register_form');
-          sessionStorage.removeItem('catavor_register_plan');
-          sessionStorage.removeItem('catavor_register_billing');
-          sessionStorage.removeItem('catavor_applied_coupon');
-          sessionStorage.removeItem('catavor_payment_method');
-          sessionStorage.removeItem('catavor_aulaa_channel');
-        } catch {}
+        clearRegistrationDrafts();
 
         if (data.token) {
           localStorage.setItem('catavor_token', data.token);
@@ -528,6 +561,14 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
         window.location.href = fallbackSlug ? `/${fallbackSlug}/admin` : '/login';
         return;
       } else {
+        if (!isGoogleAuth && isVerificationTokenErrorResponse(res.status, data?.message)) {
+          clearStoredRegistrationToken();
+          const otpRes = await sendRegistrationOtpApi('/api', registerForm.email, registerForm.name);
+          setOtpNotice(otpRes.ok ? data.message : otpRes.message);
+          setPendingSubmitArgs({ isFreeBypass, planOverride });
+          setShowOtpModal(true);
+          return;
+        }
         setRegisterError(data.message || 'Pendaftaran gagal. Silakan periksa kembali data Anda.');
       }
     } catch {
@@ -2362,6 +2403,28 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
             </div>
           </div>
         )}
+
+        <SharedRegistrationOtpModal
+          isOpen={showOtpModal}
+          email={registerForm.email}
+          recipientName={registerForm.name}
+          apiBase="/api"
+          device="tablet"
+          initialNotice={otpNotice}
+          submitLabel="Verifikasi & Selesaikan Checkout"
+          onClose={() => {
+            setShowOtpModal(false);
+            setPendingSubmitArgs(null);
+          }}
+          onVerified={(verifiedToken) => {
+            setShowOtpModal(false);
+            const args = pendingSubmitArgs;
+            setPendingSubmitArgs(null);
+            if (args) {
+              handleSubmitCheckout(args.isFreeBypass, args.planOverride, verifiedToken);
+            }
+          }}
+        />
 
         {/* Custom Confirmation Modal Batalkan Pendaftaran */}
         {showCancelModal && (

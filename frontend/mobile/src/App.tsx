@@ -184,6 +184,15 @@ import {
   generateSupportIdempotencyKey,
 } from '../../shared/support/SharedHelpKnowledgeBase'
 import { OfficialContactSheet } from './components/OfficialContactSheet'
+import {
+  clearStoredRegistrationToken,
+  getStoredRegistrationToken,
+  isVerificationTokenErrorResponse,
+  normalizeRegEmail,
+  sendRegistrationOtpApi,
+  setStoredRegistrationToken
+} from '../../shared/auth/registrationOtp'
+import { SharedRegistrationOtpModal } from '../../shared/auth/SharedRegistrationOtpModal'
 import { MobilePoliciesView, type PolicyKey } from './components/MobilePoliciesView'
 import { normalizeNotification, getMobileNotificationDescription } from './utils/notificationHelpers'
 import {
@@ -5534,13 +5543,16 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
   const [couponMsg, setCouponMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   // Registration OTP & Email Verification State (Mobile)
-  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [verificationToken, setVerificationToken] = useState<string | null>(() => {
+    const t = getStoredRegistrationToken(registerForm.email);
+    return t || null;
+  });
   const [showRegOTPModal, setShowRegOTPModal] = useState(false);
-  const [regOTPCode, setRegOTPCode] = useState('');
-  const [regOTPLoading, setRegOTPLoading] = useState(false);
-  const [regOTPError, setRegOTPError] = useState<string | null>(null);
-  const [regOTPCooldown, setRegOTPCooldown] = useState(0);
+  const [regOtpNotice, setRegOtpNotice] = useState<string | null>(null);
+  const [regOtpNextAction, setRegOtpNextAction] = useState<'step2' | 'free_submit' | 'checkout_submit'>('step2');
+  const [regOTPCooldown, setRegOTPCooldown] = useState(60);
   const [pendingCheckoutIsFree, setPendingCheckoutIsFree] = useState<boolean>(false);
+  const [pendingCheckoutPlanOverride, setPendingCheckoutPlanOverride] = useState<string | undefined>(undefined);
 
   // Forgot Password State (Mobile)
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
@@ -9434,6 +9446,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
   useModalBackHandler({ isOpen: showFilterSheet, onClose: () => setShowFilterSheet(false), modalId: 'filter-sheet' });
   useModalBackHandler({ isOpen: showAdminFilterSheet, onClose: () => setShowAdminFilterSheet(false), modalId: 'admin-filter-sheet' });
   useModalBackHandler({ isOpen: showProductTypeSelector, onClose: () => setShowProductTypeSelector(false), modalId: 'product-type-selector' });
+  useModalBackHandler({ isOpen: showRegOTPModal, onClose: () => setShowRegOTPModal(false), modalId: 'mobile-reg-otp-modal' });
   useModalBackHandler({ isOpen: Boolean(reportModalData), onClose: () => setReportModalData(null), modalId: 'report-modal' });
   useModalBackHandler({ isOpen: showRekberExplainerModal, onClose: () => setShowRekberExplainerModal(false), modalId: 'rekber-explainer' });
   useModalBackHandler({ isOpen: Boolean(crudDropdownPicker), onClose: () => setCrudDropdownPicker(null), modalId: 'crud-dropdown-picker' });
@@ -13264,6 +13277,28 @@ Terima kasih atas perhatian dan kerja samanya.`;
       return;
     }
 
+    const effectiveToken = !registerForm.google_id
+      ? (overrideToken || getStoredRegistrationToken(registerForm.email) || (verificationToken && getStoredRegistrationToken(registerForm.email) ? verificationToken : ''))
+      : '';
+    if (!registerForm.google_id && !effectiveToken) {
+      setRegisterLoading(true);
+      setRegisterError(null);
+      try {
+        const otpRes = await sendRegistrationOtpApi(API_BASE, registerForm.email, registerForm.name);
+        if (!otpRes.ok && otpRes.status !== 429) {
+          setRegisterError(otpRes.message);
+          return;
+        }
+        setRegOtpNotice(otpRes.status === 429 ? otpRes.message : null);
+        setRegOTPCooldown(otpRes.ok ? 60 : 30);
+        setRegOtpNextAction('free_submit');
+        setShowRegOTPModal(true);
+      } finally {
+        setRegisterLoading(false);
+      }
+      return;
+    }
+
     setRegisterLoading(true);
     setRegisterError(null);
 
@@ -13276,7 +13311,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
         },
         body: JSON.stringify({
           ...registerForm,
-          verification_token: overrideToken || verificationToken || undefined,
+          verification_token: !registerForm.google_id ? effectiveToken : undefined,
           plan: 'free',
           payment_status: 'none',
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta'
@@ -13320,6 +13355,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
         fetchMyQuota(true);
         fetchNotificationsFromBackend(1, false);
       } else {
+        if (!registerForm.google_id && isVerificationTokenErrorResponse(res.status, data?.message)) {
+          clearStoredRegistrationToken();
+          setVerificationToken(null);
+          const otpRes = await sendRegistrationOtpApi(API_BASE, registerForm.email, registerForm.name);
+          setRegOtpNotice(otpRes.ok ? data.message : otpRes.message);
+          setRegOTPCooldown(otpRes.ok ? 60 : 30);
+          setRegOtpNextAction('free_submit');
+          setShowRegOTPModal(true);
+          return;
+        }
         if (data.errors) {
           const firstErr = Object.values(data.errors)[0] as string[];
           setRegisterError(firstErr[0] || 'Gagal mendaftar.');
@@ -13347,13 +13392,38 @@ Terima kasih atas perhatian dan kerja samanya.`;
       setRegisterPlan('free');
     }
 
+    const effectiveToken = !registerForm.google_id
+      ? (overrideToken || getStoredRegistrationToken(registerForm.email) || (verificationToken && getStoredRegistrationToken(registerForm.email) ? verificationToken : ''))
+      : '';
+    if (!registerForm.google_id && !effectiveToken) {
+      setPendingCheckoutIsFree(isFreeCoupon);
+      setPendingCheckoutPlanOverride(planOverride);
+      setRegisterLoading(true);
+      setRegisterError(null);
+      try {
+        const otpRes = await sendRegistrationOtpApi(API_BASE, registerForm.email, registerForm.name);
+        if (!otpRes.ok && otpRes.status !== 429) {
+          alert(otpRes.message);
+          return;
+        }
+        setRegOtpNotice(otpRes.status === 429 ? otpRes.message : null);
+        setRegOTPCooldown(otpRes.ok ? 60 : 30);
+        setRegOtpNextAction('checkout_submit');
+        setShowRegOTPModal(true);
+      } finally {
+        setRegisterLoading(false);
+      }
+      return;
+    }
+
     setPendingCheckoutIsFree(isFreeCoupon);
+    setPendingCheckoutPlanOverride(planOverride);
     setRegisterLoading(true);
     setRegisterError(null);
     try {
       const payload = {
         ...registerForm,
-        verification_token: overrideToken || verificationToken || undefined,
+        verification_token: !registerForm.google_id ? effectiveToken : undefined,
         plan: effectivePlan,
         billing_cycle: registerBillingCycle,
         coupon_code: appliedCoupon?.code || '',
@@ -13411,6 +13481,16 @@ Terima kasih atas perhatian dan kerja samanya.`;
         fetchMyQuota(true);
         fetchNotificationsFromBackend(1, false);
       } else {
+        if (!registerForm.google_id && isVerificationTokenErrorResponse(res.status, data?.message)) {
+          clearStoredRegistrationToken();
+          setVerificationToken(null);
+          const otpRes = await sendRegistrationOtpApi(API_BASE, registerForm.email, registerForm.name);
+          setRegOtpNotice(otpRes.ok ? data.message : otpRes.message);
+          setRegOTPCooldown(otpRes.ok ? 60 : 30);
+          setRegOtpNextAction('checkout_submit');
+          setShowRegOTPModal(true);
+          return;
+        }
         if (data.errors) {
           const firstErr = Object.values(data.errors)[0] as string[];
           alert(firstErr[0] || 'Gagal memproses pendaftaran.');
@@ -13423,68 +13503,6 @@ Terima kasih atas perhatian dan kerja samanya.`;
       alert('Koneksi terputus. Pastikan server backend Catavor aktif.');
     } finally {
       setRegisterLoading(false);
-    }
-  };
-
-  // Mobile OTP Handlers
-  const handleVerifyRegistrationOTP = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (regOTPCode.trim().length !== 6) {
-      setRegOTPError('Kode OTP harus terdiri dari 6 digit angka.');
-      return;
-    }
-    setRegOTPLoading(true);
-    setRegOTPError(null);
-    try {
-      const res = await fetch(`${API_BASE}/verify-register-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: registerForm.email.trim(),
-          otp: regOTPCode.trim()
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.success && data.verification_token) {
-        setVerificationToken(data.verification_token);
-        setShowRegOTPModal(false);
-        showToast('Email berhasil diverifikasi! Menyelesaikan registrasi...');
-        if (registerPlan === 'pro_starter' || registerPlan === 'pro_business') {
-          processCheckoutSubmission(pendingCheckoutIsFree, data.verification_token);
-        } else {
-          handleRegisterSubmit(undefined, data.verification_token);
-        }
-      } else {
-        setRegOTPError(data.message || 'Kode OTP salah atau telah kadaluarsa.');
-      }
-    } catch {
-      setRegOTPError('Gagal menghubungi server verifikasi OTP.');
-    } finally {
-      setRegOTPLoading(false);
-    }
-  };
-
-  const handleResendRegistrationOTP = async () => {
-    if (regOTPCooldown > 0) return;
-    setRegOTPLoading(true);
-    setRegOTPError(null);
-    try {
-      const res = await fetch(`${API_BASE}/send-register-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: registerForm.email.trim(), name: registerForm.name.trim() })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setRegOTPCooldown(60);
-        showToast('Kode OTP baru telah dikirimkan ke email Anda.');
-      } else {
-        setRegOTPError(data.message || 'Gagal mengirim ulang kode OTP.');
-      }
-    } catch {
-      setRegOTPError('Gagal menghubungi server.');
-    } finally {
-      setRegOTPLoading(false);
     }
   };
 
@@ -16046,6 +16064,33 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
     );
   }
 
+  const renderMobileRegOtpModal = () => (
+    <SharedRegistrationOtpModal
+      isOpen={showRegOTPModal}
+      email={registerForm.email}
+      recipientName={registerForm.name}
+      apiBase={API_BASE}
+      device="mobile"
+      initialCooldown={regOTPCooldown}
+      initialNotice={regOtpNotice}
+      submitLabel={regOtpNextAction === 'step2' ? 'Verifikasi & Lanjutkan' : 'Verifikasi & Selesaikan'}
+      onClose={() => setShowRegOTPModal(false)}
+      onVerified={(verifiedToken) => {
+        setStoredRegistrationToken(registerForm.email, verifiedToken);
+        setVerificationToken(verifiedToken);
+        setShowRegOTPModal(false);
+        showToast('Email berhasil diverifikasi!');
+        if (regOtpNextAction === 'checkout_submit') {
+          processCheckoutSubmission(pendingCheckoutIsFree, verifiedToken, pendingCheckoutPlanOverride);
+        } else if (regOtpNextAction === 'free_submit') {
+          handleRegisterSubmit(undefined, verifiedToken);
+        } else {
+          goToRegisterStep(2);
+        }
+      }}
+    />
+  );
+
   // Render Landing Portal Page (Mobile Responsive Layout - strictly guarded so admin routes NEVER render landing page)
   const isAnyAdminPath = currentPath.includes('/admin') || currentPath.includes('/platform') || currentPath.includes('/ops');
   if (!storeSlug && !error && !isAnyAdminPath) {
@@ -17081,7 +17126,21 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           try {
                             sessionStorage.setItem('catavor_register_form', JSON.stringify(registerForm));
                           } catch { }
-                          goToRegisterStep(2);
+                          const existingVerifiedToken = getStoredRegistrationToken(registerForm.email);
+                          if (registerForm.google_id || existingVerifiedToken) {
+                            if (existingVerifiedToken) setVerificationToken(existingVerifiedToken);
+                            goToRegisterStep(2);
+                            return;
+                          }
+                          const otpRes = await sendRegistrationOtpApi(API_BASE, registerForm.email, registerForm.name);
+                          if (!otpRes.ok && otpRes.status !== 429) {
+                            setRegisterError(otpRes.message);
+                            return;
+                          }
+                          setRegOtpNotice(otpRes.status === 429 ? otpRes.message : null);
+                          setRegOTPCooldown(otpRes.ok ? 60 : 30);
+                          setRegOtpNextAction('step2');
+                          setShowRegOTPModal(true);
                         } catch {
                           setRegisterError('Gagal memverifikasi ketersediaan alamat email. Periksa koneksi internet Anda.');
                         } finally {
@@ -17125,7 +17184,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           placeholder="nama@domain.com"
                           value={registerForm.email}
                           onChange={(e) => {
-                            setRegisterForm({ ...registerForm, email: e.target.value });
+                            const nextEmail = e.target.value;
+                            setRegisterForm({ ...registerForm, email: nextEmail });
+                            if (verificationToken && normalizeRegEmail(nextEmail) !== normalizeRegEmail(registerForm.email)) {
+                              setVerificationToken(null);
+                            }
                             if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: '' }));
                           }}
                           style={{
@@ -19221,6 +19284,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
             </div>
           </div>
         )}
+        {renderMobileRegOtpModal()}
       </>
     );
   }
@@ -36989,102 +37053,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         </div>
       )}
 
-      {/* MOBILE REGISTRATION OTP VERIFICATION MODAL */}
-      {/* MOBILE REGISTRATION OTP VERIFICATION MODAL */}
-      {showRegOTPModal && (
-        <div className="modal-backdrop-clean" style={{ zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="modal-card-clean" style={{ maxWidth: '400px', width: '100%', borderRadius: '1.25rem', padding: '1.5rem', background: '#ffffff', boxShadow: '0 20px 40px -15px rgba(0,0,0,0.2)' }}>
-            <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto' }}>
-                <Mail size={24} />
-              </div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem 0' }}>
-                Verifikasi Email Anda
-              </h3>
-              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, lineHeight: 1.45 }}>
-                Kode OTP 6-digit telah dikirimkan ke <strong>{registerForm.email}</strong>. Masukkan kode untuk mengaktifkan akun.
-              </p>
-            </div>
-
-            {regOTPError && (
-              <div style={{ padding: '0.75rem', borderRadius: '0.65rem', backgroundColor: '#fef2f2', color: '#dc2626', fontSize: '0.78rem', marginBottom: '1rem', border: '1px solid #fee2e2' }}>
-                {regOTPError}
-              </div>
-            )}
-
-            <form onSubmit={handleVerifyRegistrationOTP}>
-              <div style={{ marginBottom: '1.25rem' }}>
-                <input
-                  type="text"
-                  maxLength={6}
-                  autoFocus
-                  placeholder="• • • • • •"
-                  value={regOTPCode}
-                  onChange={(e) => setRegOTPCode(e.target.value.replace(/\D/g, ''))}
-                  style={{
-                    width: '100%',
-                    textAlign: 'center',
-                    fontSize: '1.75rem',
-                    fontWeight: 800,
-                    letterSpacing: '0.5rem',
-                    padding: '0.75rem',
-                    borderRadius: '0.85rem',
-                    border: '2px solid #e2e8f0',
-                    outline: 'none',
-                    color: '#0f172a',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={regOTPLoading || regOTPCode.trim().length !== 6}
-                style={{
-                  width: '100%',
-                  padding: '0.85rem',
-                  borderRadius: '0.85rem',
-                  backgroundColor: '#2563eb',
-                  color: '#ffffff',
-                  fontWeight: 800,
-                  fontSize: '0.88rem',
-                  border: 'none',
-                  cursor: regOTPLoading ? 'not-allowed' : 'pointer',
-                  opacity: (regOTPLoading || regOTPCode.trim().length !== 6) ? 0.6 : 1,
-                  marginBottom: '0.75rem'
-                }}
-              >
-                {regOTPLoading ? 'Memverifikasi...' : 'Verifikasi & Selesaikan'}
-              </button>
-            </form>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', marginTop: '0.5rem' }}>
-              <button
-                type="button"
-                onClick={handleResendRegistrationOTP}
-                disabled={regOTPCooldown > 0 || regOTPLoading}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  color: regOTPCooldown > 0 ? '#94a3b8' : '#2563eb',
-                  fontWeight: 700,
-                  cursor: regOTPCooldown > 0 ? 'default' : 'pointer'
-                }}
-              >
-                {regOTPCooldown > 0 ? `Kirim ulang (${regOTPCooldown}d)` : 'Kirim Ulang Kode'}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowRegOTPModal(false); setRegOTPError(null); }}
-                style={{ background: 'none', border: 'none', padding: 0, color: '#64748b', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Batal
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {renderMobileRegOtpModal()}
 
       {/* MOBILE FORGOT PASSWORD MODAL */}
       {showForgotPasswordModal && (
