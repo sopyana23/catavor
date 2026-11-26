@@ -1062,8 +1062,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         </div>
       </div>
 
-      {/* 2. Key Metrics Summary Grid (Auto-Fit Cards) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+      {/* 2. Key Metrics Summary Grid (Symmetric 3x2 Desktop Grid) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem' }}>
         
         {/* Total Kunjungan Toko */}
         <div
@@ -3442,7 +3442,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             className="glass-panel animate-scale-up"
             style={{
               width: '100%',
-              maxWidth: '520px',
+              maxWidth: '540px',
+              maxHeight: '90vh',
               backgroundColor: 'var(--bg-card)',
               borderRadius: '1rem',
               border: '1px solid var(--border-light)',
@@ -3455,12 +3456,13 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             {/* Modal Header */}
             <div
               style={{
-                padding: '1.25rem 1.5rem',
+                padding: '1.15rem 1.5rem',
                 borderBottom: '1px solid var(--border-light)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                background: 'var(--card-bg-gradient)'
+                background: 'var(--card-bg-gradient)',
+                flexShrink: 0
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -3505,7 +3507,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             </div>
 
             {/* Modal Body */}
-            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+            <div className="catavor-custom-scrollbar" style={{ padding: '1.15rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', flex: 1, minHeight: 0 }}>
               {/* Option 1: Pilihan Rentang Waktu */}
               <div>
                 <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem' }}>
@@ -3736,13 +3738,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             {/* Modal Footer */}
             <div
               style={{
-                padding: '1rem 1.5rem',
+                padding: '0.95rem 1.5rem',
                 borderTop: '1px solid var(--border-light)',
                 backgroundColor: 'var(--bg-deep)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'flex-end',
-                gap: '0.65rem'
+                gap: '0.65rem',
+                flexShrink: 0
               }}
             >
               <button

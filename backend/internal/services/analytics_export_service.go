@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"catavor-backend/internal/models"
 	"gorm.io/gorm"
@@ -136,7 +135,7 @@ func ExportDailyMetricsCSV(w io.Writer, store *models.Store, period string, days
 
 	query := db.Where("store_id = ?", store.ID)
 	if !isAllTime && days > 0 {
-		startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
+		startDate := AnalyticsNow().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
 		query = query.Where("date >= ?", startDate)
 	}
 
@@ -204,8 +203,13 @@ func ExportDailyMetricsCSV(w io.Writer, store *models.Store, period string, days
 	return csvWriter.Error()
 }
 
-// ExportProductsPerformanceCSV exports item-level catalog performance with chunked batching (O(1) memory)
+// ExportProductsPerformanceCSV exports all-time item-level catalog performance with chunked batching (O(1) memory).
 func ExportProductsPerformanceCSV(w io.Writer, store *models.Store, filter ProductExportFilter, db *gorm.DB) error {
+	return ExportProductsPerformanceCSVWithPeriod(w, store, "all", 0, true, filter, db)
+}
+
+// ExportProductsPerformanceCSVWithPeriod exports item-level catalog performance scoped by period (from product_daily_analytics) or all-time.
+func ExportProductsPerformanceCSVWithPeriod(w io.Writer, store *models.Store, period string, days int, isAllTime bool, filter ProductExportFilter, db *gorm.DB) error {
 	if _, err := w.Write([]byte("\xef\xbb\xbf")); err != nil {
 		return err
 	}
@@ -249,6 +253,156 @@ func ExportProductsPerformanceCSV(w io.Writer, store *models.Store, filter Produ
 		query = query.Where("(LOWER(name) LIKE ? OR LOWER(class) LIKE ? OR LOWER(scientific_name) LIKE ?)", searchLike, searchLike, searchLike)
 	}
 
+	writeProductRow := func(p models.Product, views, wa, mp, rek, vid int64) error {
+		totalAct := wa + mp + rek + vid
+		ctr := 0.0
+		if views > 0 {
+			ctr = (float64(totalAct) / float64(views)) * 100.0
+			if ctr > 100.0 {
+				ctr = 100.0
+			}
+		}
+
+		catName := p.GetEffectiveCategory()
+		if catName == "" {
+			catName = "Umum"
+		}
+
+		statusTayang := "Aktif"
+		if !p.IsActive {
+			statusTayang = "Nonaktif"
+		}
+		if p.ArchivedAt != nil {
+			statusTayang = "Diarsipkan"
+		}
+
+		row := []string{
+			strconv.FormatUint(uint64(p.ID), 10),
+			SanitizeCSVField(p.Name),
+			SanitizeCSVField(formatProductType(p.ProductType)),
+			SanitizeCSVField(catName),
+			fmt.Sprintf("%.0f", p.Price),
+			SanitizeCSVField(statusTayang),
+			strconv.FormatInt(views, 10),
+			strconv.FormatInt(wa, 10),
+			strconv.FormatInt(mp, 10),
+			strconv.FormatInt(rek, 10),
+			strconv.FormatInt(vid, 10),
+			strconv.FormatInt(totalAct, 10),
+			fmt.Sprintf("%.2f%%", ctr),
+		}
+		return csvWriter.Write(row)
+	}
+
+	// Check whether period-scoped product_daily_analytics is requested and populated for this store
+	usePeriodScope := false
+	if !isAllTime && days > 0 {
+		var anyDailyCount int64
+		_ = db.Model(&models.ProductDailyAnalytics{}).Where("store_id = ?", store.ID).Limit(1).Count(&anyDailyCount).Error
+		usePeriodScope = anyDailyCount > 0
+	}
+
+	if usePeriodScope {
+		startDate := AnalyticsNow().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
+		type prodAggRow struct {
+			ProductID         uint  `gorm:"column:product_id"`
+			Views             int64 `gorm:"column:views"`
+			DirectWaClicks    int64 `gorm:"column:direct_wa_clicks"`
+			WaClicks          int64 `gorm:"column:wa_clicks"`
+			MarketplaceClicks int64 `gorm:"column:marketplace_clicks"`
+			RekberClicks      int64 `gorm:"column:rekber_clicks"`
+			VideoViews        int64 `gorm:"column:video_views"`
+		}
+		var aggRows []prodAggRow
+		if err := db.Model(&models.ProductDailyAnalytics{}).
+			Select("product_id, COALESCE(SUM(views), 0) as views, COALESCE(SUM(direct_wa_clicks), 0) as direct_wa_clicks, COALESCE(SUM(wa_clicks), 0) as wa_clicks, COALESCE(SUM(marketplace_clicks), 0) as marketplace_clicks, COALESCE(SUM(rekber_clicks), 0) as rekber_clicks, COALESCE(SUM(video_views), 0) as video_views").
+			Where("store_id = ? AND date >= ?", store.ID, startDate).
+			Group("product_id").
+			Find(&aggRows).Error; err != nil {
+			return fmt.Errorf("failed to aggregate period product metrics: %w", err)
+		}
+		aggMap := make(map[uint]prodAggRow, len(aggRows))
+		for _, r := range aggRows {
+			aggMap[r.ProductID] = r
+		}
+
+		type exportItem struct {
+			prod  models.Product
+			views int64
+			wa    int64
+			mp    int64
+			rek   int64
+			vid   int64
+			act   int64
+			ctr   float64
+		}
+		var allItems []exportItem
+		var batch []models.Product
+		err := query.Order("id DESC").FindInBatches(&batch, 500, func(tx *gorm.DB, batchIndex int) error {
+			for _, p := range batch {
+				var v, wa, mp, rek, vid int64
+				if pr, ok := aggMap[p.ID]; ok {
+					v = pr.Views
+					wa = pr.DirectWaClicks
+					if wa == 0 {
+						wa = pr.WaClicks
+					}
+					mp = pr.MarketplaceClicks
+					rek = pr.RekberClicks
+					vid = pr.VideoViews
+				}
+				act := wa + mp + rek + vid
+				ctr := 0.0
+				if v > 0 {
+					ctr = (float64(act) / float64(v)) * 100.0
+					if ctr > 100.0 {
+						ctr = 100.0
+					}
+				}
+				allItems = append(allItems, exportItem{prod: p, views: v, wa: wa, mp: mp, rek: rek, vid: vid, act: act, ctr: ctr})
+			}
+			return nil
+		}).Error
+		if err != nil {
+			return fmt.Errorf("failed to fetch products for period export: %w", err)
+		}
+
+		sortOpt := strings.ToLower(strings.TrimSpace(filter.Sort))
+		sort.Slice(allItems, func(i, j int) bool {
+			switch sortOpt {
+			case "price_desc":
+				if allItems[i].prod.Price != allItems[j].prod.Price {
+					return allItems[i].prod.Price > allItems[j].prod.Price
+				}
+			case "price_asc":
+				if allItems[i].prod.Price != allItems[j].prod.Price {
+					return allItems[i].prod.Price < allItems[j].prod.Price
+				}
+			case "actions":
+				if allItems[i].act != allItems[j].act {
+					return allItems[i].act > allItems[j].act
+				}
+			case "ctr":
+				if allItems[i].ctr != allItems[j].ctr {
+					return allItems[i].ctr > allItems[j].ctr
+				}
+			default:
+				if allItems[i].views != allItems[j].views {
+					return allItems[i].views > allItems[j].views
+				}
+			}
+			return allItems[i].prod.ID > allItems[j].prod.ID
+		})
+
+		for _, itm := range allItems {
+			if err := writeProductRow(itm.prod, itm.views, itm.wa, itm.mp, itm.rek, itm.vid); err != nil {
+				return err
+			}
+		}
+		csvWriter.Flush()
+		return csvWriter.Error()
+	}
+
 	switch strings.ToLower(strings.TrimSpace(filter.Sort)) {
 	case "price_desc":
 		query = query.Order("price DESC, id DESC")
@@ -266,45 +420,7 @@ func ExportProductsPerformanceCSV(w io.Writer, store *models.Store, filter Produ
 	var batch []models.Product
 	err := query.FindInBatches(&batch, 500, func(tx *gorm.DB, batchIndex int) error {
 		for _, p := range batch {
-			totalAct := p.WaClicksCount + p.MarketplaceClicksCount + p.RekberClicksCount + p.VideoViewsCount
-			ctr := 0.0
-			if p.ViewCount > 0 {
-				ctr = (float64(totalAct) / float64(p.ViewCount)) * 100.0
-				if ctr > 100.0 {
-					ctr = 100.0
-				}
-			}
-
-			catName := p.GetEffectiveCategory()
-			if catName == "" {
-				catName = "Umum"
-			}
-
-			statusTayang := "Aktif"
-			if !p.IsActive {
-				statusTayang = "Nonaktif"
-			}
-			if p.ArchivedAt != nil {
-				statusTayang = "Diarsipkan"
-			}
-
-			row := []string{
-				strconv.FormatUint(uint64(p.ID), 10),
-				SanitizeCSVField(p.Name),
-				SanitizeCSVField(formatProductType(p.ProductType)),
-				SanitizeCSVField(catName),
-				fmt.Sprintf("%.0f", p.Price),
-				SanitizeCSVField(statusTayang),
-				strconv.FormatInt(p.ViewCount, 10),
-				strconv.FormatInt(p.WaClicksCount, 10),
-				strconv.FormatInt(p.MarketplaceClicksCount, 10),
-				strconv.FormatInt(p.RekberClicksCount, 10),
-				strconv.FormatInt(p.VideoViewsCount, 10),
-				strconv.FormatInt(totalAct, 10),
-				fmt.Sprintf("%.2f%%", ctr),
-			}
-
-			if err := csvWriter.Write(row); err != nil {
+			if err := writeProductRow(p, p.ViewCount, p.WaClicksCount, p.MarketplaceClicksCount, p.RekberClicksCount, p.VideoViewsCount); err != nil {
 				return err
 			}
 		}
@@ -345,7 +461,7 @@ func ExportTrafficSourcesCSV(w io.Writer, store *models.Store, period string, da
 
 	query := db.Where("store_id = ?", store.ID)
 	if !isAllTime && days > 0 {
-		startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
+		startDate := AnalyticsNow().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
 		query = query.Where("date >= ?", startDate)
 	}
 
@@ -495,7 +611,7 @@ func ExportAudienceDimensionsCSV(w io.Writer, store *models.Store, period string
 		Where("store_id = ?", store.ID)
 
 	if !isAllTime && days > 0 {
-		startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
+		startDate := AnalyticsNow().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
 		query = query.Where("date >= ?", startDate)
 	}
 
@@ -592,7 +708,7 @@ func ExportHourlyHeatmapCSV(w io.Writer, store *models.Store, period string, day
 		Where("store_id = ? AND dimension_type = 'hour'", store.ID)
 
 	if !isAllTime && days > 0 {
-		startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
+		startDate := AnalyticsNow().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
 		query = query.Where("date >= ?", startDate)
 	}
 
@@ -650,7 +766,7 @@ func ExportFullAnalyticsZip(w io.Writer, store *models.Store, period string, day
 		var totalViews, totalActions, totalUniques int
 		dailyQ := db.Model(&models.StoreDailyAnalytics{}).Where("store_id = ?", store.ID)
 		if !isAllTime && days > 0 {
-			startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
+			startDate := AnalyticsNow().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
 			dailyQ = dailyQ.Where("date >= ?", startDate)
 		}
 		type sumRow struct {
@@ -709,7 +825,7 @@ atau diproses otomatis menggunakan Python/Pandas dan tools BI.
 			storeTitle,
 			store.Slug,
 			periodLabel,
-			time.Now().Format("2006-01-02 15:04:05"),
+			AnalyticsNow().Format("2006-01-02 15:04:05"),
 			totalViews,
 			totalUniques,
 			totalActions,
@@ -732,7 +848,7 @@ atau diproses otomatis menggunakan Python/Pandas dan tools BI.
 	if err != nil {
 		return err
 	}
-	if err := ExportProductsPerformanceCSV(f2, store, filter, db); err != nil {
+	if err := ExportProductsPerformanceCSVWithPeriod(f2, store, period, days, isAllTime, filter, db); err != nil {
 		return err
 	}
 
@@ -774,13 +890,13 @@ func GetAnalyticsExportMetadata(store *models.Store, reportType string, period s
 	if store != nil {
 		safeSlug = sanitizeExportSlug(store.Slug)
 	}
-	dateStr := time.Now().Format("20060102")
+	dateStr := AnalyticsNow().Format("20060102")
 
 	switch strings.ToLower(strings.TrimSpace(reportType)) {
 	case "daily":
 		return fmt.Sprintf("catavor-analytics-%s-daily-%s-%s.csv", safeSlug, pClean, dateStr), "text/csv; charset=utf-8"
 	case "products":
-		return fmt.Sprintf("catavor-analytics-%s-products-%s.csv", safeSlug, dateStr), "text/csv; charset=utf-8"
+		return fmt.Sprintf("catavor-analytics-%s-products-%s-%s.csv", safeSlug, pClean, dateStr), "text/csv; charset=utf-8"
 	case "traffic_sources", "sources":
 		return fmt.Sprintf("catavor-analytics-%s-traffic-sources-%s-%s.csv", safeSlug, pClean, dateStr), "text/csv; charset=utf-8"
 	case "audience", "dimensions":
@@ -804,7 +920,7 @@ func ExecuteAnalyticsExport(w io.Writer, store *models.Store, reportType string,
 		err = ExportDailyMetricsCSV(w, store, period, days, isAllTime, db)
 
 	case "products":
-		err = ExportProductsPerformanceCSV(w, store, filter, db)
+		err = ExportProductsPerformanceCSVWithPeriod(w, store, period, days, isAllTime, filter, db)
 
 	case "traffic_sources", "sources":
 		err = ExportTrafficSourcesCSV(w, store, period, days, isAllTime, db)

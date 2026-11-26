@@ -19032,6 +19032,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     <VideoPlayerEmbed 
                       url={selectedFauna.video_url} 
                       title={selectedFauna.product_type === 'property' ? 'Video Virtual Tour Properti' : (selectedFauna.product_type === 'fauna' ? 'Video Hewan' : (selectedFauna.product_type === 'plant' ? 'Video Tanaman' : (selectedFauna.product_type === 'digital' ? 'Video Preview & Demo' : (selectedFauna.product_type === 'service' ? 'Video Dokumentasi / Portofolio' : (selectedFauna.product_type === 'food' ? 'Video Review & Penyajian' : 'Video Review & Unboxing')))))} 
+                      onVideoInteract={() => trackAnalytics('video_view', selectedFauna.id, selectedFauna.product_type, { product_name: selectedFauna.name })}
                     />
                   </div>
                 )}

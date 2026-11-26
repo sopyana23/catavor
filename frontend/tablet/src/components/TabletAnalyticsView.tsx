@@ -1361,7 +1361,7 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
           Distribusi Kanal Konversi Pembeli
         </h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.85rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.85rem' }}>
           {/* Direct WA */}
           <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#10b981', marginBottom: '0.35rem' }}>
@@ -3409,6 +3409,7 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
             style={{
               width: '100%',
               maxWidth: '540px',
+              maxHeight: '90vh',
               backgroundColor: 'var(--bg-card)',
               borderRadius: '1rem',
               border: '1px solid var(--border-light)',
@@ -3421,12 +3422,13 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
             {/* Modal Header */}
             <div
               style={{
-                padding: '1.25rem 1.5rem',
+                padding: '1.15rem 1.5rem',
                 borderBottom: '1px solid var(--border-light)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                backgroundColor: 'var(--bg-deep)'
+                backgroundColor: 'var(--bg-deep)',
+                flexShrink: 0
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -3471,7 +3473,7 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
             </div>
 
             {/* Modal Body */}
-            <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div className="catavor-custom-scrollbar" style={{ padding: '1.15rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1.1rem', overflowY: 'auto', flex: 1, minHeight: 0 }}>
               <div>
                 <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem' }}>
                   1. Pilih Rentang Waktu
@@ -3702,13 +3704,14 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
             {/* Modal Footer */}
             <div
               style={{
-                padding: '1rem 1.5rem',
+                padding: '0.95rem 1.5rem',
                 borderTop: '1px solid var(--border-light)',
                 backgroundColor: 'var(--bg-deep)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'flex-end',
-                gap: '0.65rem'
+                gap: '0.65rem',
+                flexShrink: 0
               }}
             >
               <button

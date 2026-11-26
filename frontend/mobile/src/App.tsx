@@ -20733,6 +20733,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 <VideoPlayerEmbed 
                   url={selectedFauna.video_url} 
                   title={selectedFauna.product_type === 'plant' ? 'Video Kondisi & Review Tanaman' : (selectedFauna.product_type === 'property' ? 'Video Virtual Tour Properti' : (selectedFauna.product_type === 'fauna' ? 'Video Satwa / Feeding Video' : (selectedFauna.product_type === 'digital' ? 'Video Preview & Demo' : (selectedFauna.product_type === 'service' ? 'Video Dokumentasi / Hasil Kerja' : (selectedFauna.product_type === 'food' ? 'Video Review & Penyajian' : 'Video Review & Unboxing')))))} 
+                  onVideoInteract={() => trackAnalytics('video_view', selectedFauna.id, selectedFauna.product_type, { product_name: selectedFauna.name })}
                 />
               </div>
             )}
@@ -33472,10 +33473,8 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                       if (slug) window.history.pushState({}, '', `/${slug}/admin`);
                                     }}
                                     onViewProduct={(pId) => {
-                                      const prod = faunas.find((f: any) => f.id === pId);
-                                      if (prod) {
-                                        setSelectedFauna(prod);
-                                      }
+                                      setActiveTab('catalog');
+                                      openDetailsSheet(pId);
                                     }}
                                   />
                                 </div>

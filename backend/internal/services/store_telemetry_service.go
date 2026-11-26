@@ -24,7 +24,18 @@ import (
 var (
 	safeIdentifierRegex = regexp.MustCompile(`[^a-zA-Z0-9_\-\s]+`)
 	cleanSpaceRegex     = regexp.MustCompile(`\s+`)
+	analyticsWibLoc     = time.FixedZone("WIB", 7*3600)
 )
+
+// AnalyticsLocation returns Asia/Jakarta (+07:00) fixed zone for consistent business analytics reporting.
+func AnalyticsLocation() *time.Location {
+	return analyticsWibLoc
+}
+
+// AnalyticsNow returns current timestamp in AnalyticsLocation() (WIB).
+func AnalyticsNow() time.Time {
+	return time.Now().In(analyticsWibLoc)
+}
 
 // StoreTelemetryEvent represents an incoming tracking event before aggregation.
 type StoreTelemetryEvent struct {
@@ -287,7 +298,7 @@ func (s *StoreTelemetryService) computeVisitorHash(clientIP, sessionID, ua strin
 
 // checkVisitorAndEngagement checks if visitor is new for (store, date) and tracks bounce engagement. Thread-safe.
 func (s *StoreTelemetryService) checkVisitorAndEngagement(hash string, event string) (isUnique bool, bounceDelta int) {
-	now := time.Now().Unix()
+	now := time.Now().UTC().Unix()
 	s.dedupMu.Lock()
 	defer s.dedupMu.Unlock()
 
@@ -329,7 +340,7 @@ func (s *StoreTelemetryService) resolveProductMeta(productID uint) productMetaEn
 	if productID == 0 || s.db == nil {
 		return productMetaEntry{}
 	}
-	now := time.Now().Unix()
+	now := time.Now().UTC().Unix()
 	s.prodMetaMu.RLock()
 	if meta, ok := s.prodMetaCache[productID]; ok && (now-meta.CachedAt) < 300 {
 		s.prodMetaMu.RUnlock()
@@ -391,8 +402,9 @@ func (s *StoreTelemetryService) processEvent(ev StoreTelemetryEvent) {
 	if ev.StoreID == 0 {
 		return
 	}
-	date := ev.Timestamp.Format("2006-01-02")
-	hourStr := ev.Timestamp.Format("15") // "00" .. "23"
+	wibTime := ev.Timestamp.In(analyticsWibLoc)
+	date := wibTime.Format("2006-01-02")
+	hourStr := wibTime.Format("15") // "00" .. "23" (WIB)
 
 	isMicroEvent := (ev.Event == "filter_intent" || ev.Event == "search_click" || ev.Event == "share_action" || ev.Event == "gallery_swipe")
 
@@ -862,7 +874,7 @@ func (s *StoreTelemetryService) flushBatch() {
 		observeCycle("store_flush", 0, 0, batchErr)
 	}()
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	// A. Store Daily Metrics
 	for k, m := range stores {
@@ -1197,7 +1209,7 @@ func (s *StoreTelemetryService) EnqueueSupplySignal(productType, signalType, sig
 		dimVal = dimVal[:95]
 	}
 
-	date := time.Now().UTC().Format("2006-01-02")
+	date := AnalyticsNow().Format("2006-01-02")
 	aKey := audienceKey{
 		StoreID:        0,
 		Date:           date,

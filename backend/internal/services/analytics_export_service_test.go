@@ -26,6 +26,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.Category{},
 		&models.Product{},
 		&models.StoreDailyAnalytics{},
+		&models.ProductDailyAnalytics{},
 		&models.StoreDailyTrafficSource{},
 		&models.StoreDailyAudienceMetric{},
 	)
@@ -273,5 +274,64 @@ func TestExecuteAnalyticsExport_Dispatch(t *testing.T) {
 	}
 	if !strings.HasSuffix(fnameZip, ".zip") || ctypeZip != "application/zip" {
 		t.Errorf("Unexpected filename/content-type for package: %s, %s", fnameZip, ctypeZip)
+	}
+}
+
+func TestExportProductsPerformanceCSVWithPeriod_RespectsPeriodScope(t *testing.T) {
+	db := setupTestDB(t)
+	store := &models.Store{ID: 50, Slug: "toko-period-csv"}
+	db.Create(store)
+
+	prod := &models.Product{
+		StoreID:       50,
+		Name:          "Anthurium Delta",
+		ProductType:   "plant",
+		Price:         220000,
+		ViewCount:     50,
+		WaClicksCount: 5,
+		IsActive:      true,
+	}
+	db.Create(prod)
+
+	nowWib := AnalyticsNow()
+	db.Create(&models.ProductDailyAnalytics{
+		StoreID:        50,
+		ProductID:      prod.ID,
+		ProductType:    "plant",
+		Date:           nowWib.Format("2006-01-02"),
+		Views:          4,
+		DirectWaClicks: 1,
+		TotalActions:   1,
+	})
+	db.Create(&models.ProductDailyAnalytics{
+		StoreID:        50,
+		ProductID:      prod.ID,
+		ProductType:    "plant",
+		Date:           nowWib.AddDate(0, 0, -20).Format("2006-01-02"),
+		Views:          46,
+		DirectWaClicks: 4,
+		TotalActions:   4,
+	})
+
+	var buf7d bytes.Buffer
+	fname7d, _, err := ExecuteAnalyticsExport(&buf7d, store, "products", "7d", ProductExportFilter{}, db)
+	if err != nil {
+		t.Fatalf("ExecuteAnalyticsExport products 7d failed: %v", err)
+	}
+	if !strings.Contains(fname7d, "products-7d-") {
+		t.Errorf("expected period token in products export filename, got %q", fname7d)
+	}
+	out7d := buf7d.String()
+	if !strings.Contains(out7d, "Anthurium Delta,Tanaman & Flora") || !strings.Contains(out7d, ",4,1,0,0,0,1,25.00%") {
+		t.Errorf("expected 7d scoped metrics (views=4, wa=1, ctr=25.00%%), got:\n%s", out7d)
+	}
+
+	var bufAll bytes.Buffer
+	_, _, err = ExecuteAnalyticsExport(&bufAll, store, "products", "all", ProductExportFilter{}, db)
+	if err != nil {
+		t.Fatalf("ExecuteAnalyticsExport products all failed: %v", err)
+	}
+	if !strings.Contains(bufAll.String(), ",50,5,0,0,0,5,10.00%") {
+		t.Errorf("expected all-time metrics (views=50, wa=5, ctr=10.00%%), got:\n%s", bufAll.String())
 	}
 }

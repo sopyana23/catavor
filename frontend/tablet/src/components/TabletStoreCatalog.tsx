@@ -1771,7 +1771,11 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
                   <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>
                     Video Preview Produk
                   </h3>
-                  <VideoPlayerEmbed url={selectedFauna.video_url} title={`Video ${selectedFauna.name}`} />
+                  <VideoPlayerEmbed
+                    url={selectedFauna.video_url}
+                    title={`Video ${selectedFauna.name}`}
+                    onVideoInteract={() => trackAnalytics('video_view', selectedFauna.id, selectedFauna.product_type, selectedFauna.name)}
+                  />
                 </div>
               )}
             </div>

@@ -271,6 +271,12 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     modalId: 'export-analytics-bottomsheet'
   });
 
+  useModalBackHandler({
+    isOpen: showSortModal,
+    onClose: () => setShowSortModal(false),
+    modalId: 'sort-analytics-bottomsheet'
+  });
+
   const handleExportStoreCsv = async (p = exportPeriod, t = exportType) => {
     try {
       setIsExportingCsv(true);
@@ -360,6 +366,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     setIsSheetDragging(false);
     if (sheetDragY > 75) {
       setShowSortModal(false);
+      setShowExportModal(false);
     }
     setSheetDragY(0);
   };
@@ -3363,18 +3370,28 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             {/* Top Drag Handle Bar */}
             <div 
               className="bottom-sheet-handle-bar"
+              style={{ touchAction: 'none' }}
               onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
               onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
-              onTouchEnd={() => {
-                if (sheetDragY > 75) setShowExportModal(false);
-                handleSheetDragEnd();
-              }}
+              onTouchEnd={handleSheetDragEnd}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={handleSheetDragEnd}
             >
               <div className="bottom-sheet-handle" />
             </div>
 
             {/* Header */}
-            <div className="bottom-sheet-header" style={{ padding: '0.2rem 0 0.75rem' }}>
+            <div
+              className="bottom-sheet-header"
+              style={{ padding: '0.2rem 0 0.75rem', touchAction: 'none', flexShrink: 0 }}
+              onTouchStart={(e) => handleSheetDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleSheetDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleSheetDragEnd}
+              onMouseDown={(e) => handleSheetDragStart(e.clientY)}
+              onMouseMove={(e) => handleSheetDragMove(e.clientY)}
+              onMouseUp={handleSheetDragEnd}
+            >
               <div className="bottom-sheet-title-box">
                 <div style={{
                   width: '34px',
@@ -3403,12 +3420,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
             <div
               className="bottom-sheet-scrollable-body"
               style={{
-                maxHeight: '68vh',
-                padding: '0.85rem 0.15rem 0.5rem',
+                flex: 1,
+                minHeight: 0,
+                padding: '0.85rem 0.15rem 0.85rem',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '1.1rem',
-                overflowY: 'auto'
+                overflowY: 'auto',
+                overscrollBehavior: 'contain'
               }}
             >
               {/* Option 1: Rentang Waktu */}
@@ -3589,55 +3608,57 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   Dilengkapi <strong>UTF-8 BOM</strong> & sanitasi RFC 4180 untuk kompatibilitas penuh Excel & Google Sheets.
                 </span>
               </div>
+            </div>
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.35rem' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExportModal(false);
-                    setSheetDragY(0);
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '0.75rem',
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    borderRadius: '0.65rem',
-                    border: '1px solid var(--border-light)',
-                    backgroundColor: 'var(--bg-deep)',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleExportStoreCsv(exportPeriod, exportType)}
-                  disabled={isExportingCsv}
-                  style={{
-                    flex: 2,
-                    padding: '0.75rem',
-                    fontSize: '0.82rem',
-                    fontWeight: 800,
-                    borderRadius: '0.65rem',
-                    border: 'none',
-                    backgroundColor: 'var(--primary)',
-                    color: '#ffffff',
-                    cursor: isExportingCsv ? 'not-allowed' : 'pointer',
-                    opacity: isExportingCsv ? 0.7 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.45rem',
-                    boxShadow: '0 4px 14px var(--primary-glow)'
-                  }}
-                >
-                  <Download size={15} className={isExportingCsv ? 'animate-spin' : ''} />
-                  <span>{isExportingCsv ? 'Mengunduh...' : exportType === 'package' ? 'Unduh Paket ZIP' : 'Unduh Berkas CSV'}</span>
-                </button>
-              </div>
+            {/* Sticky Action Buttons Footer */}
+            <div style={{ display: 'flex', gap: '0.6rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExportModal(false);
+                  setSheetDragY(0);
+                }}
+                style={{
+                  flex: 1,
+                  minHeight: '44px',
+                  padding: '0.75rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  borderRadius: '0.65rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-deep)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExportStoreCsv(exportPeriod, exportType)}
+                disabled={isExportingCsv}
+                style={{
+                  flex: 2,
+                  minHeight: '44px',
+                  padding: '0.75rem',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  borderRadius: '0.65rem',
+                  border: 'none',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  cursor: isExportingCsv ? 'not-allowed' : 'pointer',
+                  opacity: isExportingCsv ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  boxShadow: '0 4px 14px var(--primary-glow)'
+                }}
+              >
+                <Download size={15} className={isExportingCsv ? 'animate-spin' : ''} />
+                <span>{isExportingCsv ? 'Mengunduh...' : exportType === 'package' ? 'Unduh Paket ZIP' : 'Unduh Berkas CSV'}</span>
+              </button>
             </div>
           </div>
         </div>,

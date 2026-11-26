@@ -348,3 +348,121 @@ func TestMarketIntelCacheInvalidation_RefreshesTrendingAndDemandGaps(t *testing.
 		t.Fatalf("expected invalidated demand-gaps cache to surface rollup row, got %+v", gapPayload.Data)
 	}
 }
+
+func TestGetStoreAnalytics_IncludesPlantAndRespectsPeriodAndWIB(t *testing.T) {
+	app, db := setupTestAnalyticsApp(t)
+
+	store := models.Store{
+		Slug:           "toko-flora-audit",
+		StoreTitle:     "Toko Flora Audit",
+		WhatsappNumber: "08123456789",
+	}
+	if err := db.Create(&store).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	plantProd := models.Product{
+		StoreID:       store.ID,
+		Name:          "Monstera Thai Con",
+		ProductType:   "plant",
+		Class:         "Tanaman Hias",
+		Price:         350000,
+		ViewCount:     99, // Lifetime counter (must NOT leak all 99 into 7d when daily table exists!)
+		WaClicksCount: 9,
+		IsActive:      true,
+	}
+	if err := db.Create(&plantProd).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	wibNow := services.AnalyticsNow()
+	todayWib := wibNow.Format("2006-01-02")
+	oldDate := wibNow.AddDate(0, 0, -25).Format("2006-01-02")
+
+	if err := db.Create(&models.StoreDailyAnalytics{
+		StoreID:        store.ID,
+		Date:           todayWib,
+		StoreViews:     5,
+		UniqueVisitors: 4,
+		ProductViews:   3,
+		DirectWaClicks: 2,
+		TotalActions:   2,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.ProductDailyAnalytics{
+		StoreID:        store.ID,
+		ProductID:      plantProd.ID,
+		ProductType:    "plant",
+		Date:           todayWib,
+		Views:          3,
+		DirectWaClicks: 2,
+		TotalActions:   2,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.ProductDailyAnalytics{
+		StoreID:        store.ID,
+		ProductID:      plantProd.ID,
+		ProductType:    "plant",
+		Date:           oldDate,
+		Views:          96,
+		DirectWaClicks: 7,
+		TotalActions:   7,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify WIB conversion in StoreDailyAudienceMetric hour format via process-equivalent ingestion time:
+	// UTC 08:00 must map to WIB 15:00 in AnalyticsLocation()
+	utcSample := time.Date(2026, 11, 26, 8, 15, 0, 0, time.UTC)
+	wibSample := utcSample.In(services.AnalyticsLocation())
+	if wibSample.Format("15") != "15" {
+		t.Fatalf("expected 08:15 UTC -> hour 15 WIB, got %s", wibSample.Format("15"))
+	}
+
+	handler := NewAnalyticsHandler(&config.Config{}, db)
+	storeApp := fiber.New()
+	storeApp.Use(func(c *fiber.Ctx) error {
+		c.Locals("store", &store)
+		c.Locals("user", &models.User{ID: 77, Name: "Owner", PlatformRole: "merchant"})
+		return c.Next()
+	})
+	storeApp.Get("/api/admin/analytics", handler.GetStoreAnalytics)
+	_ = app
+
+	res, err := storeApp.Test(httptest.NewRequest(http.MethodGet, "/api/admin/analytics?period=7d", nil), -1)
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("expected 200 for GetStoreAnalytics, got status=%d err=%v", res.StatusCode, err)
+	}
+	raw, _ := io.ReadAll(res.Body)
+	var body struct {
+		Success bool `json:"success"`
+		Data    struct {
+			TotalProductViews int64                      `json:"total_product_views"`
+			ProductTypes      []ProductTypeMetricSummary `json:"product_types"`
+			Funnel            ConversionFunnelSummary    `json:"funnel"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Data.TotalProductViews != 3 {
+		t.Errorf("expected 7d total_product_views=3 (excluding 25d old rows), got %d", body.Data.TotalProductViews)
+	}
+	if body.Data.Funnel.ProductViews != 3 {
+		t.Errorf("expected funnel.product_views=3, got %d", body.Data.Funnel.ProductViews)
+	}
+	foundPlant := false
+	for _, pt := range body.Data.ProductTypes {
+		if pt.ProductType == "plant" {
+			foundPlant = true
+			if pt.Views != 3 || pt.DirectWaClicks != 2 {
+				t.Errorf("expected plant 7d views=3, direct_wa=2; got views=%d, wa=%d", pt.Views, pt.DirectWaClicks)
+			}
+		}
+	}
+	if !foundPlant {
+		t.Errorf("expected 'plant' in product_types, got %+v", body.Data.ProductTypes)
+	}
+}

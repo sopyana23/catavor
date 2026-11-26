@@ -228,7 +228,8 @@ export const VideoPlayerEmbed: React.FC<{
   url?: string | null;
   title?: string;
   isMobile?: boolean;
-}> = ({ url, title, isMobile = false }) => {
+  onVideoInteract?: () => void;
+}> = ({ url, title, isMobile = false, onVideoInteract }) => {
   const parsed = useMemo(() => parseVideoUrl(url), [url]);
 
   if (!parsed || !parsed.isValid) return null;
@@ -269,6 +270,7 @@ export const VideoPlayerEmbed: React.FC<{
             href={parsed.originalUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => onVideoInteract?.()}
             style={{ color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, fontSize: '0.75rem' }}
           >
             Buka YouTube <ExternalLink size={12} />
@@ -301,6 +303,7 @@ export const VideoPlayerEmbed: React.FC<{
         <video 
           controls 
           src={parsed.originalUrl} 
+          onPlay={() => onVideoInteract?.()}
           style={{ width: '100%', maxHeight: '420px', display: 'block' }} 
         />
       </div>
@@ -313,6 +316,7 @@ export const VideoPlayerEmbed: React.FC<{
       href={parsed.originalUrl}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={() => onVideoInteract?.()}
       className="catavor-video-card"
       style={{
         margin: isMobile ? '0.85rem 0' : '1rem 0',

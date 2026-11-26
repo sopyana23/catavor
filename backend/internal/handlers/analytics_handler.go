@@ -730,7 +730,8 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		period = "7d"
 	}
 
-	startDate := time.Now().AddDate(0, 0, -(days - 1)).Format("2006-01-02")
+	nowWib := services.AnalyticsNow()
+	startDate := nowWib.AddDate(0, 0, -(days - 1)).Format("2006-01-02")
 	db := h.db
 
 	// Flush any pending in-memory telemetry buffers before querying SQL for 100% read-after-write consistency
@@ -790,7 +791,7 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	peakDate := ""
 
 	for i := days - 1; i >= 0; i-- {
-		dt := time.Now().AddDate(0, 0, -i).Format("2006-01-02")
+		dt := nowWib.AddDate(0, 0, -i).Format("2006-01-02")
 		if rec, exists := recordMap[dt]; exists {
 			directWa := rec.DirectWaClicks
 			if directWa == 0 && rec.WaClicks > 0 {
@@ -844,25 +845,57 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		}
 	}
 
-	// 1. Calculate true total product views across 100% of active store products directly via DB aggregation
-	var totalProductViews int64 = 0
-	_ = db.Model(&models.Product{}).
-		Where("store_id = ? AND is_active = ?", store.ID, true).
-		Select("COALESCE(SUM(view_count), 0)").
-		Scan(&totalProductViews).Error
-
-	// 2. Query top performing active products for this store leaderboard (limited to top 50 for lightweight payload)
+	// 1. Query ALL active store products (no Limit(50) before type/category breakdown) & period-scoped daily product analytics
 	var products []models.Product
 	_ = db.Preload("Category").
 		Where("store_id = ? AND is_active = ?", store.ID, true).
 		Order("view_count DESC, wa_clicks_count DESC, id DESC").
-		Limit(50).
 		Find(&products).Error
+
+	type prodPeriodAggRow struct {
+		ProductID         uint  `gorm:"column:product_id"`
+		Views             int64 `gorm:"column:views"`
+		DirectWaClicks    int64 `gorm:"column:direct_wa_clicks"`
+		WaClicks          int64 `gorm:"column:wa_clicks"`
+		MarketplaceClicks int64 `gorm:"column:marketplace_clicks"`
+		RekberClicks      int64 `gorm:"column:rekber_clicks"`
+		VideoViews        int64 `gorm:"column:video_views"`
+	}
+	var prodPeriodRows []prodPeriodAggRow
+	_ = db.Model(&models.ProductDailyAnalytics{}).
+		Select("product_id, COALESCE(SUM(views), 0) as views, COALESCE(SUM(direct_wa_clicks), 0) as direct_wa_clicks, COALESCE(SUM(wa_clicks), 0) as wa_clicks, COALESCE(SUM(marketplace_clicks), 0) as marketplace_clicks, COALESCE(SUM(rekber_clicks), 0) as rekber_clicks, COALESCE(SUM(video_views), 0) as video_views").
+		Where("store_id = ? AND date >= ?", store.ID, startDate).
+		Group("product_id").
+		Find(&prodPeriodRows).Error
+
+	prodPeriodMap := make(map[uint]prodPeriodAggRow, len(prodPeriodRows))
+	var periodProdViewsSum int64 = 0
+	for _, pr := range prodPeriodRows {
+		prodPeriodMap[pr.ProductID] = pr
+		periodProdViewsSum += pr.Views
+	}
+
+	var anyDailyProdCount int64 = 0
+	_ = db.Model(&models.ProductDailyAnalytics{}).Where("store_id = ?", store.ID).Limit(1).Count(&anyDailyProdCount).Error
+	usePeriodProdMetrics := anyDailyProdCount > 0 || totalStoreViews > 0 || totalPeriodProductViews > 0
+
+	var totalProductViews int64 = 0
+	if usePeriodProdMetrics {
+		totalProductViews = periodProdViewsSum
+		if totalProductViews == 0 && totalPeriodProductViews > 0 {
+			totalProductViews = int64(totalPeriodProductViews)
+		}
+	} else {
+		_ = db.Model(&models.Product{}).
+			Where("store_id = ? AND is_active = ?", store.ID, true).
+			Select("COALESCE(SUM(view_count), 0)").
+			Scan(&totalProductViews).Error
+	}
 
 	topSummary := make([]TopProductSummary, len(products))
 	categoryMap := make(map[string]*CategoryMetricSummary)
 
-	// Map for product type breakdown
+	// Map for product type breakdown (aligned with all 7 catalog types)
 	typeNames := map[string]string{
 		"physical": "Produk Fisik",
 		"service":  "Layanan / Jasa",
@@ -870,6 +903,7 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 		"food":     "Kuliner & FnB",
 		"property": "Properti & Listing",
 		"fauna":    "Satwa & Fauna",
+		"plant":    "Tanaman & Flora",
 	}
 
 	prodTypeMap := make(map[string]*ProductTypeMetricSummary)
@@ -881,15 +915,35 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	}
 
 	for i, p := range products {
-		pType := p.ProductType
+		pType := strings.ToLower(strings.TrimSpace(p.ProductType))
 		if pType == "" {
 			pType = "physical"
 		}
 
-		itemActions := p.WaClicksCount + p.MarketplaceClicksCount + p.RekberClicksCount + p.VideoViewsCount
+		var pViews, pWa, pMp, pRek, pVid int64
+		if usePeriodProdMetrics {
+			if pr, ok := prodPeriodMap[p.ID]; ok {
+				pViews = pr.Views
+				pWa = pr.DirectWaClicks
+				if pWa == 0 {
+					pWa = pr.WaClicks
+				}
+				pMp = pr.MarketplaceClicks
+				pRek = pr.RekberClicks
+				pVid = pr.VideoViews
+			}
+		} else {
+			pViews = p.ViewCount
+			pWa = p.WaClicksCount
+			pMp = p.MarketplaceClicksCount
+			pRek = p.RekberClicksCount
+			pVid = p.VideoViewsCount
+		}
+
+		itemActions := pWa + pMp + pRek + pVid
 		var itemCtr float64 = 0
-		if p.ViewCount > 0 {
-			itemCtr = (float64(itemActions) / float64(p.ViewCount)) * 100
+		if pViews > 0 {
+			itemCtr = (float64(itemActions) / float64(pViews)) * 100
 			if itemCtr > 100 {
 				itemCtr = 100
 			}
@@ -902,28 +956,34 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 			ImageURL:               p.ImageURL,
 			Price:                  p.Price,
 			Class:                  effCategory,
-			ViewCount:              p.ViewCount,
-			WaClicksCount:          p.WaClicksCount,
-			MarketplaceClicksCount: p.MarketplaceClicksCount,
-			RekberClicksCount:      p.RekberClicksCount,
-			VideoViewsCount:        p.VideoViewsCount,
+			ViewCount:              pViews,
+			WaClicksCount:          pWa,
+			MarketplaceClicksCount: pMp,
+			RekberClicksCount:      pRek,
+			VideoViewsCount:        pVid,
 			TotalActionsCount:      itemActions,
 			ConversionRatePercent:  itemCtr,
 			ProductType:            pType,
 		}
 
-		// Update product type summary
-		if ptSummary, exists := prodTypeMap[pType]; exists {
-			ptSummary.ItemCount++
-			ptSummary.Views += p.ViewCount
-			ptSummary.DirectWaClicks += p.WaClicksCount
-			ptSummary.MarketplaceClicks += p.MarketplaceClicksCount
-			ptSummary.RekberClicks += p.RekberClicksCount
-			ptSummary.VideoViews += p.VideoViewsCount
-			ptSummary.TotalActions += itemActions
+		// Update product type summary across 100% of active products
+		ptSummary, exists := prodTypeMap[pType]
+		if !exists {
+			ptSummary = &ProductTypeMetricSummary{
+				ProductType: pType,
+				TypeName:    titleizeWords(pType),
+			}
+			prodTypeMap[pType] = ptSummary
 		}
+		ptSummary.ItemCount++
+		ptSummary.Views += pViews
+		ptSummary.DirectWaClicks += pWa
+		ptSummary.MarketplaceClicks += pMp
+		ptSummary.RekberClicks += pRek
+		ptSummary.VideoViews += pVid
+		ptSummary.TotalActions += itemActions
 
-		// Update category summary
+		// Update category summary across 100% of active products
 		catName := effCategory
 		if strings.TrimSpace(catName) == "" {
 			catName = "Umum"
@@ -936,9 +996,22 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 				Items:        0,
 			}
 		}
-		categoryMap[catName].Views += p.ViewCount
+		categoryMap[catName].Views += pViews
 		categoryMap[catName].TotalActions += itemActions
 		categoryMap[catName].Items++
+	}
+
+	sort.Slice(topSummary, func(i, j int) bool {
+		if topSummary[i].ViewCount != topSummary[j].ViewCount {
+			return topSummary[i].ViewCount > topSummary[j].ViewCount
+		}
+		if topSummary[i].WaClicksCount != topSummary[j].WaClicksCount {
+			return topSummary[i].WaClicksCount > topSummary[j].WaClicksCount
+		}
+		return topSummary[i].ID > topSummary[j].ID
+	})
+	if len(topSummary) > 50 {
+		topSummary = topSummary[:50]
 	}
 
 	// Calculate conversion rate for each product type
@@ -1029,8 +1102,8 @@ func (h *AnalyticsHandler) GetStoreAnalytics(c *fiber.Ctx) error {
 	}
 
 	// Period-over-period growth calculation
-	prevStartDate := time.Now().AddDate(0, 0, -(days*2 - 1)).Format("2006-01-02")
-	prevEndDate := time.Now().AddDate(0, 0, -days).Format("2006-01-02")
+	prevStartDate := nowWib.AddDate(0, 0, -(days*2 - 1)).Format("2006-01-02")
+	prevEndDate := nowWib.AddDate(0, 0, -days).Format("2006-01-02")
 	var prevDailyRecords []models.StoreDailyAnalytics
 	_ = db.Where("store_id = ? AND date >= ? AND date <= ?", store.ID, prevStartDate, prevEndDate).Find(&prevDailyRecords).Error
 	prevStoreViews := 0
