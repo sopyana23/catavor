@@ -25314,17 +25314,6 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                   </div>
                                 ) : (
                                   <>
-                                    <AdSenseUnit
-                                      storePlan={settings?.plan}
-                                      isAdminView={false}
-                                      isPublicCatalog={Boolean(storeSlug)}
-                                      itemCount={filteredFaunas.length}
-                                      isSuspended={isStoreSuspended}
-                                      dormancyStatus={settings?.dormancy_status}
-                                      isBlacklisted={Boolean(settings?.is_blacklisted)}
-                                      slotType="header"
-                                      settings={{ ...platformSettings, ...settings }}
-                                    />
                                     <div className="mobile-list-grid">
                                       {filteredFaunas.map((item, itemIdx) => (
                                         <React.Fragment key={item.id}>
@@ -25528,7 +25517,29 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                             </div>
                                           </div>
 
-                                          {itemIdx === 3 && (
+                                          {((filteredFaunas.length === 1 && itemIdx === 0) || itemIdx === 1) && (
+                                            <div style={{ gridColumn: '1 / -1' }}>
+                                              <AdSenseUnit
+                                                storePlan={settings?.plan}
+                                                isAdminView={false}
+                                                isPublicCatalog={Boolean(storeSlug)}
+                                                itemCount={filteredFaunas.length}
+                                                isSuspended={isStoreSuspended}
+                                                dormancyStatus={settings?.dormancy_status}
+                                                isBlacklisted={Boolean(settings?.is_blacklisted)}
+                                                slotType="header"
+                                                settings={{ ...platformSettings, ...settings }}
+                                                onUpgradeClick={() => {
+                                                  if (isStoreOwner) {
+                                                    setActiveTab('admin');
+                                                    setAdminSubTab('subscription');
+                                                  }
+                                                }}
+                                              />
+                                            </div>
+                                          )}
+
+                                          {itemIdx === 5 && filteredFaunas.length >= 6 && (
                                             <div style={{ gridColumn: '1 / -1' }}>
                                               <AdSenseUnit
                                                 storePlan={settings?.plan}

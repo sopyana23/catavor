@@ -21336,18 +21336,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   </div>
 
                   {/* Google AdSense Bottom Banner (Public Catalog Free Tier only) */}
-                  <AdSenseUnit
-                    storePlan={settings?.plan}
-                    isAdminView={false}
-                    isPublicCatalog={Boolean(storeSlug)}
-                    itemCount={filteredFaunas.length}
-                    isSuspended={isStoreSuspended}
-                    dormancyStatus={settings?.dormancy_status}
-                    isBlacklisted={Boolean(settings?.is_blacklisted)}
-                    slotType="bottom"
-                    settings={{ ...platformSettings, ...settings }}
-                    onUpgradeClick={() => setShowSubscriptionModal(true)}
-                  />
+                  <div style={{ maxWidth: '970px', margin: '0 auto 1.25rem auto', width: '100%' }}>
+                    <AdSenseUnit
+                      storePlan={settings?.plan}
+                      isAdminView={false}
+                      isPublicCatalog={Boolean(storeSlug)}
+                      itemCount={filteredFaunas.length}
+                      isSuspended={isStoreSuspended}
+                      dormancyStatus={settings?.dormancy_status}
+                      isBlacklisted={Boolean(settings?.is_blacklisted)}
+                      slotType="bottom"
+                      settings={{ ...platformSettings, ...settings }}
+                      onUpgradeClick={() => setShowSubscriptionModal(true)}
+                    />
+                  </div>
 
                     {/* Infinite Scroll loading indicator */}
                     {isFetchingMore && (
