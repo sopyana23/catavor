@@ -6,6 +6,13 @@ import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColo
 import { AutomationConsole } from '../../../shared/automation/AutomationConsole';
 import { AdminMonetizationConsole } from '../../../shared/monetization/AdminMonetizationConsole';
 import { AdminBroadcastConsole } from '../../../shared/broadcast/AdminBroadcastConsole';
+import {
+  PLATFORM_AUDIT_CATEGORIES,
+  PLATFORM_AUDIT_ROLES,
+  type AuditChainVerifyReport,
+  verifyAuditChainApi,
+  exportAuditLogsFile,
+} from '../../../shared/audit/auditHelpers';
 import { AutomationCatalog } from './AutomationCatalog';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { compactToastMessage } from './SwipeableToast';
@@ -1556,6 +1563,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [selectedAuditLog, setSelectedAuditLog] = useState<any | null>(null);
   const [showAuditDetailSheet, setShowAuditDetailSheet] = useState<boolean>(false);
   const [copiedAuditPayload, setCopiedAuditPayload] = useState<boolean>(false);
+  const [isVerifyingAudit, setIsVerifyingAudit] = useState<boolean>(false);
+  const [auditVerifyReport, setAuditVerifyReport] = useState<AuditChainVerifyReport | null>(null);
+  const [isExportingAudit, setIsExportingAudit] = useState<boolean>(false);
 
   // State: Google AdSense & Analytics Settings
   const [monetizationTab, setMonetizationTab] = useState<'adsense' | 'analytics'>('adsense');
@@ -10433,40 +10443,171 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
       {/* ========================================================================= */}
       {activeView === 'audit' && canAccessAudit && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          {/* Audit Header Bar & Live Refresh */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0.2rem' }}>
-            <div>
-              <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
-                System-Wide Audit Trail
-              </h4>
-              <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.7rem', color: theme.textSecondary }}>
-                Jejak forensik & kepatuhan seluruh tindakan administratif
-              </p>
+          {/* Audit Header Bar & Compliance Actions */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', padding: '0.25rem 0.2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ minWidth: 0 }}>
+                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800, color: theme.textPrimary, letterSpacing: '-0.01em' }}>
+                  System-Wide Audit Trail
+                </h4>
+                <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.7rem', color: theme.textSecondary }}>
+                  Jejak forensik &amp; kepatuhan seluruh tindakan administratif
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={isLoadingAudit}
+                onClick={() => fetchAuditLogs(1, false)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  minHeight: '44px',
+                  padding: '0.45rem 0.75rem',
+                  borderRadius: '0.65rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.surface,
+                  color: theme.textPrimary,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  opacity: isLoadingAudit ? 0.6 : 1,
+                  boxShadow: theme.cardShadow,
+                  flexShrink: 0
+                }}
+              >
+                <RefreshCw size={13} className={isLoadingAudit ? 'animate-spin' : ''} color="#3b82f6" />
+                <span>Segarkan</span>
+              </button>
             </div>
-            <button
-              type="button"
-              disabled={isLoadingAudit}
-              onClick={() => fetchAuditLogs(1, false)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                padding: '0.45rem 0.75rem',
-                borderRadius: '0.65rem',
-                border: `1px solid ${theme.border}`,
-                backgroundColor: theme.surface,
-                color: theme.textPrimary,
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                opacity: isLoadingAudit ? 0.6 : 1,
-                boxShadow: theme.cardShadow
-              }}
-            >
-              <RefreshCw size={13} className={isLoadingAudit ? 'animate-spin' : ''} color="#3b82f6" />
-              <span>Segarkan</span>
-            </button>
+
+            <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                disabled={isVerifyingAudit}
+                onClick={async () => {
+                  if (!token) return;
+                  setIsVerifyingAudit(true);
+                  try {
+                    const report = await verifyAuditChainApi(token);
+                    setAuditVerifyReport(report);
+                    showToast(
+                      report.intact
+                        ? `Rantai hash utuh (${report.chained_count} entri terverifikasi)`
+                        : `Peringatan integritas rantai: ${report.reason}`,
+                      report.intact ? 'success' : 'error'
+                    );
+                  } catch (err: any) {
+                    showToast(err?.message || 'Gagal memverifikasi rantai audit', 'error');
+                  } finally {
+                    setIsVerifyingAudit(false);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  minHeight: '44px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  padding: '0.45rem 0.75rem',
+                  borderRadius: '0.75rem',
+                  border: `1px solid ${auditVerifyReport ? (auditVerifyReport.intact ? '#10b981' : '#ef4444') : theme.border}`,
+                  backgroundColor: theme.surface,
+                  color: theme.textPrimary,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: isVerifyingAudit ? 'not-allowed' : 'pointer',
+                  opacity: isVerifyingAudit ? 0.6 : 1,
+                  boxShadow: theme.cardShadow
+                }}
+              >
+                <ShieldCheck size={14} color={auditVerifyReport?.intact === false ? '#ef4444' : '#10b981'} />
+                <span>{isVerifyingAudit ? 'Verifikasi...' : 'Verifikasi Rantai'}</span>
+              </button>
+              <button
+                type="button"
+                disabled={isExportingAudit}
+                onClick={async () => {
+                  if (!token) return;
+                  setIsExportingAudit(true);
+                  try {
+                    const filename = await exportAuditLogsFile({
+                      endpoint: '/api/admin/audit-logs/export',
+                      token,
+                      format: 'csv',
+                      category: auditCategoryFilter,
+                      role: auditRoleFilter,
+                      q: debouncedAuditSearch,
+                    });
+                    showToast(`Berhasil mengekspor ${filename}`, 'success');
+                  } catch (err: any) {
+                    showToast(err?.message || 'Gagal mengekspor CSV audit', 'error');
+                  } finally {
+                    setIsExportingAudit(false);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  minHeight: '44px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  padding: '0.45rem 0.75rem',
+                  borderRadius: '0.75rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: theme.surface,
+                  color: theme.textPrimary,
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: isExportingAudit ? 'not-allowed' : 'pointer',
+                  opacity: isExportingAudit ? 0.6 : 1,
+                  boxShadow: theme.cardShadow
+                }}
+              >
+                <Download size={14} color="#3b82f6" />
+                <span>{isExportingAudit ? 'Ekspor...' : 'Ekspor CSV'}</span>
+              </button>
+            </div>
           </div>
+
+          {/* Hash Chain Verification Banner */}
+          {auditVerifyReport && (
+            <div style={{
+              padding: '0.65rem 0.85rem',
+              borderRadius: '0.75rem',
+              border: `1px solid ${auditVerifyReport.intact ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.4)'}`,
+              backgroundColor: auditVerifyReport.intact
+                ? (isDark ? 'rgba(16, 185, 129, 0.12)' : '#ecfdf5')
+                : (isDark ? 'rgba(239, 68, 68, 0.14)' : '#fef2f2'),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.5rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+                {auditVerifyReport.intact
+                  ? <CheckCircle2 size={15} color="#10b981" style={{ flexShrink: 0 }} />
+                  : <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0 }} />}
+                <div style={{ fontSize: '0.7rem', color: theme.textPrimary, lineHeight: 1.35 }}>
+                  <strong style={{ color: auditVerifyReport.intact ? '#10b981' : '#ef4444' }}>
+                    {auditVerifyReport.intact ? 'Rantai Utuh' : 'Rantai Bermasalah'}
+                  </strong>
+                  {' · '}
+                  {auditVerifyReport.chained_count} entri terverifikasi (seq #{auditVerifyReport.last_chain_seq})
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAuditVerifyReport(null)}
+                style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', padding: '0.2rem', display: 'flex', flexShrink: 0 }}
+                aria-label="Tutup banner verifikasi"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
           {/* Search Bar Input */}
           <div style={{ position: 'relative' }}>
@@ -10521,22 +10662,25 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             scrollbarWidth: 'none',
             msOverflowStyle: 'none'
           }}>
-            {[
-              { id: 'all', label: 'Semua Kategori', icon: History },
-              { id: 'security', label: 'Keamanan', icon: Shield },
-              { id: 'catalog', label: 'Katalog', icon: ShoppingBag },
-              { id: 'store', label: 'Toko', icon: Store },
-              { id: 'billing', label: 'Finansial', icon: CreditCard },
-              { id: 'moderation', label: 'Moderasi', icon: AlertTriangle },
-              { id: 'system', label: 'Sistem', icon: Server }
-            ].map((cat) => {
-              const isActive = auditCategoryFilter === cat.id;
-              const IconComp = cat.icon;
+            {PLATFORM_AUDIT_CATEGORIES.map((cat) => {
+              const iconMap: Record<string, any> = {
+                all: History,
+                security: Shield,
+                catalog: ShoppingBag,
+                store: Store,
+                billing: CreditCard,
+                moderation: AlertTriangle,
+                superadmin: ShieldAlert,
+                market_intel: TrendingUp,
+                system: Server
+              };
+              const isActive = auditCategoryFilter === cat.key;
+              const IconComp = iconMap[cat.key] || Activity;
               return (
                 <button
-                  key={cat.id}
+                  key={cat.key}
                   type="button"
-                  onClick={() => setAuditCategoryFilter(cat.id)}
+                  onClick={() => setAuditCategoryFilter(cat.key)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -10555,7 +10699,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   }}
                 >
                   <IconComp size={13} color={isActive ? '#3b82f6' : theme.textMuted} />
-                  <span>{cat.label}</span>
+                  <span>{cat.shortLabel || cat.label}</span>
                 </button>
               );
             })}
@@ -10572,18 +10716,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             <span style={{ fontSize: '0.68rem', fontWeight: 700, color: theme.textMuted, marginRight: '0.2rem', whiteSpace: 'nowrap' }}>
               Aktor:
             </span>
-            {[
-              { id: 'all', label: 'Semua Aktor' },
-              { id: 'superadmin', label: 'Superadmin' },
-              { id: 'merchant', label: 'Merchant' },
-              { id: 'system', label: 'Sistem Otomatis' }
-            ].map((r) => {
-              const isActive = auditRoleFilter === r.id;
+            {PLATFORM_AUDIT_ROLES.map((r) => {
+              const isActive = auditRoleFilter === r.value;
               return (
                 <button
-                  key={r.id}
+                  key={r.value}
                   type="button"
-                  onClick={() => setAuditRoleFilter(r.id)}
+                  onClick={() => setAuditRoleFilter(r.value)}
                   style={{
                     padding: '0.25rem 0.6rem',
                     borderRadius: '0.5rem',
@@ -10672,6 +10811,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                   catBg = isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2';
                   catIcon = AlertTriangle;
                   catLabel = 'Moderasi';
+                } else if (cat === 'superadmin') {
+                  catColor = '#dc2626';
+                  catBg = isDark ? 'rgba(220, 38, 38, 0.18)' : '#fee2e2';
+                  catIcon = ShieldAlert;
+                  catLabel = 'Superadmin';
+                } else if (cat === 'market_intel') {
+                  catColor = '#0284c7';
+                  catBg = isDark ? 'rgba(2, 132, 199, 0.18)' : '#e0f2fe';
+                  catIcon = TrendingUp;
+                  catLabel = 'Riset Pasar';
                 } else if (cat === 'system') {
                   catColor = '#06b6d4';
                   catBg = isDark ? 'rgba(6, 182, 212, 0.18)' : '#cffafe';
@@ -10729,7 +10878,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         </span>
                       </div>
                       <span style={{ fontSize: '0.66rem', color: theme.textMuted, whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
-                        {log.created_at ? new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
+                        {log.created_at ? new Date(log.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
                       </span>
                     </div>
 

@@ -6,6 +6,13 @@ import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColo
 import { AutomationConsole } from '../../../shared/automation/AutomationConsole';
 import { AdminMonetizationConsole } from '../../../shared/monetization/AdminMonetizationConsole';
 import { AdminBroadcastConsole } from '../../../shared/broadcast/AdminBroadcastConsole';
+import {
+  PLATFORM_AUDIT_CATEGORIES,
+  PLATFORM_AUDIT_ROLES,
+  type AuditChainVerifyReport,
+  verifyAuditChainApi,
+  exportAuditLogsFile,
+} from '../../../shared/audit/auditHelpers';
 import { AutomationCatalog } from './AutomationCatalog';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
@@ -2828,6 +2835,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [copiedAuditPayload, setCopiedAuditPayload] = useState<boolean>(false);
   const [showAuditDetailModal, setShowAuditDetailModal] = useState<boolean>(false);
   const [quickJumpPageInput, setQuickJumpPageInput] = useState<string>('');
+  const [isVerifyingAudit, setIsVerifyingAudit] = useState<boolean>(false);
+  const [auditVerifyReport, setAuditVerifyReport] = useState<AuditChainVerifyReport | null>(null);
+  const [isExportingAudit, setIsExportingAudit] = useState<boolean>(false);
 
   useModalBackHandler({
     isOpen: showAuditDetailModal,
@@ -10678,8 +10688,8 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                   )}
                 </div>
 
-                {/* Dropdown Filters & Refresh Button */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                {/* Dropdown Filters, Compliance Actions & Refresh Button */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
                   {/* Category Select (Standardized TabletCustomSelect) */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-muted)' }}>Kategori:</span>
@@ -10689,22 +10699,14 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         setAuditCategoryFilter(val);
                         setAuditPage(1);
                       }}
-                      options={[
-                        { value: 'all', label: 'Semua Kategori' },
-                        { value: 'security', label: 'Keamanan & Akses' },
-                        { value: 'catalog', label: 'Katalog & Produk' },
-                        { value: 'store', label: 'Toko & Merchant' },
-                        { value: 'billing', label: 'Finansial & Billing' },
-                        { value: 'moderation', label: 'Moderasi & Laporan' },
-                        { value: 'system', label: 'Sistem & Otomasi' }
-                      ]}
+                      options={PLATFORM_AUDIT_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))}
                       variant="filter"
                       highlight={auditCategoryFilter !== 'all'}
                       placeholder="Semua Kategori"
                       triggerStyle={{
                         minHeight: '44px',
                         width: 'auto',
-                        minWidth: '155px'
+                        minWidth: '150px'
                       }}
                       menuWidth={210}
                       ariaLabel="Filter Kategori Audit"
@@ -10720,12 +10722,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         setAuditRoleFilter(val);
                         setAuditPage(1);
                       }}
-                      options={[
-                        { value: 'all', label: 'Semua Aktor' },
-                        { value: 'superadmin', label: 'Superadmin' },
-                        { value: 'merchant', label: 'Merchant' },
-                        { value: 'system', label: 'Sistem Otomatis' }
-                      ]}
+                      options={PLATFORM_AUDIT_ROLES.map((r) => ({ value: r.value, label: r.label }))}
                       variant="filter"
                       highlight={auditRoleFilter !== 'all'}
                       placeholder="Semua Aktor"
@@ -10734,10 +10731,98 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                         width: 'auto',
                         minWidth: '140px'
                       }}
-                      menuWidth={180}
+                      menuWidth={185}
                       ariaLabel="Filter Aktor Audit"
                     />
                   </div>
+
+                  {/* Verify Chain Button */}
+                  <button
+                    type="button"
+                    disabled={isVerifyingAudit}
+                    onClick={async () => {
+                      if (!token) return;
+                      setIsVerifyingAudit(true);
+                      try {
+                        const report = await verifyAuditChainApi(token, authFetch);
+                        setAuditVerifyReport(report);
+                        showToast(
+                          report.intact
+                            ? `Rantai hash utuh (${report.chained_count} entri terverifikasi)`
+                            : `Peringatan integritas rantai: ${report.reason}`,
+                          report.intact ? 'success' : 'error'
+                        );
+                      } catch (err: any) {
+                        showToast(err?.message || 'Gagal memverifikasi rantai audit', 'error');
+                      } finally {
+                        setIsVerifyingAudit(false);
+                      }
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      minHeight: '44px',
+                      padding: '0.45rem 0.85rem',
+                      borderRadius: '0.65rem',
+                      border: `1px solid ${auditVerifyReport ? (auditVerifyReport.intact ? '#10b981' : '#ef4444') : 'var(--border-light)'}`,
+                      backgroundColor: 'var(--bg-deep)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: isVerifyingAudit ? 'not-allowed' : 'pointer',
+                      opacity: isVerifyingAudit ? 0.6 : 1,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <ShieldCheck size={14} color={auditVerifyReport?.intact === false ? '#ef4444' : '#10b981'} />
+                    <span>{isVerifyingAudit ? 'Memverifikasi...' : 'Verifikasi'}</span>
+                  </button>
+
+                  {/* Export CSV Button */}
+                  <button
+                    type="button"
+                    disabled={isExportingAudit}
+                    onClick={async () => {
+                      if (!token) return;
+                      setIsExportingAudit(true);
+                      try {
+                        const filename = await exportAuditLogsFile({
+                          endpoint: '/api/admin/audit-logs/export',
+                          token,
+                          format: 'csv',
+                          category: auditCategoryFilter,
+                          role: auditRoleFilter,
+                          q: debouncedAuditSearch,
+                          fetcher: authFetch,
+                        });
+                        showToast(`Berhasil mengekspor ${filename}`, 'success');
+                      } catch (err: any) {
+                        showToast(err?.message || 'Gagal mengekspor CSV audit', 'error');
+                      } finally {
+                        setIsExportingAudit(false);
+                      }
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      minHeight: '44px',
+                      padding: '0.45rem 0.85rem',
+                      borderRadius: '0.65rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-deep)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: isExportingAudit ? 'not-allowed' : 'pointer',
+                      opacity: isExportingAudit ? 0.6 : 1,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Download size={14} color="var(--primary)" />
+                    <span>{isExportingAudit ? 'Ekspor...' : 'Ekspor CSV'}</span>
+                  </button>
 
                   {/* Refresh Button */}
                   <button
@@ -10749,12 +10834,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                       alignItems: 'center',
                       gap: '0.35rem',
                       minHeight: '44px',
-                      padding: '0.45rem 0.95rem',
+                      padding: '0.45rem 0.85rem',
                       borderRadius: '0.65rem',
                       border: '1px solid var(--border-light)',
                       backgroundColor: 'var(--bg-deep)',
                       color: 'var(--text-primary)',
-                      fontSize: '0.78rem',
+                      fontSize: '0.76rem',
                       fontWeight: 700,
                       cursor: 'pointer',
                       opacity: isLoadingAudit ? 0.6 : 1
@@ -10766,7 +10851,42 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 </div>
               </div>
 
-              {/* Comprehensive Data Table */}
+              {/* Hash Chain Verification Banner */}
+              {auditVerifyReport && (
+                <div style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: '0.75rem',
+                  border: `1px solid ${auditVerifyReport.intact ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.4)'}`,
+                  backgroundColor: auditVerifyReport.intact ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.65rem',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {auditVerifyReport.intact
+                      ? <CheckCircle2 size={15} color="#10b981" />
+                      : <AlertTriangle size={15} color="#ef4444" />}
+                    <span style={{ fontSize: '0.76rem', fontWeight: 800, color: auditVerifyReport.intact ? '#10b981' : '#ef4444' }}>
+                      {auditVerifyReport.intact ? 'Rantai Audit Utuh' : 'Anomali Rantai Terdeteksi'}
+                    </span>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                      {auditVerifyReport.chained_count} entri terverifikasi (seq #{auditVerifyReport.last_chain_seq})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAuditVerifyReport(null)}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex' }}
+                    aria-label="Tutup banner verifikasi"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* Adaptive Tablet Native View: Single-Column Touch Cards (Tablet Mini < 880px) vs Master-Detail Split View (Tablet Lebar >= 880px) */}
               <div style={{
                 borderRadius: '0.85rem',
                 backgroundColor: 'var(--bg-card)',
@@ -10775,299 +10895,297 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 display: 'flex',
                 flexDirection: 'column'
               }}>
-                <div
-                  className="tablet-sticky-table-container catavor-table-scrollbar"
-                  style={{
-                    maxHeight: 'min(62vh, 640px)',
-                    overflowY: 'auto',
-                    overflowX: 'auto',
-                    WebkitOverflowScrolling: 'touch',
-                    borderRadius: '0.85rem',
-                    border: '1px solid var(--border-light)'
-                  }}
-                >
-                  <table
-                    className="tablet-sticky-table"
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'separate',
-                      borderSpacing: 0,
-                      textAlign: 'left',
-                      fontSize: '0.8rem',
-                      minWidth: '860px'
-                    }}
-                  >
-                    <thead>
-                      <tr style={{
-                        backgroundColor: 'var(--bg-deep)',
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.72rem',
-                        fontWeight: 800,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.04em'
-                      }}>
-                        <th
-                          className="sticky-col"
-                          style={{
-                            padding: '0.85rem 1.15rem',
-                            width: '160px',
-                            minWidth: '160px',
-                            position: 'sticky',
-                            left: 0,
-                            top: 0,
-                            zIndex: 20,
-                            backgroundColor: 'var(--bg-deep)',
-                            borderBottom: '1px solid var(--border-light)',
-                            borderRight: '1px solid var(--border-light)',
-                            boxShadow: '3px 0 8px rgba(0,0,0,0.04)',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          Waktu & Tanggal
-                        </th>
-                        <th style={{ padding: '0.85rem 1rem', width: '170px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Kode Aksi</th>
-                        <th style={{ padding: '0.85rem 1rem', width: '130px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Kategori</th>
-                        <th style={{ padding: '0.85rem 1rem', minWidth: '200px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Aktor Pelaksana</th>
-                        <th style={{ padding: '0.85rem 1rem', minWidth: '220px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Deskripsi & Target</th>
-                        <th style={{ padding: '0.85rem 1rem', width: '130px', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Alamat IP</th>
-                        <th style={{ padding: '0.85rem 1.15rem', width: '100px', textAlign: 'center', position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>Tindakan</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {isLoadingAudit && auditLogs.length === 0 ? (
-                        [1, 2, 3, 4, 5].map((n) => (
-                          <tr key={n} style={{ borderBottom: '1px solid var(--border-light)', opacity: 0.5 }}>
-                            <td colSpan={7} style={{ padding: '1rem 1.15rem' }}>
-                              <div style={{ height: '16px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '4px' }} />
-                            </td>
-                          </tr>
-                        ))
-                      ) : auditLogs.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} style={{ padding: '4rem 1.5rem', textAlign: 'center' }}>
-                            <History size={42} color="var(--text-muted)" style={{ margin: '0 auto 0.75rem' }} />
-                            <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                              Tidak ada rekaman audit ditemukan
-                            </div>
-                            <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-                              Ubah kata kunci pencarian atau sesuaikan filter kategori untuk melihat rekaman lainnya.
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        auditLogs.map((log, idx) => {
-                          const logId = log.id || log.created_at || idx;
-                          const cat = (log.category || '').toLowerCase();
-                          let catColor = '#64748b';
-                          let catBg = 'rgba(100, 116, 139, 0.15)';
-                          let catIcon = Activity;
-                          let catLabel = 'Aktivitas';
+                {isLoadingAudit && auditLogs.length === 0 ? (
+                  <div style={{ padding: '1.15rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {[1, 2, 3, 4].map((n) => (
+                      <div key={n} style={{ height: '72px', borderRadius: '0.75rem', backgroundColor: 'rgba(148,163,184,0.12)' }} />
+                    ))}
+                  </div>
+                ) : auditLogs.length === 0 ? (
+                  <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center' }}>
+                    <History size={40} color="var(--text-muted)" style={{ margin: '0 auto 0.75rem' }} />
+                    <div style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      Tidak ada rekaman audit ditemukan
+                    </div>
+                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                      Ubah kata kunci pencarian atau sesuaikan filter kategori untuk melihat rekaman lainnya.
+                    </div>
+                  </div>
+                ) : (
+                  (() => {
+                    const getCatMeta = (rawCat: string) => {
+                      const cat = (rawCat || '').toLowerCase();
+                      if (cat === 'security') return { color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', icon: Shield, label: 'Keamanan' };
+                      if (cat === 'catalog') return { color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', icon: ShoppingBag, label: 'Katalog' };
+                      if (cat === 'store') return { color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', icon: StoreIcon, label: 'Toko' };
+                      if (cat === 'billing') return { color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.15)', icon: CreditCard, label: 'Finansial' };
+                      if (cat === 'moderation') return { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)', icon: AlertTriangle, label: 'Moderasi' };
+                      if (cat === 'superadmin') return { color: '#dc2626', bg: 'rgba(220, 38, 38, 0.15)', icon: ShieldAlert, label: 'Superadmin' };
+                      if (cat === 'market_intel') return { color: '#0284c7', bg: 'rgba(2, 132, 199, 0.15)', icon: TrendingUp, label: 'Riset Pasar' };
+                      if (cat === 'system') return { color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.15)', icon: Server, label: 'Sistem' };
+                      return { color: '#64748b', bg: 'rgba(100, 116, 139, 0.15)', icon: Activity, label: 'Aktivitas' };
+                    };
 
-                          if (cat === 'security') {
-                            catColor = '#f59e0b';
-                            catBg = 'rgba(245, 158, 11, 0.15)';
-                            catIcon = Shield;
-                            catLabel = 'Keamanan';
-                          } else if (cat === 'catalog') {
-                            catColor = '#10b981';
-                            catBg = 'rgba(16, 185, 129, 0.15)';
-                            catIcon = ShoppingBag;
-                            catLabel = 'Katalog';
-                          } else if (cat === 'store') {
-                            catColor = '#3b82f6';
-                            catBg = 'rgba(59, 130, 246, 0.15)';
-                            catIcon = StoreIcon;
-                            catLabel = 'Toko';
-                          } else if (cat === 'billing') {
-                            catColor = '#8b5cf6';
-                            catBg = 'rgba(139, 92, 246, 0.15)';
-                            catIcon = CreditCard;
-                            catLabel = 'Finansial';
-                          } else if (cat === 'moderation') {
-                            catColor = '#ef4444';
-                            catBg = 'rgba(239, 68, 68, 0.15)';
-                            catIcon = AlertTriangle;
-                            catLabel = 'Moderasi';
-                          } else if (cat === 'system') {
-                            catColor = '#06b6d4';
-                            catBg = 'rgba(6, 182, 212, 0.15)';
-                            catIcon = Server;
-                            catLabel = 'Sistem';
-                          }
-                          const CatIconComp = catIcon;
-
-                          return (
-                            <tr
-                              key={logId}
-                              style={{
-                                transition: 'background-color 0.15s ease',
-                                cursor: 'pointer'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))';
-                                const stickyTd = e.currentTarget.querySelector('.sticky-col') as HTMLElement;
-                                if (stickyTd) stickyTd.style.backgroundColor = 'var(--bg-card-hover, rgba(255,255,255,0.02))';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                                const stickyTd = e.currentTarget.querySelector('.sticky-col') as HTMLElement;
-                                if (stickyTd) stickyTd.style.backgroundColor = 'var(--bg-card)';
-                              }}
-                              onClick={() => {
-                                setSelectedAuditLogId(logId);
-                                setShowAuditDetailModal(true);
-                              }}
-                            >
-                              {/* Waktu & Tanggal */}
-                              <td
-                                className="sticky-col"
+                    if (isNarrowScreen) {
+                      return (
+                        <div style={{ padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          {auditLogs.map((log, idx) => {
+                            const logId = log.id || log.created_at || idx;
+                            const meta = getCatMeta(log.category);
+                            const CatIconComp = meta.icon;
+                            return (
+                              <div
+                                key={logId}
                                 style={{
-                                  padding: '0.85rem 1.15rem',
-                                  whiteSpace: 'nowrap',
-                                  position: 'sticky',
-                                  left: 0,
-                                  zIndex: 5,
-                                  backgroundColor: 'var(--bg-card)',
-                                  borderBottom: '1px solid var(--border-light)',
-                                  borderRight: '1px solid var(--border-light)',
-                                  boxShadow: '3px 0 8px rgba(0,0,0,0.04)'
+                                  padding: '0.95rem 1.05rem',
+                                  borderRadius: '0.85rem',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  border: '1px solid var(--border-light)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.55rem'
                                 }}
                               >
-                                <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '0.78rem' }}>
-                                  {log.created_at ? new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
-                                </div>
-                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                  {log.created_at ? new Date(log.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
-                                </div>
-                              </td>
-
-                              {/* Kode Aksi */}
-                              <td style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
-                                <span style={{
-                                  fontWeight: 800,
-                                  color: 'var(--primary)',
-                                  fontFamily: 'monospace',
-                                  fontSize: '0.76rem',
-                                  backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                                  padding: '0.2rem 0.5rem',
-                                  borderRadius: '6px',
-                                  display: 'inline-block'
-                                }}>
-                                  {log.action || 'system.log'}
-                                </span>
-                              </td>
-
-                              {/* Kategori */}
-                              <td style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
-                                <span style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '0.3rem',
-                                  padding: '0.2rem 0.55rem',
-                                  borderRadius: '999px',
-                                  fontSize: '0.7rem',
-                                  fontWeight: 800,
-                                  backgroundColor: catBg,
-                                  color: catColor
-                                }}>
-                                  <CatIconComp size={12} color={catColor} />
-                                  <span>{catLabel}</span>
-                                </span>
-                              </td>
-
-                              {/* Aktor Pelaksana */}
-                              <td style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                  <div style={{
-                                    width: '28px',
-                                    height: '28px',
-                                    borderRadius: '50%',
-                                    backgroundColor: 'rgba(255,255,255,0.08)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    flexShrink: 0
-                                  }}>
-                                    <User size={14} color="var(--text-secondary)" />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                    <span style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: '0.28rem',
+                                      padding: '0.18rem 0.52rem', borderRadius: '999px', fontSize: '0.7rem',
+                                      fontWeight: 800, backgroundColor: meta.bg, color: meta.color
+                                    }}>
+                                      <CatIconComp size={12} color={meta.color} />
+                                      <span>{meta.label}</span>
+                                    </span>
+                                    <span style={{
+                                      fontWeight: 800, color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.74rem',
+                                      backgroundColor: 'rgba(59, 130, 246, 0.12)', padding: '0.18rem 0.45rem', borderRadius: '6px'
+                                    }}>
+                                      {log.action || 'system.log'}
+                                    </span>
                                   </div>
-                                  <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      {log.actor_name || log.actor_email || 'Sistem'}
-                                    </div>
-                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      {log.actor_email || '-'}
-                                    </div>
-                                  </div>
-                                  <span style={{
-                                    padding: '0.1rem 0.4rem',
-                                    borderRadius: '4px',
-                                    fontSize: '0.62rem',
-                                    fontWeight: 800,
-                                    backgroundColor: log.actor_role === 'superadmin' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                                    color: log.actor_role === 'superadmin' ? '#ef4444' : '#3b82f6',
-                                    marginLeft: 'auto',
-                                    flexShrink: 0
-                                  }}>
-                                    {log.actor_role || 'staf'}
+                                  <span style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                    {log.created_at ? new Date(log.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-'}
                                   </span>
                                 </div>
-                              </td>
 
-                              {/* Deskripsi & Target */}
-                              <td style={{ padding: '0.85rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
-                                <div style={{ color: 'var(--text-primary)', fontWeight: 500, lineHeight: 1.4, fontSize: '0.8rem' }}>
-                                  {log.description || log.entity_title || 'Tindakan sistem'}
+                                <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.45 }}>
+                                  {log.description || log.entity_title || 'Tindakan operasional sistem'}
                                 </div>
+
                                 {(log.entity_title || log.entity_type) && (
-                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                                    <span style={{ fontWeight: 700 }}>Target:</span>
-                                    <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{log.entity_title || log.entity_type}</span>
-                                    {log.entity_id ? <span>(ID: #{log.entity_id})</span> : null}
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                    Target: <strong style={{ color: 'var(--text-secondary)' }}>{log.entity_title || log.entity_type}</strong>
+                                    {log.entity_id ? ` (ID: #${log.entity_id})` : ''}
                                   </div>
                                 )}
-                              </td>
 
-                              {/* Alamat IP */}
-                              <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontSize: '0.74rem', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-light)' }}>
-                                {log.ip_address || '127.0.0.1'}
-                              </td>
+                                <div style={{
+                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap',
+                                  borderTop: '1px dashed var(--border-light)', paddingTop: '0.55rem', marginTop: '0.1rem'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', minWidth: 0 }}>
+                                    <User size={13} color="var(--text-muted)" />
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                      {log.actor_name || log.actor_email || 'Sistem'}
+                                    </span>
+                                    <span style={{
+                                      padding: '0.1rem 0.38rem', borderRadius: '4px', fontSize: '0.62rem', fontWeight: 800,
+                                      backgroundColor: log.actor_role === 'superadmin' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                      color: log.actor_role === 'superadmin' ? '#ef4444' : '#3b82f6'
+                                    }}>
+                                      {log.actor_role || 'staf'}
+                                    </span>
+                                    <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                      IP: {log.ip_address || '127.0.0.1'}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedAuditLogId(logId);
+                                      setShowAuditDetailModal(true);
+                                    }}
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                                      minHeight: '44px', padding: '0.4rem 0.85rem', borderRadius: '0.55rem',
+                                      border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)',
+                                      color: 'var(--primary)', fontSize: '0.76rem', fontWeight: 700, cursor: 'pointer'
+                                    }}
+                                  >
+                                    <Eye size={14} color="var(--primary)" />
+                                    <span>Inspeksi</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
 
-                              {/* Aksi: Tombol Inspeksi */}
-                              <td style={{ padding: '0.85rem 1.15rem', textAlign: 'center', borderBottom: '1px solid var(--border-light)' }}>
+                    const activeDetail = selectedAuditLog || auditLogs[0];
+                    return (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 42%) 1fr', minHeight: '440px' }}>
+                        {/* Left Master List */}
+                        <div style={{
+                          borderRight: '1px solid var(--border-light)',
+                          maxHeight: 'min(64vh, 660px)',
+                          overflowY: 'auto',
+                          padding: '0.75rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.55rem'
+                        }}>
+                          {auditLogs.map((log, idx) => {
+                            const logId = log.id || log.created_at || idx;
+                            const isSelected = (activeDetail?.id || activeDetail?.created_at) === (log.id || log.created_at);
+                            const meta = getCatMeta(log.category);
+                            const CatIconComp = meta.icon;
+                            return (
+                              <button
+                                key={logId}
+                                type="button"
+                                onClick={() => setSelectedAuditLogId(logId)}
+                                style={{
+                                  textAlign: 'left',
+                                  width: '100%',
+                                  minHeight: '44px',
+                                  padding: '0.75rem 0.85rem',
+                                  borderRadius: '0.75rem',
+                                  border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border-light)'}`,
+                                  backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-deep)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.35rem',
+                                  boxSizing: 'border-box'
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem', width: '100%' }}>
+                                  <span style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                                    padding: '0.12rem 0.45rem', borderRadius: '999px', fontSize: '0.66rem',
+                                    fontWeight: 800, backgroundColor: meta.bg, color: meta.color
+                                  }}>
+                                    <CatIconComp size={11} color={meta.color} />
+                                    <span>{meta.label}</span>
+                                  </span>
+                                  <span style={{ fontSize: '0.68rem', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
+                                    {log.created_at ? new Date(log.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-'}
+                                  </span>
+                                </div>
+                                <div style={{ fontFamily: 'monospace', fontSize: '0.74rem', fontWeight: 800, color: 'var(--primary)' }}>
+                                  {log.action || 'system.log'}
+                                </div>
+                                <div style={{
+                                  fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35,
+                                  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                                }}>
+                                  {log.description || log.entity_title || 'Tindakan sistem'}
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                  <span>{log.actor_name || log.actor_email || 'Sistem'}</span>
+                                  <span style={{ fontFamily: 'monospace' }}>{log.ip_address || '127.0.0.1'}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Right Live Inspector Pane */}
+                        <div style={{ padding: '1.15rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', maxHeight: 'min(64vh, 660px)', overflowY: 'auto' }}>
+                          {activeDetail && (
+                            <>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', flexWrap: 'wrap', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+                                <div>
+                                  <div style={{ fontFamily: 'monospace', fontSize: '0.92rem', fontWeight: 800, color: 'var(--primary)' }}>
+                                    [{activeDetail.action || 'system.log'}]
+                                  </div>
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', fontFamily: 'monospace' }}>
+                                    Log #{activeDetail.id} - {activeDetail.created_at ? new Date(activeDetail.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'medium' }) : '-'}
+                                  </div>
+                                </div>
                                 <button
                                   type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedAuditLogId(logId);
-                                    setShowAuditDetailModal(true);
-                                  }}
+                                  onClick={() => setShowAuditDetailModal(true)}
                                   style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.35rem',
-                                    minHeight: '36px',
-                                    padding: '0.35rem 0.75rem',
-                                    borderRadius: '0.55rem',
-                                    border: '1px solid var(--border-light)',
-                                    backgroundColor: 'var(--bg-deep)',
-                                    color: 'var(--primary)',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    transition: 'all 0.15s ease'
+                                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem', minHeight: '44px',
+                                    padding: '0.4rem 0.8rem', borderRadius: '0.55rem', border: '1px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-deep)', color: 'var(--primary)', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer'
                                   }}
                                 >
-                                  <Eye size={13} color="var(--primary)" />
-                                  <span>Inspeksi</span>
+                                  <Eye size={14} />
+                                  <span>Modal Penuh</span>
                                 </button>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                              </div>
+
+                              <div style={{ padding: '0.85rem 1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                                <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Deskripsi Rekaman</div>
+                                <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.45 }}>
+                                  {activeDetail.description || activeDetail.entity_title || 'Tindakan operasional sistem'}
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.65rem' }}>
+                                <div style={{ padding: '0.75rem 0.9rem', borderRadius: '0.7rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700 }}>Aktor Pelaksana</div>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.15rem' }}>
+                                    {activeDetail.actor_name || activeDetail.actor_email || 'Sistem'}
+                                  </div>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                    Role: {activeDetail.actor_role || 'staf'}
+                                  </div>
+                                </div>
+                                <div style={{ padding: '0.75rem 0.9rem', borderRadius: '0.7rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700 }}>Alamat IP</div>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace', marginTop: '0.15rem' }}>
+                                    {activeDetail.ip_address || '127.0.0.1'}
+                                  </div>
+                                  {activeDetail.chain_seq ? (
+                                    <div style={{ fontSize: '0.68rem', color: '#10b981', fontFamily: 'monospace' }}>
+                                      Chain Seq #{activeDetail.chain_seq}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              {(activeDetail.changes || activeDetail.payload) && (
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                                    <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-primary)' }}>Payload Forensik</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const raw = activeDetail.changes || activeDetail.payload;
+                                        navigator.clipboard.writeText(typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2));
+                                        setCopiedAuditPayload(true);
+                                        showToast('Payload audit disalin ke clipboard');
+                                        setTimeout(() => setCopiedAuditPayload(false), 2000);
+                                      }}
+                                      style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                    >
+                                      {copiedAuditPayload ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
+                                      <span>{copiedAuditPayload ? 'Tersalin' : 'Salin JSON'}</span>
+                                    </button>
+                                  </div>
+                                  <pre style={{
+                                    margin: 0, padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)',
+                                    color: '#38bdf8', border: '1px solid var(--border-light)', fontSize: '0.72rem', fontFamily: 'monospace',
+                                    overflowX: 'auto', maxHeight: '220px'
+                                  }}>
+                                    {typeof (activeDetail.changes || activeDetail.payload) === 'string'
+                                      ? (activeDetail.changes || activeDetail.payload)
+                                      : JSON.stringify(activeDetail.changes || activeDetail.payload, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
 
                 {/* Tablet Ergonomic Pagination Bar & Footer Information */}
                 <div style={{

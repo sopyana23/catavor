@@ -6,6 +6,13 @@ import { FinanceNav, CouponFilters, OrderFilters, PaymentModePicker, financeColo
 import { AutomationConsole } from '../../../shared/automation/AutomationConsole';
 import { AdminMonetizationConsole } from '../../../shared/monetization/AdminMonetizationConsole';
 import { AdminBroadcastConsole } from '../../../shared/broadcast/AdminBroadcastConsole';
+import {
+  PLATFORM_AUDIT_CATEGORIES,
+  PLATFORM_AUDIT_ROLES,
+  type AuditChainVerifyReport,
+  verifyAuditChainApi,
+  exportAuditLogsFile,
+} from '../../../shared/audit/auditHelpers';
 import { AutomationCatalog } from './AutomationCatalog';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { compactToastMessage } from './SwipeableToast';
@@ -1483,6 +1490,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   const [showAuditDetailModal, setShowAuditDetailModal] = useState<boolean>(false);
   const [copiedAuditPayload, setCopiedAuditPayload] = useState<boolean>(false);
   const [quickJumpPageInput, setQuickJumpPageInput] = useState<string>('');
+  const [isVerifyingAudit, setIsVerifyingAudit] = useState<boolean>(false);
+  const [auditVerifyReport, setAuditVerifyReport] = useState<AuditChainVerifyReport | null>(null);
+  const [isExportingAudit, setIsExportingAudit] = useState<boolean>(false);
 
   // State: Google AdSense & Analytics Settings
   const [monetizationTab, setMonetizationTab] = useState<'adsense' | 'analytics'>('adsense');
@@ -11394,11 +11404,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               )}
             </div>
 
-            {/* Select Filter Dropdowns */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+            {/* Select Filter Dropdowns & Compliance Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
               {/* Category Select (Standardized DesktopCustomSelect) */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textMuted }}>Kategori:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textMuted }}>Kategori:</span>
                 <DesktopCustomSelect
                   value={auditCategoryFilter}
                   onChange={(val) => {
@@ -11406,31 +11416,23 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     setAuditPage(1);
                   }}
                   highlight={auditCategoryFilter !== 'all'}
-                  options={[
-                    { value: 'all', label: 'Semua Kategori' },
-                    { value: 'security', label: 'Keamanan & Akses' },
-                    { value: 'catalog', label: 'Katalog & Produk' },
-                    { value: 'store', label: 'Toko & Merchant' },
-                    { value: 'billing', label: 'Finansial & Billing' },
-                    { value: 'moderation', label: 'Moderasi & Laporan' },
-                    { value: 'system', label: 'Sistem & Otomasi' }
-                  ]}
+                  options={PLATFORM_AUDIT_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))}
                   placeholder="Semua Kategori"
-                  style={{ width: 'auto', minWidth: '175px' }}
+                  style={{ width: 'auto', minWidth: '165px' }}
                   triggerStyle={{
                     height: '36px',
-                    padding: '0 0.75rem',
-                    fontSize: '0.78rem',
+                    padding: '0 0.7rem',
+                    fontSize: '0.76rem',
                     fontWeight: 600,
                     borderRadius: '0.65rem'
                   }}
-                  dropdownStyle={{ minWidth: '200px' }}
+                  dropdownStyle={{ minWidth: '205px' }}
                 />
               </div>
 
               {/* Role Select (Standardized DesktopCustomSelect) */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span style={{ fontSize: '0.76rem', fontWeight: 700, color: theme.textMuted }}>Aktor:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: theme.textMuted }}>Aktor:</span>
                 <DesktopCustomSelect
                   value={auditRoleFilter}
                   onChange={(val) => {
@@ -11438,18 +11440,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     setAuditPage(1);
                   }}
                   highlight={auditRoleFilter !== 'all'}
-                  options={[
-                    { value: 'all', label: 'Semua Aktor' },
-                    { value: 'superadmin', label: 'Superadmin' },
-                    { value: 'merchant', label: 'Merchant' },
-                    { value: 'system', label: 'Sistem Otomatis' }
-                  ]}
+                  options={PLATFORM_AUDIT_ROLES.map((r) => ({ value: r.value, label: r.label }))}
                   placeholder="Semua Aktor"
-                  style={{ width: 'auto', minWidth: '155px' }}
+                  style={{ width: 'auto', minWidth: '145px' }}
                   triggerStyle={{
                     height: '36px',
-                    padding: '0 0.75rem',
-                    fontSize: '0.78rem',
+                    padding: '0 0.7rem',
+                    fontSize: '0.76rem',
                     fontWeight: 600,
                     borderRadius: '0.65rem'
                   }}
@@ -11457,31 +11454,136 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 />
               </div>
 
-              {/* Refresh Button */}
+              {/* Verify Hash Chain Button */}
               <button
                 type="button"
-                disabled={isLoadingAudit}
-                onClick={() => fetchAuditLogs(1)}
+                disabled={isVerifyingAudit}
+                onClick={async () => {
+                  if (!token) return;
+                  setIsVerifyingAudit(true);
+                  try {
+                    const report = await verifyAuditChainApi(token);
+                    setAuditVerifyReport(report);
+                    showToast(
+                      report.intact
+                        ? `Rantai hash utuh (${report.chained_count} rekaman terverifikasi)`
+                        : `Peringatan integritas rantai: ${report.reason}`,
+                      report.intact ? 'success' : 'error'
+                    );
+                  } catch (err: any) {
+                    showToast(err?.message || 'Gagal memverifikasi rantai audit', 'error');
+                  } finally {
+                    setIsVerifyingAudit(false);
+                  }
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.4rem',
-                  padding: '0.55rem 0.95rem',
+                  gap: '0.35rem',
+                  height: '36px',
+                  padding: '0 0.8rem',
+                  borderRadius: '0.65rem',
+                  border: `1px solid ${auditVerifyReport ? (auditVerifyReport.intact ? '#10b981' : '#ef4444') : theme.border}`,
+                  backgroundColor: theme.surface,
+                  color: theme.textPrimary,
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  cursor: isVerifyingAudit ? 'not-allowed' : 'pointer',
+                  opacity: isVerifyingAudit ? 0.65 : 1,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <ShieldCheck size={14} color={auditVerifyReport?.intact === false ? '#ef4444' : '#10b981'} />
+                <span>{isVerifyingAudit ? 'Memverifikasi...' : 'Verifikasi Rantai'}</span>
+              </button>
+
+              {/* Export CSV Button */}
+              <button
+                type="button"
+                disabled={isExportingAudit}
+                onClick={async () => {
+                  if (!token) return;
+                  setIsExportingAudit(true);
+                  try {
+                    const filename = await exportAuditLogsFile({
+                      endpoint: '/api/admin/audit-logs/export',
+                      token,
+                      format: 'csv',
+                      category: auditCategoryFilter,
+                      role: auditRoleFilter,
+                      q: debouncedAuditSearch,
+                    });
+                    showToast(`Berhasil mengekspor ${filename}`, 'success');
+                  } catch (err: any) {
+                    showToast(err?.message || 'Gagal mengekspor CSV audit', 'error');
+                  } finally {
+                    setIsExportingAudit(false);
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  height: '36px',
+                  padding: '0 0.8rem',
                   borderRadius: '0.65rem',
                   border: `1px solid ${theme.border}`,
                   backgroundColor: theme.surface,
                   color: theme.textPrimary,
-                  fontSize: '0.8rem',
+                  fontSize: '0.76rem',
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  opacity: isLoadingAudit ? 0.6 : 1
+                  cursor: isExportingAudit ? 'not-allowed' : 'pointer',
+                  opacity: isExportingAudit ? 0.65 : 1,
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <RefreshCw size={14} className={isLoadingAudit ? 'animate-spin' : ''} color="#3b82f6" />
-                <span>Segarkan</span>
+                <Download size={14} color="#3b82f6" />
+                <span>{isExportingAudit ? 'Mengekspor...' : 'Ekspor CSV'}</span>
               </button>
             </div>
           </div>
+
+          {/* Cryptographic Chain Verification Banner */}
+          {auditVerifyReport && (
+            <div style={{
+              padding: '0.75rem 1.1rem',
+              borderRadius: '0.85rem',
+              border: `1px solid ${auditVerifyReport.intact ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.4)'}`,
+              backgroundColor: auditVerifyReport.intact
+                ? (isDark ? 'rgba(16, 185, 129, 0.1)' : '#ecfdf5')
+                : (isDark ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2'),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+                {auditVerifyReport.intact
+                  ? <CheckCircle2 size={16} color="#10b981" />
+                  : <AlertTriangle size={16} color="#ef4444" />}
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: auditVerifyReport.intact ? '#10b981' : '#ef4444' }}>
+                  {auditVerifyReport.intact ? 'Integritas Rantai Audit Terverifikasi' : 'Anomali Integritas Rantai Terdeteksi'}
+                </span>
+                <span style={{ fontSize: '0.76rem', color: theme.textSecondary }}>
+                  Terverifikasi {auditVerifyReport.chained_count} entri berantai (seq #{auditVerifyReport.last_chain_seq}, legacy {auditVerifyReport.unchained_legacy_count})
+                </span>
+                {auditVerifyReport.head_hash && (
+                  <span style={{ fontSize: '0.7rem', fontFamily: 'monospace', color: theme.textMuted }}>
+                    Head: {auditVerifyReport.head_hash.slice(0, 16)}...
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setAuditVerifyReport(null)}
+                style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
+                aria-label="Tutup status verifikasi"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
           {/* Enterprise Comprehensive Data Table */}
           <div style={{
@@ -11494,24 +11596,24 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             flexDirection: 'column'
           }}>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+              <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
                 <thead>
                   <tr style={{
                     backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
                     borderBottom: `1px solid ${theme.border}`,
                     color: theme.textSecondary,
-                    fontSize: '0.74rem',
+                    fontSize: '0.72rem',
                     fontWeight: 800,
                     textTransform: 'uppercase',
-                    letterSpacing: '0.04em'
+                    letterSpacing: '0.03em'
                   }}>
-                    <th style={{ padding: '0.85rem 1.15rem', width: '170px' }}>Waktu & Tanggal</th>
-                    <th style={{ padding: '0.85rem 1rem', width: '180px' }}>Kode Aksi</th>
-                    <th style={{ padding: '0.85rem 1rem', width: '130px' }}>Kategori</th>
-                    <th style={{ padding: '0.85rem 1rem', minWidth: '220px' }}>Aktor Pelaksana</th>
-                    <th style={{ padding: '0.85rem 1rem', minWidth: '220px' }}>Deskripsi & Target</th>
-                    <th style={{ padding: '0.85rem 1rem', width: '140px' }}>Alamat IP</th>
-                    <th style={{ padding: '0.85rem 1.15rem', width: '110px', textAlign: 'center' }}>Tindakan</th>
+                    <th style={{ padding: '0.85rem 0.75rem', width: '110px' }}>Waktu &amp; Tanggal</th>
+                    <th style={{ padding: '0.85rem 0.65rem', width: '168px' }}>Kode Aksi</th>
+                    <th style={{ padding: '0.85rem 0.65rem', width: '112px' }}>Kategori</th>
+                    <th style={{ padding: '0.85rem 0.65rem', width: '168px' }}>Aktor Pelaksana</th>
+                    <th style={{ padding: '0.85rem 0.65rem' }}>Deskripsi &amp; Target</th>
+                    <th style={{ padding: '0.85rem 0.65rem', width: '100px' }}>Alamat IP</th>
+                    <th style={{ padding: '0.85rem 0.75rem', width: '92px', textAlign: 'center' }}>Tindakan</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -11568,6 +11670,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                         catBg = isDark ? 'rgba(239, 68, 68, 0.18)' : '#fee2e2';
                         catIcon = AlertTriangle;
                         catLabel = 'Moderasi';
+                      } else if (cat === 'superadmin') {
+                        catColor = '#dc2626';
+                        catBg = isDark ? 'rgba(220, 38, 38, 0.18)' : '#fee2e2';
+                        catIcon = ShieldAlert;
+                        catLabel = 'Superadmin';
+                      } else if (cat === 'market_intel') {
+                        catColor = '#0284c7';
+                        catBg = isDark ? 'rgba(2, 132, 199, 0.18)' : '#e0f2fe';
+                        catIcon = TrendingUp;
+                        catLabel = 'Riset Pasar';
                       } else if (cat === 'system') {
                         catColor = '#06b6d4';
                         catBg = isDark ? 'rgba(6, 182, 212, 0.18)' : '#cffafe';
@@ -11591,55 +11703,58 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           }}
                         >
                           {/* Waktu & Tanggal */}
-                          <td style={{ padding: '0.85rem 1.15rem', whiteSpace: 'nowrap' }}>
-                            <div style={{ fontWeight: 700, color: theme.textPrimary, fontFamily: 'monospace', fontSize: '0.78rem' }}>
+                          <td style={{ padding: '0.8rem 0.75rem', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontWeight: 700, color: theme.textPrimary, fontFamily: 'monospace', fontSize: '0.76rem' }}>
                               {log.created_at ? new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
                             </div>
-                            <div style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                            <div style={{ fontSize: '0.68rem', color: theme.textMuted }}>
                               {log.created_at ? new Date(log.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
                             </div>
                           </td>
 
                           {/* Kode Aksi */}
-                          <td style={{ padding: '0.85rem 1rem' }}>
+                          <td style={{ padding: '0.8rem 0.65rem', wordBreak: 'break-word' }}>
                             <span style={{
                               fontWeight: 800,
                               color: '#3b82f6',
                               fontFamily: 'monospace',
-                              fontSize: '0.76rem',
+                              fontSize: '0.72rem',
                               backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.08)',
-                              padding: '0.2rem 0.5rem',
+                              padding: '0.2rem 0.45rem',
                               borderRadius: '6px',
-                              display: 'inline-block'
+                              display: 'inline-block',
+                              maxWidth: '100%',
+                              overflowWrap: 'anywhere'
                             }}>
                               {log.action || 'system.log'}
                             </span>
                           </td>
 
                           {/* Kategori */}
-                          <td style={{ padding: '0.85rem 1rem' }}>
+                          <td style={{ padding: '0.8rem 0.65rem' }}>
                             <span style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '0.3rem',
-                              padding: '0.2rem 0.55rem',
+                              gap: '0.28rem',
+                              padding: '0.2rem 0.5rem',
                               borderRadius: '999px',
-                              fontSize: '0.7rem',
+                              fontSize: '0.68rem',
                               fontWeight: 800,
                               backgroundColor: catBg,
-                              color: catColor
+                              color: catColor,
+                              whiteSpace: 'nowrap'
                             }}>
-                              <CatIconComp size={12} color={catColor} />
+                              <CatIconComp size={11} color={catColor} />
                               <span>{catLabel}</span>
                             </span>
                           </td>
 
                           {/* Aktor Pelaksana */}
-                          <td style={{ padding: '0.85rem 1rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                          <td style={{ padding: '0.8rem 0.65rem', overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                               <div style={{
-                                width: '28px',
-                                height: '28px',
+                                width: '26px',
+                                height: '26px',
                                 borderRadius: '50%',
                                 backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
                                 display: 'flex',
@@ -11647,24 +11762,23 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                                 justifyContent: 'center',
                                 flexShrink: 0
                               }}>
-                                <User size={14} color={theme.textSecondary} />
+                                <User size={13} color={theme.textSecondary} />
                               </div>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontWeight: 800, color: theme.textPrimary, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontWeight: 800, color: theme.textPrimary, fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {log.actor_name || log.actor_email || 'Sistem'}
                                 </div>
-                                <div style={{ fontSize: '0.7rem', color: theme.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <div style={{ fontSize: '0.68rem', color: theme.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {log.actor_email || '-'}
                                 </div>
                               </div>
                               <span style={{
-                                padding: '0.1rem 0.4rem',
+                                padding: '0.08rem 0.35rem',
                                 borderRadius: '4px',
-                                fontSize: '0.62rem',
+                                fontSize: '0.6rem',
                                 fontWeight: 800,
                                 backgroundColor: log.actor_role === 'superadmin' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
                                 color: log.actor_role === 'superadmin' ? '#ef4444' : '#3b82f6',
-                                marginLeft: 'auto',
                                 flexShrink: 0
                               }}>
                                 {log.actor_role || 'staf'}
@@ -11673,12 +11787,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           </td>
 
                           {/* Deskripsi & Target */}
-                          <td style={{ padding: '0.85rem 1rem' }}>
-                            <div style={{ color: theme.textPrimary, fontWeight: 500, lineHeight: 1.4, fontSize: '0.8rem' }}>
+                          <td style={{ padding: '0.8rem 0.65rem', overflowWrap: 'anywhere' }}>
+                            <div style={{ color: theme.textPrimary, fontWeight: 500, lineHeight: 1.4, fontSize: '0.78rem' }}>
                               {log.description || log.entity_title || 'Tindakan sistem'}
                             </div>
                             {(log.entity_title || log.entity_type) && (
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', color: theme.textMuted, marginTop: '0.2rem' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.28rem', fontSize: '0.68rem', color: theme.textMuted, marginTop: '0.18rem', flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 700 }}>Target:</span>
                                 <span style={{ color: theme.textSecondary, fontWeight: 600 }}>{log.entity_title || log.entity_type}</span>
                                 {log.entity_id ? <span>(ID: #{log.entity_id})</span> : null}
@@ -11687,12 +11801,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           </td>
 
                           {/* Alamat IP */}
-                          <td style={{ padding: '0.85rem 1rem', fontFamily: 'monospace', fontSize: '0.74rem', color: theme.textSecondary }}>
+                          <td style={{ padding: '0.8rem 0.65rem', fontFamily: 'monospace', fontSize: '0.71rem', color: theme.textSecondary, wordBreak: 'break-all' }}>
                             {log.ip_address || '127.0.0.1'}
                           </td>
 
                           {/* Aksi: Tombol Detail */}
-                          <td style={{ padding: '0.85rem 1.15rem', textAlign: 'center' }}>
+                          <td style={{ padding: '0.8rem 0.75rem', textAlign: 'center' }}>
                             <button
                               type="button"
                               onClick={() => {
@@ -11702,16 +11816,17 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '0.35rem',
-                                padding: '0.35rem 0.75rem',
-                                borderRadius: '0.55rem',
+                                gap: '0.3rem',
+                                padding: '0.32rem 0.62rem',
+                                borderRadius: '0.5rem',
                                 border: `1px solid ${theme.border}`,
                                 backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
                                 color: '#3b82f6',
-                                fontSize: '0.75rem',
+                                fontSize: '0.72rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
-                                transition: 'all 0.15s ease'
+                                transition: 'all 0.15s ease',
+                                whiteSpace: 'nowrap'
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)';

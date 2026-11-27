@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   History,
   Search,
@@ -7,7 +7,6 @@ import {
   Store,
   CreditCard,
   ShieldCheck,
-  ShieldAlert,
   Flag,
   FileText,
   User,
@@ -18,12 +17,17 @@ import {
   Copy,
   Check,
   Loader,
-  Code
+  Code,
+  Download
 } from 'lucide-react';
 import { TabletSegmentedPagination } from './TabletSegmentedPagination';
 import { createAuthFetch } from '../utils/auth';
-import { isSuperAdmin } from '../utils/rbac';
 import { useModalBackHandler } from '../utils/navigation';
+import {
+  MERCHANT_AUDIT_CATEGORIES,
+  exportAuditLogsFile,
+  formatAuditDateTimeWIB,
+} from '../../../shared/audit/auditHelpers';
 
 export interface ActivityLogItem {
   id: number;
@@ -54,17 +58,13 @@ export interface TabletAuditLogsViewProps {
 
 export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
   token,
-  currentUser,
   storeSlug,
   showToast,
   onLogout,
   onUnauthorized
 }) => {
-  // Determine if viewer is Superadmin
-  const isSuper = useMemo(() => isSuperAdmin(currentUser), [currentUser]);
-
   // Centralized authenticated fetch with automatic 401/403 session eviction
-  const fetch = useMemo(() => {
+  const authFetch = React.useMemo(() => {
     return createAuthFetch({
       getToken: () => token,
       onUnauthorized: (msg) => {
@@ -80,11 +80,11 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
   // Component states
   const [logs, setLogs] = useState<ActivityLogItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
   const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(15);
+  const [pageSize] = useState<number>(15);
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchInput, setSearchInput] = useState<string>('');
   const [selectedLog, setSelectedLog] = useState<ActivityLogItem | null>(null);
@@ -97,19 +97,26 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
     modalId: 'tablet-audit-diff-modal'
   });
 
-  // Fetch activity logs from backend API
+  // Debounce search input (350ms)
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+      setPage(1);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  // Fetch store-scoped activity logs from backend API
   const fetchLogs = useCallback(
     async (
       targetPage = page,
       category = categoryFilter,
       query = searchQuery,
-      role = roleFilter,
       limit = pageSize
     ) => {
       if (!token) return;
       setLoading(true);
       try {
-        const endpoint = isSuper ? '/api/admin/audit-logs' : '/api/activity-logs';
         const params = new URLSearchParams({
           page: String(targetPage),
           limit: String(limit),
@@ -117,11 +124,7 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
           q: query
         });
 
-        if (isSuper && role !== 'all') {
-          params.append('role', role);
-        }
-
-        const res = await fetch(`${endpoint}?${params.toString()}`, {
+        const res = await authFetch(`/api/activity-logs?${params.toString()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json',
@@ -145,31 +148,47 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
         setLoading(false);
       }
     },
-    [token, storeSlug, isSuper, page, categoryFilter, searchQuery, roleFilter, pageSize, fetch, showToast]
+    [token, storeSlug, page, categoryFilter, searchQuery, pageSize, authFetch, showToast]
   );
 
-  // Synchronize on page, category, role, or pageSize changes
+  // Synchronize on page, category, or debounced search changes
   useEffect(() => {
-    fetchLogs(page, categoryFilter, searchQuery, roleFilter, pageSize);
-  }, [page, categoryFilter, roleFilter, pageSize]);
+    fetchLogs(page, categoryFilter, searchQuery, pageSize);
+  }, [page, categoryFilter, searchQuery, pageSize, fetchLogs]);
 
-  // Handle search submission
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSearchQuery(searchInput);
+    setSearchQuery(searchInput.trim());
     setPage(1);
-    fetchLogs(1, categoryFilter, searchInput, roleFilter, pageSize);
   };
 
-  // Clear search input
   const handleClearSearch = () => {
     setSearchInput('');
     setSearchQuery('');
     setPage(1);
-    fetchLogs(1, categoryFilter, '', roleFilter, pageSize);
   };
 
-  // Copy snapshot JSON to clipboard
+  const handleExportCsv = async () => {
+    if (!token) return;
+    setIsExporting(true);
+    try {
+      const filename = await exportAuditLogsFile({
+        endpoint: '/api/activity-logs/export',
+        token,
+        format: 'csv',
+        category: categoryFilter,
+        q: searchQuery,
+        storeSlug,
+        fetcher: authFetch,
+      });
+      showToast(`Berhasil mengekspor ${filename}`, 'success');
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal mengekspor log aktivitas CSV', 'error');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleCopyDiff = (changes: any) => {
     try {
       navigator.clipboard.writeText(JSON.stringify(changes, null, 2));
@@ -183,7 +202,7 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
 
   // Category visual mapping: Lucide vector icons & curated colors
   const getCategoryMeta = (category: string) => {
-    switch (category.toLowerCase()) {
+    switch ((category || '').toLowerCase()) {
       case 'security':
         return {
           icon: ShieldCheck,
@@ -219,14 +238,6 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
           bg: 'rgba(245, 158, 11, 0.15)',
           border: 'rgba(245, 158, 11, 0.3)'
         };
-      case 'superadmin':
-        return {
-          icon: ShieldAlert,
-          label: 'Superadmin',
-          color: '#ef4444',
-          bg: 'rgba(239, 68, 68, 0.15)',
-          border: 'rgba(239, 68, 68, 0.3)'
-        };
       case 'moderation':
         return {
           icon: Flag,
@@ -238,7 +249,7 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
       default:
         return {
           icon: FileText,
-          label: category,
+          label: category || 'Aktivitas',
           color: '#64748b',
           bg: 'rgba(148, 163, 184, 0.15)',
           border: 'rgba(148, 163, 184, 0.3)'
@@ -246,50 +257,36 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
     }
   };
 
-  // Formatted date string
-  const formatDateTime = (dateStr: string) => {
-    if (!dateStr) return '-';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
   const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
 
-  // Category filter definitions aligned across Desktop and Mobile
-  const categoryOptions = useMemo(() => {
-    const base = [
-      { key: 'all', label: 'Semua Kategori' },
-      { key: 'security', label: 'Autentikasi' },
-      { key: 'catalog', label: 'Item Produk' },
-      { key: 'store', label: 'Profil & Katalog' },
-      { key: 'billing', label: 'Paket & Langganan' }
-    ];
-    if (isSuper) {
-      base.push(
-        { key: 'superadmin', label: 'Aksi Superadmin' },
-        { key: 'moderation', label: 'Moderasi' }
-      );
-    }
-    return base;
-  }, [isSuper]);
-
   return (
-    <div className="glass-panel animate-fade-in" style={{ padding: '1.75rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', width: '100%', boxSizing: 'border-box' }}>
+    <div
+      className="glass-panel animate-fade-in"
+      style={{
+        padding: '1.5rem',
+        borderRadius: '1.1rem',
+        border: '1px solid var(--border-light)',
+        background: 'var(--card-bg-gradient)',
+        width: '100%',
+        boxSizing: 'border-box'
+      }}
+    >
       {/* Toolbar & Filter Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem', paddingBottom: '1.25rem', borderBottom: '1px solid var(--border-light)' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '0.85rem',
+          flexWrap: 'wrap',
+          marginBottom: '1.25rem',
+          paddingBottom: '1.1rem',
+          borderBottom: '1px solid var(--border-light)'
+        }}
+      >
         {/* Category Filter Pills */}
         <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          {categoryOptions.map(cat => {
+          {MERCHANT_AUDIT_CATEGORIES.map((cat) => {
             const isActive = categoryFilter === cat.key;
             return (
               <button
@@ -298,11 +295,10 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
                 onClick={() => {
                   setCategoryFilter(cat.key);
                   setPage(1);
-                  fetchLogs(1, cat.key, searchQuery, roleFilter, pageSize);
                 }}
                 style={{
-                  minHeight: '40px',
-                  padding: '0.45rem 0.95rem',
+                  minHeight: '44px',
+                  padding: '0.45rem 0.9rem',
                   borderRadius: '0.65rem',
                   fontSize: '0.78rem',
                   fontWeight: 700,
@@ -321,27 +317,8 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
           })}
         </div>
 
-        {/* Search Toolbar & Refresh */}
-        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          {isSuper && (
-            <select
-              className="form-input"
-              value={roleFilter}
-              onChange={(e) => {
-                const newRole = e.target.value;
-                setRoleFilter(newRole);
-                setPage(1);
-                fetchLogs(1, categoryFilter, searchQuery, newRole, pageSize);
-              }}
-              style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem', borderRadius: '0.5rem', width: 'auto', minHeight: '40px' }}
-            >
-              <option value="all">Semua Aktor</option>
-              <option value="superadmin">Superadmin</option>
-              <option value="merchant">Merchant</option>
-              <option value="system">System Worker</option>
-            </select>
-          )}
-
+        {/* Search Toolbar, Export & Refresh */}
+        <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <form onSubmit={handleSearchSubmit} style={{ position: 'relative', width: '220px', margin: 0 }}>
             <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
@@ -350,32 +327,93 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
               placeholder="Cari aksi, produk, IP..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              style={{ paddingLeft: '2.2rem', paddingRight: searchInput ? '2rem' : '0.75rem', paddingTop: '0.45rem', paddingBottom: '0.45rem', fontSize: '0.78rem', borderRadius: '0.5rem', minHeight: '40px' }}
+              style={{
+                paddingLeft: '2.2rem',
+                paddingRight: searchInput ? '2rem' : '0.75rem',
+                paddingTop: '0.45rem',
+                paddingBottom: '0.45rem',
+                fontSize: '0.78rem',
+                borderRadius: '0.55rem',
+                minHeight: '44px'
+              }}
             />
             {searchInput && (
               <button
                 type="button"
                 onClick={handleClearSearch}
-                style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex', alignItems: 'center' }}
+                style={{
+                  position: 'absolute',
+                  right: '0.4rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '0.35rem',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
               >
                 <X size={14} />
               </button>
             )}
           </form>
 
-          <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.4rem 0.85rem', borderRadius: '999px', border: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>
+          <span
+            style={{
+              fontSize: '0.76rem',
+              fontWeight: 800,
+              color: 'var(--primary)',
+              backgroundColor: 'var(--primary-glow)',
+              padding: '0.45rem 0.85rem',
+              borderRadius: '999px',
+              border: '1px solid var(--border-light)',
+              whiteSpace: 'nowrap'
+            }}
+          >
             {totalRecords.toLocaleString('id-ID')} Rekaman
           </span>
 
           <button
             type="button"
-            onClick={() => fetchLogs(1, categoryFilter, searchQuery, roleFilter, pageSize)}
+            onClick={handleExportCsv}
+            disabled={isExporting}
+            className="btn-secondary"
+            style={{
+              minHeight: '44px',
+              padding: '0.45rem 0.85rem',
+              fontSize: '0.78rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              cursor: isExporting ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+            title="Ekspor CSV"
+          >
+            <Download size={14} />
+            <span>{isExporting ? 'Ekspor...' : 'Ekspor CSV'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fetchLogs(page, categoryFilter, searchQuery, pageSize)}
             disabled={loading}
             className="btn-secondary"
-            style={{ minHeight: '40px', padding: '0.45rem 0.85rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: loading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+            style={{
+              minHeight: '44px',
+              padding: '0.45rem 0.85rem',
+              fontSize: '0.78rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap'
+            }}
             title="Segarkan Log"
           >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             <span>Segarkan</span>
           </button>
         </div>
@@ -414,122 +452,107 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
             border: '1px solid var(--border-light)'
           }}
         >
-          <History size={44} style={{ marginBottom: '0.75rem', opacity: 0.5, color: 'var(--text-muted)' }} />
+          <History size={42} style={{ margin: '0 auto 0.85rem auto', opacity: 0.45, color: 'var(--text-muted)' }} />
           <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>
-            Tidak Ada Log Aktivitas Ditemukan
+            Belum Ada Log Aktivitas
           </h4>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
-            {searchQuery || categoryFilter !== 'all' || roleFilter !== 'all'
-              ? 'Tidak ada rekaman log yang sesuai dengan kata kunci atau filter yang Anda pilih. Coba atur ulang filter pencarian Anda.'
-              : 'Setiap aksi perubahan inventaris, data toko, dan riwayat sesi login pengelola akan tercatat rapi di sini.'}
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+            Setiap aksi perubahan katalog, login keamanan, dan pembaruan paket akan tercatat rapi di sini.
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           {logs.map((log) => {
-            const meta = getCategoryMeta(log.category);
-            const IconComp = meta.icon;
+            const catMeta = getCategoryMeta(log.category);
+            const IconComp = catMeta.icon;
 
             return (
               <div
-                key={log.id}
-                className="glass-panel animate-fade-in"
+                key={log.id || log.created_at}
+                className="glass-panel"
                 style={{
-                  backgroundColor: 'var(--bg-card)',
-                  borderRadius: '0.95rem',
+                  padding: '1.15rem 1.25rem',
+                  borderRadius: '0.9rem',
                   border: '1px solid var(--border-light)',
-                  padding: '1.25rem',
+                  background: 'var(--card-bg-gradient)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '0.65rem',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                  gap: '0.65rem'
                 }}
               >
-                {/* Header Row: Icon, Action Badge, Actor Name, Timestamp, IP Badge */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '1rem',
-                    flexWrap: 'wrap'
-                  }}
-                >
+                {/* Header Row */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.85rem', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <div
                       style={{
                         width: '36px',
                         height: '36px',
-                        borderRadius: '0.65rem',
-                        backgroundColor: meta.bg,
-                        color: meta.color,
+                        borderRadius: '0.55rem',
+                        backgroundColor: catMeta.bg,
+                        color: catMeta.color,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        border: `1px solid ${catMeta.border}`,
                         flexShrink: 0
                       }}
                     >
                       <IconComp size={18} />
                     </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <span
-                        style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 800,
-                          textTransform: 'uppercase',
-                          padding: '0.15rem 0.5rem',
-                          borderRadius: '0.35rem',
-                          backgroundColor: meta.bg,
-                          color: meta.color,
-                          letterSpacing: '0.03em'
-                        }}
-                      >
-                        {log.action}
-                      </span>
-                      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                        oleh{' '}
-                        <strong style={{ color: 'var(--text-primary)' }}>
-                          {log.actor_name || 'Sistem'}
-                        </strong>{' '}
-                        {log.actor_role && log.actor_role !== 'merchant' ? `(${log.actor_role})` : ''}
-                      </span>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            padding: '0.15rem 0.55rem',
+                            borderRadius: '4px',
+                            backgroundColor: catMeta.bg,
+                            color: catMeta.color,
+                            border: `1px solid ${catMeta.border}`,
+                            letterSpacing: '0.02em'
+                          }}
+                        >
+                          {log.action}
+                        </span>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <User size={13} color="var(--text-muted)" />
+                          <strong style={{ color: 'var(--text-primary)' }}>{log.actor_name || 'Sistem'}</strong>
+                          {log.actor_role && log.actor_role !== 'merchant' ? ` (${log.actor_role})` : ''}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Metadata: IP Address & Timestamp */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.75rem',
-                      fontSize: '0.78rem',
-                      color: 'var(--text-muted)'
-                    }}
-                  >
+                  {/* Metadata Badges */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.76rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                     {log.ip_address && (
                       <span
                         style={{
                           fontFamily: 'monospace',
                           backgroundColor: 'var(--bg-deep)',
                           color: 'var(--text-secondary)',
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '0.35rem',
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '4px',
                           border: '1px solid var(--border-light)',
-                          fontSize: '0.74rem'
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem'
                         }}
                       >
-                        IP: {log.ip_address}
+                        <Globe size={12} />
+                        {log.ip_address}
                       </span>
                     )}
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <Clock size={13} />
-                      {formatDateTime(log.created_at)}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Clock size={12} />
+                      {formatAuditDateTimeWIB(log.created_at)}
                     </span>
                   </div>
                 </div>
 
-                {/* Body Row: Description */}
+                {/* Narrative Description */}
                 <p
                   style={{
                     fontSize: '0.86rem',
@@ -542,58 +565,55 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
                   {log.description}
                 </p>
 
-                {/* Footer Row: Target Entity & Diff Inspection Trigger */}
-                {(log.changes || log.entity_title) && (
-                  <div
-                    style={{
-                      borderTop: '1px dashed var(--border-light)',
-                      paddingTop: '0.55rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginTop: '0.15rem',
-                      flexWrap: 'wrap',
-                      gap: '0.5rem'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                      {log.entity_title ? (
-                        <span>
-                          Target Entitas:{' '}
-                          <strong style={{ color: 'var(--text-secondary)' }}>{log.entity_title}</strong>
-                        </span>
-                      ) : (
-                        <span>Detail snapshot mutasi data tersimpan</span>
-                      )}
-                    </div>
-
-                    {log.changes && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedLog(log)}
-                        style={{
-                          minHeight: '44px',
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--primary)',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          padding: '0.35rem 0.65rem',
-                          borderRadius: '0.5rem',
-                          backgroundColor: 'var(--primary-glow)'
-                        }}
-                        title="Lihat Detail Snapshot Perubahan Data"
-                      >
-                        <Eye size={15} />
-                        <span>Lihat Snapshot Diff</span>
-                      </button>
+                {/* Footer Row: Target Entity & Inspection Trigger (always available) */}
+                <div
+                  style={{
+                    borderTop: '1px dashed var(--border-light)',
+                    paddingTop: '0.55rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginTop: '0.15rem',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem'
+                  }}
+                >
+                  <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                    {log.entity_title || log.entity_type ? (
+                      <span>
+                        Target Entitas:{' '}
+                        <strong style={{ color: 'var(--text-secondary)' }}>{log.entity_title || log.entity_type}</strong>
+                        {log.entity_id ? ` (#${log.entity_id})` : ''}
+                      </span>
+                    ) : (
+                      <span>Rekaman audit aktivitas toko</span>
                     )}
                   </div>
-                )}
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLog(log)}
+                    style={{
+                      minHeight: '44px',
+                      background: 'none',
+                      border: '1px solid var(--border-light)',
+                      color: 'var(--primary)',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '0.55rem',
+                      backgroundColor: 'var(--primary-glow)'
+                    }}
+                    title="Lihat Detail Snapshot & Metadata Audit"
+                  >
+                    <Eye size={15} />
+                    <span>{log.changes ? 'Inspeksi Diff' : 'Inspeksi'}</span>
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -602,7 +622,7 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
 
       {/* Segmented Pagination Controls */}
       {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem 0 2rem 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '0.5rem 0 1.5rem 0' }}>
           <TabletSegmentedPagination
             currentPage={page}
             totalPages={totalPages}
@@ -687,9 +707,9 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
                       letterSpacing: '0.04em'
                     }}
                   >
-                    Snapshot Perubahan Data (Diff)
+                    Detail Rekaman &amp; Diff Audit
                   </span>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0.15rem 0 0 0' }}>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0.15rem 0 0 0', fontFamily: 'monospace' }}>
                     {selectedLog.action}
                   </h3>
                 </div>
@@ -721,74 +741,115 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
             <div
               style={{
                 padding: '1.25rem 1.5rem',
-                maxHeight: '420px',
-                overflowY: 'auto'
+                maxHeight: '460px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.9rem'
               }}
             >
-              <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
+              <p style={{ fontSize: '0.86rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.5, fontWeight: 500 }}>
                 {selectedLog.description}
               </p>
 
+              {/* Forensic Metadata Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                <div style={{ padding: '0.75rem 0.9rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700 }}>Aktor Pelaksana</div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.15rem' }}>
+                    {selectedLog.actor_name || 'Sistem'}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    Role: {selectedLog.actor_role || 'merchant'}
+                  </div>
+                </div>
+                <div style={{ padding: '0.75rem 0.9rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700 }}>Alamat IP</div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace', marginTop: '0.15rem' }}>
+                    {selectedLog.ip_address || '-'}
+                  </div>
+                  {selectedLog.entity_title && (
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      Target: {selectedLog.entity_title}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {selectedLog.user_agent && (
+                <div style={{ padding: '0.65rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', fontSize: '0.7rem', fontFamily: 'monospace', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                  UA: {selectedLog.user_agent}
+                </div>
+              )}
+
               {/* JSON Preformatted Code Box */}
-              <div
-                style={{
-                  position: 'relative',
-                  backgroundColor: 'var(--bg-deep)',
-                  padding: '1rem',
-                  borderRadius: '0.75rem',
-                  border: '1px solid var(--border-light)'
-                }}
-              >
+              {selectedLog.changes ? (
                 <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '0.5rem',
-                    borderBottom: '1px solid var(--border-light)',
-                    paddingBottom: '0.35rem'
+                    position: 'relative',
+                    backgroundColor: 'var(--bg-deep)',
+                    padding: '1rem',
+                    borderRadius: '0.75rem',
+                    border: '1px solid var(--border-light)'
                   }}
                 >
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                    Payload Snapshot (JSON):
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyDiff(selectedLog.changes)}
+                  <div
                     style={{
-                      minHeight: '36px',
-                      background: 'none',
-                      border: 'none',
-                      color: copiedDiff ? '#10b981' : 'var(--primary)',
-                      fontSize: '0.74rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
+                      display: 'flex',
                       alignItems: 'center',
-                      gap: '0.3rem',
-                      padding: '0.2rem 0.5rem'
+                      justifyContent: 'space-between',
+                      marginBottom: '0.5rem',
+                      borderBottom: '1px solid var(--border-light)',
+                      paddingBottom: '0.35rem'
                     }}
                   >
-                    {copiedDiff ? <Check size={14} /> : <Copy size={14} />}
-                    <span>{copiedDiff ? 'Tersalin' : 'Salin JSON'}</span>
-                  </button>
-                </div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      Payload Snapshot (JSON):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyDiff(selectedLog.changes)}
+                      style={{
+                        minHeight: '36px',
+                        background: 'none',
+                        border: 'none',
+                        color: copiedDiff ? '#10b981' : 'var(--primary)',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        padding: '0.2rem 0.5rem'
+                      }}
+                    >
+                      {copiedDiff ? <Check size={14} /> : <Copy size={14} />}
+                      <span>{copiedDiff ? 'Tersalin' : 'Salin JSON'}</span>
+                    </button>
+                  </div>
 
-                <pre
-                  style={{
-                    margin: 0,
-                    fontFamily: 'monospace',
-                    fontSize: '0.78rem',
-                    color: 'var(--primary)',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all',
-                    overflowX: 'auto',
-                    lineHeight: 1.5
-                  }}
-                >
-                  {JSON.stringify(selectedLog.changes, null, 2)}
-                </pre>
-              </div>
+                  <pre
+                    style={{
+                      margin: 0,
+                      fontFamily: 'monospace',
+                      fontSize: '0.78rem',
+                      color: 'var(--primary)',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                      overflowX: 'auto',
+                      lineHeight: 1.5
+                    }}
+                  >
+                    {typeof selectedLog.changes === 'string'
+                      ? selectedLog.changes
+                      : JSON.stringify(selectedLog.changes, null, 2)}
+                  </pre>
+                </div>
+              ) : (
+                <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px dashed var(--border-light)', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                  Rekaman ini mencatat peristiwa operasional tanpa payload diff perubahan field.
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
@@ -803,7 +864,7 @@ export const TabletAuditLogsView: React.FC<TabletAuditLogsViewProps> = ({
               }}
             >
               <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                Tercatat pada {formatDateTime(selectedLog.created_at)}
+                Tercatat pada {formatAuditDateTimeWIB(selectedLog.created_at)}
               </span>
 
               <button

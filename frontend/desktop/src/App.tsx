@@ -189,6 +189,11 @@ import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './util
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import {
+  MERCHANT_AUDIT_CATEGORIES,
+  exportAuditLogsFile,
+  formatAuditDateTimeWIB,
+} from '../../shared/audit/auditHelpers'
+import {
   SUPPORT_TICKET_CATEGORIES,
   SUPPORT_TICKET_PRIORITIES,
 } from '../../shared/support/supportHelpers'
@@ -4577,14 +4582,24 @@ function App() {
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [activityTotal, setActivityTotal] = useState<number>(0);
   const [activityPage, setActivityPage] = useState<number>(1);
+  const [activityLimit, setActivityLimit] = useState<number>(15);
   const [activityHasMore, setActivityHasMore] = useState<boolean>(true);
   const [activityLoading, setActivityLoading] = useState<boolean>(false);
   const [activityCategory, setActivityCategory] = useState<string>('all');
-  const [activityRoleFilter, setActivityRoleFilter] = useState<string>('all');
   const [activitySearch, setActivitySearch] = useState<string>('');
+  const [activitySearchInput, setActivitySearchInput] = useState<string>('');
   const [activitySelectedLog, setActivitySelectedLog] = useState<any | null>(null);
+  const [isExportingActivity, setIsExportingActivity] = useState<boolean>(false);
+  const [copiedActivityDiff, setCopiedActivityDiff] = useState<boolean>(false);
+  const activitySearchTimerRef = useRef<number | null>(null);
 
-  const fetchActivityLogs = useCallback(async (pageToFetch: number = 1, append: boolean = false, category: string = activityCategory, search: string = activitySearch, role: string = activityRoleFilter) => {
+  useModalBackHandler({
+    isOpen: Boolean(activitySelectedLog),
+    onClose: () => setActivitySelectedLog(null),
+    modalId: 'desktop-merchant-audit-diff-modal',
+  });
+
+  const fetchActivityLogs = useCallback(async (pageToFetch: number = 1, append: boolean = false, category: string = activityCategory, search: string = activitySearch, limit: number = activityLimit) => {
     try {
       if (settings.dormancy_status === 'suspended' || settings.is_suspended) {
         setActivityLoading(false);
@@ -4597,18 +4612,14 @@ function App() {
       }
       setActivityLoading(true);
       const slug = storeSlug || getStoreSlug() || '';
-      const isSuperadmin = isSuperAdmin(adminUser);
-      const endpoint = isSuperadmin ? '/api/admin/audit-logs' : '/api/activity-logs';
-      
+      const endpoint = '/api/activity-logs';
+
       const queryParams = new URLSearchParams({
         page: String(pageToFetch),
-        limit: '15',
+        limit: String(limit),
         category: category,
         q: search,
       });
-      if (isSuperadmin && role !== 'all') {
-        queryParams.append('role', role);
-      }
 
       const res = await fetch(`${endpoint}?${queryParams.toString()}`, {
         headers: {
@@ -4638,7 +4649,7 @@ function App() {
     } finally {
       setActivityLoading(false);
     }
-  }, [storeSlug, activityCategory, activitySearch, activityRoleFilter]);
+  }, [storeSlug, activityCategory, activitySearch, activityLimit]);
 
   // Store Activity & Dormancy State (Desktop)
   const [extendingActivity, setExtendingActivity] = useState<boolean>(false);
@@ -25637,24 +25648,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     </div>
                   )}
 
-                  {/* TAB 2: RIWAYAT LOG & AUDIT */}
+                  {/* TAB 2: RIWAYAT LOG & AUDIT (ENTERPRISE DATA TABLE) */}
                   {profileSubTab === 'logs' && (
-                    <div className="glass-panel animate-fade-in" style={{ padding: '1.75rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
+                    <div className="glass-panel animate-fade-in" style={{ padding: '1.5rem', borderRadius: '1.1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)' }}>
                       {/* Toolbar & Filter Bar */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem', paddingBottom: '1.25rem', borderBottom: '1px solid var(--border-light)' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.25rem', paddingBottom: '1.15rem', borderBottom: '1px solid var(--border-light)' }}>
                         {/* Category Filter Pills */}
                         <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                          {[
-                            { key: 'all', label: 'Semua Kategori' },
-                            { key: 'security', label: 'Autentikasi' },
-                            { key: 'catalog', label: 'Item Katalog' },
-                            { key: 'store', label: 'Profil & Identitas' },
-                            { key: 'billing', label: 'Paket & Langganan' },
-                            ...(isSuperAdmin(adminUser) ? [
-                              { key: 'superadmin', label: 'Aksi Superadmin' },
-                              { key: 'moderation', label: 'Moderasi' },
-                            ] : [])
-                          ].map(cat => {
+                          {MERCHANT_AUDIT_CATEGORIES.map(cat => {
                             const isActive = activityCategory === cat.key;
                             return (
                               <button
@@ -25663,10 +25664,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                 onClick={() => {
                                   setActivityCategory(cat.key);
                                   setActivityPage(1);
-                                  fetchActivityLogs(1, false, cat.key, activitySearch, activityRoleFilter);
+                                  fetchActivityLogs(1, false, cat.key, activitySearch, activityLimit);
                                 }}
                                 style={{
-                                  padding: '0.45rem 0.95rem',
+                                  padding: '0.45rem 0.9rem',
                                   borderRadius: '0.65rem',
                                   fontSize: '0.78rem',
                                   fontWeight: 700,
@@ -25675,7 +25676,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
                                   backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
                                   color: isActive ? '#ffffff' : 'var(--text-secondary)',
                                   boxShadow: isActive ? '0 2px 8px var(--primary-glow)' : 'none',
-                                  transition: 'all 0.2s ease'
+                                  transition: 'all 0.2s ease',
+                                  whiteSpace: 'nowrap'
                                 }}
                               >
                                 {cat.label}
@@ -25684,63 +25686,97 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           })}
                         </div>
 
-                        {/* Search Toolbar & Refresh */}
-                        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-                          {isSuperAdmin(adminUser) && (
-                            <select
-                              className="form-input"
-                              value={activityRoleFilter}
-                              onChange={(e) => {
-                                const newRole = e.target.value;
-                                setActivityRoleFilter(newRole);
-                                setActivityPage(1);
-                                fetchActivityLogs(1, false, activityCategory, activitySearch, newRole);
-                              }}
-                              style={{ padding: '0.45rem 0.75rem', fontSize: '0.78rem', borderRadius: '0.5rem', width: 'auto' }}
-                            >
-                              <option value="all">Semua Aktor</option>
-                              <option value="superadmin">Superadmin</option>
-                              <option value="merchant">Merchant</option>
-                              <option value="system">System Worker</option>
-                            </select>
-                          )}
-
-                          <div style={{ position: 'relative', width: '240px' }}>
-                            <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        {/* Search Toolbar, Export & Refresh */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                          <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: '380px' }}>
+                            <Search size={14} style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                             <input
                               type="text"
                               className="form-input"
-                              placeholder="Cari aksi, produk, IP..."
-                              value={activitySearch}
+                              placeholder="Cari aksi, produk, aktor, atau IP..."
+                              value={activitySearchInput}
                               onChange={(e) => {
                                 const val = e.target.value;
-                                setActivitySearch(val);
-                                fetchActivityLogs(1, false, activityCategory, val, activityRoleFilter);
+                                setActivitySearchInput(val);
+                                if (activitySearchTimerRef.current) {
+                                  window.clearTimeout(activitySearchTimerRef.current);
+                                }
+                                activitySearchTimerRef.current = window.setTimeout(() => {
+                                  const trimmed = val.trim();
+                                  setActivitySearch(trimmed);
+                                  setActivityPage(1);
+                                  fetchActivityLogs(1, false, activityCategory, trimmed, activityLimit);
+                                }, 350);
                               }}
-                              style={{ paddingLeft: '2.2rem', paddingRight: '0.75rem', paddingTop: '0.45rem', paddingBottom: '0.45rem', fontSize: '0.78rem', borderRadius: '0.5rem' }}
+                              style={{ paddingLeft: '2.25rem', paddingRight: activitySearchInput ? '2rem' : '0.75rem', paddingTop: '0.45rem', paddingBottom: '0.45rem', fontSize: '0.8rem', borderRadius: '0.55rem', width: '100%', boxSizing: 'border-box' }}
                             />
+                            {activitySearchInput && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (activitySearchTimerRef.current) window.clearTimeout(activitySearchTimerRef.current);
+                                  setActivitySearchInput('');
+                                  setActivitySearch('');
+                                  setActivityPage(1);
+                                  fetchActivityLogs(1, false, activityCategory, '', activityLimit);
+                                }}
+                                style={{ position: 'absolute', right: '0.55rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.2rem' }}
+                                aria-label="Hapus pencarian"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.35rem 0.85rem', borderRadius: '999px', border: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--primary)', backgroundColor: 'var(--primary-glow)', padding: '0.35rem 0.85rem', borderRadius: '999px', border: '1px solid var(--border-light)', whiteSpace: 'nowrap' }}>
                               {activityTotal.toLocaleString('id-ID')} Rekaman
                             </span>
                             <button
                               type="button"
-                              onClick={() => fetchActivityLogs(1, false)}
+                              disabled={isExportingActivity}
+                              onClick={async () => {
+                                const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+                                if (!token) return;
+                                setIsExportingActivity(true);
+                                try {
+                                  const filename = await exportAuditLogsFile({
+                                    endpoint: '/api/activity-logs/export',
+                                    token,
+                                    format: 'csv',
+                                    category: activityCategory,
+                                    q: activitySearch,
+                                    storeSlug: storeSlug || getStoreSlug() || '',
+                                  });
+                                  showToast(`Berhasil mengekspor ${filename}`, 'success');
+                                } catch (err: any) {
+                                  showToast(err?.message || 'Gagal mengekspor log aktivitas CSV', 'error');
+                                } finally {
+                                  setIsExportingActivity(false);
+                                }
+                              }}
+                              className="btn-secondary"
+                              style={{ padding: '0.45rem 0.85rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: isExportingActivity ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              <Download size={14} />
+                              <span>{isExportingActivity ? 'Mengekspor...' : 'Ekspor CSV'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => fetchActivityLogs(activityPage, false, activityCategory, activitySearch, activityLimit)}
                               disabled={activityLoading}
                               className="btn-secondary"
-                              style={{ padding: '0.45rem 0.85rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}
+                              style={{ padding: '0.45rem 0.85rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
                               title="Segarkan Log"
                             >
-                              <RefreshCw size={13} className={activityLoading ? 'animate-spin' : ''} />
+                              <RefreshCw size={14} className={activityLoading ? 'animate-spin' : ''} />
                               <span>Segarkan</span>
                             </button>
                           </div>
                         </div>
                       </div>
 
-                      {/* Activity Log List */}
+                      {/* Activity Log Enterprise Data Table */}
                       {activityLoading && activityLogs.length === 0 ? (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem', gap: '0.85rem', color: 'var(--text-secondary)' }}>
                           <Loader size={28} className="animate-spin" style={{ color: 'var(--primary)' }} />
@@ -25748,177 +25784,299 @@ Terima kasih atas perhatian dan kerja samanya.`;
                         </div>
                       ) : activityLogs.length === 0 ? (
                         <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                          <History size={42} style={{ marginBottom: '0.85rem', opacity: 0.5 }} />
+                          <History size={42} style={{ margin: '0 auto 0.85rem', opacity: 0.5 }} />
                           <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.35rem 0' }}>Belum Ada Log Aktivitas</h4>
                           <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>Setiap aksi perubahan data, login, dan pembaruan sistem akan tercatat rapi di sini.</p>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                          {activityLogs.map((logItem: any) => {
-                            const isSecurity = logItem.category === 'security';
-                            const isCatalog = logItem.category === 'catalog';
-                            const isStore = logItem.category === 'store';
-                            const isBilling = logItem.category === 'billing';
-                            const isSuperadmin = logItem.category === 'superadmin';
-                            const isModeration = logItem.category === 'moderation';
+                        <>
+                          <div style={{ borderRadius: '0.85rem', border: '1px solid var(--border-light)', overflow: 'hidden' }}>
+                            <div style={{ overflowX: 'auto' }}>
+                              <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
+                                <thead>
+                                  <tr style={{ backgroundColor: 'var(--bg-deep)', borderBottom: '1px solid var(--border-light)', color: 'var(--text-secondary)', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                    <th style={{ padding: '0.8rem 0.75rem', width: '110px' }}>Waktu</th>
+                                    <th style={{ padding: '0.8rem 0.65rem', width: '166px' }}>Kode Aksi</th>
+                                    <th style={{ padding: '0.8rem 0.65rem', width: '110px' }}>Kategori</th>
+                                    <th style={{ padding: '0.8rem 0.65rem', width: '134px' }}>Aktor</th>
+                                    <th style={{ padding: '0.8rem 0.65rem' }}>Deskripsi &amp; Target</th>
+                                    <th style={{ padding: '0.8rem 0.65rem', width: '104px' }}>Alamat IP</th>
+                                    <th style={{ padding: '0.8rem 0.75rem', width: '92px', textAlign: 'center' }}>Tindakan</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {activityLogs.map((logItem: any) => {
+                                    const cat = (logItem.category || '').toLowerCase();
+                                    let iconBg = 'rgba(59, 130, 246, 0.15)';
+                                    let iconColor = '#60a5fa';
+                                    let IconComp = FileText;
+                                    let catLabel = 'Aktivitas';
 
-                            let iconBg = 'rgba(59, 130, 246, 0.15)';
-                            let iconColor = '#60a5fa';
-                            let IconComp = FileText;
+                                    if (cat === 'security') {
+                                      iconBg = 'rgba(16, 185, 129, 0.15)';
+                                      iconColor = '#10b981';
+                                      IconComp = ShieldCheck;
+                                      catLabel = 'Autentikasi';
+                                    } else if (cat === 'catalog') {
+                                      iconBg = 'rgba(59, 130, 246, 0.15)';
+                                      iconColor = '#60a5fa';
+                                      IconComp = Package;
+                                      catLabel = 'Produk';
+                                    } else if (cat === 'store') {
+                                      iconBg = 'rgba(168, 85, 247, 0.15)';
+                                      iconColor = '#a855f7';
+                                      IconComp = Store;
+                                      catLabel = 'Katalog';
+                                    } else if (cat === 'billing') {
+                                      iconBg = 'rgba(245, 158, 11, 0.15)';
+                                      iconColor = '#f59e0b';
+                                      IconComp = CreditCard;
+                                      catLabel = 'Paket';
+                                    } else if (cat === 'moderation') {
+                                      iconBg = 'rgba(244, 63, 94, 0.15)';
+                                      iconColor = '#f43f5e';
+                                      IconComp = Flag;
+                                      catLabel = 'Moderasi';
+                                    }
 
-                            if (isSecurity) {
-                              iconBg = 'rgba(16, 185, 129, 0.15)';
-                              iconColor = '#10b981';
-                              IconComp = ShieldCheck;
-                            } else if (isCatalog) {
-                              iconBg = 'rgba(59, 130, 246, 0.15)';
-                              iconColor = '#60a5fa';
-                              IconComp = Package;
-                            } else if (isStore) {
-                              iconBg = 'rgba(168, 85, 247, 0.15)';
-                              iconColor = '#a855f7';
-                              IconComp = Store;
-                            } else if (isBilling) {
-                              iconBg = 'rgba(245, 158, 11, 0.15)';
-                              iconColor = '#f59e0b';
-                              IconComp = CreditCard;
-                            } else if (isSuperadmin) {
-                              iconBg = 'rgba(239, 68, 68, 0.15)';
-                              iconColor = '#ef4444';
-                              IconComp = ShieldAlert;
-                            } else if (isModeration) {
-                              iconBg = 'rgba(244, 63, 94, 0.15)';
-                              iconColor = '#f43f5e';
-                              IconComp = Flag;
-                            }
+                                    return (
+                                      <tr key={logItem.id || logItem.created_at} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                                        <td style={{ padding: '0.75rem', whiteSpace: 'nowrap' }}>
+                                          <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.74rem', color: 'var(--text-primary)' }}>
+                                            {logItem.created_at ? new Date(logItem.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
+                                          </div>
+                                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                            {logItem.created_at ? new Date(logItem.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                                          </div>
+                                        </td>
+                                        <td style={{ padding: '0.75rem 0.65rem', wordBreak: 'break-word' }}>
+                                          <span style={{ fontSize: '0.71rem', fontWeight: 800, fontFamily: 'monospace', padding: '0.18rem 0.45rem', borderRadius: '5px', backgroundColor: iconBg, color: iconColor, display: 'inline-block', maxWidth: '100%', overflowWrap: 'anywhere' }}>
+                                            {logItem.action}
+                                          </span>
+                                        </td>
+                                        <td style={{ padding: '0.75rem 0.65rem' }}>
+                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.28rem', padding: '0.18rem 0.5rem', borderRadius: '999px', fontSize: '0.68rem', fontWeight: 800, backgroundColor: iconBg, color: iconColor, whiteSpace: 'nowrap' }}>
+                                            <IconComp size={11} />
+                                            <span>{catLabel}</span>
+                                          </span>
+                                        </td>
+                                        <td style={{ padding: '0.75rem 0.65rem', overflow: 'hidden' }}>
+                                          <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {logItem.actor_name || 'Sistem'}
+                                          </div>
+                                          {logItem.actor_role && (
+                                            <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)' }}>{logItem.actor_role}</div>
+                                          )}
+                                        </td>
+                                        <td style={{ padding: '0.75rem 0.65rem', overflowWrap: 'anywhere' }}>
+                                          <div style={{ color: 'var(--text-primary)', fontWeight: 500, lineHeight: 1.4, fontSize: '0.78rem' }}>
+                                            {logItem.description}
+                                          </div>
+                                          {(logItem.entity_title || logItem.entity_type) && (
+                                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                                              Target: <strong style={{ color: 'var(--text-secondary)' }}>{logItem.entity_title || logItem.entity_type}</strong>
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td style={{ padding: '0.75rem 0.65rem', fontFamily: 'monospace', fontSize: '0.71rem', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                                          {logItem.ip_address || '-'}
+                                        </td>
+                                        <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setCopiedActivityDiff(false);
+                                              setActivitySelectedLog(logItem);
+                                            }}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '0.3rem',
+                                              padding: '0.32rem 0.62rem',
+                                              borderRadius: '0.5rem',
+                                              border: '1px solid var(--border-light)',
+                                              backgroundColor: 'var(--bg-deep)',
+                                              color: 'var(--primary)',
+                                              fontSize: '0.72rem',
+                                              fontWeight: 700,
+                                              cursor: 'pointer',
+                                              whiteSpace: 'nowrap'
+                                            }}
+                                          >
+                                            <Eye size={13} />
+                                            <span>Detail</span>
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
 
-                            return (
-                              <div
-                                key={logItem.id}
-                                className="glass-panel"
-                                style={{
-                                  padding: '1.15rem 1.35rem',
-                                  borderRadius: '0.85rem',
-                                  border: '1px solid var(--border-light)',
-                                  background: 'var(--card-bg-gradient)',
+                            {/* Enterprise Desktop Pagination Bar */}
+                            {(() => {
+                              const totalPages = Math.max(1, Math.ceil((activityTotal || activityLogs.length) / activityLimit));
+                              const startRow = activityLogs.length === 0 ? 0 : (activityPage - 1) * activityLimit + 1;
+                              const endRow = Math.min((activityPage - 1) * activityLimit + activityLogs.length, activityTotal || activityLogs.length);
+                              return (
+                                <div style={{
                                   display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: '0.65rem'
-                                }}
-                              >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                      <IconComp size={16} />
-                                    </div>
-                                    <div>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                        <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', padding: '0.15rem 0.5rem', borderRadius: '4px', backgroundColor: iconBg, color: iconColor }}>
-                                          {logItem.action}
-                                        </span>
-                                        <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                                          oleh <strong style={{ color: 'var(--text-primary)' }}>{logItem.actor_name}</strong> {logItem.actor_role && logItem.actor_role !== 'merchant' ? `(${logItem.actor_role})` : ''}
-                                        </span>
-                                      </div>
-                                    </div>
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: '0.75rem',
+                                  flexWrap: 'wrap',
+                                  padding: '0.85rem 1rem',
+                                  backgroundColor: 'var(--bg-deep)',
+                                  borderTop: '1px solid var(--border-light)'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                                      Menampilkan <strong style={{ color: 'var(--text-primary)' }}>{startRow} - {endRow}</strong> dari <strong style={{ color: 'var(--text-primary)' }}>{activityTotal || activityLogs.length}</strong> data
+                                    </span>
+                                    <DesktopCustomSelect
+                                      value={String(activityLimit)}
+                                      onChange={(val) => {
+                                        const nextLimit = Number(val) || 15;
+                                        setActivityLimit(nextLimit);
+                                        setActivityPage(1);
+                                        fetchActivityLogs(1, false, activityCategory, activitySearch, nextLimit);
+                                      }}
+                                      options={[
+                                        { value: '15', label: '15 baris' },
+                                        { value: '25', label: '25 baris' },
+                                        { value: '50', label: '50 baris' },
+                                      ]}
+                                      style={{ width: 'auto', minWidth: '105px' }}
+                                      triggerStyle={{ height: '32px', padding: '0 0.65rem', fontSize: '0.74rem', borderRadius: '0.5rem' }}
+                                    />
                                   </div>
 
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                    {logItem.ip_address && (
-                                      <span style={{ fontFamily: 'monospace', backgroundColor: 'var(--bg-deep)', color: 'var(--text-secondary)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
-                                        IP: {logItem.ip_address}
-                                      </span>
-                                    )}
-                                    <span>{new Date(logItem.created_at).toLocaleString('id-ID')}</span>
-                                  </div>
-                                </div>
-
-                                <p style={{ fontSize: '0.84rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.45, fontWeight: 500 }}>
-                                  {logItem.description}
-                                </p>
-
-                                {/* Changes Diff Preview (if present) */}
-                                {logItem.changes && (
-                                  <div style={{ borderTop: '1px dashed var(--border-light)', paddingTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.2rem' }}>
-                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                                      {logItem.entity_title ? `Target: ${logItem.entity_title}` : 'Detail perubahan tercatat'}
-                                    </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                     <button
                                       type="button"
-                                      onClick={() => setActivitySelectedLog(logItem)}
-                                      style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        color: 'var(--primary)',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 700,
-                                        cursor: 'pointer',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.3rem',
-                                        padding: '0.2rem 0.4rem'
-                                      }}
+                                      disabled={activityPage <= 1 || activityLoading}
+                                      onClick={() => fetchActivityLogs(activityPage - 1, false, activityCategory, activitySearch, activityLimit)}
+                                      className="btn-secondary"
+                                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.74rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', opacity: activityPage <= 1 ? 0.5 : 1, cursor: activityPage <= 1 ? 'not-allowed' : 'pointer' }}
                                     >
-                                      <Eye size={13} />
-                                      <span>Lihat Snapshot Diff</span>
+                                      <ChevronLeft size={14} />
+                                      <span>Sebelumnya</span>
+                                    </button>
+                                    <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-primary)', padding: '0 0.55rem' }}>
+                                      Hal {activityPage} / {totalPages}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      disabled={activityPage >= totalPages || !activityHasMore || activityLoading}
+                                      onClick={() => fetchActivityLogs(activityPage + 1, false, activityCategory, activitySearch, activityLimit)}
+                                      className="btn-secondary"
+                                      style={{ padding: '0.35rem 0.65rem', fontSize: '0.74rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', opacity: activityPage >= totalPages ? 0.5 : 1, cursor: activityPage >= totalPages ? 'not-allowed' : 'pointer' }}
+                                    >
+                                      <span>Selanjutnya</span>
+                                      <ChevronRight size={14} />
                                     </button>
                                   </div>
-                                )}
-                              </div>
-                            );
-                          })}
-
-                          {/* Load More Button & Pagination Indicator */}
-                          {activityHasMore && (
-                            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-                              <button
-                                type="button"
-                                onClick={() => fetchActivityLogs(activityPage + 1, true, activityCategory, activitySearch, activityRoleFilter)}
-                                disabled={activityLoading}
-                                className="btn-secondary"
-                                style={{ padding: '0.6rem 1.5rem', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                              >
-                                {activityLoading ? <Loader size={16} className="animate-spin" /> : <ChevronDown size={16} />}
-                                <span>Muat Catatan Sebelumnya</span>
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </>
                       )}
 
-                      {/* Inspect Diff Modal */}
+                      {/* Inspect Diff & Audit Detail Modal */}
                       {activitySelectedLog && (
-                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
-                          <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '580px', borderRadius: '1.25rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', boxShadow: 'var(--shadow-premium)', overflow: 'hidden' }}>
-                            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--bg-deep)' }}>
+                        <div
+                          style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
+                          onClick={(e) => { if (e.target === e.currentTarget) setActivitySelectedLog(null); }}
+                        >
+                          <div className="glass-panel animate-scale-up" style={{ width: '100%', maxWidth: '640px', borderRadius: '1.15rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient)', boxShadow: 'var(--shadow-premium)', overflow: 'hidden' }}>
+                            <div style={{ padding: '1.15rem 1.4rem', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--bg-deep)' }}>
                               <div>
                                 <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>
-                                  Snapshot Perubahan Data (Diff)
+                                  Detail Rekaman &amp; Diff Audit
                                 </span>
-                                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0.15rem 0 0 0' }}>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0.15rem 0 0 0', fontFamily: 'monospace' }}>
                                   {activitySelectedLog.action}
                                 </h3>
                               </div>
-                              <button 
+                              <button
                                 type="button"
                                 onClick={() => setActivitySelectedLog(null)}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.25rem', cursor: 'pointer', fontWeight: 700 }}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.35rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center' }}
+                                aria-label="Tutup modal detail audit"
                               >
-                                ✕
+                                <X size={18} />
                               </button>
                             </div>
 
-                            <div style={{ padding: '1.25rem 1.5rem', maxHeight: '420px', overflowY: 'auto' }}>
-                              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '0.85rem' }}>
+                            <div style={{ padding: '1.2rem 1.4rem', maxHeight: '440px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                              <p style={{ fontSize: '0.84rem', color: 'var(--text-primary)', margin: 0, lineHeight: 1.5, fontWeight: 500 }}>
                                 {activitySelectedLog.description}
                               </p>
 
-                              <div style={{ backgroundColor: 'var(--bg-deep)', padding: '1rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)', fontFamily: 'monospace', fontSize: '0.78rem', color: 'var(--primary)', whiteSpace: 'pre-wrap', overflowX: 'auto', lineHeight: 1.5 }}>
-                                {JSON.stringify(activitySelectedLog.changes, null, 2)}
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                                <div style={{ padding: '0.7rem 0.9rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700 }}>Aktor &amp; Waktu</div>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '0.15rem' }}>
+                                    {activitySelectedLog.actor_name || 'Sistem'}
+                                  </div>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                    {formatAuditDateTimeWIB(activitySelectedLog.created_at)}
+                                  </div>
+                                </div>
+                                <div style={{ padding: '0.7rem 0.9rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
+                                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700 }}>Alamat IP &amp; Target</div>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'monospace', marginTop: '0.15rem' }}>
+                                    {activitySelectedLog.ip_address || '-'}
+                                  </div>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                    {activitySelectedLog.entity_title || activitySelectedLog.entity_type || '-'}
+                                  </div>
+                                </div>
                               </div>
+
+                              {activitySelectedLog.user_agent && (
+                                <div style={{ padding: '0.6rem 0.85rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', fontSize: '0.7rem', fontFamily: 'monospace', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                                  UA: {activitySelectedLog.user_agent}
+                                </div>
+                              )}
+
+                              {activitySelectedLog.changes ? (
+                                <div style={{ backgroundColor: 'var(--bg-deep)', padding: '0.9rem', borderRadius: '0.75rem', border: '1px solid var(--border-light)' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+                                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>Payload Snapshot (JSON)</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const text = typeof activitySelectedLog.changes === 'string'
+                                          ? activitySelectedLog.changes
+                                          : JSON.stringify(activitySelectedLog.changes, null, 2);
+                                        navigator.clipboard.writeText(text);
+                                        setCopiedActivityDiff(true);
+                                        showToast('Snapshot JSON disalin ke clipboard', 'success');
+                                        window.setTimeout(() => setCopiedActivityDiff(false), 2000);
+                                      }}
+                                      style={{ background: 'none', border: 'none', color: copiedActivityDiff ? '#10b981' : 'var(--primary)', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                    >
+                                      {copiedActivityDiff ? <Check size={13} /> : <Copy size={13} />}
+                                      <span>{copiedActivityDiff ? 'Tersalin' : 'Salin JSON'}</span>
+                                    </button>
+                                  </div>
+                                  <pre style={{ margin: 0, fontFamily: 'monospace', fontSize: '0.76rem', color: 'var(--primary)', whiteSpace: 'pre-wrap', overflowX: 'auto', lineHeight: 1.5 }}>
+                                    {typeof activitySelectedLog.changes === 'string'
+                                      ? activitySelectedLog.changes
+                                      : JSON.stringify(activitySelectedLog.changes, null, 2)}
+                                  </pre>
+                                </div>
+                              ) : (
+                                <div style={{ padding: '0.85rem', borderRadius: '0.65rem', backgroundColor: 'var(--bg-deep)', border: '1px dashed var(--border-light)', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                                  Rekaman ini mencatat peristiwa operasional tanpa payload diff perubahan field.
+                                </div>
+                              )}
                             </div>
 
-                            <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', backgroundColor: 'var(--bg-deep)' }}>
+                            <div style={{ padding: '0.9rem 1.4rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', backgroundColor: 'var(--bg-deep)' }}>
                               <button
                                 type="button"
                                 className="btn-primary"

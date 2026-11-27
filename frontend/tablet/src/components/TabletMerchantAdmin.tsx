@@ -10951,13 +10951,15 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               >
                 <div 
                   style={{
-                    display: 'inline-flex',
-                    gap: '0.45rem',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.4rem',
+                    width: '100%',
+                    boxSizing: 'border-box',
                     backgroundColor: 'var(--bg-deep)',
                     padding: '0.35rem',
                     borderRadius: '0.75rem',
-                    border: '1px solid var(--border-light)',
-                    whiteSpace: 'nowrap'
+                    border: '1px solid var(--border-light)'
                   }}
                 >
                   <button

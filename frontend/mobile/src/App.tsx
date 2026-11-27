@@ -174,6 +174,12 @@ import { DangerZoneSettingsView } from './components/DangerZoneSettingsView'
 import apiClient, { API_BASE, onApiUnauthorized, onApiStoreBanned } from './utils/apiClient'
 import { smartBack, useModalBackHandler } from './utils/navigation'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { MobileAuditDiffSheet } from './components/MobileAuditDiffSheet'
+import {
+  MERCHANT_AUDIT_CATEGORIES,
+  exportAuditLogsFile,
+  formatAuditShortDateTimeWIB,
+} from '../../shared/audit/auditHelpers'
 import {
   resolveTicketStoreTitle,
   resolveTicketMessageCount,
@@ -4707,8 +4713,17 @@ function App() {
   const [activityLoading, setActivityLoading] = useState<boolean>(false);
   const [activityCategory, setActivityCategory] = useState<string>('all');
   const [activitySearch, setActivitySearch] = useState<string>('');
+  const [activitySearchInput, setActivitySearchInput] = useState<string>('');
   const [activitySelectedLog, setActivitySelectedLog] = useState<any | null>(null);
+  const [isExportingActivity, setIsExportingActivity] = useState<boolean>(false);
   const activitySentinelRef = useRef<HTMLDivElement | null>(null);
+  const activitySearchTimerRef = useRef<number | null>(null);
+
+  useModalBackHandler({
+    isOpen: Boolean(activitySelectedLog),
+    onClose: () => setActivitySelectedLog(null),
+    modalId: 'mobile-merchant-audit-diff-sheet',
+  });
 
   const fetchActivityLogs = useCallback(async (pageToFetch: number = 1, append: boolean = false, category: string = activityCategory, search: string = activitySearch) => {
     try {
@@ -19646,60 +19661,107 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
   // Helper renderer: Activity / Audit Logs Content for Mobile
   const renderMobileAuditLogsContent = () => (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-      {/* Top Stats Banner */}
-      <div className="glass-panel" style={{ padding: '0.95rem 1.15rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient, var(--bg-card))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+      {/* Top Stats Banner & Actions */}
+      <div className="glass-panel" style={{ padding: '0.9rem 1rem', borderRadius: '0.85rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient, var(--bg-card))', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '0.55rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
+          <div style={{ width: '34px', height: '34px', borderRadius: '0.6rem', backgroundColor: 'var(--primary-glow)', border: '1px solid var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
             <History size={17} />
           </div>
-          <div>
-            <h3 style={{ fontSize: '0.88rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+          <div style={{ minWidth: 0 }}>
+            <h3 style={{ fontSize: '0.92rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
               Riwayat Aktivitas &amp; Log
             </h3>
-            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', margin: 0 }}>
+            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '0.1rem 0 0 0' }}>
               {activityTotal.toLocaleString('id-ID')} rekaman aksi operasional tercatat
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => fetchActivityLogs(1, false)}
-          disabled={activityLoading}
-          className="btn-secondary"
-          style={{ padding: '0.35rem 0.65rem', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', borderRadius: '0.5rem' }}
-        >
-          <RefreshCw size={12} className={activityLoading ? 'animate-spin' : ''} />
-          <span>Segarkan</span>
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            type="button"
+            disabled={isExportingActivity}
+            onClick={async () => {
+              const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+              if (!token) return;
+              setIsExportingActivity(true);
+              try {
+                const filename = await exportAuditLogsFile({
+                  endpoint: '/api/activity-logs/export',
+                  token,
+                  format: 'csv',
+                  category: activityCategory,
+                  q: activitySearch,
+                  storeSlug: storeSlug || getStoreSlug() || '',
+                });
+                showToast(`Berhasil mengekspor ${filename}`, 'success');
+              } catch (err: any) {
+                showToast(err?.message || 'Gagal mengekspor log CSV', 'error');
+              } finally {
+                setIsExportingActivity(false);
+              }
+            }}
+            className="btn-secondary"
+            style={{ flex: 1, minHeight: '44px', padding: '0.45rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', cursor: isExportingActivity ? 'not-allowed' : 'pointer', borderRadius: '0.6rem' }}
+          >
+            <Download size={14} />
+            <span>{isExportingActivity ? 'Ekspor...' : 'Ekspor CSV'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => fetchActivityLogs(1, false, activityCategory, activitySearch)}
+            disabled={activityLoading}
+            className="btn-secondary"
+            style={{ flex: 1, minHeight: '44px', padding: '0.45rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', cursor: 'pointer', borderRadius: '0.6rem' }}
+          >
+            <RefreshCw size={14} className={activityLoading ? 'animate-spin' : ''} />
+            <span>Segarkan</span>
+          </button>
+        </div>
       </div>
 
-      {/* Search Bar */}
+      {/* Search Bar (Debounced 350ms) */}
       <div className="search-wrapper" style={{ position: 'relative', width: '100%' }}>
         <Search className="search-icon" size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
         <input
           type="text"
           className="search-input"
           placeholder="Cari aksi, produk, atau IP..."
-          value={activitySearch}
+          value={activitySearchInput}
           onChange={(e) => {
             const val = e.target.value;
-            setActivitySearch(val);
-            fetchActivityLogs(1, false, activityCategory, val);
+            setActivitySearchInput(val);
+            if (activitySearchTimerRef.current) {
+              window.clearTimeout(activitySearchTimerRef.current);
+            }
+            activitySearchTimerRef.current = window.setTimeout(() => {
+              const trimmed = val.trim();
+              setActivitySearch(trimmed);
+              fetchActivityLogs(1, false, activityCategory, trimmed);
+            }, 350);
           }}
-          style={{ paddingLeft: '2.2rem', fontSize: '0.78rem' }}
+          style={{ paddingLeft: '2.2rem', paddingRight: activitySearchInput ? '2.2rem' : '0.75rem', fontSize: '0.78rem', minHeight: '44px' }}
         />
+        {activitySearchInput && (
+          <button
+            type="button"
+            onClick={() => {
+              if (activitySearchTimerRef.current) window.clearTimeout(activitySearchTimerRef.current);
+              setActivitySearchInput('');
+              setActivitySearch('');
+              fetchActivityLogs(1, false, activityCategory, '');
+            }}
+            style={{ position: 'absolute', right: '0.45rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', padding: '0.35rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            aria-label="Hapus pencarian"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       {/* Horizontal Scrollable Category Filter Chips */}
-      <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.35rem', WebkitOverflowScrolling: 'touch' }}>
-        {[
-          { key: 'all', label: 'Semua' },
-          { key: 'security', label: 'Autentikasi' },
-          { key: 'catalog', label: 'Produk' },
-          { key: 'store', label: 'Katalog' },
-          { key: 'billing', label: 'Paket' },
-        ].map(cat => {
+      <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.35rem', WebkitOverflowScrolling: 'touch' }}>
+        {MERCHANT_AUDIT_CATEGORIES.map(cat => {
           const isActive = activityCategory === cat.key;
           return (
             <button
@@ -19711,8 +19773,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 fetchActivityLogs(1, false, cat.key, activitySearch);
               }}
               style={{
-                padding: '0.35rem 0.75rem',
-                borderRadius: '0.5rem',
+                minHeight: '38px',
+                padding: '0.35rem 0.8rem',
+                borderRadius: '0.55rem',
                 fontSize: '0.72rem',
                 fontWeight: 700,
                 whiteSpace: 'nowrap',
@@ -19721,10 +19784,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 backgroundColor: isActive ? 'var(--primary)' : 'var(--bg-deep)',
                 color: isActive ? '#ffffff' : 'var(--text-secondary)',
                 boxShadow: isActive ? '0 2px 8px var(--primary-glow)' : 'none',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
+                flexShrink: 0
               }}
             >
-              {cat.label}
+              {cat.shortLabel || cat.label}
             </button>
           );
         })}
@@ -19745,40 +19809,40 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
           {activityLogs.map((logItem: any) => {
-            const isSecurity = logItem.category === 'security';
-            const isCatalog = logItem.category === 'catalog';
-            const isStore = logItem.category === 'store';
-            const isBilling = logItem.category === 'billing';
-
+            const cat = (logItem.category || '').toLowerCase();
             let iconBg = 'rgba(59, 130, 246, 0.12)';
             let iconColor = '#60a5fa';
             let IconComp = FileText;
 
-            if (isSecurity) {
+            if (cat === 'security') {
               iconBg = 'rgba(16, 185, 129, 0.12)';
               iconColor = '#10b981';
               IconComp = ShieldCheck;
-            } else if (isCatalog) {
+            } else if (cat === 'catalog') {
               iconBg = 'rgba(59, 130, 246, 0.12)';
               iconColor = '#60a5fa';
               IconComp = Package;
-            } else if (isStore) {
+            } else if (cat === 'store') {
               iconBg = 'rgba(168, 85, 247, 0.12)';
               iconColor = '#c084fc';
               IconComp = Store;
-            } else if (isBilling) {
+            } else if (cat === 'billing') {
               iconBg = 'rgba(245, 158, 11, 0.12)';
               iconColor = '#f59e0b';
               IconComp = CreditCard;
+            } else if (cat === 'moderation') {
+              iconBg = 'rgba(244, 63, 94, 0.12)';
+              iconColor = '#f43f5e';
+              IconComp = Flag;
             }
 
             return (
               <div
-                key={logItem.id}
+                key={logItem.id || logItem.created_at}
                 className="glass-panel"
                 style={{
                   padding: '0.85rem 0.95rem',
-                  borderRadius: '0.75rem',
+                  borderRadius: '0.85rem',
                   border: '1px solid var(--border-light)',
                   background: 'var(--card-bg-gradient, var(--bg-card))',
                   display: 'flex',
@@ -19786,18 +19850,18 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   gap: '0.5rem'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
                     <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <IconComp size={14} />
                     </div>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: iconBg, color: iconColor }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, fontFamily: 'monospace', padding: '0.12rem 0.45rem', borderRadius: '4px', backgroundColor: iconBg, color: iconColor }}>
                       {logItem.action}
                     </span>
                   </div>
 
-                  <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-                    {new Date(logItem.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                  <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                    {formatAuditShortDateTimeWIB(logItem.created_at)}
                   </span>
                 </div>
 
@@ -19805,18 +19869,29 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   {logItem.description}
                 </p>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', borderTop: '1px dashed var(--border-light)', paddingTop: '0.45rem', marginTop: '0.1rem' }}>
-                  <span>Oleh: <strong style={{ color: 'var(--text-primary)' }}>{logItem.actor_name}</strong></span>
-                  {logItem.changes && (
-                    <button
-                      type="button"
-                      onClick={() => setActivitySelectedLog(logItem)}
-                      style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: 0 }}
-                    >
-                      <Eye size={12} />
-                      <span>Detail Diff</span>
-                    </button>
-                  )}
+                {(logItem.entity_title || logItem.entity_type) && (
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                    Target: <strong style={{ color: 'var(--text-secondary)' }}>{logItem.entity_title || logItem.entity_type}</strong>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.68rem', color: 'var(--text-secondary)', borderTop: '1px dashed var(--border-light)', paddingTop: '0.45rem', marginTop: '0.1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <span>Oleh: <strong style={{ color: 'var(--text-primary)' }}>{logItem.actor_name}</strong></span>
+                    {logItem.ip_address && (
+                      <span style={{ fontFamily: 'monospace', fontSize: '0.64rem', color: 'var(--text-muted)', backgroundColor: 'var(--bg-deep)', padding: '0.08rem 0.35rem', borderRadius: '4px' }}>
+                        IP: {logItem.ip_address}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActivitySelectedLog(logItem)}
+                    style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', minHeight: '44px', padding: '0 0.25rem' }}
+                  >
+                    <Eye size={13} />
+                    <span>{logItem.changes ? 'Detail Diff' : 'Inspeksi'}</span>
+                  </button>
                 </div>
               </div>
             );
@@ -19830,7 +19905,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 onClick={() => fetchActivityLogs(activityPage + 1, true, activityCategory, activitySearch)}
                 disabled={activityLoading}
                 className="btn-secondary"
-                style={{ padding: '0.5rem 1.25rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '0.6rem' }}
+                style={{ minHeight: '44px', padding: '0.5rem 1.25rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '0.6rem' }}
               >
                 {activityLoading ? <Loader size={14} className="animate-spin" /> : <ChevronDown size={14} />}
                 <span>Muat Log Sebelumnya</span>
@@ -19840,31 +19915,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
         </div>
       )}
 
-      {/* Mobile Diff Bottom Sheet / Modal */}
-      {activitySelectedLog && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', borderRadius: '1rem', border: '1px solid var(--border-light)', background: 'var(--card-bg-gradient, var(--bg-card))', boxShadow: '0 16px 40px rgba(0, 0, 0, 0.8)', overflow: 'hidden' }}>
-            <div style={{ padding: '1rem 1.15rem', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'var(--bg-deep)' }}>
-              <div>
-                <span style={{ fontSize: '0.64rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--primary)' }}>Snapshot Perubahan</span>
-                <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0.1rem 0 0 0' }}>{activitySelectedLog.action}</h4>
-              </div>
-              <button type="button" onClick={() => setActivitySelectedLog(null)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.15rem', cursor: 'pointer', fontWeight: 700 }}>✕</button>
-            </div>
-
-            <div style={{ padding: '1rem 1.15rem', maxHeight: '320px', overflowY: 'auto' }}>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.65rem' }}>{activitySelectedLog.description}</p>
-              <div style={{ backgroundColor: 'var(--bg-deep)', padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', fontFamily: 'monospace', fontSize: '0.72rem', color: 'var(--primary)', whiteSpace: 'pre-wrap', overflowX: 'auto', lineHeight: 1.4 }}>
-                {JSON.stringify(activitySelectedLog.changes, null, 2)}
-              </div>
-            </div>
-
-            <div style={{ padding: '0.75rem 1.15rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', backgroundColor: 'var(--bg-deep)' }}>
-              <button type="button" className="btn-primary" onClick={() => setActivitySelectedLog(null)} style={{ padding: '0.4rem 1rem', fontSize: '0.75rem' }}>Tutup</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Mobile Native Swipeable Bottom Sheet (Zero Close-X, 1:1 Drag Physics, useModalBackHandler) */}
+      <MobileAuditDiffSheet
+        logItem={activitySelectedLog}
+        onClose={() => setActivitySelectedLog(null)}
+        showToast={showToast}
+      />
     </div>
   );
 
