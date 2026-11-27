@@ -692,10 +692,11 @@ export const ConnectedDevicesView: React.FC<ConnectedDevicesViewProps> = ({
                   background: '#ef4444',
                   color: '#ffffff',
                   fontWeight: 800,
-                  fontSize: '0.82rem'
+                  fontSize: '0.82rem',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                {revokingAll ? 'Mengeluarkan...' : 'Ya, Keluarkan Semua'}
+                {revokingAll ? 'Mengeluarkan...' : 'Keluarkan Semua'}
               </button>
             </div>
           </div>

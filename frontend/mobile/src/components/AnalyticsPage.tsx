@@ -956,22 +956,23 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         </div>
 
         {/* Period Selector & Refresh */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'var(--bg-deep)', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', backgroundColor: 'var(--bg-deep)', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--border-light)', flexShrink: 0 }}>
             {(['7d', '30d', '90d'] as const).map(p => (
               <button
                 key={p}
                 type="button"
                 onClick={() => onPeriodChange(p)}
                 style={{
-                  padding: '0.35rem 0.75rem',
-                  fontSize: '0.75rem',
+                  padding: '0.35rem 0.65rem',
+                  fontSize: '0.74rem',
                   fontWeight: period === p ? 700 : 500,
                   borderRadius: '0.4rem',
                   border: 'none',
                   backgroundColor: period === p ? 'var(--primary)' : 'transparent',
                   color: period === p ? '#ffffff' : 'var(--text-secondary)',
                   cursor: 'pointer',
+                  whiteSpace: 'nowrap',
                   transition: 'var(--transition-fast)'
                 }}
               >
@@ -2486,7 +2487,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         borderRadius: '3px',
                         backgroundColor: heatmapViewMode === '24h' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
                         color: heatmapViewMode === '24h' ? '#8b5cf6' : 'var(--text-secondary)',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
                       }}
                     >
                       24 Jam
@@ -2502,7 +2504,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         borderRadius: '3px',
                         backgroundColor: heatmapViewMode === 'time_bands' ? 'rgba(139, 92, 246, 0.2)' : 'transparent',
                         color: heatmapViewMode === 'time_bands' ? '#8b5cf6' : 'var(--text-secondary)',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
                       }}
                     >
                       4 Blok

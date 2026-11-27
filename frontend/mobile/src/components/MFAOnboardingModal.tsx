@@ -758,7 +758,7 @@ export function MFAOnboardingModal({ setupToken, email, apiBase, onCancel, onCom
                 cursor: savedAck ? 'pointer' : 'not-allowed',
               }}
             >
-              Lanjutkan ke Konsol Pengelola
+              Ke Konsol Admin
             </button>
           )}
         </div>

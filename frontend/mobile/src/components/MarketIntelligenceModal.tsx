@@ -558,7 +558,7 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
             }}
           >
             <FileSpreadsheet size={14} />
-            <span>{downloadingCsv ? 'Mengunduh...' : 'Unduh Laporan CSV Riset'}</span>
+            <span>{downloadingCsv ? 'Mengunduh...' : 'Unduh CSV'}</span>
           </button>
         </div>
       </div>

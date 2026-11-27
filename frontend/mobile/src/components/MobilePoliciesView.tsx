@@ -323,7 +323,7 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
             }}
           >
             <HelpCircle size={15} strokeWidth={1.75} />
-            <span>Butuh Konsultasi Kepatuhan? Buka Bantuan</span>
+            <span>Konsultasi via Bantuan</span>
           </button>
         )}
       </div>
@@ -542,7 +542,7 @@ export const MobilePoliciesView: React.FC<MobilePoliciesViewProps> = ({
                 alignSelf: 'flex-start'
               }}
             >
-              <span>Ajukan Pertanyaan Kepatuhan via Helpdesk</span>
+              <span>Tanya via Bantuan</span>
               <ExternalLink size={12} strokeWidth={1.75} />
             </button>
           )}

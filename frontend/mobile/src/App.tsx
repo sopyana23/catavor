@@ -3257,7 +3257,7 @@ export function WhatsAppContactsManager({
                 }}
               >
                 <CheckCircle2 size={12} style={{ opacity: c.use_for_storefront ? 1 : 0.4 }} />
-                <span>{c.use_for_storefront ? 'Kontak Utama Etalase Depan' : 'Jadikan Kontak Utama Etalase'}</span>
+                <span>{c.use_for_storefront ? 'Utama Etalase' : 'Jadikan Utama'}</span>
               </button>
             </div>
           </div>
@@ -19635,7 +19635,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               className="btn-full btn-primary"
               style={{ padding: '0.55rem', fontSize: '0.75rem', fontWeight: 800 }}
             >
-              {backupPasswordLoading ? 'Menyimpan...' : (Boolean((adminUser as any)?.has_custom_password) ? 'Perbarui Kata Sandi' : 'Simpan Kata Sandi Cadangan')}
+              {backupPasswordLoading ? 'Menyimpan...' : (Boolean((adminUser as any)?.has_custom_password) ? 'Perbarui Kata Sandi' : 'Simpan Sandi')}
             </button>
           </div>
         )}
@@ -21383,7 +21383,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                           onClick={() => setShowMarketplacesSubMenu(false)}
                           style={{ width: '100%', padding: '0.75rem', borderRadius: '0.65rem', fontSize: '0.88rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', transition: 'var(--transition-smooth)' }}
                         >
-                          <ArrowLeft size={16} /> {selectedFauna.product_type === 'service' ? 'Kembali ke Pilihan Pemesanan' : 'Kembali ke Pilihan Pembelian'}
+                          <ArrowLeft size={16} /> Pilihan Lain
                         </button>
                       ) : (
                         <button
@@ -24011,7 +24011,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   transition: 'all 0.2s'
                 }}
               >
-                <ArrowLeft size={16} /> Batal &amp; Kembali ke Kelola Item
+                <ArrowLeft size={16} /> Batal
               </button>
             </div>
 
@@ -30207,7 +30207,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                         transition: 'all 0.2s ease'
                                                       }}
                                                     >
-                                                      <span>Kembali ke Beranda & Kelola Katalog</span>
+                                                      <span>Ke Dashboard</span>
                                                       <ArrowRight size={15} />
                                                     </button>
                                                   </div>
@@ -30778,7 +30778,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                       backgroundColor: 'rgba(255, 255, 255, 0.04)'
                                                     }}
                                                   >
-                                                    ← Kembali ke Daftar Notifikasi
+                                                    Daftar Notifikasi
                                                   </button>
                                                   <button
                                                     type="button"
@@ -31069,7 +31069,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                   whiteSpace: 'nowrap'
                                                 }}
                                               >
-                                                Tandai Semua Dibaca
+                                                Tandai Dibaca
                                               </button>
                                             )}
                                             {notifications.some(n => n.read) && (
@@ -31087,7 +31087,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                                 }}
                                                 title="Bersihkan riwayat notifikasi yang sudah dibaca"
                                               >
-                                                Bersihkan Terbaca
+                                                Hapus Terbaca
                                               </button>
                                             )}
                                           </div>

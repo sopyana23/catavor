@@ -816,7 +816,7 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
                     fontSize: '0.8rem'
                   }}
                 >
-                  {isDeletingStore ? 'Memproses...' : 'Konfirmasi Hapus'}
+                  {isDeletingStore ? 'Memproses...' : 'Hapus Toko'}
                 </button>
               </div>
             </form>
@@ -1035,7 +1035,7 @@ export const DangerZoneSettingsView: React.FC<DangerZoneSettingsViewProps> = ({
                     fontSize: '0.8rem'
                   }}
                 >
-                  {isDeletingAccount ? 'Memproses...' : 'Konfirmasi Tutup Akun'}
+                  {isDeletingAccount ? 'Memproses...' : 'Tutup Akun'}
                 </button>
               </div>
             </form>

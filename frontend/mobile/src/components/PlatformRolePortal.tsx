@@ -4071,7 +4071,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
             ...(isPending && canManageFinance ? [
               {
                 id: 'approve_payment',
-                label: 'Setujui & Aktifkan Paket',
+                label: 'Aktifkan Paket',
                 description: 'Verifikasi transfer & aktifkan langganan toko',
                 icon: <CheckCircle2 size={18} />,
                 iconBg: 'rgba(16, 185, 129, 0.15)',
@@ -8861,7 +8861,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                             }}
                           >
                             <Eye size={14} />
-                            <span>Detail &amp; Verifikasi</span>
+                            <span>Detail</span>
                           </button>
 
                           {d.isAulaaGateway && d.isPending && (
@@ -13689,7 +13689,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           }}
                         >
                           <RefreshCw size={13} className={syncingOrderId === selectedProofOrder.id ? 'animate-spin' : ''} />
-                          <span>{syncingOrderId === selectedProofOrder.id ? 'Menyinkronkan...' : 'Sinkronisasi Status Aulaa'}</span>
+                          <span>{syncingOrderId === selectedProofOrder.id ? 'Menyinkronkan...' : 'Cek Status Aulaa'}</span>
                         </button>
                       </div>
                     </div>
@@ -13809,7 +13809,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           }}
                         >
                           <Eye size={13} />
-                          <span>Perbesar Gambar Bukti Penuh</span>
+                          <span>Perbesar Bukti</span>
                         </button>
                       )}
                     </div>
@@ -13899,11 +13899,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.35rem'
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         <XCircle size={15} />
-                        <span>Tolak Pesanan</span>
+                        <span>Tolak</span>
                       </button>
                       <button
                         type="button"
@@ -13921,11 +13922,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.35rem'
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         <CheckCircle2 size={15} />
-                        <span>Terima &amp; Aktifkan Paket</span>
+                        <span>Terima &amp; Aktifkan</span>
                       </button>
                     </div>
                   ) : d.isPaid ? (
@@ -13946,11 +13948,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.35rem'
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         <RotateCcw size={14} />
-                        <span>Kembalikan Pending</span>
+                        <span>Set Pending</span>
                       </button>
                       <button
                         type="button"
@@ -13971,15 +13974,16 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.35rem'
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         <XCircle size={14} />
-                        <span>Batalkan / Tolak</span>
+                        <span>Batalkan</span>
                       </button>
                     </div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.25fr', gap: '0.5rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                       <button
                         type="button"
                         onClick={() => handleUpdateOrderStatus(selectedProofOrder.id, 'pending_verification')}
@@ -13996,11 +14000,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.35rem'
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         <RotateCcw size={14} />
-                        <span>Kembalikan Pending</span>
+                        <span>Set Pending</span>
                       </button>
                       <button
                         type="button"
@@ -14018,11 +14023,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '0.35rem'
+                          gap: '0.35rem',
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         <CheckCircle2 size={15} />
-                        <span>Setujui &amp; Aktifkan Ulang</span>
+                        <span>Aktifkan Ulang</span>
                       </button>
                     </div>
                   )

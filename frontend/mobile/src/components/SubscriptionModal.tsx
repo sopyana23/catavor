@@ -1274,13 +1274,14 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '0.45rem',
+              gap: '0.4rem',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
               transition: 'all 0.2s ease'
             }}
           >
             <Crown size={16} />
-            <span>Pilihan Paket</span>
+            <span>Paket</span>
           </button>
 
           <button
@@ -1300,13 +1301,14 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '0.45rem',
+              gap: '0.4rem',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
               transition: 'all 0.2s ease'
             }}
           >
             <Receipt size={16} />
-            <span>Riwayat Tagihan</span>
+            <span>Riwayat</span>
           </button>
         </div>
       )}
@@ -1744,7 +1746,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                           }}
                         >
                           <Lock size={14} style={{ flexShrink: 0 }} />
-                          <span>{isPendingVerifying ? 'Terkunci Selama Verifikasi' : 'Selesaikan / Batalkan Tagihan Aktif'}</span>
+                          <span>{isPendingVerifying ? 'Terkunci Selama Verifikasi' : 'Ada Tagihan Aktif'}</span>
                         </button>
                       ) : isCurrent ? (
                         plan.code !== 'free' ? (
@@ -2214,7 +2216,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                         boxShadow: '0 4px 16px var(--primary-glow)'
                       }}
                     >
-                      {internalLoading ? 'Mengaktifkan...' : 'Aktifkan Paket Gratis Sekarang'}
+                      {internalLoading ? 'Mengaktifkan...' : 'Aktifkan Paket'}
                     </button>
                   );
                 }
@@ -2413,7 +2415,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                         }}
                       >
                         <Zap size={16} />
-                        <span>{internalLoading ? 'Menyiapkan Transaksi...' : `Lanjut ke Pembayaran Aulaa (${formatRupiah(finalPrice)})`}</span>
+                        <span>{internalLoading ? 'Menyiapkan...' : `Bayar Aulaa (${formatRupiah(finalPrice)})`}</span>
                       </button>
                     </div>
                   );
@@ -2707,7 +2709,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                       }}
                     >
                           <Sparkles size={16} />
-                      <span>{internalLoading ? 'Memproses...' : `Kirim Konfirmasi Pembayaran (${formatRupiah(finalPrice)})`}</span>
+                      <span>{internalLoading ? 'Memproses...' : `Kirim Bukti (${formatRupiah(finalPrice)})`}</span>
                     </button>
                   </div>
                 );
@@ -3557,7 +3559,7 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({
                                 }}
                               >
                                 <RefreshCw size={14} className={syncingOrderId === selectedDetailOrder.id ? 'animate-spin' : ''} />
-                                <span>{syncingOrderId === selectedDetailOrder.id ? 'Menyinkronkan...' : 'Sinkronkan / Periksa Status Gateway'}</span>
+                                <span>{syncingOrderId === selectedDetailOrder.id ? 'Menyinkronkan...' : 'Cek Status Pembayaran'}</span>
                               </button>
                             </div>
                           )}

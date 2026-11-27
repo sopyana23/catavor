@@ -1312,7 +1312,7 @@ export const MobilePolicyManager: React.FC<MobilePolicyManagerProps> = ({
                   }}
                 >
                   {isSaving ? <RefreshCw size={16} strokeWidth={1.75} className="animate-spin" /> : <Save size={16} strokeWidth={1.75} />}
-                  <span>{isSaving ? 'Menyimpan...' : `Publikasikan Versi Baru (${editableDoc.version})`}</span>
+                  <span>{isSaving ? 'Menyimpan...' : `Terbitkan ${editableDoc.version}`}</span>
                 </button>
               </div>
             </>
