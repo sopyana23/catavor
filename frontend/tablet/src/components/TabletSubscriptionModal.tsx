@@ -1252,6 +1252,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                                 border: '1px solid var(--border-light)',
                                 fontWeight: 700,
                                 fontSize: '0.76rem',
+                                whiteSpace: 'nowrap',
                                 cursor: 'not-allowed',
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1262,7 +1263,7 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                               title={isPendingVerifying ? 'Menunggu tim finance memverifikasi tagihan aktif.' : 'Selesaikan atau batalkan tagihan aktif terlebih dahulu.'}
                             >
                               <Lock size={14} style={{ flexShrink: 0 }} />
-                              <span>{isPendingVerifying ? 'Terkunci Selama Verifikasi' : 'Selesaikan / Batalkan Tagihan Aktif'}</span>
+                              <span>{isPendingVerifying ? 'Verifikasi Aktif' : 'Ada Tagihan Aktif'}</span>
                             </button>
                           ) : isCurrent ? (
                             p.code !== 'free' ? (
@@ -1550,13 +1551,14 @@ export const TabletSubscriptionModal: React.FC<TabletSubscriptionModalProps> = (
                         borderRadius: '0.65rem',
                         fontWeight: 800,
                         fontSize: '0.84rem',
+                        whiteSpace: 'nowrap',
                         backgroundColor: 'var(--primary)',
                         color: '#ffffff',
                         border: 'none',
                         cursor: internalLoading ? 'not-allowed' : 'pointer'
                       }}
                     >
-                      {internalLoading ? 'Menyimpan Jadwal...' : 'Konfirmasi Jadwal Penyesuaian'}
+                      {internalLoading ? 'Menyimpan...' : 'Konfirmasi Jadwal'}
                     </button>
                   </div>
                 </div>

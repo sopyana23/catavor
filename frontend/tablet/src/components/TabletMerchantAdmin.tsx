@@ -9623,7 +9623,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                     }}
                   >
                     <Zap size={16} />
-                    {quota?.pending_order ? 'Lihat Perbandingan Paket (Terkunci)' : 'Pilih Paket & Upgrade Berlangganan'}
+                    <span style={{ whiteSpace: 'nowrap' }}>{quota?.pending_order ? 'Lihat Paket (Terkunci)' : 'Pilih & Upgrade Paket'}</span>
                   </button>
                 </div>
               </div>
@@ -11588,7 +11588,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   }}
                                 >
                                   <Mail size={15} />
-                                  <span>{profileOtpLoading ? 'Mengirim Kode OTP...' : 'Kirim Kode OTP ke Email Saya'}</span>
+                                  <span style={{ whiteSpace: 'nowrap' }}>{profileOtpLoading ? 'Mengirim OTP...' : 'Kirim Kode OTP'}</span>
                                 </button>
                               </div>
                             </div>
@@ -11709,7 +11709,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                                   }}
                                 >
                                   <CheckCircle2 size={15} />
-                                  <span>{saving ? 'Memverifikasi...' : 'Verifikasi OTP & Simpan Kata Sandi'}</span>
+                                  <span style={{ whiteSpace: 'nowrap' }}>{saving ? 'Memverifikasi...' : 'Verifikasi & Simpan'}</span>
                                 </button>
                                 <button
                                   type="button"
@@ -11989,7 +11989,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         }}
                       >
                         <ChevronLeft size={16} />
-                        <span>Kembali ke Pusat Notifikasi</span>
+                        <span style={{ whiteSpace: 'nowrap' }}>Daftar Notifikasi</span>
                       </button>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -12196,7 +12196,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       }}
                     >
                       <ChevronLeft size={16} />
-                      <span>Kembali ke Pusat Notifikasi</span>
+                      <span style={{ whiteSpace: 'nowrap' }}>Daftar Notifikasi</span>
                     </button>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

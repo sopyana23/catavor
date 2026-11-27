@@ -472,7 +472,7 @@ export function TabletWhatsAppContactsManager({
                 }}
               >
                 <CheckCircle2 size={14} style={{ color: c.use_for_storefront ? '#ffffff' : 'var(--text-muted)' }} />
-                <span>{c.use_for_storefront ? 'Kontak Utama Etalase Depan' : 'Jadikan Kontak Utama Etalase'}</span>
+                <span style={{ whiteSpace: 'nowrap' }}>{c.use_for_storefront ? 'Utama Etalase' : 'Jadikan Utama'}</span>
               </button>
             </div>
           </div>

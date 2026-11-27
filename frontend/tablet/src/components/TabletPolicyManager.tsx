@@ -1074,13 +1074,14 @@ export const TabletPolicyManager: React.FC<TabletPolicyManagerProps> = ({
                   border: 'none',
                   fontSize: '0.84rem',
                   fontWeight: 800,
+                  whiteSpace: 'nowrap',
                   cursor: isSaving ? 'not-allowed' : 'pointer',
                   minHeight: '44px',
                   opacity: isSaving ? 0.7 : 1
                 }}
               >
                 <Save size={16} strokeWidth={1.75} />
-                <span>{isSaving ? 'Menyimpan...' : `Publikasikan Versi Baru (${editableDoc.version})`}</span>
+                <span>{isSaving ? 'Menyimpan...' : `Terbitkan ${editableDoc.version}`}</span>
               </button>
             </div>
           </div>

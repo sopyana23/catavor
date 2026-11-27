@@ -3094,10 +3094,11 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                     color: '#ffffff',
                     fontWeight: 700,
                     fontSize: '0.82rem',
+                    whiteSpace: 'nowrap',
                     cursor: actionLoadingOrder ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  Konfirmasi Tolak Pesanan
+                  Tolak Pesanan
                 </button>
               </div>
             </div>
@@ -7447,6 +7448,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                             color: 'var(--text-primary)',
                                             fontSize: '0.76rem',
                                             fontWeight: 700,
+                                            whiteSpace: 'nowrap',
                                             cursor: 'pointer',
                                             display: 'inline-flex',
                                             alignItems: 'center',
@@ -7454,7 +7456,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           }}
                                         >
                                           <Maximize2 size={14} />
-                                          <span>Lihat Bukti Ukuran Penuh</span>
+                                          <span>Perbesar Bukti</span>
                                         </button>
                                       </div>
                                     ) : (
@@ -7538,6 +7540,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                         color: '#38bdf8',
                                         fontSize: '0.76rem',
                                         fontWeight: 700,
+                                        whiteSpace: 'nowrap',
                                         cursor: syncingOrderId === selectedOrder.id ? 'not-allowed' : 'pointer',
                                         display: 'inline-flex',
                                         alignItems: 'center',
@@ -7545,7 +7548,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                       }}
                                     >
                                       <RefreshCw size={14} className={syncingOrderId === selectedOrder.id ? 'animate-spin' : ''} />
-                                      <span>{syncingOrderId === selectedOrder.id ? 'Sinkronisasi...' : 'Sinkronisasi Status Aulaa'}</span>
+                                      <span>{syncingOrderId === selectedOrder.id ? 'Sinkronisasi...' : 'Cek Status Aulaa'}</span>
                                     </button>
                                   )}
 
@@ -7591,6 +7594,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           color: '#f59e0b',
                                           fontSize: '0.76rem',
                                           fontWeight: 700,
+                                          whiteSpace: 'nowrap',
                                           cursor: 'pointer',
                                           display: 'inline-flex',
                                           alignItems: 'center',
@@ -7598,7 +7602,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                         }}
                                       >
                                         <RotateCcw size={14} />
-                                        <span>Kembalikan ke Pending</span>
+                                        <span>Set Pending</span>
                                       </button>
                                     )}
 
@@ -7619,6 +7623,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           color: '#ef4444',
                                           fontWeight: 700,
                                           fontSize: '0.78rem',
+                                          whiteSpace: 'nowrap',
                                           cursor: 'pointer',
                                           display: 'inline-flex',
                                           alignItems: 'center',
@@ -7626,7 +7631,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                         }}
                                       >
                                         <XCircle size={14} />
-                                        <span>{desc.isActive ? 'Cabut & Tolak' : 'Tolak Pesanan'}</span>
+                                        <span>{desc.isActive ? 'Cabut' : 'Tolak'}</span>
                                       </button>
                                     )}
 
@@ -7644,6 +7649,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                           color: '#ffffff',
                                           fontWeight: 800,
                                           fontSize: '0.78rem',
+                                          whiteSpace: 'nowrap',
                                           cursor: 'pointer',
                                           display: 'inline-flex',
                                           alignItems: 'center',
@@ -7651,7 +7657,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                         }}
                                       >
                                         <CheckCircle2 size={15} />
-                                        <span>Terima &amp; Aktifkan Paket</span>
+                                        <span>Terima &amp; Aktifkan</span>
                                       </button>
                                     )}
                                   </div>

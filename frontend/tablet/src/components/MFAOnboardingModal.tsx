@@ -459,11 +459,12 @@ export function MFAOnboardingModal({ setupToken, email, apiBase, onCancel, onCom
                   background: '#2563eb',
                   color: '#ffffff',
                   fontWeight: 700,
+                  whiteSpace: 'nowrap',
                   cursor: savedAck ? 'pointer' : 'not-allowed',
                   opacity: savedAck ? 1 : 0.5,
                 }}
               >
-                Lanjutkan ke Konsol Pengelola
+                Ke Konsol Admin
               </button>
             </div>
           </div>
