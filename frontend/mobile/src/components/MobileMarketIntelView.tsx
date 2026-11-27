@@ -1220,9 +1220,12 @@ export const MobileMarketIntelView: React.FC<MobileMarketIntelViewProps> = ({
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', gap: '0.4rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                           <Clock size={16} style={{ color: '#8b5cf6' }} />
-                          <h4 style={{ margin: 0, fontSize: '0.86rem', fontWeight: 800, color: theme.textPrimary }}>
-                            Kurva Jam Sibuk
-                          </h4>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: '0.86rem', fontWeight: 800, color: theme.textPrimary }}>
+                              Kurva Jam Sibuk
+                            </h4>
+                            <span style={{ fontSize: '0.62rem', color: theme.textSecondary }}>Waktu Server (WIB)</span>
+                          </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', backgroundColor: theme.cardAlt, padding: '2px', borderRadius: '8px', border: `1px solid ${theme.border}` }}>
                           {(['24h', 'time_bands'] as const).map((m) => (
@@ -1248,7 +1251,11 @@ export const MobileMarketIntelView: React.FC<MobileMarketIntelViewProps> = ({
                         </div>
                       </div>
 
-                      {heatmapViewMode === '24h' ? (
+                      {!(telemetryData.hourly_heatmap || []).some((h) => (h.views || 0) > 0) ? (
+                        <p style={{ margin: 0, fontSize: '0.74rem', color: theme.textSecondary }}>
+                          Belum ada data distribusi jam sibuk pengunjung pada periode ini.
+                        </p>
+                      ) : heatmapViewMode === '24h' ? (
                         <>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '0.25rem', alignItems: 'end', minHeight: '80px' }}>
                             {telemetryData.hourly_heatmap.map((h, idx) => {
@@ -1256,7 +1263,7 @@ export const MobileMarketIntelView: React.FC<MobileMarketIntelViewProps> = ({
                               return (
                                 <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', height: '100%', justifyContent: 'flex-end' }}>
                                   <div
-                                    title={`Pukul ${h.hour}:00 UTC - ${h.views} kunjungan`}
+                                    title={`Jam ${h.hour}:00 WIB - ${h.views} kunjungan`}
                                     style={{ width: '100%', height: `${heightPercent}%`, maxHeight: '55px', borderRadius: '2px', backgroundColor: h.views === maxViews && h.views > 0 ? '#8b5cf6' : h.views > 0 ? 'rgba(139, 92, 246, 0.45)' : theme.cardAlt }}
                                   />
                                   <span style={{ fontSize: '0.58rem', color: theme.textSecondary }}>{h.hour}</span>

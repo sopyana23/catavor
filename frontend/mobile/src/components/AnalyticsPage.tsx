@@ -1990,7 +1990,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               </span>
             </div>
             <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: '10px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
-              {analyticsData?.traffic_sources?.length || 1} Kanal
+              {analyticsData?.traffic_sources?.length || 0} Kanal
             </span>
           </div>
 
@@ -2005,10 +2005,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               paddingRight: '0.25rem'
             }}
           >
-            {(analyticsData?.traffic_sources && analyticsData.traffic_sources.length > 0
-              ? analyticsData.traffic_sources
-              : [{ source: 'direct', name: 'Direct / Link Langsung', views: storeViews, total_actions: totalActions, percentage: 100, conversion_rate_percent: conversionRate }]
-            ).slice().sort((a, b) => (b.views || 0) - (a.views || 0)).map(ts => {
+            {(analyticsData?.traffic_sources && analyticsData.traffic_sources.length > 0) ? (
+              analyticsData.traffic_sources.slice().sort((a, b) => (b.views || 0) - (a.views || 0)).map(ts => {
               const getSourceColor = (s: string) => {
                 if (s === 'instagram') return '#e1306c';
                 if (s === 'tiktok') return '#06b6d4';
@@ -2041,7 +2039,12 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   </div>
                 </div>
               );
-            })}
+            })
+            ) : (
+              <div style={{ padding: '1rem 0.75rem', textAlign: 'center', fontSize: '0.74rem', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-deep)', borderRadius: '0.65rem', border: '1px dashed var(--border-light)' }}>
+                Belum ada data sumber trafik &amp; rujukan pada periode ini.
+              </div>
+            )}
           </div>
         </div>
 
@@ -2155,27 +2158,19 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         {/* Sub-grid of Audience Dimensions (Equal Height Clamped) */}
         {(() => {
           const locationsResult = aggregateTopNDimensions(
-            (analyticsData?.locations && analyticsData.locations.length > 0)
-              ? analyticsData.locations
-              : [{ dimension_value: 'indonesia', name: 'Indonesia (Nasional)', views: storeViews, percentage: 100, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions }],
+            analyticsData?.locations || [],
             5,
             'Kota Lainnya'
           );
 
           const browsersResult = aggregateTopNDimensions(
-            (analyticsData?.browsers && analyticsData.browsers.length > 0)
-              ? analyticsData.browsers
-              : [{ dimension_value: 'chrome', name: 'Chrome', views: Math.round(storeViews * 0.6), percentage: 60, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions },
-                 { dimension_value: 'instagram', name: 'Instagram In-App', views: Math.round(storeViews * 0.4), percentage: 40, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions }],
+            analyticsData?.browsers || [],
             5,
             'Peramban Lainnya'
           );
 
           const devicesResult = aggregateTopNDimensions(
-            (analyticsData?.devices && analyticsData.devices.length > 0)
-              ? analyticsData.devices
-              : [{ dimension_value: 'mobile', name: 'Mobile', views: storeViews, percentage: 85, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions },
-                 { dimension_value: 'desktop', name: 'Desktop', views: Math.round(storeViews * 0.15), percentage: 15, conversion_rate_percent: conversionRate, unique_visitors: Math.round(uniqueVisitors * 0.15), total_actions: 0 }],
+            analyticsData?.devices || [],
             3,
             'Perangkat Lainnya'
           );
@@ -2184,11 +2179,12 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           const visibleOs = isOsExpanded ? allOs : allOs.slice(0, 3);
           const remainingOsCount = Math.max(0, allOs.length - 3);
 
-          const timeBands = computeHourlyTimeBands(
+          const hourlyHeatmap =
             analyticsData?.hourly_heatmap && analyticsData.hourly_heatmap.length === 24
               ? analyticsData.hourly_heatmap
-              : Array.from({ length: 24 }, (_, i) => ({ hour: String(i).padStart(2, '0'), views: i >= 18 && i <= 21 ? 12 : i >= 12 && i <= 14 ? 8 : 2 }))
-          );
+              : [];
+          const hasHourlyTraffic = hourlyHeatmap.some((h) => (h.views || 0) > 0);
+          const timeBands = computeHourlyTimeBands(hourlyHeatmap);
 
           return (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.85rem' }}>
@@ -2206,24 +2202,30 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
                 {/* Devices list */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                  {devicesResult.displayItems.map(dev => (
-                    <div key={dev.dimension_value} style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{dev.name || dev.dimension_value}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>{dev.views.toLocaleString('id-ID')} ({dev.percentage.toFixed(0)}%)</span>
-                          {(dev.conversion_rate_percent || 0) > 0 && (
-                            <span style={{ fontSize: '0.64rem', color: '#10b981', fontWeight: 700 }}>
-                              {(dev.conversion_rate_percent || 0).toFixed(0)}% CR
-                            </span>
-                          )}
+                  {devicesResult.displayItems.length > 0 ? (
+                    devicesResult.displayItems.map(dev => (
+                      <div key={dev.dimension_value} style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{dev.name || dev.dimension_value}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>{dev.views.toLocaleString('id-ID')} ({dev.percentage.toFixed(0)}%)</span>
+                            {(dev.conversion_rate_percent || 0) > 0 && (
+                              <span style={{ fontSize: '0.64rem', color: '#10b981', fontWeight: 700 }}>
+                                {(dev.conversion_rate_percent || 0).toFixed(0)}% CR
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ width: '100%', height: '4px', borderRadius: '2px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.max(4, Math.min(100, dev.percentage))}%`, height: '100%', backgroundColor: '#3b82f6', borderRadius: '2px' }} />
                         </div>
                       </div>
-                      <div style={{ width: '100%', height: '4px', borderRadius: '2px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
-                        <div style={{ width: `${Math.max(4, Math.min(100, dev.percentage))}%`, height: '100%', backgroundColor: '#3b82f6', borderRadius: '2px' }} />
-                      </div>
+                    ))
+                  ) : (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', padding: '0.75rem 0', textAlign: 'center' }}>
+                      Belum ada data perangkat pada periode ini.
                     </div>
-                  ))}
+                  )}
                 </div>
 
                 {/* Controlled OS chips */}
@@ -2251,10 +2253,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                             fontSize: '0.65rem',
                             fontWeight: 700,
                             cursor: 'pointer',
-                            padding: 0
+                            padding: 0,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.2rem'
                           }}
                         >
-                          Lihat Semua ↗
+                          <span>Lihat Semua</span>
+                          <ArrowUpRight size={11} />
                         </button>
                       )}
                     </div>
@@ -2313,10 +2319,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         color: '#10b981',
                         fontSize: '0.65rem',
                         fontWeight: 700,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.2rem'
                       }}
                     >
-                      Lihat ({browsersResult.totalItemsCount}) ↗
+                      <span>Lihat ({browsersResult.totalItemsCount})</span>
+                      <ArrowUpRight size={11} />
                     </button>
                   ) : (
                     <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
@@ -2326,54 +2336,60 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                  {browsersResult.displayItems.map(br => {
-                    const isInApp = br.dimension_value.includes('in-app') || br.name.toLowerCase().includes('in-app');
-                    const isOthers = br.dimension_value === '__others__';
-                    return (
-                      <div
-                        key={br.dimension_value}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.15rem',
-                          cursor: isOthers ? 'pointer' : 'default'
-                        }}
-                        onClick={() => {
-                          if (isOthers) {
-                            setSelectedDimension({
-                              type: 'browsers',
-                              title: 'Peramban & Webview In-App Sosial',
-                              items: analyticsData?.browsers || []
-                            });
-                            setDimensionSheetOpen(true);
-                          }
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                          <span style={{ color: isOthers ? '#10b981' : 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <span>{br.name || br.dimension_value}</span>
-                            {isInApp && (
-                              <span style={{ fontSize: '0.58rem', padding: '0.05rem 0.3rem', borderRadius: '4px', backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', fontWeight: 700 }}>
-                                In-App
-                              </span>
-                            )}
-                            {isOthers && <span style={{ fontSize: '0.65rem', textDecoration: 'underline' }}>↗</span>}
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <span style={{ color: 'var(--text-secondary)' }}>{br.views.toLocaleString('id-ID')} ({br.percentage.toFixed(0)}%)</span>
-                            {(br.conversion_rate_percent || 0) > 0 && (
-                              <span style={{ fontSize: '0.64rem', color: '#10b981', fontWeight: 700 }}>
-                                {(br.conversion_rate_percent || 0).toFixed(0)}% CR
-                              </span>
-                            )}
+                  {browsersResult.displayItems.length > 0 ? (
+                    browsersResult.displayItems.map(br => {
+                      const isInApp = br.dimension_value.includes('in-app') || br.name.toLowerCase().includes('in-app');
+                      const isOthers = br.dimension_value === '__others__';
+                      return (
+                        <div
+                          key={br.dimension_value}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.15rem',
+                            cursor: isOthers ? 'pointer' : 'default'
+                          }}
+                          onClick={() => {
+                            if (isOthers) {
+                              setSelectedDimension({
+                                type: 'browsers',
+                                title: 'Peramban & Webview In-App Sosial',
+                                items: analyticsData?.browsers || []
+                              });
+                              setDimensionSheetOpen(true);
+                            }
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+                            <span style={{ color: isOthers ? '#10b981' : 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <span>{br.name || br.dimension_value}</span>
+                              {isInApp && (
+                                <span style={{ fontSize: '0.58rem', padding: '0.05rem 0.3rem', borderRadius: '4px', backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', fontWeight: 700 }}>
+                                  In-App
+                                </span>
+                              )}
+                              {isOthers && <ArrowUpRight size={11} />}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span style={{ color: 'var(--text-secondary)' }}>{br.views.toLocaleString('id-ID')} ({br.percentage.toFixed(0)}%)</span>
+                              {(br.conversion_rate_percent || 0) > 0 && (
+                                <span style={{ fontSize: '0.64rem', color: '#10b981', fontWeight: 700 }}>
+                                  {(br.conversion_rate_percent || 0).toFixed(0)}% CR
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ width: '100%', height: '4px', borderRadius: '2px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
+                            <div style={{ width: `${Math.max(4, Math.min(100, br.percentage))}%`, height: '100%', backgroundColor: isInApp ? '#ec4899' : '#10b981', borderRadius: '2px' }} />
                           </div>
                         </div>
-                        <div style={{ width: '100%', height: '4px', borderRadius: '2px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
-                          <div style={{ width: `${Math.max(4, Math.min(100, br.percentage))}%`, height: '100%', backgroundColor: isInApp ? '#ec4899' : '#10b981', borderRadius: '2px' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  ) : (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', padding: '0.75rem 0', textAlign: 'center' }}>
+                      Belum ada data peramban pada periode ini.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2403,10 +2419,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         color: '#f59e0b',
                         fontSize: '0.65rem',
                         fontWeight: 700,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.2rem'
                       }}
                     >
-                      Lihat ({locationsResult.totalItemsCount}) ↗
+                      <span>Lihat ({locationsResult.totalItemsCount})</span>
+                      <ArrowUpRight size={11} />
                     </button>
                   ) : (
                     <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
@@ -2416,41 +2436,47 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                  {locationsResult.displayItems.map(loc => {
-                    const isOthers = loc.dimension_value === '__others__';
-                    return (
-                      <div
-                        key={loc.dimension_value}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.15rem',
-                          cursor: isOthers ? 'pointer' : 'default'
-                        }}
-                        onClick={() => {
-                          if (isOthers) {
-                            setSelectedDimension({
-                              type: 'locations',
-                              title: 'Asal Kota Pengunjung (Coarse Geo)',
-                              items: analyticsData?.locations || []
-                            });
-                            setDimensionSheetOpen(true);
-                          }
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-                          <span style={{ color: isOthers ? '#f59e0b' : 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <span>{loc.name || loc.dimension_value}</span>
-                            {isOthers && <span style={{ fontSize: '0.65rem', textDecoration: 'underline' }}>↗</span>}
-                          </span>
-                          <span style={{ color: 'var(--text-secondary)' }}>{loc.views.toLocaleString('id-ID')} ({loc.percentage.toFixed(0)}%)</span>
+                  {locationsResult.displayItems.length > 0 ? (
+                    locationsResult.displayItems.map(loc => {
+                      const isOthers = loc.dimension_value === '__others__';
+                      return (
+                        <div
+                          key={loc.dimension_value}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.15rem',
+                            cursor: isOthers ? 'pointer' : 'default'
+                          }}
+                          onClick={() => {
+                            if (isOthers) {
+                              setSelectedDimension({
+                                type: 'locations',
+                                title: 'Asal Kota Pengunjung (Coarse Geo)',
+                                items: analyticsData?.locations || []
+                              });
+                              setDimensionSheetOpen(true);
+                            }
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem' }}>
+                            <span style={{ color: isOthers ? '#f59e0b' : 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <span>{loc.name || loc.dimension_value}</span>
+                              {isOthers && <ArrowUpRight size={11} />}
+                            </span>
+                            <span style={{ color: 'var(--text-secondary)' }}>{loc.views.toLocaleString('id-ID')} ({loc.percentage.toFixed(0)}%)</span>
+                          </div>
+                          <div style={{ width: '100%', height: '4px', borderRadius: '2px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
+                            <div style={{ width: `${Math.max(4, Math.min(100, loc.percentage))}%`, height: '100%', backgroundColor: '#f59e0b', borderRadius: '2px' }} />
+                          </div>
                         </div>
-                        <div style={{ width: '100%', height: '4px', borderRadius: '2px', backgroundColor: 'var(--border-light)', overflow: 'hidden' }}>
-                          <div style={{ width: `${Math.max(4, Math.min(100, loc.percentage))}%`, height: '100%', backgroundColor: '#f59e0b', borderRadius: '2px' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  ) : (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', padding: '0.75rem 0', textAlign: 'center' }}>
+                      Belum ada data kota pengunjung pada periode ini.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2497,21 +2523,22 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                   </div>
                 </div>
 
-                {heatmapViewMode === '24h' ? (
+                {!hasHourlyTraffic ? (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', padding: '0.75rem 0', textAlign: 'center' }}>
+                    Belum ada data distribusi jam sibuk pengunjung pada periode ini.
+                  </div>
+                ) : heatmapViewMode === '24h' ? (
                   <>
                     {/* 24 bars mini spark-heatmap */}
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '52px', paddingTop: '0.3rem' }}>
-                      {(analyticsData?.hourly_heatmap && analyticsData.hourly_heatmap.length === 24
-                        ? analyticsData.hourly_heatmap
-                        : Array.from({ length: 24 }, (_, i) => ({ hour: String(i).padStart(2, '0'), views: i >= 18 && i <= 21 ? 12 : i >= 12 && i <= 14 ? 8 : 2 }))
-                      ).map(hPoint => {
-                        const maxHViews = Math.max(1, ...(analyticsData?.hourly_heatmap || []).map(p => p.views));
+                      {hourlyHeatmap.map(hPoint => {
+                        const maxHViews = Math.max(1, ...hourlyHeatmap.map(p => p.views));
                         const heightPercent = Math.max(8, Math.min(100, (hPoint.views / maxHViews) * 100));
                         const isPeakHour = hPoint.views === maxHViews && hPoint.views > 0;
                         return (
                           <div
                             key={hPoint.hour}
-                            title={`Jam ${hPoint.hour}:00 - ${hPoint.views} tayangan`}
+                            title={`Jam ${hPoint.hour}:00 WIB - ${hPoint.views} tayangan`}
                             style={{
                               flex: 1,
                               height: `${heightPercent}%`,
