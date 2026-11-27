@@ -1250,7 +1250,8 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 
 		// E. Create Enterprise Activity Log (Audit Trail)
 		auditDesc := fmt.Sprintf("Laporan #%s (%s) diputuskan: Status '%s', Sanksi '%s'. Catatan: %s", report.ReportNumber, report.ReasonLabel, report.Status, report.ActionTaken, adminNotes)
-		activityLog := models.ActivityLog{
+		if err := services.RecordActivityErr(services.RecordActivityParams{
+			DB:          tx,
 			StoreID:     &report.StoreID,
 			UserID:      actorUserID,
 			ActorRole:   actorRole,
@@ -1264,9 +1265,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 			Description: auditDesc,
 			IPAddress:   c.IP(),
 			UserAgent:   c.Get("User-Agent"),
-			CreatedAt:   now,
-		}
-		if err := tx.Create(&activityLog).Error; err != nil {
+		}); err != nil {
 			return err
 		}
 

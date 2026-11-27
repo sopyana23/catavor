@@ -74,6 +74,7 @@ func main() {
 	// yang benar-benar disajikan (bukan hardcode yang cepat basi).
 	middleware.SetCSPDistDirs(cfg.DesktopDistDir, cfg.TabletDistDir, cfg.MobileDistDir)
 	middleware.SetupSecurityMiddlewares(app, cfg)
+	services.ConfigureAuditHMACKey(os.Getenv("AUDIT_HMAC_KEY"), cfg.JWTSecret)
 
 	// 6. Setup Storage & Handlers
 	storageService, err := storage.NewStorageService(cfg)
@@ -709,6 +710,7 @@ func main() {
 		// Enterprise Activity Logs (scoped ke toko sendiri — tetap di grup merchant)
 		guarded.Get("/activity-logs", activityLogHandler.GetStoreActivityLogs)
 		guarded.Get("/activity-logs/summary", activityLogHandler.GetActivitySummary)
+		guarded.Get("/activity-logs/export", middleware.ExportRateLimiter(), activityLogHandler.ExportStoreActivityLogs)
 	}
 
 	// 8.1 Dedicated Platform Admin API Group (Granular RBAC + Mandatory MFA Protected)
@@ -824,6 +826,8 @@ func main() {
 
 		// Audit & Market Intelligence
 		adminApi.Get("/audit-logs", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.GetSuperadminAuditLogs)
+		adminApi.Get("/audit-logs/verify", middleware.RequirePermission(cfg, "audit:logs:read"), activityLogHandler.VerifySuperadminAuditChain)
+		adminApi.Get("/audit-logs/export", middleware.RequirePermission(cfg, "audit:logs:read"), middleware.ExportRateLimiter(), activityLogHandler.ExportSuperadminAuditLogs)
 		adminApi.Get("/analytics/overview", middleware.RequireAnyPermission(cfg, "market_intel:manage", "audit:logs:read", "finance:revenue:read", "system:settings:manage"), analyticsHandler.GetGlobalAnalyticsOverview)
 		adminApi.Get("/market-intelligence", middleware.RequirePermission(cfg, "market_intel:manage"), analyticsHandler.GetMarketIntelligenceSummary)
 		adminApi.Get("/market-intelligence/export", middleware.RequirePermission(cfg, "market_intel:manage"), middleware.ExportRateLimiter(), analyticsHandler.ExportMarketIntelligenceData)

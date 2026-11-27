@@ -17,7 +17,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -121,40 +120,31 @@ func (h *MFAHandler) requireFreshAuth(c *fiber.Ctx, user *models.User, inlinePas
 	return false
 }
 
-func createSecurityAuditTx(tx *gorm.DB, c *fiber.Ctx, user *models.User, action, description string, extra map[string]interface{}, now time.Time) error {
+func createSecurityAuditTx(tx *gorm.DB, c *fiber.Ctx, user *models.User, action, description string, extra map[string]interface{}, _ time.Time) error {
 	if tx == nil || user == nil {
 		return mfa.ErrStorageUnavailable
-	}
-	payload := map[string]interface{}{}
-	for k, v := range extra {
-		payload[k] = v
-	}
-	rawChanges, err := json.Marshal(payload)
-	if err != nil {
-		return err
 	}
 	uid := user.ID
 	actorName := strings.TrimSpace(user.Name)
 	if actorName == "" {
 		actorName = user.Email
 	}
-	entry := models.ActivityLog{
+	return services.RecordActivityErr(services.RecordActivityParams{
+		DB:          tx,
 		UserID:      &uid,
-		EntityID:    &uid,
-		EntityType:  "user",
-		EntityTitle: user.Email,
 		ActorRole:   user.PlatformStaffRoleLabel(),
 		ActorName:   actorName,
 		ActorEmail:  user.Email,
 		Action:      action,
 		Category:    "security",
+		EntityType:  "user",
+		EntityID:    &uid,
+		EntityTitle: user.Email,
 		Description: description,
-		Changes:     datatypes.JSON(rawChanges),
+		Changes:     extra,
 		IPAddress:   c.IP(),
 		UserAgent:   c.Get("User-Agent"),
-		CreatedAt:   now,
-	}
-	return tx.Create(&entry).Error
+	})
 }
 
 func resolvePrimaryStoreForSession(db *gorm.DB, full *models.User, preferredSlug string) ([]StoreSummary, StoreSummary, *models.Store) {
@@ -247,17 +237,17 @@ func (h *MFAHandler) StartEnrollment(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Pindai QR code dengan aplikasi authenticator, lalu kirim kode 6 digit untuk mengaktifkan.",
 		"data": fiber.Map{
-			"secret":       secret,
-			"otpauth_url":  otpAuthURL,
-			"qr_svg":       qrSVG,
-			"qr_data_url":  qrDataURL,
-			"issuer":       issuer,
-			"account":      user.Email,
-			"digits":       security.TOTPDigits,
-			"period":       int(security.TOTPStep.Seconds()),
-			"algorithm":    "SHA1",
-			"setup_jti":    setupJTI,
-			"expires_at":   setupExp,
+			"secret":      secret,
+			"otpauth_url": otpAuthURL,
+			"qr_svg":      qrSVG,
+			"qr_data_url": qrDataURL,
+			"issuer":      issuer,
+			"account":     user.Email,
+			"digits":      security.TOTPDigits,
+			"period":      int(security.TOTPStep.Seconds()),
+			"algorithm":   "SHA1",
+			"setup_jti":   setupJTI,
+			"expires_at":  setupExp,
 		},
 	})
 }

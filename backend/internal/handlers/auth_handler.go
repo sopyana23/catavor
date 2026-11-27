@@ -3415,7 +3415,25 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.NotificationRead{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Unscoped().Where("user_id = ?", user.ID).Delete(&models.ActivityLog{}).Error; err != nil {
+		if err := services.RecordActivityErr(services.RecordActivityParams{
+			DB:          tx,
+			UserID:      &user.ID,
+			ActorRole:   user.PlatformStaffRoleLabel(),
+			ActorName:   user.Name,
+			ActorEmail:  user.Email,
+			Action:      "account.delete",
+			Category:    "security",
+			EntityType:  "user",
+			EntityID:    &user.ID,
+			EntityTitle: user.Email,
+			Description: fmt.Sprintf("Akun %s menghapus permanen akun dan %d katalog terkait.", user.Email, len(storeIDs)),
+			Changes: map[string]interface{}{
+				"store_ids":   storeIDs,
+				"store_count": len(storeIDs),
+			},
+			IPAddress: c.IP(),
+			UserAgent: c.Get("User-Agent"),
+		}); err != nil {
 			return err
 		}
 

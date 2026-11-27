@@ -519,13 +519,16 @@ func runPostMigrationOptimizations(db *gorm.DB) {
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_is_suspended ON stores(is_suspended);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_is_blacklisted ON stores(is_blacklisted);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_stores_reactivation_token ON stores(reactivation_token);").Error
-	// 5. Ensure ActivityLog Table & Indexes
+	// 5. Ensure ActivityLog Table, Archive Table & Indexes
 	mustAutoMigrate(db, "activity_logs", &models.ActivityLog{})
+	mustAutoMigrate(db, "archived_activity_logs", &models.ArchivedActivityLog{})
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_store_created ON activity_logs(store_id, created_at DESC);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at DESC);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_action ON activity_logs(action);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_category ON activity_logs(category);").Error
 	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_role ON activity_logs(actor_role);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_chain_seq ON activity_logs(chain_seq);").Error
+	_ = db.Exec("CREATE INDEX IF NOT EXISTS idx_activity_entry_hash ON activity_logs(entry_hash);").Error
 
 	// 6. Ensure RBAC Schema, Permissions & Roles
 	_ = db.Exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS platform_role VARCHAR(50) DEFAULT 'merchant';").Error

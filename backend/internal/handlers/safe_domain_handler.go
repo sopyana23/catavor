@@ -11,10 +11,25 @@ import (
 	"catavor-backend/internal/database"
 	"catavor-backend/internal/models"
 	"catavor-backend/internal/security"
+	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
+
+func safeDomainAuditActor(c *fiber.Ctx) (*uint, string, string, string) {
+	if c != nil {
+		if u, ok := c.Locals("user").(*models.User); ok && u != nil {
+			uid := u.ID
+			role := u.PlatformStaffRoleLabel()
+			if role == "" {
+				role = "superadmin"
+			}
+			return &uid, role, u.Name, u.Email
+		}
+	}
+	return nil, "superadmin", "Admin", "admin@catavor.local"
+}
 
 type SafeDomainHandler struct {
 	db *gorm.DB
@@ -237,15 +252,17 @@ func (h *SafeDomainHandler) CreateSafeDomain(c *fiber.Ctx) error {
 		})
 	}
 
+	actorID, actorRole, actorName, actorEmail := safeDomainAuditActor(c)
+
 	item := models.SafeDomain{
 		Domain:      cleanDomain,
 		Category:    security.SanitizePlainText(category, 100),
 		Description: security.SanitizePlainText(req.Description, 500),
 		IsActive:    true,
 		IsSystem:    false,
-		CreatedBy:   "Admin",
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		CreatedBy:   actorEmail,
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
 	}
 
 	if err := h.db.Create(&item).Error; err != nil {
@@ -254,6 +271,25 @@ func (h *SafeDomainHandler) CreateSafeDomain(c *fiber.Ctx) error {
 			"error":   "Gagal menambahkan domain",
 		})
 	}
+
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      actorID,
+		ActorRole:   actorRole,
+		ActorName:   actorName,
+		ActorEmail:  actorEmail,
+		Action:      "admin.safe_domain_create",
+		Category:    "security",
+		EntityType:  "safe_domain",
+		EntityID:    &item.ID,
+		EntityTitle: item.Domain,
+		Description: fmt.Sprintf("Menambahkan domain whitelist '%s' (kategori: %s).", item.Domain, item.Category),
+		Changes: map[string]interface{}{
+			"after": map[string]interface{}{"domain": item.Domain, "category": item.Category, "is_active": item.IsActive},
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
 
 	database.InvalidateSafeDomainsCache(c.Context())
 
@@ -279,6 +315,13 @@ func (h *SafeDomainHandler) UpdateSafeDomain(c *fiber.Ctx) error {
 			"success": false,
 			"error":   "Domain tidak ditemukan",
 		})
+	}
+
+	beforeState := map[string]interface{}{
+		"domain":      item.Domain,
+		"category":    item.Category,
+		"description": item.Description,
+		"is_active":   item.IsActive,
 	}
 
 	var req struct {
@@ -321,13 +364,39 @@ func (h *SafeDomainHandler) UpdateSafeDomain(c *fiber.Ctx) error {
 		item.IsActive = *req.IsActive
 	}
 
-	item.UpdatedAt = time.Now()
+	item.UpdatedAt = time.Now().UTC()
 	if err := h.db.Save(&item).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"error":   "Gagal memperbarui domain",
 		})
 	}
+
+	actorID, actorRole, actorName, actorEmail := safeDomainAuditActor(c)
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      actorID,
+		ActorRole:   actorRole,
+		ActorName:   actorName,
+		ActorEmail:  actorEmail,
+		Action:      "admin.safe_domain_update",
+		Category:    "security",
+		EntityType:  "safe_domain",
+		EntityID:    &item.ID,
+		EntityTitle: item.Domain,
+		Description: fmt.Sprintf("Memperbarui domain whitelist '%s' (aktif=%v).", item.Domain, item.IsActive),
+		Changes: map[string]interface{}{
+			"before": beforeState,
+			"after": map[string]interface{}{
+				"domain":      item.Domain,
+				"category":    item.Category,
+				"description": item.Description,
+				"is_active":   item.IsActive,
+			},
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
 
 	database.InvalidateSafeDomainsCache(c.Context())
 
@@ -362,6 +431,26 @@ func (h *SafeDomainHandler) DeleteSafeDomain(c *fiber.Ctx) error {
 		})
 	}
 
+	actorID, actorRole, actorName, actorEmail := safeDomainAuditActor(c)
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      actorID,
+		ActorRole:   actorRole,
+		ActorName:   actorName,
+		ActorEmail:  actorEmail,
+		Action:      "admin.safe_domain_delete",
+		Category:    "security",
+		EntityType:  "safe_domain",
+		EntityID:    &item.ID,
+		EntityTitle: item.Domain,
+		Description: fmt.Sprintf("Menghapus domain whitelist '%s'.", item.Domain),
+		Changes: map[string]interface{}{
+			"before": map[string]interface{}{"domain": item.Domain, "category": item.Category, "is_active": item.IsActive},
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+
 	database.InvalidateSafeDomainsCache(c.Context())
 
 	return c.JSON(fiber.Map{
@@ -395,6 +484,22 @@ func (h *SafeDomainHandler) ResetDefaultSafeDomains(c *fiber.Ctx) error {
 			h.db.Save(&existing)
 		}
 	}
+
+	actorID, actorRole, actorName, actorEmail := safeDomainAuditActor(c)
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      actorID,
+		ActorRole:   actorRole,
+		ActorName:   actorName,
+		ActorEmail:  actorEmail,
+		Action:      "admin.safe_domain_reset_defaults",
+		Category:    "security",
+		EntityType:  "safe_domain",
+		EntityTitle: "Default Safe Domains",
+		Description: "Menyinkronkan master whitelist domain anti-phishing ke konfigurasi default.",
+		IPAddress:   c.IP(),
+		UserAgent:   c.Get("User-Agent"),
+	})
 
 	database.InvalidateSafeDomainsCache(c.Context())
 

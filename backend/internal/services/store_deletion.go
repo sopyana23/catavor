@@ -72,7 +72,6 @@ func DeleteStoreRecords(tx *gorm.DB, storeIDs ...uint) error {
 		"DELETE FROM store_daily_audience_metrics WHERE store_id IN ?",
 		"DELETE FROM recent_visitor_events WHERE store_id IN ?",
 		"DELETE FROM search_analytics WHERE store_id IN ?",
-		"DELETE FROM activity_logs WHERE store_id IN ?",
 	} {
 		if err := tx.Exec(statement, storeIDs).Error; err != nil {
 			return err

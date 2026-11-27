@@ -63,56 +63,56 @@ func (h *SettingHandler) PublicIndex(c *fiber.Ctx) error {
 	}
 
 	publicKeys := map[string]bool{
-		"store_title":              true,
-		"articles_enabled":         true,
-		"ads_enabled":              true,
-		"ads_client_id":            true,
-		"ads_auto_enabled":         true,
-		"ads_slot_header":          true,
-		"ads_slot_infeed":          true,
-		"ads_slot_product_detail":  true,
-		"ads_slot_bottom":          true,
-		"ads_slot_dashboard":       true,
-		"ads_test_mode":            true,
-		"ads_txt_content":          true,
-		"ga_enabled":               true,
-		"ga_measurement_id":        true,
-		"market_intel_enabled":     true,
-		"rekber_enabled":           true,
-		"rekber_partner_name":      true,
-		"rekber_website_url":       true,
-		"rekber_wa_number":         true,
-		"rekber_logo_url":          true,
-		"rekber_template_physical": true,
-		"rekber_template_general":  true,
-		"rekber_template_food":     true,
-		"rekber_template_digital":  true,
-		"rekber_template_service":  true,
-		"rekber_template_plant":    true,
-		"rekber_template_fauna":    true,
-		"maintenance_mode":         true,
-		"maintenance_message":      true,
-		"payment_system_mode":         true,
-		"payment_maintenance_title":    true,
-		"payment_maintenance_message":  true,
-		"payment_qris_manual_image":    true,
-		"payment_qris_manual_merchant": true,
-		"payment_bank_name":            true,
-		"payment_bank_account":         true,
-		"payment_bank_holder":          true,
+		"store_title":                   true,
+		"articles_enabled":              true,
+		"ads_enabled":                   true,
+		"ads_client_id":                 true,
+		"ads_auto_enabled":              true,
+		"ads_slot_header":               true,
+		"ads_slot_infeed":               true,
+		"ads_slot_product_detail":       true,
+		"ads_slot_bottom":               true,
+		"ads_slot_dashboard":            true,
+		"ads_test_mode":                 true,
+		"ads_txt_content":               true,
+		"ga_enabled":                    true,
+		"ga_measurement_id":             true,
+		"market_intel_enabled":          true,
+		"rekber_enabled":                true,
+		"rekber_partner_name":           true,
+		"rekber_website_url":            true,
+		"rekber_wa_number":              true,
+		"rekber_logo_url":               true,
+		"rekber_template_physical":      true,
+		"rekber_template_general":       true,
+		"rekber_template_food":          true,
+		"rekber_template_digital":       true,
+		"rekber_template_service":       true,
+		"rekber_template_plant":         true,
+		"rekber_template_fauna":         true,
+		"maintenance_mode":              true,
+		"maintenance_message":           true,
+		"payment_system_mode":           true,
+		"payment_maintenance_title":     true,
+		"payment_maintenance_message":   true,
+		"payment_qris_manual_image":     true,
+		"payment_qris_manual_merchant":  true,
+		"payment_bank_name":             true,
+		"payment_bank_account":          true,
+		"payment_bank_holder":           true,
 		"payment_aulaa_channel_qris":    true,
 		"payment_aulaa_channel_va":      true,
 		"payment_aulaa_channel_cc":      true,
 		"payment_aulaa_channel_ewallet": true,
-		"platform_official_whatsapp":   true,
-		"platform_official_email":      true,
-		"contact_whatsapp":             true,
-		"contact_email":                true,
-		"terms_conditions":             true,
-		"privacy_policy":               true,
-		"legal_entity_name":            true,
-		"legal_jurisdiction":           true,
-		"legal_warning_banner":         true,
+		"platform_official_whatsapp":    true,
+		"platform_official_email":       true,
+		"contact_whatsapp":              true,
+		"contact_email":                 true,
+		"terms_conditions":              true,
+		"privacy_policy":                true,
+		"legal_entity_name":             true,
+		"legal_jurisdiction":            true,
+		"legal_warning_banner":          true,
 	}
 
 	keys := make([]string, 0, len(publicKeys))
@@ -770,6 +770,7 @@ func validateAndPrepareMonetizationSettings(db *gorm.DB, payload map[string]stri
 func (h *SettingHandler) persistPlatformSettings(c *fiber.Ctx, payload map[string]string, successMsg string) error {
 	var filesToDelete []string
 	monetizationChanges := make(map[string]string)
+	generalChanges := make(map[string]string)
 
 	// ACID Atomic Database Transaction (AGENTS.md Rule 5 & Rule 10)
 	txErr := h.db.Transaction(func(tx *gorm.DB) error {
@@ -791,6 +792,10 @@ func (h *SettingHandler) persistPlatformSettings(c *fiber.Ctx, payload map[strin
 
 			if isMonetizationKey(sanitizedKey) {
 				monetizationChanges[sanitizedKey] = sanitizedVal
+			} else if secretPlatformKeys[sanitizedKey] {
+				generalChanges[sanitizedKey] = "[REDACTED]"
+			} else {
+				generalChanges[sanitizedKey] = sanitizedVal
 			}
 
 			var s models.Setting
@@ -824,8 +829,8 @@ func (h *SettingHandler) persistPlatformSettings(c *fiber.Ctx, payload map[strin
 		})
 	}
 
-	// Catat audit trail jika ada perubahan pengaturan monetisasi / GA4
-	if len(monetizationChanges) > 0 {
+	// Catat audit trail perubahan konfigurasi platform (monetisasi maupun umum)
+	if len(monetizationChanges) > 0 || len(generalChanges) > 0 {
 		var actorID *uint
 		var actorName, actorEmail, actorRole string
 		if u, ok := c.Locals("user").(*models.User); ok && u != nil {
@@ -833,29 +838,45 @@ func (h *SettingHandler) persistPlatformSettings(c *fiber.Ctx, payload map[strin
 			actorID = &uid
 			actorName = u.Name
 			actorEmail = u.Email
-			actorRole = u.PlatformRole
-			if actorRole == "" && u.IsSuperadmin() {
-				actorRole = "superadmin"
-			}
+			actorRole = u.PlatformStaffRoleLabel()
 		}
 		if actorRole == "" {
 			actorRole = "superadmin"
 		}
-		services.RecordActivity(services.RecordActivityParams{
-			DB:          h.db,
-			UserID:      actorID,
-			ActorRole:   actorRole,
-			ActorName:   actorName,
-			ActorEmail:  actorEmail,
-			Action:      "admin.monetization_settings_updated",
-			Category:    "superadmin",
-			EntityType:  "setting",
-			EntityTitle: "Google AdSense & GA4",
-			Description: fmt.Sprintf("Memperbarui %d konfigurasi monetisasi & analitik platform.", len(monetizationChanges)),
-			Changes:     map[string]interface{}{"updated": monetizationChanges},
-			IPAddress:   c.IP(),
-			UserAgent:   security.SanitizePlainText(c.Get("User-Agent"), 500),
-		})
+		if len(monetizationChanges) > 0 {
+			services.RecordActivity(services.RecordActivityParams{
+				DB:          h.db,
+				UserID:      actorID,
+				ActorRole:   actorRole,
+				ActorName:   actorName,
+				ActorEmail:  actorEmail,
+				Action:      "admin.monetization_settings_updated",
+				Category:    "superadmin",
+				EntityType:  "setting",
+				EntityTitle: "Google AdSense & GA4",
+				Description: fmt.Sprintf("Memperbarui %d konfigurasi monetisasi & analitik platform.", len(monetizationChanges)),
+				Changes:     map[string]interface{}{"updated": monetizationChanges},
+				IPAddress:   c.IP(),
+				UserAgent:   security.SanitizePlainText(c.Get("User-Agent"), 500),
+			})
+		}
+		if len(generalChanges) > 0 {
+			services.RecordActivity(services.RecordActivityParams{
+				DB:          h.db,
+				UserID:      actorID,
+				ActorRole:   actorRole,
+				ActorName:   actorName,
+				ActorEmail:  actorEmail,
+				Action:      "admin.settings_updated",
+				Category:    "superadmin",
+				EntityType:  "setting",
+				EntityTitle: "Konfigurasi Platform",
+				Description: fmt.Sprintf("Memperbarui %d konfigurasi pengaturan platform.", len(generalChanges)),
+				Changes:     map[string]interface{}{"updated": generalChanges},
+				IPAddress:   c.IP(),
+				UserAgent:   security.SanitizePlainText(c.Get("User-Agent"), 500),
+			})
+		}
 	}
 
 	// Multi-Layer Rollback (AGENTS.md Rule 10): Hapus berkas fisik lama dari Cloudflare R2 / storage
@@ -944,6 +965,23 @@ func (h *SettingHandler) ResetRekberDefaults(c *fiber.Ctx) error {
 			"message": "Gagal mereset konfigurasi Rekber Syariah.",
 		})
 	}
+
+	uid := user.ID
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      &uid,
+		ActorRole:   user.PlatformStaffRoleLabel(),
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      "admin.rekber_settings_reset",
+		Category:    "superadmin",
+		EntityType:  "setting",
+		EntityTitle: "Konfigurasi Rekber Syariah",
+		Description: "Mereset konfigurasi & template Rekber Syariah ke standar resmi platform.",
+		Changes:     map[string]interface{}{"reset_keys": keys},
+		IPAddress:   c.IP(),
+		UserAgent:   security.SanitizePlainText(c.Get("User-Agent"), 500),
+	})
 
 	// Multi-Layer Rollback: Hapus berkas fisik lama dari storage HANYA setelah DB delete sukses
 	if fileToDelete != "" && h.storage != nil {

@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -21,7 +20,6 @@ import (
 	"catavor-backend/internal/security"
 	"catavor-backend/internal/services"
 
-	"gorm.io/datatypes"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -641,16 +639,13 @@ func writeCLIAuditLog(
 	action string,
 	description string,
 	changes map[string]interface{},
-	now time.Time,
+	_ time.Time,
 ) error {
 	if !tx.Migrator().HasTable("activity_logs") {
 		return nil
 	}
-	rawChanges, err := json.Marshal(changes)
-	if err != nil {
-		return err
-	}
-	entry := models.ActivityLog{
+	return services.RecordActivityErr(services.RecordActivityParams{
+		DB:          tx,
 		UserID:      actorID,
 		ActorRole:   "superadmin",
 		ActorName:   actorName,
@@ -661,10 +656,8 @@ func writeCLIAuditLog(
 		EntityID:    actorID,
 		EntityTitle: actorEmail,
 		Description: description,
-		Changes:     datatypes.JSON(rawChanges),
+		Changes:     changes,
 		IPAddress:   "127.0.0.1",
 		UserAgent:   "catavor-admin-cli",
-		CreatedAt:   now,
-	}
-	return tx.Create(&entry).Error
+	})
 }

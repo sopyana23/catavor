@@ -1991,6 +1991,28 @@ func (h *StoreHandler) CreateStore(c *fiber.Ctx) error {
 		})
 	}
 
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		StoreID:     &newStore.ID,
+		UserID:      &user.ID,
+		ActorRole:   "merchant",
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      "store.create",
+		Category:    "store",
+		EntityType:  "store",
+		EntityID:    &newStore.ID,
+		EntityTitle: newStore.StoreTitle,
+		Description: fmt.Sprintf("Membuat profil katalog baru '%s' (%s).", newStore.StoreTitle, newStore.Slug),
+		Changes: map[string]interface{}{
+			"slug":        newStore.Slug,
+			"store_title": newStore.StoreTitle,
+			"plan":        newStore.Plan,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
+
 	cfg := h.cfg
 	if cfg == nil {
 		cfg = config.LoadConfig()
@@ -2300,6 +2322,30 @@ func (h *StoreHandler) DeleteStore(c *fiber.Ctx) error {
 			q = q.Where("user_id = ?", user.ID)
 		}
 		if err := q.First(&locked).Error; err != nil {
+			return err
+		}
+		if err := services.RecordActivityErr(services.RecordActivityParams{
+			DB:          tx,
+			StoreID:     &locked.ID,
+			UserID:      &user.ID,
+			ActorRole:   user.PlatformStaffRoleLabel(),
+			ActorName:   user.Name,
+			ActorEmail:  user.Email,
+			Action:      "store.delete",
+			Category:    "store",
+			EntityType:  "store",
+			EntityID:    &locked.ID,
+			EntityTitle: locked.StoreTitle,
+			Description: fmt.Sprintf("Menghapus permanen profil katalog '%s' (%s).", locked.StoreTitle, locked.Slug),
+			Changes: map[string]interface{}{
+				"store_id":    locked.ID,
+				"slug":        locked.Slug,
+				"store_title": locked.StoreTitle,
+				"plan":        locked.Plan,
+			},
+			IPAddress: c.IP(),
+			UserAgent: c.Get("User-Agent"),
+		}); err != nil {
 			return err
 		}
 		return services.DeleteStoreRecords(tx, locked.ID)

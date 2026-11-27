@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -128,6 +129,27 @@ func (h *SessionHandler) RevokeSession(c *fiber.Ctx) error {
 	}
 
 	isCurrent := (claims != nil && claims.ID == session.TokenID)
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      &user.ID,
+		ActorRole:   user.PlatformStaffRoleLabel(),
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      "auth.session_revoke",
+		Category:    "security",
+		EntityType:  "user_session",
+		EntityID:    &session.ID,
+		EntityTitle: session.DeviceName,
+		Description: fmt.Sprintf("Mencabut sesi perangkat %s (%s / %s).", session.DeviceName, session.OS, session.Browser),
+		Changes: map[string]interface{}{
+			"session_id":  session.ID,
+			"device_name": session.DeviceName,
+			"session_ip":  session.IPAddress,
+			"is_current":  isCurrent,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
 
 	return c.JSON(fiber.Map{
 		"success":    true,
@@ -167,6 +189,25 @@ func (h *SessionHandler) RevokeOtherSessions(c *fiber.Ctx) error {
 			"message": "Gagal memproses pencabutan sesi.",
 		})
 	}
+
+	services.RecordActivity(services.RecordActivityParams{
+		DB:          h.db,
+		UserID:      &user.ID,
+		ActorRole:   user.PlatformStaffRoleLabel(),
+		ActorName:   user.Name,
+		ActorEmail:  user.Email,
+		Action:      "auth.sessions_revoke_others",
+		Category:    "security",
+		EntityType:  "user_session",
+		EntityID:    &user.ID,
+		EntityTitle: user.Email,
+		Description: fmt.Sprintf("Mengeluarkan %d sesi perangkat lain pada akun %s.", revokedCount, user.Email),
+		Changes: map[string]interface{}{
+			"revoked_count": revokedCount,
+		},
+		IPAddress: c.IP(),
+		UserAgent: c.Get("User-Agent"),
+	})
 
 	return c.JSON(fiber.Map{
 		"success":       true,
