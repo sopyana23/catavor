@@ -18,6 +18,7 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import { useModalBackHandler } from '../utils/navigation';
+import { extractDownloadFilename, getWibDateStamp, triggerBlobDownload } from '../../../shared/marketIntel/model';
 
 export interface TrendingKeywordItem {
   keyword: string;
@@ -100,6 +101,7 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
   const [demandGaps, setDemandGaps] = useState<DemandGapItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
 
   const fetchMarketIntel = async () => {
@@ -148,25 +150,22 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
 
   const handleDownloadCsv = async () => {
     setDownloadingCsv(true);
+    setDownloadError(null);
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token') || sessionStorage.getItem('catavor_token') || sessionStorage.getItem('token');
       const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       const downloadUrl = `${apiBase}/api/market-intelligence/export?format=csv`;
       const res = await fetch(downloadUrl, { headers: authHeaders, credentials: 'include' });
       if (!res.ok) {
-        throw new Error('Gagal mengunduh data CSV riset pasar.');
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(typeof errJson.message === 'string' && errJson.message ? errJson.message : 'Gagal mengunduh data CSV riset pasar.');
       }
+      const fallbackName = `catavor-market-intelligence-${getWibDateStamp().replace(/-/g, '')}.csv`;
+      const filename = extractDownloadFilename(res.headers.get('content-disposition'), fallbackName);
       const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = `catavor-market-intelligence-${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
-    } catch (e) {
-      console.error('Download CSV error:', e);
+      triggerBlobDownload(blob, filename);
+    } catch (e: unknown) {
+      setDownloadError(e instanceof Error ? e.message : 'Gagal mengunduh data CSV riset pasar.');
     } finally {
       setDownloadingCsv(false);
     }
@@ -580,6 +579,12 @@ export const MarketIntelligenceModal: React.FC<MarketIntelligenceModalProps> = (
         </div>
 
         {/* Footer Actions */}
+        {downloadError && (
+          <div style={{ padding: '0.6rem 1.5rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderTop: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <AlertCircle size={15} />
+            <span>{downloadError}</span>
+          </div>
+        )}
         <div
           style={{
             padding: '1rem 1.5rem',

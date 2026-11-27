@@ -53,6 +53,7 @@ import {
   Radio
 } from 'lucide-react';
 import { createAuthFetch } from '../utils/auth';
+import { extractDownloadFilename, getWibDateStamp, triggerBlobDownload } from '../../../shared/marketIntel/model';
 import { useModalBackHandler } from '../utils/navigation';
 import { MarketIntelligenceModal } from './MarketIntelligenceModal';
 import { TabletDimensionSheet } from './TabletDimensionSheet';
@@ -460,24 +461,10 @@ export const TabletAnalyticsView: React.FC<TabletAnalyticsViewProps> = ({
         throw new Error(errJson.message || 'Gagal mengekspor data analitika');
       }
 
-      let filename = `catavor-analytics-${storeSlug || 'store'}-${t}-${p}-${new Date().toISOString().slice(0, 10)}.${t === 'package' ? 'zip' : 'csv'}`;
-      const disposition = res.headers.get('content-disposition');
-      if (disposition && disposition.includes('filename=')) {
-        const matches = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (matches && matches[1]) {
-          filename = matches[1].replace(/['"]/g, '');
-        }
-      }
-
+      const fallbackName = `catavor-analytics-${storeSlug || 'store'}-${t}-${p}-${getWibDateStamp()}.${t === 'package' ? 'zip' : 'csv'}`;
+      const filename = extractDownloadFilename(res.headers.get('content-disposition'), fallbackName);
       const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(blobUrl);
+      triggerBlobDownload(blob, filename);
       setShowExportModal(false);
       showToast?.(t === 'package' ? 'Arsip ZIP analitika berhasil diunduh!' : 'Laporan CSV berhasil diunduh!');
     } catch (err: any) {

@@ -550,6 +550,32 @@ export async function triggerMarketIntelAggregationBot(token: string): Promise<s
     : 'Bot Agregasi Riset Pasar berhasil dipicu di latar belakang.';
 }
 
+export function getWibDateStamp(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+}
+
+export function extractDownloadFilename(disposition: string | null, fallback: string): string {
+  if (disposition && disposition.includes('filename=')) {
+    const matches = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    if (matches && matches[1]) {
+      const cleaned = matches[1].replace(/['"]/g, '').trim();
+      if (cleaned) return cleaned;
+    }
+  }
+  return fallback;
+}
+
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const blobUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = blobUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1500);
+}
+
 export async function downloadAdminMarketIntelExport(
   token: string,
   format: 'csv' | 'json',
@@ -563,17 +589,10 @@ export async function downloadAdminMarketIntelExport(
     throw new Error(await readErrorMessage(res, `Gagal mengunduh laporan ${format.toUpperCase()}`));
   }
 
+  const fallbackName = `catavor-market-intelligence-${getWibDateStamp().replace(/-/g, '')}.${format}`;
+  const filename = extractDownloadFilename(res.headers.get('content-disposition'), fallbackName);
   const blob = await res.blob();
-  const datePart = new Date().toISOString().slice(0, 10);
-  const filename = `catavor-market-intelligence-${datePart}.${format}`;
-  const blobUrl = window.URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = blobUrl;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+  triggerBlobDownload(blob, filename);
   return filename;
 }
 
