@@ -3,11 +3,13 @@ import { createPortal } from 'react-dom';
 import {
   BarChart3,
   TrendingUp,
+  TrendingDown,
   Users,
   Eye,
   MessageCircle,
   Calendar,
   ArrowUpRight,
+  Star,
   Search,
   RefreshCw,
   Layers,
@@ -1105,13 +1107,28 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 style={{
                   fontSize: '0.66rem',
                   fontWeight: 800,
-                  padding: '0.08rem 0.35rem',
+                  padding: '0.1rem 0.4rem',
                   borderRadius: '10px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.2rem',
                   backgroundColor: analyticsData.growth.store_views_growth_percent > 0 ? 'rgba(16, 185, 129, 0.12)' : analyticsData.growth.store_views_growth_percent < 0 ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
                   color: analyticsData.growth.store_views_growth_percent > 0 ? '#10b981' : analyticsData.growth.store_views_growth_percent < 0 ? '#ef4444' : 'var(--text-secondary)'
                 }}
               >
-                {analyticsData.growth.store_views_growth_percent > 0 ? `↗ +${analyticsData.growth.store_views_growth_percent.toFixed(1)}%` : analyticsData.growth.store_views_growth_percent < 0 ? `↘ ${analyticsData.growth.store_views_growth_percent.toFixed(1)}%` : '— 0%'}
+                {analyticsData.growth.store_views_growth_percent > 0 ? (
+                  <>
+                    <TrendingUp size={11} />
+                    <span>+{analyticsData.growth.store_views_growth_percent.toFixed(1)}%</span>
+                  </>
+                ) : analyticsData.growth.store_views_growth_percent < 0 ? (
+                  <>
+                    <TrendingDown size={11} />
+                    <span>{analyticsData.growth.store_views_growth_percent.toFixed(1)}%</span>
+                  </>
+                ) : (
+                  <span>0%</span>
+                )}
               </span>
             )}
           </div>
@@ -1195,13 +1212,28 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 style={{
                   fontSize: '0.66rem',
                   fontWeight: 800,
-                  padding: '0.08rem 0.35rem',
+                  padding: '0.1rem 0.4rem',
                   borderRadius: '10px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.2rem',
                   backgroundColor: analyticsData.growth.total_actions_growth_percent > 0 ? 'rgba(16, 185, 129, 0.12)' : analyticsData.growth.total_actions_growth_percent < 0 ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-deep)',
                   color: analyticsData.growth.total_actions_growth_percent > 0 ? '#10b981' : analyticsData.growth.total_actions_growth_percent < 0 ? '#ef4444' : 'var(--text-secondary)'
                 }}
               >
-                {analyticsData.growth.total_actions_growth_percent > 0 ? `↗ +${analyticsData.growth.total_actions_growth_percent.toFixed(1)}%` : analyticsData.growth.total_actions_growth_percent < 0 ? `↘ ${analyticsData.growth.total_actions_growth_percent.toFixed(1)}%` : '— 0%'}
+                {analyticsData.growth.total_actions_growth_percent > 0 ? (
+                  <>
+                    <TrendingUp size={11} />
+                    <span>+{analyticsData.growth.total_actions_growth_percent.toFixed(1)}%</span>
+                  </>
+                ) : analyticsData.growth.total_actions_growth_percent < 0 ? (
+                  <>
+                    <TrendingDown size={11} />
+                    <span>{analyticsData.growth.total_actions_growth_percent.toFixed(1)}%</span>
+                  </>
+                ) : (
+                  <span>0%</span>
+                )}
               </span>
             )}
           </div>
@@ -1940,8 +1972,9 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               <div style={{ fontWeight: 800, marginBottom: '0.35rem', color: '#f8fafc', borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: '0.25rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>{formatDetailedDate(trends[hoveredPointIndex].date)}</span>
                 {hoveredPointIndex === peakIndex && isDisparityHigh && (
-                  <span style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 800, backgroundColor: 'rgba(245, 158, 11, 0.15)', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
-                    ★ Puncak
+                  <span style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 800, backgroundColor: 'rgba(245, 158, 11, 0.15)', padding: '0.12rem 0.4rem', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '0.22rem' }}>
+                    <Star size={11} style={{ fill: 'currentColor' }} />
+                    <span>Puncak</span>
                   </span>
                 )}
               </div>
@@ -2030,7 +2063,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               </span>
             </div>
             <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '12px', backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--border-light)' }}>
-              {analyticsData?.traffic_sources?.length || 1} Kanal
+              {analyticsData?.traffic_sources?.length || 0} Kanal
             </span>
           </div>
 
@@ -2042,46 +2075,50 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               gap: '0.75rem',
               maxHeight: '275px',
               overflowY: 'auto',
-              paddingRight: '0.35rem'
+              paddingRight: '0.35rem',
+              flex: 1
             }}
           >
-            {(analyticsData?.traffic_sources && analyticsData.traffic_sources.length > 0
-              ? analyticsData.traffic_sources
-              : [{ source: 'direct', name: 'Direct / Link Langsung', views: storeViews, total_actions: totalActions, percentage: 100, conversion_rate_percent: conversionRate }]
-            ).slice().sort((a, b) => (b.views || 0) - (a.views || 0)).map(ts => {
-              const getSourceColor = (s: string) => {
-                if (s === 'instagram') return '#e1306c';
-                if (s === 'tiktok') return '#06b6d4';
-                if (s === 'whatsapp') return '#25d366';
-                if (s === 'facebook') return '#1877f2';
-                if (s === 'google') return '#ea4335';
-                if (s === 'marketplace') return '#f97316';
-                return '#64748b';
-              };
-              const col = getSourceColor(ts.source);
+            {analyticsData?.traffic_sources && analyticsData.traffic_sources.length > 0 ? (
+              analyticsData.traffic_sources.slice().sort((a, b) => (b.views || 0) - (a.views || 0)).map(ts => {
+                const getSourceColor = (s: string) => {
+                  if (s === 'instagram') return '#e1306c';
+                  if (s === 'tiktok') return '#06b6d4';
+                  if (s === 'whatsapp') return '#25d366';
+                  if (s === 'facebook') return '#1877f2';
+                  if (s === 'google') return '#ea4335';
+                  if (s === 'marketplace') return '#f97316';
+                  return '#64748b';
+                };
+                const col = getSourceColor(ts.source);
 
-              return (
-                <div key={ts.source} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: col }} />
-                      <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{ts.name}</strong>
+                return (
+                  <div key={ts.source} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: col }} />
+                        <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{ts.name}</strong>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{ts.views.toLocaleString('id-ID')} tayangan</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>({ts.percentage.toFixed(1)}%)</span>
+                        <span style={{ fontSize: '0.7rem', color: ts.conversion_rate_percent > 0 ? '#10b981' : 'var(--text-secondary)', fontWeight: 700, backgroundColor: 'var(--bg-deep)', padding: '0.1rem 0.35rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
+                          {ts.conversion_rate_percent.toFixed(1)}% CR
+                        </span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                      <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{ts.views.toLocaleString()} tayangan</span>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>({ts.percentage.toFixed(1)}%)</span>
-                      <span style={{ fontSize: '0.7rem', color: ts.conversion_rate_percent > 0 ? '#10b981' : 'var(--text-secondary)', fontWeight: 700, backgroundColor: 'var(--bg-deep)', padding: '0.1rem 0.35rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}>
-                        {ts.conversion_rate_percent.toFixed(1)}% CR
-                      </span>
+                    {/* Progress Bar */}
+                    <div style={{ width: '100%', height: '6px', borderRadius: '3px', backgroundColor: 'var(--bg-deep)', overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.max(3, Math.min(100, ts.percentage))}%`, height: '100%', backgroundColor: col, borderRadius: '3px', transition: 'width 0.4s ease' }} />
                     </div>
                   </div>
-                  {/* Progress Bar */}
-                  <div style={{ width: '100%', height: '6px', borderRadius: '3px', backgroundColor: 'var(--bg-deep)', overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.max(3, Math.min(100, ts.percentage))}%`, height: '100%', backgroundColor: col, borderRadius: '3px', transition: 'width 0.4s ease' }} />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <div style={{ margin: 'auto 0', padding: '1.5rem 1rem', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-deep)', borderRadius: '0.65rem', border: '1px dashed var(--border-light)' }}>
+                Belum ada data sumber trafik &amp; rujukan pada periode ini.
+              </div>
+            )}
           </div>
         </div>
 
@@ -2194,33 +2231,13 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           </div>
         </div>
 
-        {/* Sub-grid of Audience Dimensions (Equal Height Clamped) */}
+        {/* Sub-grid of Audience Dimensions (Equal Height Clamped, Authentic Empty States) */}
         {(() => {
-          const locationsResult = aggregateTopNDimensions(
-            (analyticsData?.locations && analyticsData.locations.length > 0)
-              ? analyticsData.locations
-              : [{ dimension_value: 'indonesia', name: 'Indonesia (Nasional)', views: storeViews, percentage: 100, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions }],
-            5,
-            'Kota Lainnya'
-          );
-
-          const browsersResult = aggregateTopNDimensions(
-            (analyticsData?.browsers && analyticsData.browsers.length > 0)
-              ? analyticsData.browsers
-              : [{ dimension_value: 'chrome', name: 'Chrome', views: Math.round(storeViews * 0.6), percentage: 60, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions },
-                 { dimension_value: 'instagram', name: 'Instagram In-App', views: Math.round(storeViews * 0.4), percentage: 40, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions }],
-            5,
-            'Peramban Lainnya'
-          );
-
-          const devicesResult = aggregateTopNDimensions(
-            (analyticsData?.devices && analyticsData.devices.length > 0)
-              ? analyticsData.devices
-              : [{ dimension_value: 'mobile', name: 'Mobile', views: storeViews, percentage: 85, conversion_rate_percent: conversionRate, unique_visitors: uniqueVisitors, total_actions: totalActions },
-                 { dimension_value: 'desktop', name: 'Desktop', views: Math.round(storeViews * 0.15), percentage: 15, conversion_rate_percent: conversionRate, unique_visitors: Math.round(uniqueVisitors * 0.15), total_actions: 0 }],
-            4,
-            'Perangkat Lainnya'
-          );
+          const locationsResult = aggregateTopNDimensions(analyticsData?.locations || [], 5, 'Kota Lainnya');
+          const browsersResult = aggregateTopNDimensions(analyticsData?.browsers || [], 5, 'Peramban Lainnya');
+          const devicesResult = aggregateTopNDimensions(analyticsData?.devices || [], 4, 'Perangkat Lainnya');
+          const hourlyHeatmap = analyticsData?.hourly_heatmap || [];
+          const hasHourlyData = hourlyHeatmap.length > 0 && hourlyHeatmap.some(p => (p.views || 0) > 0);
 
           const allOs = analyticsData?.operating_systems || [];
           const visibleOs = isOsExpanded ? allOs : allOs.slice(0, 4);
@@ -2242,7 +2259,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
                 {/* Devices list */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', flex: 1 }}>
-                  {devicesResult.displayItems.map(dev => (
+                  {devicesResult.displayItems.length > 0 ? devicesResult.displayItems.map(dev => (
                     <div key={dev.dimension_value} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
                         <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{dev.name || dev.dimension_value}</span>
@@ -2259,7 +2276,11 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         <div style={{ width: `${Math.max(4, Math.min(100, dev.percentage))}%`, height: '100%', backgroundColor: '#3b82f6', borderRadius: '3px' }} />
                       </div>
                     </div>
-                  ))}
+                  )) : (
+                    <div style={{ margin: 'auto 0', textAlign: 'center', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                      Belum ada data perangkat pada periode ini.
+                    </div>
+                  )}
                 </div>
 
                 {/* Controlled OS chips */}
@@ -2287,10 +2308,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                             fontSize: '0.68rem',
                             fontWeight: 700,
                             cursor: 'pointer',
-                            padding: 0
+                            padding: 0,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.2rem'
                           }}
                         >
-                          Lihat Semua ↗
+                          <span>Lihat Semua</span>
+                          <ArrowUpRight size={12} />
                         </button>
                       )}
                     </div>
@@ -2349,10 +2374,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         color: '#10b981',
                         fontSize: '0.68rem',
                         fontWeight: 700,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.2rem'
                       }}
                     >
-                      Lihat Semua ({browsersResult.totalItemsCount}) ↗
+                      <span>Lihat Semua ({browsersResult.totalItemsCount})</span>
+                      <ArrowUpRight size={12} />
                     </button>
                   ) : (
                     <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
@@ -2362,7 +2391,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', flex: 1 }}>
-                  {browsersResult.displayItems.map(br => {
+                  {browsersResult.displayItems.length > 0 ? browsersResult.displayItems.map(br => {
                     const isInApp = br.dimension_value.includes('in-app') || br.name.toLowerCase().includes('in-app');
                     const isOthers = br.dimension_value === '__others__';
                     return (
@@ -2393,7 +2422,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                                 In-App
                               </span>
                             )}
-                            {isOthers && <span style={{ fontSize: '0.65rem', textDecoration: 'underline' }}>↗</span>}
+                            {isOthers && <ArrowUpRight size={12} style={{ color: '#10b981' }} />}
                           </span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <span style={{ color: 'var(--text-secondary)' }}>{br.views.toLocaleString('id-ID')} ({br.percentage.toFixed(0)}%)</span>
@@ -2409,7 +2438,11 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         </div>
                       </div>
                     );
-                  })}
+                  }) : (
+                    <div style={{ margin: 'auto 0', textAlign: 'center', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                      Belum ada data peramban pada periode ini.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2439,10 +2472,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         color: '#f59e0b',
                         fontSize: '0.68rem',
                         fontWeight: 700,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.2rem'
                       }}
                     >
-                      Lihat Semua ({locationsResult.totalItemsCount}) ↗
+                      <span>Lihat Semua ({locationsResult.totalItemsCount})</span>
+                      <ArrowUpRight size={12} />
                     </button>
                   ) : (
                     <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
@@ -2452,7 +2489,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', flex: 1 }}>
-                  {locationsResult.displayItems.map(loc => {
+                  {locationsResult.displayItems.length > 0 ? locationsResult.displayItems.map(loc => {
                     const isOthers = loc.dimension_value === '__others__';
                     return (
                       <div
@@ -2477,7 +2514,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
                           <span style={{ color: isOthers ? '#f59e0b' : 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             <span>{loc.name || loc.dimension_value}</span>
-                            {isOthers && <span style={{ fontSize: '0.65rem', textDecoration: 'underline' }}>↗</span>}
+                            {isOthers && <ArrowUpRight size={12} style={{ color: '#f59e0b' }} />}
                           </span>
                           <span style={{ color: 'var(--text-secondary)' }}>{loc.views.toLocaleString('id-ID')} ({loc.percentage.toFixed(0)}%)</span>
                         </div>
@@ -2486,7 +2523,11 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                         </div>
                       </div>
                     );
-                  })}
+                  }) : (
+                    <div style={{ margin: 'auto 0', textAlign: 'center', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                      Belum ada data kota pengunjung pada periode ini.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2503,37 +2544,42 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
                 </div>
 
                 {/* 24 bars mini spark-heatmap */}
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '180px', paddingTop: '1rem', flex: 1 }}>
-                  {(analyticsData?.hourly_heatmap && analyticsData.hourly_heatmap.length === 24
-                    ? analyticsData.hourly_heatmap
-                    : Array.from({ length: 24 }, (_, i) => ({ hour: String(i).padStart(2, '0'), views: i >= 18 && i <= 21 ? 12 : i >= 12 && i <= 14 ? 8 : 2 }))
-                  ).map(hPoint => {
-                    const maxHViews = Math.max(1, ...(analyticsData?.hourly_heatmap || []).map(p => p.views));
-                    const heightPercent = Math.max(8, Math.min(100, (hPoint.views / maxHViews) * 100));
-                    const isPeakHour = hPoint.views === maxHViews && hPoint.views > 0;
-                    return (
-                      <div
-                        key={hPoint.hour}
-                        title={`Jam ${hPoint.hour}:00 - ${hPoint.views} tayangan`}
-                        style={{
-                          flex: 1,
-                          height: `${heightPercent}%`,
-                          backgroundColor: isPeakHour ? '#8b5cf6' : hPoint.views > 0 ? 'rgba(139, 92, 246, 0.5)' : 'var(--border-light)',
-                          borderRadius: '3px 3px 0 0',
-                          transition: 'height 0.2s ease',
-                          cursor: 'pointer'
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', paddingTop: '0.25rem', borderTop: '1px solid var(--border-light)' }}>
-                  <span>00:00</span>
-                  <span>06:00</span>
-                  <span>12:00</span>
-                  <span>18:00</span>
-                  <span>23:00</span>
-                </div>
+                {hasHourlyData ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '180px', paddingTop: '1rem', flex: 1 }}>
+                      {hourlyHeatmap.map(hPoint => {
+                        const maxHViews = Math.max(1, ...hourlyHeatmap.map(p => p.views));
+                        const heightPercent = Math.max(8, Math.min(100, (hPoint.views / maxHViews) * 100));
+                        const isPeakHour = hPoint.views === maxHViews && hPoint.views > 0;
+                        return (
+                          <div
+                            key={hPoint.hour}
+                            title={`Jam ${hPoint.hour}:00 WIB - ${hPoint.views} tayangan`}
+                            style={{
+                              flex: 1,
+                              height: `${heightPercent}%`,
+                              backgroundColor: isPeakHour ? '#8b5cf6' : hPoint.views > 0 ? 'rgba(139, 92, 246, 0.5)' : 'var(--border-light)',
+                              borderRadius: '3px 3px 0 0',
+                              transition: 'height 0.2s ease',
+                              cursor: 'pointer'
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-secondary)', paddingTop: '0.25rem', borderTop: '1px solid var(--border-light)' }}>
+                      <span>00:00</span>
+                      <span>06:00</span>
+                      <span>12:00</span>
+                      <span>18:00</span>
+                      <span>23:00</span>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ margin: 'auto 0', textAlign: 'center', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                    Belum ada distribusi jam sibuk pengunjung pada periode ini.
+                  </div>
+                )}
               </div>
             </div>
           );

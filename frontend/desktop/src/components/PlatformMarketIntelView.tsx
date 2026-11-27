@@ -884,13 +884,18 @@ export const PlatformMarketIntelView: React.FC<PlatformMarketIntelViewProps> = (
                       </div>
                     </div>
 
-                    {/* Card 4: 24-Hour Peak Heatmap */}
+                    {/* Card 4: 24-Hour Peak Heatmap (WIB) */}
                     <div style={{ padding: '1rem 1.25rem', borderRadius: '0.75rem', backgroundColor: surfaceBg, border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: '340px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <Clock size={15} style={{ color: '#8b5cf6' }} />
-                          <span>Puncak Beban Server 24-Jam</span>
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <div>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Clock size={15} style={{ color: '#8b5cf6' }} />
+                            <span>Puncak Beban Server 24-Jam</span>
+                          </span>
+                          <span style={{ fontSize: '0.66rem', color: theme.textSecondary, display: 'block', marginTop: '0.1rem' }}>
+                            Waktu Server (WIB)
+                          </span>
+                        </div>
                         <div style={{ display: 'inline-flex', padding: '2px', borderRadius: '6px', backgroundColor: subSurfaceBg, border: `1px solid ${theme.border}` }}>
                           <button
                             type="button"
@@ -909,7 +914,11 @@ export const PlatformMarketIntelView: React.FC<PlatformMarketIntelViewProps> = (
                         </div>
                       </div>
 
-                      {heatmapViewMode === '24h' ? (
+                      {!telemetryData.hourly_heatmap.some((h) => (h.views || 0) > 0) ? (
+                        <div style={{ margin: 'auto 0', textAlign: 'center', fontSize: '0.75rem', color: theme.textMuted }}>
+                          Belum ada distribusi jam sibuk pengunjung pada periode ini.
+                        </div>
+                      ) : heatmapViewMode === '24h' ? (
                         <>
                           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '180px', paddingTop: '1rem', flex: 1 }}>
                             {telemetryData.hourly_heatmap.map((hPoint) => {
@@ -917,7 +926,7 @@ export const PlatformMarketIntelView: React.FC<PlatformMarketIntelViewProps> = (
                               return (
                                 <div
                                   key={hPoint.hour}
-                                  title={`Jam ${hPoint.hour}:00 UTC - ${hPoint.views} tayangan`}
+                                  title={`Jam ${hPoint.hour}:00 WIB - ${hPoint.views} tayangan`}
                                   style={{
                                     flex: 1,
                                     height: `${heightPercent}%`,
