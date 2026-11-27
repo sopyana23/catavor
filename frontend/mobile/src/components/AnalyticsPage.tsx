@@ -54,6 +54,7 @@ import { MarketIntelligenceModal } from './MarketIntelligenceModal';
 import { useModalBackHandler } from '../utils/navigation';
 import { MobileDimensionSheet } from './MobileDimensionSheet';
 import { aggregateTopNDimensions, computeHourlyTimeBands, type DimensionalMetric } from '../utils/telemetryHelpers';
+import { extractDownloadFilename, getWibDateStamp, triggerBlobDownload } from '../../../shared/marketIntel/model';
 
 export interface AnalyticsTrendPoint {
   date: string;
@@ -306,24 +307,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         throw new Error(errJson.message || 'Gagal mengekspor data analitika');
       }
 
-      let filename = `catavor-analytics-${storeSlug || 'store'}-${t}-${p}-${new Date().toISOString().slice(0, 10)}.${t === 'package' ? 'zip' : 'csv'}`;
-      const disposition = res.headers.get('content-disposition');
-      if (disposition && disposition.includes('filename=')) {
-        const matches = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (matches && matches[1]) {
-          filename = matches[1].replace(/['"]/g, '');
-        }
-      }
-
+      const fallbackName = `catavor-analytics-${storeSlug || 'store'}-${t}-${p}-${getWibDateStamp()}.${t === 'package' ? 'zip' : 'csv'}`;
+      const filename = extractDownloadFilename(res.headers.get('content-disposition'), fallbackName);
       const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(blobUrl);
+      triggerBlobDownload(blob, filename);
       setShowExportModal(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Gagal mengekspor berkas analitika. Silakan coba lagi.';
