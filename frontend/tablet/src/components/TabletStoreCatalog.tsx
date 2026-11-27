@@ -758,11 +758,15 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     }
   }, [slug, trackAnalytics]);
 
+  const latestSelectedItemRef = useRef<any>(null);
+  latestSelectedItemRef.current = selectedFauna;
+
   useEffect(() => {
-    if (selectedFauna?.id) {
-      trackAnalytics('product_view', selectedFauna.id, selectedFauna.product_type, selectedFauna.name);
+    const item = latestSelectedItemRef.current;
+    if (selectedFauna?.id && item) {
+      trackAnalytics('product_view', item.id, item.product_type, item.name);
     }
-  }, [selectedFauna, trackAnalytics]);
+  }, [selectedFauna?.id, trackAnalytics]);
 
   // Global external link warning prompt listener
   useEffect(() => {
