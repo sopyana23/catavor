@@ -50,7 +50,11 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  FileCheck
+  FileCheck,
+  Briefcase,
+  HelpCircle,
+  Scale,
+  Shield
 } from 'lucide-react';
 import apiClient, { API_BASE } from '../utils/apiClient';
 import { TabletCustomSelect, type TabletSelectOption } from './TabletCustomSelect';
@@ -214,6 +218,162 @@ export const getCatalogItemUnit = (prod: any): string => {
   }
 };
 
+export const getCleanDomain = (rawUrl?: string): string => {
+  if (!rawUrl) return 'rekbersyariah.com';
+  try {
+    const u = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+    return u.hostname || 'rekbersyariah.com';
+  } catch {
+    return rawUrl.replace(/^https?:\/\//i, '').split('/')[0] || 'rekbersyariah.com';
+  }
+};
+
+export interface NormalizedPurchaseLink {
+  platform: string;
+  url: string;
+}
+
+export function getNormalizedPurchaseLinks(item: any): NormalizedPurchaseLink[] {
+  const rawLinks = item?.detailed_info?.purchase_links || [
+    ...(item?.detailed_info?.shopee_url ? [{ platform: 'Shopee', url: item.detailed_info.shopee_url }] : []),
+    ...(item?.detailed_info?.tokopedia_url ? [{ platform: 'Tokopedia', url: item.detailed_info.tokopedia_url }] : []),
+    ...(item?.detailed_info?.lazada_url ? [{ platform: 'Lazada', url: item.detailed_info.lazada_url }] : []),
+    ...(item?.detailed_info?.bukalapak_url ? [{ platform: 'Bukalapak', url: item.detailed_info.bukalapak_url }] : []),
+    ...(item?.detailed_info?.custom_shop_url ? [{ platform: item.detailed_info.custom_shop_name || 'Marketplace', url: item.detailed_info.custom_shop_url }] : [])
+  ];
+  if (!Array.isArray(rawLinks)) return [];
+  return rawLinks.filter((link: any) => Boolean(link?.platform && String(link.url || '').trim()));
+}
+
+export function generateRekberMessage(
+  product: any,
+  shopSettings: any,
+  pSettings: Record<string, any>,
+  formatPrice: (num: number) => string
+): string {
+  const pType = (product?.product_type || 'physical') as string;
+  const storeTitle = shopSettings?.store_title || 'Catavor';
+  const prodName = product?.name || 'Item';
+  const prodPrice = formatPrice(Number(product?.price || 0));
+  const rekberUrl = pSettings?.rekber_website_url || 'https://rekbersyariah.com';
+  const rekberDomain = getCleanDomain(rekberUrl);
+  const rekberWA = String(pSettings?.rekber_wa_number || '62811220227').trim();
+  const cleanWA = rekberWA.replace(/\D/g, '') || '62811220227';
+  const waLink = `https://wa.me/${cleanWA}`;
+  const waSection = ` atau hubungi WhatsApp Admin Rekber Syariah di *+${cleanWA}* agar dapat dibuatkan grup transaksi bersama`;
+
+  const typeLabels: Record<string, string> = {
+    physical: 'Barang Fisik',
+    food: 'Menu Kuliner',
+    digital: 'Item Digital',
+    service: 'Layanan Jasa',
+    plant: 'Tanaman',
+    fauna: 'Satwa / Hewan',
+    property: 'Properti'
+  };
+  const itemTypeLabel = typeLabels[pType] || 'Item';
+
+  let template = '';
+  if (pType === 'food') {
+    template = pSettings?.rekber_template_food || '';
+  } else if (pType === 'digital') {
+    template = pSettings?.rekber_template_digital || '';
+  } else if (pType === 'service') {
+    template = pSettings?.rekber_template_service || '';
+  } else if (pType === 'plant') {
+    template = pSettings?.rekber_template_plant || '';
+  } else if (pType === 'fauna') {
+    template = pSettings?.rekber_template_fauna || '';
+  } else {
+    template = pSettings?.rekber_template_physical || pSettings?.rekber_template_general || '';
+  }
+
+  if (!template) {
+    if (pType === 'food') {
+      template = `Halo *{store_title}*, saya ingin memesan menu kuliner berikut:
+
+*Menu:* {item_name}
+*Harga:* {item_price}
+
+Saya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
+    } else if (pType === 'digital') {
+      template = `Halo *{store_title}*, saya ingin membeli item digital berikut:
+
+*Item:* {item_name}
+*Harga:* {item_price}
+
+Saya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* agar file dan lisensi terlindungi secara aman.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
+    } else if (pType === 'service') {
+      template = `Halo *{store_title}*, saya ingin memesan layanan jasa berikut:
+
+*Layanan:* {item_name}
+*Tarif:* {item_price}
+
+Saya ingin bertransaksi menggunakan perlindungan escrow *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman selama masa pengerjaan.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
+    } else if (pType === 'plant') {
+      template = `Halo *{store_title}*, saya ingin membeli tanaman berikut:
+
+*Tanaman:* {item_name}
+*Harga:* {item_price}
+
+Saya ingin bertransaksi menggunakan perlindungan *Rekening Bersama Syariah ({rekber_website_domain})* agar dana aman hingga tanaman tiba dalam kondisi segar.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
+    } else if (pType === 'fauna') {
+      template = `Halo *{store_title}*, saya berminat membeli / mengadopsi hewan berikut:
+
+*Satwa/Hewan:* {item_name}
+*Harga:* {item_price}
+
+Saya ingin bertransaksi menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})* dengan proteksi garansi hidup & kesehatan saat tiba.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
+    } else {
+      template = `Halo *{store_title}*, saya berminat membeli produk berikut:
+
+*Produk:* {item_name}
+*Harga:* {item_price}
+
+Saya ingin bertransaksi secara aman menggunakan layanan *Rekening Bersama Syariah ({rekber_website_domain})*.
+
+Mohon bantuannya untuk memproses pesanan ini melalui website {rekber_website_url} atau hubungi WhatsApp Admin Rekber Syariah di *+{rekber_wa_number}* agar dapat dibuatkan grup transaksi bersama.
+
+Terima kasih.`;
+    }
+  }
+
+  const cleanTemplate = cleanEmoji(template).replace(/^[ \t]+/gm, '');
+
+  return cleanTemplate
+    .replace(/{store_title}/g, storeTitle)
+    .replace(/{item_name}/g, prodName)
+    .replace(/{product_name}/g, prodName)
+    .replace(/{item_price}/g, prodPrice)
+    .replace(/{product_price}/g, prodPrice)
+    .replace(/{item_type_label}/g, itemTypeLabel)
+    .replace(/{rekber_website_url}/g, rekberUrl)
+    .replace(/{rekber_website_domain}/g, rekberDomain)
+    .replace(/{rekber_wa_number}/g, cleanWA)
+    .replace(/{rekber_wa_link}/g, waLink)
+    .replace(/{rekber_wa_section}/g, waSection);
+}
+
 export function getItemActionConfig(item: any) {
   const pType = (item?.product_type || 'physical');
 
@@ -222,7 +382,16 @@ export function getItemActionConfig(item: any) {
       type: 'property',
       shortLabel: 'Hubungi Agen',
       fullLabel: 'Hubungi Agen / Janji Survey',
-      Icon: MessageCircle
+      Icon: MessageCircle,
+      modalTitle: 'Pilih Jalur Komunikasi & Survey',
+      modalSubtitle: 'Pilih jalur komunikasi langsung dengan agen / pemilik properti:',
+      badgeText: 'Listing Properti',
+      directActionTitle: 'Chat WA (Janji Survey & Konsultasi)',
+      directActionSubtitle: 'Hubungi langsung untuk jadwal survey lokasi & info legalitas',
+      marketplaceTitle: 'Buka di Portal / Marketplace Properti',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} platform (${names})`,
+      rekberTitle: 'Escrow / Rekber Syariah Properti',
+      rekberSubtitle: 'Gunakan Rekber Syariah untuk jaminan transaksi properti yang aman'
     };
   }
 
@@ -231,7 +400,16 @@ export function getItemActionConfig(item: any) {
       type: 'food',
       shortLabel: 'Pesan Menu',
       fullLabel: 'Pesan Sekarang / Order Menu',
-      Icon: Utensils
+      Icon: Utensils,
+      modalTitle: 'Pilih Jalur Pemesanan Kuliner',
+      modalSubtitle: 'Pilih jalur pemesanan menu kuliner & katering resmi kami:',
+      badgeText: 'Menu Kuliner',
+      directActionTitle: 'Pesan Antar / Order via WhatsApp',
+      directActionSubtitle: 'Kirim daftar pesanan, varian rasa, dan alamat pengantaran',
+      marketplaceTitle: 'Pesan via Online Food / Marketplace',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} outlet online (${names})`,
+      rekberTitle: 'Order via Rekber Syariah (Katering / Frozen)',
+      rekberSubtitle: 'Gunakan Rekening Bersama Syariah (Aman untuk pesanan katering/frozen)'
     };
   }
 
@@ -240,7 +418,16 @@ export function getItemActionConfig(item: any) {
       type: 'service',
       shortLabel: 'Pesan Jasa',
       fullLabel: 'Pesan Layanan / Booking Jasa',
-      Icon: ShieldCheck
+      Icon: ShieldCheck,
+      modalTitle: 'Pilih Jalur Pemesanan Jasa',
+      modalSubtitle: 'Pilih jalur transaksi yang paling aman dan nyaman untuk layanan ini:',
+      badgeText: 'Layanan Jasa',
+      directActionTitle: 'Chat WA (Konsultasi & Booking Langsung)',
+      directActionSubtitle: 'Konsultasikan kebutuhan, estimasi pengerjaan, & jadwal',
+      marketplaceTitle: 'Order via Platform Freelance Pihak Ketiga',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} platform (${names})`,
+      rekberTitle: 'Pesan via Rekber Syariah (Escrow Aman)',
+      rekberSubtitle: 'Dana ditahan di rekening penampung syariah sampai pengerjaan tuntas & terverifikasi'
     };
   }
 
@@ -249,7 +436,16 @@ export function getItemActionConfig(item: any) {
       type: 'digital',
       shortLabel: 'Beli & Unduh',
       fullLabel: 'Beli & Dapatkan File Digital',
-      Icon: Download
+      Icon: Download,
+      modalTitle: 'Pilih Metode Pembelian File Digital',
+      modalSubtitle: 'Pilih metode pembayaran resmi untuk pengiriman instan file digital:',
+      badgeText: 'Item Digital',
+      directActionTitle: 'Chat WA (Pembelian & Kirim File)',
+      directActionSubtitle: 'Dapatkan invoice pembayaran dan tautan download file berlisensi resmi',
+      marketplaceTitle: 'Beli via Toko Online / Marketplace Digital',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} platform digital (${names})`,
+      rekberTitle: 'Transaksi via Rekber Syariah',
+      rekberSubtitle: 'Dana aman di rekening bersama sampai file diterima & terverifikasi'
     };
   }
 
@@ -258,7 +454,16 @@ export function getItemActionConfig(item: any) {
       type: 'fauna',
       shortLabel: 'Beli / Adopsi',
       fullLabel: 'Beli / Adopsi Hewan Sekarang',
-      Icon: ShoppingBag
+      Icon: ShoppingBag,
+      modalTitle: 'Pilih Jalur Transaksi Hewan',
+      modalSubtitle: 'Pilih metode transaksi resmi dan aman untuk hewan ini:',
+      badgeText: 'Hewan Peliharaan',
+      directActionTitle: 'Chat WA (Tanya Hewan & Pembelian)',
+      directActionSubtitle: 'Tanyakan kondisi kesehatan, legalitas, serta garansi pengiriman',
+      marketplaceTitle: 'Beli via Toko Online / Marketplace',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} toko (${names})`,
+      rekberTitle: 'Chat WA & Rekber Syariah (Sangat Aman)',
+      rekberSubtitle: 'Gunakan Rekening Bersama Syariah (Proteksi dana hingga hewan tiba hidup & sehat)'
     };
   }
 
@@ -267,15 +472,33 @@ export function getItemActionConfig(item: any) {
       type: 'plant',
       shortLabel: 'Beli Sekarang',
       fullLabel: 'Beli Tanaman Sekarang',
-      Icon: ShoppingCart
+      Icon: ShoppingCart,
+      modalTitle: 'Pilih Jalur Pembelian Tanaman',
+      modalSubtitle: 'Pilih metode transaksi resmi dan aman untuk tanaman ini:',
+      badgeText: 'Tanaman',
+      directActionTitle: 'Chat WA (Tanya Tanaman & Pembelian)',
+      directActionSubtitle: 'Tanyakan ketersediaan bibit, kondisi segar, dan opsi packing aman',
+      marketplaceTitle: 'Beli via Toko Online / Marketplace',
+      marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} toko (${names})`,
+      rekberTitle: 'Chat WA & Rekber Syariah (Sangat Aman)',
+      rekberSubtitle: 'Gunakan Rekening Bersama Syariah (Proteksi dana hingga tanaman tiba segar & aman)'
     };
   }
 
   return {
     type: 'physical',
-    shortLabel: 'Pesan Sekarang',
-    fullLabel: 'Pesan via WhatsApp Sekarang',
-    Icon: ShoppingCart
+    shortLabel: 'Beli Sekarang',
+    fullLabel: 'Beli Sekarang / Pilih Pembelian',
+    Icon: ShoppingCart,
+    modalTitle: 'Pilih Metode Pembelian Item',
+    modalSubtitle: 'Pilih metode transaksi resmi kami:',
+    badgeText: 'Item Fisik',
+    directActionTitle: 'Chat WA (Transaksi Langsung)',
+    directActionSubtitle: 'Konsultasi ketersediaan barang dan kirim format order',
+    marketplaceTitle: 'Beli via Online Shop / Marketplace',
+    marketplaceSubtitle: (count: number, names: string) => `Tersedia di ${count} toko (${names})`,
+    rekberTitle: 'Chat WA & Rekber Syariah',
+    rekberSubtitle: 'Gunakan Rekening Bersama Syariah (Sangat Aman)'
   };
 }
 
@@ -351,6 +574,8 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   const [showLightbox, setShowLightbox] = useState<boolean>(false);
   const [lightboxIndex, setLightboxIndex] = useState<number>(0);
   const [showPurchaseModal, setShowPurchaseModal] = useState<boolean>(false);
+  const [showMarketplacesSubMenu, setShowMarketplacesSubMenu] = useState<boolean>(false);
+  const [showRekberExplainerModal, setShowRekberExplainerModal] = useState<boolean>(false);
   const [purchaseQty, setPurchaseQty] = useState<number>(1);
   const [showDetailActionDropdown, setShowDetailActionDropdown] = useState<boolean>(false);
   const detailActionDropdownRef = useRef<HTMLDivElement>(null);
@@ -443,28 +668,38 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     }
   }, []);
 
+  // Detect logged-in merchant viewing own storefront preview
+  const isCurrentStoreOwner = useCallback((): boolean => {
+    if (!slug || typeof window === 'undefined') return false;
+    try {
+      const token = localStorage.getItem('catavor_token');
+      if (!token) return false;
+      const activeSlug = localStorage.getItem('catavor_active_slug');
+      if (activeSlug && activeSlug.toLowerCase() === slug.toLowerCase()) return true;
+      const rawStores = localStorage.getItem('catavor_stores');
+      if (rawStores) {
+        const parsedStores = JSON.parse(rawStores);
+        if (Array.isArray(parsedStores) && parsedStores.some((s: any) => s?.slug?.toLowerCase() === slug.toLowerCase())) {
+          return true;
+        }
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  }, [slug]);
+
   // Telemetry & Visitor Tracking
   const trackAnalytics = useCallback((
     event: 'store_view' | 'product_view' | 'direct_wa_click' | 'marketplace_click' | 'rekber_click' | 'video_view',
     productId?: number,
     productType?: string,
-    productName?: string
+    metaOrProductName?: string | { product_name?: string; platform?: string; [key: string]: any }
   ) => {
     if (!slug) return;
     try {
       // Do not track store owner's own preview activity
-      const token = localStorage.getItem('catavor_token');
-      if (token) {
-        const activeSlug = localStorage.getItem('catavor_active_slug');
-        if (activeSlug && activeSlug.toLowerCase() === slug.toLowerCase()) return;
-        const rawStores = localStorage.getItem('catavor_stores');
-        if (rawStores) {
-          const parsedStores = JSON.parse(rawStores);
-          if (Array.isArray(parsedStores) && parsedStores.some((s: any) => s?.slug?.toLowerCase() === slug.toLowerCase())) {
-            return;
-          }
-        }
-      }
+      if (isCurrentStoreOwner()) return;
 
       let sid = sessionStorage.getItem('ctv_sid');
       if (!sid) {
@@ -476,18 +711,26 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
       const med = params.get('utm_medium') || 'referral';
       const cmp = params.get('utm_campaign') || '';
 
+      const extraMeta = typeof metaOrProductName === 'object' && metaOrProductName !== null
+        ? metaOrProductName
+        : { product_name: metaOrProductName || '' };
+      const resolvedProductName = typeof metaOrProductName === 'string'
+        ? metaOrProductName
+        : (metaOrProductName?.product_name || '');
+
       const payload = {
         store_slug: slug,
         event,
         product_id: productId || 0,
-        product_name: productName || '',
+        product_name: resolvedProductName,
         product_type: productType || 'physical',
         session_id: sid,
         source: src,
         medium: med,
         campaign: cmp,
         metadata: {
-          product_name: productName || '',
+          ...extraMeta,
+          product_name: resolvedProductName,
           referrer: document.referrer || '',
           screen_width: window.innerWidth,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -507,7 +750,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
         }).catch(() => {});
       }
     } catch {}
-  }, [slug]);
+  }, [slug, isCurrentStoreOwner]);
 
   useEffect(() => {
     if (slug) {
@@ -836,6 +1079,8 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     setIsDetailActive(false);
     setSelectedFauna(null);
     setShowPurchaseModal(false);
+    setShowMarketplacesSubMenu(false);
+    setShowRekberExplainerModal(false);
     setShowDetailActionDropdown(false);
     try {
       const url = new URL(window.location.href);
@@ -927,28 +1172,56 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     setReportModalData({ type: 'item', item });
   };
 
+  // Build Direct WhatsApp message aligned by product type + Tablet quantity stepper
+  const buildDirectWhatsAppMessage = (item: any, qty: number): string => {
+    const storeTitle = settings?.store_title || 'Catavor';
+    const unit = getCatalogItemUnit(item);
+    const totalPrice = Number(item?.price || 0) * qty;
+    const itemUrl = `${window.location.origin}/${slug}?item=${item.id}`;
+    const pType = item?.product_type || 'physical';
+
+    if (pType === 'property') {
+      return `Halo *${storeTitle}*, saya tertarik dengan listing properti berikut:\n*${item.name}* (${item.attributes?.transaction_type || 'Dijual'} - Harga: ${formatRupiah(item.price)})\nTautan: ${itemUrl}\n\nMohon info detail mengenai legalitas/dokumen serta ketersediaan jadwal untuk survey lokasi langsung. Terima kasih.`;
+    }
+    if (pType === 'service') {
+      return `Halo *${storeTitle}*, saya tertarik untuk berkonsultasi & memesan layanan jasa berikut:\n*${item.name}* (Tarif: ${formatRupiah(item.price)})\nTautan: ${itemUrl}\n\nBerikut ringkasan kebutuhan / kendala saya: [...]\nMohon info mengenai estimasi waktu dan ketersediaan jadwal pengerjaan. Terima kasih.`;
+    }
+    if (pType === 'food') {
+      return `Halo *${storeTitle}*, saya ingin memesan menu kuliner berikut:\n*${item.name}* (Harga: ${formatRupiah(item.price)} / ${unit})\n\nJumlah Pesanan: ${qty} ${unit}\nTotal Estimasi: ${formatRupiah(totalPrice)}\nCatatan / Level Pedas / Varian: [...]\nAlamat Pengiriman (jika pesan antar): [...]\nTautan: ${itemUrl}\nMohon info ketersediaan menu dan total estimasi pengiriman. Terima kasih.`;
+    }
+    if (pType === 'digital') {
+      return `Halo *${storeTitle}*, saya ingin membeli produk digital berlisensi resmi berikut:\n*${item.name}* (Harga Satuan: ${formatRupiah(item.price)})\n\nJumlah: ${qty} ${unit}\nTotal Estimasi: ${formatRupiah(totalPrice)}\nTautan: ${itemUrl}\n\nMohon instruksi pembayaran dan tautan pengiriman file digital resminya. Terima kasih.`;
+    }
+    if (pType === 'fauna' || pType === 'plant') {
+      const label = pType === 'plant' ? 'tanaman' : 'satwa';
+      const conditionNote = pType === 'plant' ? 'kesegaran tanaman' : 'kondisi kesehatan';
+      const shippingNote = pType === 'plant' ? 'opsi packing aman' : 'opsi pengiriman bergaransi hidup';
+      return `Halo *${storeTitle}*, saya tertarik membeli ${label} berikut:\n*${item.name}* (Harga Satuan: ${formatRupiah(item.price)})\n\nJumlah: ${qty} ${unit}\nTotal Estimasi: ${formatRupiah(totalPrice)}\nTautan: ${itemUrl}\n\nMohon info ketersediaan, ${conditionNote}, dan ${shippingNote}. Terima kasih.`;
+    }
+    return `Halo *${storeTitle}*, saya tertarik untuk membeli produk berikut:\n\n*${item.name}*\nJumlah: ${qty} ${unit}\nHarga Satuan: ${formatRupiah(item.price)}\nTotal Estimasi: ${formatRupiah(totalPrice)}\nStatus: ${item.conservation_status || 'Tersedia'}\nTautan: ${itemUrl}\n\nApakah pesanan ini dapat diproses? Terima kasih.`;
+  };
+
   // Direct WhatsApp Order
   const handleDirectWhatsAppOrder = (item: any, qty: number) => {
     const itemWA = resolveProductWAContact(item, storeWAContacts, settings?.whatsapp_number);
     if (!itemWA.cleanNumber) {
-      alert('Nomor WhatsApp admin/agen belum dikonfigurasi di pengaturan katalog.');
+      showToast('Nomor WhatsApp admin/agen belum dikonfigurasi di pengaturan katalog.');
       return;
     }
-    const unit = getCatalogItemUnit(item);
-    const totalPrice = Number(item.price || 0) * qty;
-    const message =
-      `Halo *${settings?.store_title || 'Toko'}*, saya ingin memesan produk berikut dari katalog:\n\n` +
-      `*${item.name}*\n` +
-      `Jumlah: ${qty} ${unit}\n` +
-      `Harga Satuan: ${formatRupiah(item.price)}\n` +
-      `Total Estimasi: ${formatRupiah(totalPrice)}\n` +
-      `Status: ${item.conservation_status || 'Tersedia'}\n` +
-      `Tautan: ${window.location.origin}/${slug}?item=${item.id}\n\n` +
-      `Apakah pesanan ini dapat diproses? Terima kasih!`;
-
-    trackAnalytics('direct_wa_click', item.id, item.product_type, item.name);
-    window.open(buildWALink(itemWA.cleanNumber, message), '_blank', 'noopener,noreferrer');
+    const message = buildDirectWhatsAppMessage(item, qty);
+    if (isCurrentStoreOwner()) {
+      showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
+    } else {
+      trackAnalytics('direct_wa_click', item.id, item.product_type, item.name);
+    }
+    const newWin = window.open(buildWALink(itemWA.cleanNumber, message), '_blank', 'noopener,noreferrer');
+    if (newWin) newWin.opener = null;
   };
+
+  const closePurchaseModal = useCallback(() => {
+    setShowPurchaseModal(false);
+    setShowMarketplacesSubMenu(false);
+  }, []);
 
   // Close menus on outside click
   useEffect(() => {
@@ -960,7 +1233,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     return () => document.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  // Back handler for modals
+  // Back handler for modals (LIFO layered for submenu & explainer)
   useModalBackHandler({
     isOpen: showShareModal,
     onClose: handleCloseShareModal,
@@ -975,8 +1248,20 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
 
   useModalBackHandler({
     isOpen: showPurchaseModal,
-    onClose: () => setShowPurchaseModal(false),
+    onClose: closePurchaseModal,
     modalId: 'tablet-purchase-options-modal'
+  });
+
+  useModalBackHandler({
+    isOpen: showPurchaseModal && showMarketplacesSubMenu,
+    onClose: () => setShowMarketplacesSubMenu(false),
+    modalId: 'tablet-purchase-marketplace-submenu'
+  });
+
+  useModalBackHandler({
+    isOpen: showRekberExplainerModal,
+    onClose: () => setShowRekberExplainerModal(false),
+    modalId: 'tablet-rekber-explainer-modal'
   });
 
   // -------------------------------------------------------------
@@ -1070,6 +1355,260 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
   }
 
   const isStoreSuspended = settings.dormancy_status === 'suspended' || settings.is_suspended;
+
+  const toastBannerNode = toastMessage ? (
+    <div style={{
+      position: 'fixed',
+      top: '1.25rem',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      backgroundColor: 'var(--bg-card)',
+      color: 'var(--text-primary)',
+      padding: '0.65rem 1.25rem',
+      borderRadius: '999px',
+      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+      border: '1px solid var(--border-light)',
+      fontSize: '0.86rem',
+      fontWeight: 700,
+      zIndex: 130000,
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem'
+    }}>
+      <CheckCircle2 size={16} color="var(--primary)" />
+      <span>{toastMessage}</span>
+    </div>
+  ) : null;
+
+  const rekberExplainerModalNode = showRekberExplainerModal ? (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.72)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        zIndex: 120000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1.25rem'
+      }}
+      onClick={() => setShowRekberExplainerModal(false)}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: '560px',
+          maxHeight: '88vh',
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: '1rem',
+          border: '1px solid var(--border-light)',
+          backgroundColor: 'var(--bg-card)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.55), 0 0 24px var(--primary-glow)',
+          overflow: 'hidden'
+        }}
+      >
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '1rem 1.35rem',
+          borderBottom: '1px solid var(--border-light)',
+          backgroundColor: 'var(--bg-card)',
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              backgroundColor: 'var(--primary-glow)',
+              border: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--primary)',
+              flexShrink: 0
+            }}>
+              <ShieldCheck size={20} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <h3 style={{ fontSize: '1.02rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
+                Mengenal Layanan Rekber Syariah
+              </h3>
+              <p style={{ fontSize: '0.74rem', color: 'var(--primary)', fontWeight: 600, margin: '0.15rem 0 0 0' }}>
+                Transparan - Amanah - Bebas Riba ({getCleanDomain(platformSettings.rekber_website_url)})
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowRekberExplainerModal(false)}
+            aria-label="Tutup Modal Rekber Syariah"
+            style={{
+              minWidth: '44px',
+              minHeight: '44px',
+              borderRadius: '10px',
+              border: '1px solid var(--border-light)',
+              backgroundColor: 'var(--bg-card-hover)',
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          padding: '1.25rem 1.35rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem',
+          color: 'var(--text-secondary)',
+          fontSize: '0.84rem',
+          lineHeight: 1.55
+        }}>
+          <div style={{
+            padding: '0.9rem 1rem',
+            borderRadius: '0.65rem',
+            backgroundColor: 'var(--bg-card-hover)',
+            border: '1px solid var(--border-light)'
+          }}>
+            <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: '0.82rem', lineHeight: 1.55 }}>
+              <strong>Rekening Bersama (Rekber) Syariah</strong> adalah pihak penengah amanah (<em>Escrow Syariah</em>) yang bertugas memegang dana transaksi pembeli secara aman sampai barang/jasa diterima dan diverifikasi sesuai pesanan sebelum diteruskan ke penjual.
+            </p>
+          </div>
+
+          <div>
+            <h4 style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.03em', margin: '0 0 0.55rem 0' }}>
+              Mengapa Menggunakan Rekber Syariah?
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.65rem' }}>
+              <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                  <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
+                  <span>100% Anti-Penipuan</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.74rem', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
+                  Uang tidak akan diteruskan ke penjual sebelum pembeli memastikan barang diterima sesuai deskripsi.
+                </p>
+              </div>
+
+              <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                  <Shield size={15} style={{ flexShrink: 0 }} />
+                  <span>Aman untuk Penjual</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.74rem', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
+                  Penjual mendapatkan kepastian dana telah disetor pembeli sebelum mengirimkan barang / memulai jasa.
+                </p>
+              </div>
+
+              <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                  <Scale size={15} style={{ flexShrink: 0 }} />
+                  <span>Prinsip Muamalah</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.74rem', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
+                  Bebas riba dan spekulasi (<em>gharar</em>), berlandaskan akad amanah yang adil (<em>an taradhin</em>).
+                </p>
+              </div>
+
+              <div style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                  <MessageCircle size={15} style={{ flexShrink: 0 }} />
+                  <span>Grup WA Resmi</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.74rem', lineHeight: 1.4, color: 'var(--text-secondary)' }}>
+                  Koordinasi transaksi dipandu langsung oleh admin Rekber resmi via grup WhatsApp khusus.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ padding: '0.85rem 1rem', borderRadius: '0.65rem', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-deep)' }}>
+            <h4 style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>
+              Alur Transaksi 5 Langkah:
+            </h4>
+            <ol style={{ margin: 0, paddingLeft: '1.15rem', fontSize: '0.76rem', display: 'flex', flexDirection: 'column', gap: '0.45rem', color: 'var(--text-secondary)' }}>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Hubungi Penjual:</strong> Pembeli mengontak WhatsApp penjual dengan format pesan resmi permohonan transaksi via Rekber Syariah.</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Pendaftaran Transaksi:</strong> Penjual / Pembeli mendaftarkan detail transaksi ke website {getCleanDomain(platformSettings.rekber_website_url)} atau langsung menghubungi admin resmi Rekber Syariah.</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Pembuatan Grup WA Resmi:</strong> Admin Rekber Syariah membuat grup WhatsApp khusus yang beranggotakan Admin Rekber, Pembeli, dan Penjual untuk memandu transaksi.</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Penyetoran Dana &amp; Pengiriman:</strong> Pembeli menyetorkan dana aman ke Rekening Bersama Syariah, lalu penjual mengirimkan barang / memulai jasa.</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Verifikasi &amp; Pencairan Dana:</strong> Barang diterima dan diperiksa pembeli. Setelah sesuai kesepakatan, dana di Rekber Syariah langsung dicairkan ke rekening penjual.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div style={{
+          padding: '0.85rem 1.35rem',
+          borderTop: '1px solid var(--border-light)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.75rem',
+          backgroundColor: 'var(--bg-card)',
+          flexShrink: 0
+        }}>
+          <a
+            href={platformSettings.rekber_website_url || 'https://rekbersyariah.com'}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => handleSafeExternalRedirect(platformSettings.rekber_website_url || 'https://rekbersyariah.com', e)}
+            style={{
+              minHeight: '44px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              fontSize: '0.8rem',
+              color: 'var(--primary)',
+              fontWeight: 700,
+              textDecoration: 'none'
+            }}
+          >
+            <span>Kunjungi {getCleanDomain(platformSettings.rekber_website_url)}</span>
+            <ExternalLink size={14} />
+          </a>
+
+          <button
+            type="button"
+            onClick={() => setShowRekberExplainerModal(false)}
+            style={{
+              minHeight: '44px',
+              padding: '0 1.4rem',
+              borderRadius: '0.55rem',
+              backgroundColor: 'var(--primary)',
+              color: '#ffffff',
+              border: 'none',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            Saya Paham
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const externalWarningModalNode = externalUrlWarning ? (
+    <ExternalLinkWarningModal
+      url={externalUrlWarning}
+      onClose={() => setExternalUrlWarning(null)}
+    />
+  ) : null;
 
   // =============================================================
   // RENDER: FULL-PAGE DETAIL VIEW (PARITY WITH DESKTOP)
@@ -2002,6 +2541,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
               type="button"
               onClick={() => {
                 setPurchaseQty(minOrderVal);
+                setShowMarketplacesSubMenu(false);
                 setShowPurchaseModal(true);
               }}
               style={{
@@ -2048,167 +2588,572 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
           </div>
         </div>
 
-        {/* Purchase Options Dialog */}
-        {showPurchaseModal && (
-          <div
-            onClick={() => setShowPurchaseModal(false)}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.65)',
-              backdropFilter: 'blur(8px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1000,
-              padding: '1.5rem'
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: '100%',
-                maxWidth: '480px',
-                backgroundColor: 'var(--bg-card)',
-                borderRadius: '1.15rem',
-                border: '1px solid var(--border-light)',
-                overflow: 'hidden',
-                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.3)'
-              }}
-            >
-              <div style={{
-                padding: '1.15rem 1.5rem',
-                borderBottom: '1px solid var(--border-light)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <ShoppingCart size={18} color="var(--primary)" />
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    Pemesanan Produk
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPurchaseModal(false)}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.25rem' }}
-                >
-                  <X size={18} />
-                </button>
-              </div>
+        {/* Purchase Options Dialog (Full Channel Parity + Tablet Ergonomics) */}
+        {showPurchaseModal && (() => {
+          const normalizedLinks = getNormalizedPurchaseLinks(selectedFauna);
+          const isItemWARekberEnabled = selectedFauna.detailed_info?.enable_wa_rekber !== undefined
+            ? Boolean(selectedFauna.detailed_info.enable_wa_rekber)
+            : (selectedFauna.attributes?.enable_wa_rekber !== undefined ? Boolean(selectedFauna.attributes.enable_wa_rekber) : true);
+          const isItemWADirectEnabled = selectedFauna.detailed_info?.enable_wa_direct !== undefined
+            ? Boolean(selectedFauna.detailed_info.enable_wa_direct)
+            : (selectedFauna.attributes?.enable_wa_direct !== undefined ? Boolean(selectedFauna.attributes.enable_wa_direct) : true);
+          const isProperty = selectedFauna.product_type === 'property';
+          const isService = selectedFauna.product_type === 'service';
+          const itemWA = resolveProductWAContact(selectedFauna, storeWAContacts, settings?.whatsapp_number);
+          const hasPhone = Boolean(itemWA.cleanNumber);
+          const showRekberOption = !isProperty && hasPhone && settings?.enable_wa_rekber !== false && isItemWARekberEnabled && platformSettings?.rekber_enabled !== '0';
+          const showDirectOption = hasPhone && settings?.enable_wa_direct !== false && isItemWADirectEnabled;
+          const hasAnyOptions = normalizedLinks.length > 0 || showRekberOption || showDirectOption;
+          const HeaderIcon = actionConfig.Icon;
 
-              <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <img src={selectedFauna.image_url} alt="" style={{ width: '60px', height: '60px', borderRadius: '0.65rem', objectFit: 'cover' }} />
-                  <div>
-                    <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '0.94rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      {selectedFauna.name}
-                    </h4>
-                    <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary)' }}>
-                      {formatRupiah(selectedFauna.price)}
-                    </div>
-                  </div>
+          const renderMarketplaceLinkCard = (link: NormalizedPurchaseLink, keyIndex: number, isSubMenu: boolean) => {
+            const fullUrl = link.url.startsWith('http://') || link.url.startsWith('https://') ? link.url : `https://${link.url}`;
+            const sec = checkUrlSecurity(fullUrl);
+            return (
+              <a
+                key={keyIndex}
+                href={sec.isSafe ? sec.sanitizedUrl : '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  if (isCurrentStoreOwner()) {
+                    showToast('Mode Pratinjau: Menguji tautan toko online Anda...', 'info');
+                  } else {
+                    trackAnalytics('marketplace_click', selectedFauna.id, selectedFauna.product_type, {
+                      product_name: selectedFauna.name,
+                      platform: link.platform
+                    });
+                  }
+                  handleSafeExternalRedirect(link.url, e);
+                }}
+                style={{
+                  minHeight: '56px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.85rem',
+                  padding: '0.85rem 1.05rem',
+                  borderRadius: '0.75rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card-hover)',
+                  color: 'var(--text-primary)',
+                  textDecoration: 'none',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)'
+                }}
+              >
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '0.55rem',
+                  backgroundColor: 'var(--primary-glow)',
+                  color: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  {isService ? <Briefcase size={20} /> : <StoreIcon size={20} />}
                 </div>
-
-                {/* Quantity Selector */}
-                {selectedFauna.product_type !== 'property' && selectedFauna.product_type !== 'service' && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.85rem 1rem',
-                    backgroundColor: 'var(--bg-deep)',
-                    borderRadius: '0.75rem',
-                    border: '1px solid var(--border-light)'
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    display: 'block',
+                    color: 'var(--text-primary)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
                   }}>
-                    <span style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      Jumlah ({itemUnit}):
-                    </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                      <button
-                        type="button"
-                        disabled={purchaseQty <= minOrderVal}
-                        onClick={() => setPurchaseQty(prev => Math.max(minOrderVal, prev - 1))}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '6px',
-                          backgroundColor: 'var(--bg-card)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: purchaseQty <= minOrderVal ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <span style={{ minWidth: '32px', textAlign: 'center', fontWeight: 800, fontSize: '0.95rem' }}>
-                        {purchaseQty}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={Boolean(maxOrderVal && purchaseQty >= maxOrderVal)}
-                        onClick={() => setPurchaseQty(prev => (maxOrderVal ? Math.min(maxOrderVal, prev + 1) : prev + 1))}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '6px',
-                          backgroundColor: 'var(--bg-card)',
-                          border: '1px solid var(--border-light)',
-                          color: 'var(--text-primary)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: maxOrderVal && purchaseQty >= maxOrderVal ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Subtotal */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '0.85rem' }}>
-                  <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>Total Estimasi:</span>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)' }}>
-                    {formatRupiah(Number(selectedFauna.price || 0) * purchaseQty)}
+                    {isService ? `Order di ${link.platform}` : `Beli di ${link.platform}`}
+                  </span>
+                  <span style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    display: 'block',
+                    marginTop: '0.1rem',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
+                    {isService
+                      ? `Buka profil / lapak jasa resmi kami di ${link.platform}`
+                      : (isSubMenu ? `Buka halaman produk resmi di ${link.platform}` : `Buka transaksi resmi kami di ${link.platform}`)}
                   </span>
                 </div>
+                <ExternalLink size={16} style={{ color: 'var(--primary)', opacity: 0.85, flexShrink: 0 }} />
+              </a>
+            );
+          };
 
-                {/* Action Buttons */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPurchaseModal(false);
-                    handleDirectWhatsAppOrder(selectedFauna, purchaseQty);
-                  }}
-                  style={{
-                    minHeight: '46px',
-                    borderRadius: '0.65rem',
-                    backgroundColor: '#16a34a',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: '0.92rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)'
-                  }}
-                >
-                  <MessageCircle size={18} />
-                  <span>Kirim Pesanan ke WhatsApp</span>
-                </button>
+          return (
+            <div
+              onClick={closePurchaseModal}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000,
+                padding: '1.25rem'
+              }}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: '100%',
+                  maxWidth: '520px',
+                  maxHeight: '85vh',
+                  backgroundColor: 'var(--bg-card)',
+                  borderRadius: '1.15rem',
+                  border: '1px solid var(--border-light)',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxShadow: '0 20px 50px rgba(0, 0, 0, 0.35)'
+                }}
+              >
+                {/* Sticky Header */}
+                <div style={{
+                  padding: '1.05rem 1.35rem',
+                  borderBottom: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  flexShrink: 0
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', minWidth: 0 }}>
+                    <div style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '0.6rem',
+                      backgroundColor: 'var(--primary-glow)',
+                      color: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      {showMarketplacesSubMenu
+                        ? (isService ? <Briefcase size={19} /> : <StoreIcon size={19} />)
+                        : <HeaderIcon size={19} />}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                        {showMarketplacesSubMenu
+                          ? (isService ? 'Pilih Platform Freelance' : 'Pilih Toko Online / Marketplace')
+                          : actionConfig.modalTitle}
+                      </h3>
+                      <span style={{ fontSize: '0.73rem', color: 'var(--primary)', fontWeight: 700, display: 'block', marginTop: '0.1rem' }}>
+                        {showMarketplacesSubMenu
+                          ? `${normalizedLinks.length} Platform / Toko Online Resmi Tersedia`
+                          : `${actionConfig.badgeText} - Transaksi Resmi & Aman`}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closePurchaseModal}
+                    aria-label="Tutup Dialog Pembelian"
+                    style={{
+                      minWidth: '44px',
+                      minHeight: '44px',
+                      borderRadius: '0.55rem',
+                      backgroundColor: 'var(--bg-card-hover)',
+                      border: '1px solid var(--border-light)',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Scrollable Body */}
+                <div style={{
+                  padding: '1.2rem 1.35rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.95rem',
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto'
+                }}>
+                  {/* Item Preview & Tablet Quantity Calculator */}
+                  {!showMarketplacesSubMenu && (
+                    <div style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.85rem',
+                      backgroundColor: 'var(--bg-deep)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.8rem'
+                    }}>
+                      <div style={{ display: 'flex', gap: '0.9rem', alignItems: 'center' }}>
+                        <img
+                          src={currentImageSrc}
+                          alt=""
+                          onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                          style={{ width: '56px', height: '56px', borderRadius: '0.6rem', objectFit: 'cover', flexShrink: 0, backgroundColor: 'var(--bg-card-hover)' }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {selectedFauna.name}
+                          </h4>
+                          <div style={{ fontSize: '0.96rem', fontWeight: 800, color: 'var(--primary)' }}>
+                            {formatRupiah(selectedFauna.price)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {!isProperty && !isService && (
+                        <>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            borderTop: '1px solid var(--border-light)',
+                            paddingTop: '0.75rem'
+                          }}>
+                            <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                              Jumlah ({itemUnit}):
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              <button
+                                type="button"
+                                disabled={purchaseQty <= minOrderVal}
+                                onClick={() => setPurchaseQty(prev => Math.max(minOrderVal, prev - 1))}
+                                aria-label="Kurangi jumlah"
+                                style={{
+                                  width: '44px',
+                                  height: '44px',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: 'var(--bg-card)',
+                                  border: '1px solid var(--border-light)',
+                                  color: 'var(--text-primary)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: purchaseQty <= minOrderVal ? 'not-allowed' : 'pointer',
+                                  opacity: purchaseQty <= minOrderVal ? 0.5 : 1
+                                }}
+                              >
+                                <Minus size={16} />
+                              </button>
+                              <span style={{ minWidth: '34px', textAlign: 'center', fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                                {purchaseQty}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={Boolean(maxOrderVal && purchaseQty >= maxOrderVal)}
+                                onClick={() => setPurchaseQty(prev => (maxOrderVal ? Math.min(maxOrderVal, prev + 1) : prev + 1))}
+                                aria-label="Tambah jumlah"
+                                style={{
+                                  width: '44px',
+                                  height: '44px',
+                                  borderRadius: '0.55rem',
+                                  backgroundColor: 'var(--bg-card)',
+                                  border: '1px solid var(--border-light)',
+                                  color: 'var(--text-primary)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: maxOrderVal && purchaseQty >= maxOrderVal ? 'not-allowed' : 'pointer',
+                                  opacity: maxOrderVal && purchaseQty >= maxOrderVal ? 0.5 : 1
+                                }}
+                              >
+                                <Plus size={16} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Total Estimasi:</span>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary)' }}>
+                              {formatRupiah(Number(selectedFauna.price || 0) * purchaseQty)}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {showMarketplacesSubMenu ? (
+                    <>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: 0, lineHeight: 1.45 }}>
+                        {isService
+                          ? 'Pilih platform freelance pihak ketiga resmi pilihan Anda di bawah ini untuk diarahkan langsung ke halaman pemesanan jasa:'
+                          : 'Pilih toko online atau marketplace resmi pilihan Anda di bawah ini untuk diarahkan langsung ke halaman produk:'}
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                        {normalizedLinks.map((link, index) => renderMarketplaceLinkCard(link, index, true))}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', margin: 0, lineHeight: 1.45 }}>
+                        {actionConfig.modalSubtitle}
+                      </p>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                        {normalizedLinks.length === 1 && renderMarketplaceLinkCard(normalizedLinks[0], 0, false)}
+
+                        {normalizedLinks.length >= 2 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowMarketplacesSubMenu(true)}
+                            style={{
+                              minHeight: '56px',
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.85rem',
+                              padding: '0.85rem 1.05rem',
+                              borderRadius: '0.75rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-card-hover)',
+                              color: 'var(--text-primary)',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)'
+                            }}
+                          >
+                            <div style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--primary-glow)',
+                              color: 'var(--primary)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              {isService ? <Briefcase size={20} /> : <StoreIcon size={20} />}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                                {actionConfig.marketplaceTitle}
+                              </span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                                {actionConfig.marketplaceSubtitle(normalizedLinks.length, normalizedLinks.map(l => l.platform).join(', '))}
+                              </span>
+                            </div>
+                            <ChevronRight size={18} style={{ color: 'var(--primary)', opacity: 0.85, flexShrink: 0 }} />
+                          </button>
+                        )}
+
+                        {showRekberOption && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            borderRadius: '0.75rem',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-card-hover)',
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+                            overflow: 'hidden'
+                          }}>
+                            <a
+                              href={buildWALink(itemWA.cleanNumber, generateRekberMessage(selectedFauna, settings, platformSettings, formatRupiah))}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => {
+                                if (isCurrentStoreOwner()) {
+                                  showToast('Mode Pratinjau: Menguji tautan WhatsApp katalog Anda...', 'info');
+                                } else {
+                                  trackAnalytics('rekber_click', selectedFauna.id, selectedFauna.product_type, selectedFauna.name);
+                                }
+                              }}
+                              style={{
+                                flex: 1,
+                                minWidth: 0,
+                                minHeight: '56px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.85rem',
+                                padding: '0.85rem 0.65rem 0.85rem 1.05rem',
+                                color: 'var(--text-primary)',
+                                textDecoration: 'none'
+                              }}
+                            >
+                              <div style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '0.55rem',
+                                backgroundColor: 'var(--primary-glow)',
+                                color: 'var(--primary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}>
+                                <ShieldCheck size={20} />
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                                  {actionConfig.rekberTitle}
+                                </span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                                  {actionConfig.rekberSubtitle}
+                                </span>
+                              </div>
+                              <ChevronRight size={18} style={{ color: 'var(--primary)', opacity: 0.8, flexShrink: 0 }} />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setShowRekberExplainerModal(true);
+                              }}
+                              title="Pelajari apa itu Rekber Syariah"
+                              aria-label="Pelajari apa itu Rekber Syariah"
+                              style={{
+                                minWidth: '46px',
+                                minHeight: '56px',
+                                background: 'none',
+                                border: 'none',
+                                borderLeft: '1px solid var(--border-light)',
+                                color: 'var(--primary)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}
+                            >
+                              <HelpCircle size={19} />
+                            </button>
+                          </div>
+                        )}
+
+                        {showDirectOption && (
+                          <button
+                            type="button"
+                            onClick={() => handleDirectWhatsAppOrder(selectedFauna, purchaseQty)}
+                            style={{
+                              minHeight: '56px',
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.85rem',
+                              padding: '0.85rem 1.05rem',
+                              borderRadius: '0.75rem',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-card-hover)',
+                              color: 'var(--text-primary)',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)'
+                            }}
+                          >
+                            <div style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '0.55rem',
+                              backgroundColor: 'var(--primary-glow)',
+                              color: 'var(--primary)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <MessageCircle size={20} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'block', color: 'var(--text-primary)' }}>
+                                {actionConfig.directActionTitle}
+                              </span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                                {actionConfig.directActionSubtitle}
+                              </span>
+                            </div>
+                            <ChevronRight size={18} style={{ color: 'var(--primary)', opacity: 0.8, flexShrink: 0 }} />
+                          </button>
+                        )}
+
+                        {!hasAnyOptions && (
+                          <div style={{
+                            padding: '1.25rem 1rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: 'var(--bg-card-hover)',
+                            border: '1px solid var(--border-light)',
+                            textAlign: 'center'
+                          }}>
+                            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0 }}>
+                              Metode pembelian online belum diaktifkan untuk item katalog ini.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Footer Actions */}
+                <div style={{
+                  padding: '0.85rem 1.35rem',
+                  borderTop: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: showMarketplacesSubMenu ? 'space-between' : 'flex-end',
+                  gap: '0.75rem',
+                  flexShrink: 0
+                }}>
+                  {showMarketplacesSubMenu && (
+                    <button
+                      type="button"
+                      onClick={() => setShowMarketplacesSubMenu(false)}
+                      style={{
+                        minHeight: '44px',
+                        padding: '0 1rem',
+                        borderRadius: '0.55rem',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card-hover)',
+                        color: 'var(--text-primary)',
+                        fontWeight: 600,
+                        fontSize: '0.84rem',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem'
+                      }}
+                    >
+                      <ArrowLeft size={16} />
+                      <span>Kembali</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={closePurchaseModal}
+                    style={{
+                      minHeight: '44px',
+                      padding: '0 1.25rem',
+                      borderRadius: '0.55rem',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card-hover)',
+                      color: 'var(--text-primary)',
+                      fontWeight: 600,
+                      fontSize: '0.84rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Tutup
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Lightbox for zooming photos */}
         <TabletImageLightbox
@@ -2218,6 +3163,9 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
           productName={selectedFauna.name}
           onClose={() => setShowLightbox(false)}
         />
+        {toastBannerNode}
+        {rekberExplainerModalNode}
+        {externalWarningModalNode}
       </div>
     );
   }
@@ -2232,30 +3180,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
       color: 'var(--text-primary)',
       paddingBottom: '3.5rem'
     }}>
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div style={{
-          position: 'fixed',
-          top: '1.25rem',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: 'var(--bg-card)',
-          color: 'var(--text-primary)',
-          padding: '0.65rem 1.25rem',
-          borderRadius: '999px',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
-          border: '1px solid var(--border-light)',
-          fontSize: '0.86rem',
-          fontWeight: 700,
-          zIndex: 1000,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
-          <CheckCircle2 size={16} color="var(--primary)" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+      {toastBannerNode}
 
       {/* 1. Header Halaman Publik (Identical to Desktop) */}
       <header style={{
@@ -3779,13 +4704,9 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
         storeSlug={slug || settings?.store_slug || ''}
         onToast={showToast}
       />
-      {/* External Link Safety Prompt Modal (Tablet) */}
-      {externalUrlWarning && (
-        <ExternalLinkWarningModal
-          url={externalUrlWarning}
-          onClose={() => setExternalUrlWarning(null)}
-        />
-      )}
+      {/* External Link Safety & Rekber Explainer Modals (Tablet) */}
+      {rekberExplainerModalNode}
+      {externalWarningModalNode}
     </div>
   );
 };
