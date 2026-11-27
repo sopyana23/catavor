@@ -91,6 +91,17 @@ export const TabletMarketIntelView: React.FC<TabletMarketIntelViewProps> = ({
   const [liveEventFilter, setLiveEventFilter] = useState<'all' | 'store_view' | 'product_view' | 'action_wa' | 'rekber_click'>('all');
   const [isOsExpanded, setIsOsExpanded] = useState(false);
   const [heatmapViewMode, setHeatmapViewMode] = useState<'24h' | 'time_bands'>('24h');
+  const [viewportWidth, setViewportWidth] = useState<number>(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  );
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isTabletMini = viewportWidth < 880;
 
   const loadMarketIntel = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -332,7 +343,7 @@ export const TabletMarketIntelView: React.FC<TabletMarketIntelViewProps> = ({
         aria-label="Navigasi Segmen Riset Pasar Tablet"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: isTabletMini ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
           gap: '0.35rem',
           padding: '0.3rem',
           borderRadius: '0.75rem',
@@ -859,13 +870,18 @@ export const TabletMarketIntelView: React.FC<TabletMarketIntelViewProps> = ({
                       </div>
                     </div>
 
-                    {/* 24-Hour Peak Heatmap */}
+                    {/* 24-Hour Peak Heatmap (WIB) */}
                     <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: '320px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <Clock size={15} style={{ color: '#8b5cf6' }} />
-                          <span>Kurva Jam Sibuk Pengunjung</span>
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <div>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Clock size={15} style={{ color: '#8b5cf6' }} />
+                            <span>Kurva Jam Sibuk Pengunjung</span>
+                          </span>
+                          <span style={{ fontSize: '0.66rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.1rem' }}>
+                            Waktu Server (WIB)
+                          </span>
+                        </div>
                         <div style={{ display: 'inline-flex', padding: '2px', borderRadius: '6px', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)' }}>
                           <button
                             type="button"
@@ -884,7 +900,11 @@ export const TabletMarketIntelView: React.FC<TabletMarketIntelViewProps> = ({
                         </div>
                       </div>
 
-                      {heatmapViewMode === '24h' ? (
+                      {!telemetryData.hourly_heatmap.some((h) => (h.views || 0) > 0) ? (
+                        <div style={{ margin: 'auto 0', textAlign: 'center', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                          Belum ada distribusi jam sibuk pengunjung pada periode ini.
+                        </div>
+                      ) : heatmapViewMode === '24h' ? (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '0.35rem', alignItems: 'end', height: '180px', flex: 1, paddingBottom: '0.5rem' }}>
                           {telemetryData.hourly_heatmap.map((h, idx) => {
                             const heightPercent = Math.max(12, Math.round((h.views / maxViews) * 100));
@@ -892,7 +912,7 @@ export const TabletMarketIntelView: React.FC<TabletMarketIntelViewProps> = ({
                               <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', height: '100%', justifyContent: 'flex-end' }}>
                                 <span style={{ fontSize: '0.62rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{h.views}</span>
                                 <div
-                                  title={`Pukul ${h.hour}:00 UTC - ${h.views} tayangan`}
+                                  title={`Pukul ${h.hour}:00 WIB - ${h.views} tayangan`}
                                   style={{
                                     width: '100%',
                                     height: `${heightPercent}%`,
@@ -1061,27 +1081,45 @@ export const TabletMarketIntelView: React.FC<TabletMarketIntelViewProps> = ({
                 </div>
               </div>
 
-              {/* Channel Breakdown */}
+              {/* Channel Breakdown (Stacked Composition Bar + 4 Summary Cards) */}
               <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
                 <h4 style={{ fontSize: '0.88rem', fontWeight: 800, margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <BarChart3 size={15} style={{ color: '#3b82f6' }} />
                   <span>Saluran Minat Belanja Konsumen</span>
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>WA Direct ({formatNumber(data.channel_breakdown.direct_wa_clicks)})</span>
+                <div style={{ height: '12px', borderRadius: '9999px', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', overflow: 'hidden', marginBottom: '0.85rem' }}>
+                  <div style={{ width: `${data.channel_breakdown.direct_wa_percent}%`, backgroundColor: '#10b981' }} title={`WA Direct: ${formatPercent(data.channel_breakdown.direct_wa_percent)}`} />
+                  <div style={{ width: `${data.channel_breakdown.rekber_percent}%`, backgroundColor: '#3b82f6' }} title={`Rekber Syariah: ${formatPercent(data.channel_breakdown.rekber_percent)}`} />
+                  <div style={{ width: `${data.channel_breakdown.marketplace_percent}%`, backgroundColor: '#f59e0b' }} title={`Marketplace: ${formatPercent(data.channel_breakdown.marketplace_percent)}`} />
+                  <div style={{ width: `${data.channel_breakdown.video_views_percent}%`, backgroundColor: '#8b5cf6' }} title={`Video Review: ${formatPercent(data.channel_breakdown.video_views_percent)}`} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem' }}>
+                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', flexShrink: 0 }} />
+                      WA Direct ({formatNumber(data.channel_breakdown.direct_wa_clicks)})
+                    </span>
                     <strong style={{ fontSize: '0.78rem', color: '#10b981' }}>{formatPercent(data.channel_breakdown.direct_wa_percent, 1)}</strong>
                   </div>
-                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Rekber ({formatNumber(data.channel_breakdown.rekber_clicks)})</span>
+                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6', flexShrink: 0 }} />
+                      Rekber ({formatNumber(data.channel_breakdown.rekber_clicks)})
+                    </span>
                     <strong style={{ fontSize: '0.78rem', color: '#3b82f6' }}>{formatPercent(data.channel_breakdown.rekber_percent, 1)}</strong>
                   </div>
-                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Marketplace ({formatNumber(data.channel_breakdown.marketplace_clicks)})</span>
+                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b', flexShrink: 0 }} />
+                      Marketplace ({formatNumber(data.channel_breakdown.marketplace_clicks)})
+                    </span>
                     <strong style={{ fontSize: '0.78rem', color: '#f59e0b' }}>{formatPercent(data.channel_breakdown.marketplace_percent, 1)}</strong>
                   </div>
-                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Video Review ({formatNumber(data.channel_breakdown.video_views)})</span>
+                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#8b5cf6', flexShrink: 0 }} />
+                      Video Review ({formatNumber(data.channel_breakdown.video_views)})
+                    </span>
                     <strong style={{ fontSize: '0.78rem', color: '#8b5cf6' }}>{formatPercent(data.channel_breakdown.video_views_percent, 1)}</strong>
                   </div>
                 </div>
@@ -1120,35 +1158,49 @@ export const TabletMarketIntelView: React.FC<TabletMarketIntelViewProps> = ({
                 )}
               </div>
 
-              {/* Catalog Quality & Supply Dynamics */}
+              {/* Catalog Quality & Supply Dynamics (6 Cards Full Desktop Parity) */}
               <div style={{ padding: '1rem', borderRadius: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
                 <h4 style={{ fontSize: '0.88rem', fontWeight: 800, margin: '0 0 0.65rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <ShieldCheck size={15} style={{ color: '#10b981' }} />
                   <span>Wawasan Kualitas Katalog &amp; Dinamika Suplai</span>
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                  <div style={{ padding: '0.6rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isTabletMini ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))', gap: '0.55rem' }}>
+                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Konversi 4+ Foto vs 1 Foto</div>
                     <strong style={{ fontSize: '0.82rem', color: '#10b981' }}>
                       {formatPercent(data.catalog_quality_benchmarks.multi_photo_conversion_rate)} vs {formatPercent(data.catalog_quality_benchmarks.single_photo_conversion_rate)}
                     </strong>
                   </div>
-                  <div style={{ padding: '0.6rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)' }}>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Multiplier Video &amp; Rekber</div>
+                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)' }}>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Multiplier Video Produk</div>
                     <strong style={{ fontSize: '0.82rem', color: '#3b82f6' }}>
-                      {data.catalog_quality_benchmarks.video_boost_multiplier.toFixed(2)}x video &bull; {formatPercent(data.catalog_quality_benchmarks.rekber_trust_adoption_rate)} rekber
+                      {data.catalog_quality_benchmarks.video_boost_multiplier.toFixed(2)}x konversi
                     </strong>
                   </div>
-                  <div style={{ padding: '0.6rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)' }}>
+                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)' }}>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Adopsi Rekber Syariah</div>
+                    <strong style={{ fontSize: '0.82rem', color: '#6366f1' }}>
+                      {formatPercent(data.catalog_quality_benchmarks.rekber_trust_adoption_rate)} produk aktif
+                    </strong>
+                  </div>
+                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)' }}>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Listing Baru (30 Hari)</div>
+                    <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                      {formatNumber(data.supply_side_dynamics.new_listings_30d)} item
+                    </strong>
+                  </div>
+                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Dinamika Harga</div>
                     <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
                       Naik {formatPercent(data.supply_side_dynamics.price_increase_ratio)} / Turun {formatPercent(data.supply_side_dynamics.price_decrease_ratio)}
                     </strong>
                   </div>
-                  <div style={{ padding: '0.6rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)' }}>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Listing Baru 30H</div>
-                    <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>
-                      {formatNumber(data.supply_side_dynamics.new_listings_30d)} item
+                  <div style={{ padding: '0.65rem 0.75rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)' }}>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Rata-rata Laku Terjual</div>
+                    <strong style={{ fontSize: '0.82rem', color: '#f59e0b' }}>
+                      {data.supply_side_dynamics.sold_out_velocity_avg_days > 0
+                        ? `${data.supply_side_dynamics.sold_out_velocity_avg_days.toFixed(1)} hari`
+                        : 'Belum ada sampel'}
                     </strong>
                   </div>
                 </div>
@@ -1165,13 +1217,14 @@ export const TabletMarketIntelView: React.FC<TabletMarketIntelViewProps> = ({
                   <span>Kata Kunci Paling Dicari ({trendingKeywords.length})</span>
                 </h4>
                 {trendingKeywords.length > 0 ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.5rem' }}>
                     {trendingKeywords.slice(0, 12).map((item, idx) => (
                       <div key={idx} style={{ padding: '0.6rem 0.8rem', borderRadius: '0.55rem', backgroundColor: 'var(--bg-deep)', border: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
                         <div style={{ minWidth: 0 }}>
                           <span style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.keyword}</span>
                           <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
                             {formatProductTypeLabel(item.product_type)} &bull; CTR {formatPercent(item.ctr, 1)}
+                            {item.zero_count > 0 ? ` • ${formatNumber(item.zero_count)}x nihil` : ''}
                           </span>
                         </div>
                         <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '0.18rem 0.45rem', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', flexShrink: 0 }}>
