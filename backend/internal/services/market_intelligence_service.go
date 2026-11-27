@@ -812,15 +812,7 @@ func GetMacroMarketSummary(db *gorm.DB) (*MacroMarketSummary, error) {
 }
 
 func sanitizeMarketCSVCell(s string) string {
-	cleaned := strings.NewReplacer("\r\n", " ", "\r", " ", "\n", " ").Replace(s)
-	trimmed := strings.TrimSpace(cleaned)
-	if trimmed == "" {
-		return ""
-	}
-	if strings.ContainsRune("\t=+-@|", rune(cleaned[0])) || strings.ContainsRune("\t=+-@|", rune(trimmed[0])) {
-		return "'" + trimmed
-	}
-	return trimmed
+	return SanitizeCSVField(s)
 }
 
 // GenerateMarketIntelligenceCSV builds a comprehensive, multi-section downloadable CSV dataset for B2B intelligence.
@@ -831,13 +823,15 @@ func GenerateMarketIntelligenceCSV(db *gorm.DB) ([]byte, error) {
 	}
 
 	var buf bytes.Buffer
+	// Write UTF-8 BOM so Microsoft Excel on Windows/Mac renders Indonesian characters reliably
+	_, _ = buf.Write([]byte("\xef\xbb\xbf"))
 	w := csv.NewWriter(&buf)
 
 	// Header comments
 	_ = w.Write([]string{"# CATAVOR ANONYMIZED MARKET INTELLIGENCE REPORT"})
-	_ = w.Write([]string{"# Generated At", summary.GeneratedAt})
-	_ = w.Write([]string{"# Privacy Threshold", fmt.Sprintf("K-Anonymity >= %d unique stores", summary.KAnonymityMinStores)})
-	_ = w.Write([]string{"# Compliance", summary.DataPrivacyNotice})
+	_ = w.Write([]string{"# Generated At", sanitizeMarketCSVCell(summary.GeneratedAt)})
+	_ = w.Write([]string{"# Privacy Threshold", sanitizeMarketCSVCell(fmt.Sprintf("K-Anonymity >= %d unique stores", summary.KAnonymityMinStores))})
+	_ = w.Write([]string{"# Compliance", sanitizeMarketCSVCell(summary.DataPrivacyNotice)})
 	_ = w.Write([]string{""})
 
 	// Section 1: Macro Metrics

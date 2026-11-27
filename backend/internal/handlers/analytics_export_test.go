@@ -33,6 +33,7 @@ func setupAnalyticsExportTestApp(t *testing.T) (*fiber.App, *gorm.DB, *Analytics
 		&models.Store{},
 		&models.Category{},
 		&models.Product{},
+		&models.ProductDailyAnalytics{},
 		&models.StoreDailyAnalytics{},
 		&models.StoreDailyTrafficSource{},
 		&models.StoreDailyAudienceMetric{},
@@ -220,18 +221,22 @@ func TestExportStoreAnalytics_FullPackageZIP(t *testing.T) {
 		t.Fatalf("Failed to parse zip archive: %v", err)
 	}
 
-	foundSummary := false
-	foundDaily := false
+	expected := map[string]bool{
+		"00_RINGKASAN_EKSEKUTIF.txt":             false,
+		"01_tren_kunjungan_dan_konversi.csv":     false,
+		"02_performa_katalog_item.csv":           false,
+		"03_sumber_trafik_dan_rujukan.csv":       false,
+		"04_demografi_dan_teknologi_audiens.csv": false,
+		"05_distribusi_jam_ramai_24_jam.csv":     false,
+	}
 	for _, f := range zipReader.File {
-		if f.Name == "00_RINGKASAN_EKSEKUTIF.txt" {
-			foundSummary = true
-		}
-		if f.Name == "01_tren_kunjungan_dan_konversi.csv" {
-			foundDaily = true
+		if _, ok := expected[f.Name]; ok {
+			expected[f.Name] = true
 		}
 	}
-
-	if !foundSummary || !foundDaily {
-		t.Errorf("ZIP archive missing expected entries, found: %v", zipReader.File)
+	for name, seen := range expected {
+		if !seen {
+			t.Errorf("ZIP archive missing expected entry %q", name)
+		}
 	}
 }

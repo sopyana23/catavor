@@ -3,6 +3,7 @@ package services
 import (
 	"archive/zip"
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -333,5 +334,99 @@ func TestExportProductsPerformanceCSVWithPeriod_RespectsPeriodScope(t *testing.T
 	}
 	if !strings.Contains(bufAll.String(), ",50,5,0,0,0,5,10.00%") {
 		t.Errorf("expected all-time metrics (views=50, wa=5, ctr=10.00%%), got:\n%s", bufAll.String())
+	}
+}
+
+func TestExportTrafficSourcesCSV_EmptyReturnsHeaderOnly(t *testing.T) {
+	db := setupTestDB(t)
+	store := &models.Store{ID: 60, Slug: "toko-kosong-trafik"}
+	db.Create(store)
+
+	var buf bytes.Buffer
+	if err := ExportTrafficSourcesCSV(&buf, store, "7d", 7, false, db); err != nil {
+		t.Fatalf("ExportTrafficSourcesCSV empty failed: %v", err)
+	}
+	out := buf.String()
+	if !strings.HasPrefix(out, "\xef\xbb\xbf") {
+		t.Errorf("expected UTF-8 BOM prefix on empty traffic CSV")
+	}
+	if strings.Contains(out, "Direct / Link Langsung") {
+		t.Errorf("empty traffic CSV must not fabricate Direct / Link Langsung row, got:\n%s", out)
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 1 {
+		t.Errorf("expected header-only CSV (1 line), got %d lines:\n%s", len(lines), out)
+	}
+}
+
+func TestExportFullAnalyticsZip_LegacyTotalActionsAndPeriodProductScope(t *testing.T) {
+	db := setupTestDB(t)
+	store := &models.Store{ID: 61, Slug: "toko-legacy-zip", StoreTitle: "Toko\nLegacy Audit"}
+	db.Create(store)
+
+	// Product has legacy all-time views=40, while store has period views without ProductDailyAnalytics rows.
+	db.Create(&models.Product{
+		StoreID:     61,
+		Name:        "\t=cmd|' /C calc'!A0",
+		ProductType: "physical",
+		Price:       100000,
+		ViewCount:   40,
+		IsActive:    true,
+	})
+
+	today := AnalyticsNow().Format("2006-01-02")
+	yesterday := AnalyticsNow().AddDate(0, 0, -1).Format("2006-01-02")
+	db.Create(&models.StoreDailyAnalytics{
+		StoreID:           61,
+		Date:              today,
+		StoreViews:        10,
+		UniqueVisitors:    8,
+		DirectWaClicks:    2,
+		MarketplaceClicks: 1,
+		RekberClicks:      1,
+		TotalActions:      4,
+	})
+	db.Create(&models.StoreDailyAnalytics{
+		StoreID:        61,
+		Date:           yesterday,
+		StoreViews:     5,
+		UniqueVisitors: 4,
+		DirectWaClicks: 2,
+		TotalActions:   0, // legacy row with total_actions=0
+	})
+
+	var buf bytes.Buffer
+	if _, _, err := ExecuteAnalyticsExport(&buf, store, "package", "7d", ProductExportFilter{}, db); err != nil {
+		t.Fatalf("ExecuteAnalyticsExport package failed: %v", err)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatalf("zip.NewReader failed: %v", err)
+	}
+	files := map[string]string{}
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := io.ReadAll(rc)
+		_ = rc.Close()
+		files[f.Name] = string(raw)
+	}
+
+	summaryTxt := files["00_RINGKASAN_EKSEKUTIF.txt"]
+	if !strings.Contains(summaryTxt, "Total Aksi Peminat     : 6 interaksi") {
+		t.Errorf("expected summary TXT to include legacy action fallback total=6, got:\n%s", summaryTxt)
+	}
+	if !strings.Contains(summaryTxt, "Nama Toko         : Toko Legacy Audit") {
+		t.Errorf("expected sanitized single-line StoreTitle in summary TXT, got:\n%s", summaryTxt)
+	}
+	prodCSV := files["02_performa_katalog_item.csv"]
+	if !strings.Contains(prodCSV, "'=cmd|") {
+		t.Errorf("expected tab+formula cell neutralized in product CSV, got:\n%s", prodCSV)
+	}
+	if strings.Contains(prodCSV, ",40,") {
+		t.Errorf("period 7d product CSV must not leak all-time view_count=40 when store has period traffic, got:\n%s", prodCSV)
 	}
 }

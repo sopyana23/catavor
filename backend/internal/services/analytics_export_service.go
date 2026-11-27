@@ -294,12 +294,27 @@ func ExportProductsPerformanceCSVWithPeriod(w io.Writer, store *models.Store, pe
 		return csvWriter.Write(row)
 	}
 
-	// Check whether period-scoped product_daily_analytics is requested and populated for this store
+	// Check whether period-scoped analytics is active (aligned with GetStoreAnalytics:
+	// either product_daily_analytics exists or store_daily_analytics already tracks period views).
+	hasProdDailyTable := db.Migrator().HasTable(&models.ProductDailyAnalytics{})
 	usePeriodScope := false
 	if !isAllTime && days > 0 {
-		var anyDailyCount int64
-		_ = db.Model(&models.ProductDailyAnalytics{}).Where("store_id = ?", store.ID).Limit(1).Count(&anyDailyCount).Error
-		usePeriodScope = anyDailyCount > 0
+		if hasProdDailyTable {
+			var anyDailyCount int64
+			if err := db.Model(&models.ProductDailyAnalytics{}).Where("store_id = ?", store.ID).Limit(1).Count(&anyDailyCount).Error; err != nil {
+				return fmt.Errorf("failed to check daily product analytics scope: %w", err)
+			}
+			if anyDailyCount > 0 {
+				usePeriodScope = true
+			}
+		}
+		if !usePeriodScope {
+			var anyStoreViews int64
+			if err := db.Model(&models.StoreDailyAnalytics{}).Where("store_id = ? AND store_views > 0", store.ID).Limit(1).Count(&anyStoreViews).Error; err != nil {
+				return fmt.Errorf("failed to check daily store analytics scope: %w", err)
+			}
+			usePeriodScope = anyStoreViews > 0
+		}
 	}
 
 	if usePeriodScope {
@@ -314,12 +329,14 @@ func ExportProductsPerformanceCSVWithPeriod(w io.Writer, store *models.Store, pe
 			VideoViews        int64 `gorm:"column:video_views"`
 		}
 		var aggRows []prodAggRow
-		if err := db.Model(&models.ProductDailyAnalytics{}).
-			Select("product_id, COALESCE(SUM(views), 0) as views, COALESCE(SUM(direct_wa_clicks), 0) as direct_wa_clicks, COALESCE(SUM(wa_clicks), 0) as wa_clicks, COALESCE(SUM(marketplace_clicks), 0) as marketplace_clicks, COALESCE(SUM(rekber_clicks), 0) as rekber_clicks, COALESCE(SUM(video_views), 0) as video_views").
-			Where("store_id = ? AND date >= ?", store.ID, startDate).
-			Group("product_id").
-			Find(&aggRows).Error; err != nil {
-			return fmt.Errorf("failed to aggregate period product metrics: %w", err)
+		if hasProdDailyTable {
+			if err := db.Model(&models.ProductDailyAnalytics{}).
+				Select("product_id, COALESCE(SUM(views), 0) as views, COALESCE(SUM(direct_wa_clicks), 0) as direct_wa_clicks, COALESCE(SUM(wa_clicks), 0) as wa_clicks, COALESCE(SUM(marketplace_clicks), 0) as marketplace_clicks, COALESCE(SUM(rekber_clicks), 0) as rekber_clicks, COALESCE(SUM(video_views), 0) as video_views").
+				Where("store_id = ? AND date >= ?", store.ID, startDate).
+				Group("product_id").
+				Find(&aggRows).Error; err != nil {
+				return fmt.Errorf("failed to aggregate period product metrics: %w", err)
+			}
 		}
 		aggMap := make(map[uint]prodAggRow, len(aggRows))
 		for _, r := range aggRows {
@@ -523,14 +540,6 @@ func ExportTrafficSourcesCSV(w io.Writer, store *models.Store, period string, da
 		totalViews += r.Views
 	}
 
-	// Fallback if empty but store has views
-	if len(aggMap) == 0 {
-		aggMap["direct"] = &srcAgg{
-			code: "direct",
-			name: "Direct / Link Langsung",
-		}
-	}
-
 	list := make([]*srcAgg, 0, len(aggMap))
 	for _, itm := range aggMap {
 		list = append(list, itm)
@@ -616,7 +625,7 @@ func ExportAudienceDimensionsCSV(w io.Writer, store *models.Store, period string
 	}
 
 	var rows []dimRow
-	if err := query.Group("dimension_type, dimension_value").Order("dimension_type ASC, views DESC").Find(&rows).Error; err != nil {
+	if err := query.Group("dimension_type, dimension_value").Order("dimension_type ASC, views DESC").Limit(5000).Find(&rows).Error; err != nil {
 		return fmt.Errorf("failed to fetch audience dimensions: %w", err)
 	}
 
@@ -713,7 +722,9 @@ func ExportHourlyHeatmapCSV(w io.Writer, store *models.Store, period string, day
 	}
 
 	var rows []hourRow
-	_ = query.Group("dimension_value").Find(&rows).Error
+	if err := query.Group("dimension_value").Find(&rows).Error; err != nil {
+		return fmt.Errorf("failed to fetch hourly heatmap: %w", err)
+	}
 
 	hourMap := make(map[string]int)
 	totalHourlyViews := 0
@@ -757,12 +768,12 @@ func ExportFullAnalyticsZip(w io.Writer, store *models.Store, period string, day
 	// 1. Executive Summary Readme file
 	metaWriter, err := zipWriter.Create("00_RINGKASAN_EKSEKUTIF.txt")
 	if err == nil {
-		storeTitle := store.StoreTitle
-		if storeTitle == "" {
+		storeTitle := strings.NewReplacer("\r\n", " ", "\r", " ", "\n", " ").Replace(store.StoreTitle)
+		if strings.TrimSpace(storeTitle) == "" {
 			storeTitle = store.Slug
 		}
 
-		// Calculate quick high-level summary
+		// Calculate quick high-level summary (aligned with ExportDailyMetricsCSV & GetStoreAnalytics)
 		var totalViews, totalActions, totalUniques int
 		dailyQ := db.Model(&models.StoreDailyAnalytics{}).Where("store_id = ?", store.ID)
 		if !isAllTime && days > 0 {
@@ -775,7 +786,9 @@ func ExportFullAnalyticsZip(w io.Writer, store *models.Store, period string, day
 			Uniques int `gorm:"column:uniques"`
 		}
 		var sr sumRow
-		_ = dailyQ.Select("COALESCE(SUM(store_views), 0) as views, COALESCE(SUM(total_actions), 0) as actions, COALESCE(SUM(unique_visitors), 0) as uniques").Scan(&sr).Error
+		if err := dailyQ.Select("COALESCE(SUM(store_views), 0) as views, COALESCE(SUM(CASE WHEN total_actions > 0 THEN total_actions ELSE (CASE WHEN direct_wa_clicks = 0 THEN wa_clicks ELSE direct_wa_clicks END + marketplace_clicks + rekber_clicks + video_views) END), 0) as actions, COALESCE(SUM(unique_visitors), 0) as uniques").Scan(&sr).Error; err != nil {
+			return fmt.Errorf("failed to compute zip executive summary: %w", err)
+		}
 		totalViews = sr.Views
 		totalActions = sr.Actions
 		totalUniques = sr.Uniques

@@ -289,10 +289,14 @@ func TestExportMarketIntelligence_SecurityHeadersFormulaNeutralizationAndAuditLo
 	if xcto := csvRes.Header.Get("X-Content-Type-Options"); xcto != "nosniff" {
 		t.Errorf("expected X-Content-Type-Options=nosniff, got %q", xcto)
 	}
-	if cd := csvRes.Header.Get("Content-Disposition"); !strings.Contains(cd, `filename="catavor-market-intelligence-`) {
-		t.Errorf("expected quoted Content-Disposition filename, got %q", cd)
+	expectedPrefix := fmt.Sprintf(`filename="catavor-market-intelligence-%s.csv"`, services.AnalyticsNow().Format("20060102"))
+	if cd := csvRes.Header.Get("Content-Disposition"); !strings.Contains(cd, expectedPrefix) {
+		t.Errorf("expected WIB Content-Disposition filename containing %s, got %q", expectedPrefix, cd)
 	}
 	bodyBytes, _ := io.ReadAll(csvRes.Body)
+	if len(bodyBytes) < 3 || bodyBytes[0] != 0xef || bodyBytes[1] != 0xbb || bodyBytes[2] != 0xbf {
+		t.Errorf("expected UTF-8 BOM prefix on Market Intelligence CSV export")
+	}
 	csvBody := string(bodyBytes)
 	if !strings.Contains(csvBody, "'=cmd|") {
 		t.Errorf("expected dangerous formula cell to be single-quote neutralized in CSV:\n%s", csvBody)

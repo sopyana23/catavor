@@ -1787,7 +1787,7 @@ func (h *AnalyticsHandler) ExportMarketIntelligenceData(c *fiber.Ctx) error {
 		})
 	}
 
-	dateStamp := time.Now().UTC().Format("20060102")
+	dateStamp := services.AnalyticsNow().Format("20060102")
 	c.Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	c.Set("Pragma", "no-cache")
 	c.Set("X-Content-Type-Options", "nosniff")
@@ -2253,6 +2253,11 @@ func (h *AnalyticsHandler) ExportStoreAnalytics(c *fiber.Ctx) error {
 		repTypeCopy := reportType
 		periodCopy := period
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Interface("recover", r).Msg("Recovered from analytics export audit panic")
+				}
+			}()
 			services.RecordActivity(services.RecordActivityParams{
 				DB:          h.db,
 				StoreID:     &sID,

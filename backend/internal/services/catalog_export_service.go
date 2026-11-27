@@ -13,18 +13,18 @@ import (
 	"gorm.io/datatypes"
 )
 
-// SanitizeCSVField prevents CSV Formula Injection (CWE-1236)
-// Prepends single quote if field starts with formula trigger characters (=, +, -, @, \t, \r, |)
+// SanitizeCSVField prevents CSV Formula Injection (CWE-1236) and strips raw newlines.
+// Prepends single quote if untrimmed or trimmed field starts with formula trigger characters (=, +, -, @, \t, \r, |)
 func SanitizeCSVField(val string) string {
-	clean := strings.TrimSpace(val)
-	if len(clean) == 0 {
+	cleaned := strings.NewReplacer("\r\n", " ", "\r", " ", "\n", " ").Replace(val)
+	trimmed := strings.TrimSpace(cleaned)
+	if len(trimmed) == 0 {
 		return ""
 	}
-	first := clean[0]
-	if first == '=' || first == '+' || first == '-' || first == '@' || first == '\t' || first == '\r' || first == '|' {
-		return "'" + clean
+	if strings.ContainsRune("\t=+-@|\r", rune(cleaned[0])) || strings.ContainsRune("\t=+-@|\r", rune(trimmed[0])) {
+		return "'" + trimmed
 	}
-	return clean
+	return trimmed
 }
 
 // FormatAttributesSummary serializes attributes JSON map into readable human text
