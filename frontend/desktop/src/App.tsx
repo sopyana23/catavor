@@ -142,6 +142,7 @@ import {
 } from 'lucide-react'
 import './App.css'
 import { getItemModerationMeta } from '../../shared/moderation/itemModerationBadge'
+import { submitPublicReport, MAX_REPORT_NOTES_LENGTH, MAX_REPORT_EMAIL_LENGTH } from '../../shared/reporting/submitReport'
 import { CustomDomainSettingsPanel } from '../../shared/custom-domain/CustomDomainSettingsPanel'
 import { getCustomDomainMeta } from '../../shared/custom-domain/hostContext'
 import logoHeaderImg from './assets/logo-header.png'
@@ -6658,6 +6659,7 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
   const [reportReason, setReportReason] = useState<string>('fraud')
   const [reportNotes, setReportNotes] = useState<string>('')
   const [reportEmail, setReportEmail] = useState<string>('')
+  const [reportFormError, setReportFormError] = useState<string | null>(null)
   const [isSubmittingReport, setIsSubmittingReport] = useState<boolean>(false)
 
   useModalBackHandler({
@@ -6668,7 +6670,10 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
 
   useModalBackHandler({
     isOpen: Boolean(reportModalData),
-    onClose: () => setReportModalData(null),
+    onClose: () => {
+      setReportModalData(null);
+      setReportFormError(null);
+    },
     modalId: 'desktop-report-modal'
   })
 
@@ -34345,7 +34350,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   <textarea
                     placeholder="Jelaskan rincian atau bukti pelanggaran yang Anda temukan untuk mempermudah investigasi..."
                     value={reportNotes}
-                    onChange={(e) => setReportNotes(e.target.value)}
+                    maxLength={MAX_REPORT_NOTES_LENGTH}
+                    onChange={(e) => {
+                      setReportNotes(e.target.value);
+                      if (reportFormError) setReportFormError(null);
+                    }}
                     rows={3}
                     style={{
                       width: '100%',
@@ -34363,6 +34372,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     onFocus={e => e.currentTarget.style.borderColor = 'var(--primary)'}
                     onBlur={e => e.currentTarget.style.borderColor = 'var(--border-light)'}
                   />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.3rem', fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                    {reportNotes.length}/{MAX_REPORT_NOTES_LENGTH} karakter
+                  </div>
                 </div>
 
                 {/* Section: Email Pelapor */}
@@ -34383,7 +34395,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       type="email"
                       placeholder="email@anda.com"
                       value={reportEmail}
-                      onChange={(e) => setReportEmail(e.target.value)}
+                      maxLength={MAX_REPORT_EMAIL_LENGTH}
+                      onChange={(e) => {
+                        setReportEmail(e.target.value);
+                        if (reportFormError) setReportFormError(null);
+                      }}
                       style={{
                         width: '100%',
                         padding: '0.65rem 0.75rem 0.65rem 2.2rem',
@@ -34405,6 +34421,24 @@ Terima kasih atas perhatian dan kerja samanya.`;
                     Digunakan tim kepatuhan untuk mengirimkan notifikasi status tindak lanjut penanganan laporan.
                   </p>
                 </div>
+
+                {reportFormError && (
+                  <div
+                    role="alert"
+                    style={{
+                      padding: '0.7rem 0.85rem',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                      color: '#ef4444',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      lineHeight: 1.4
+                    }}
+                  >
+                    {reportFormError}
+                  </div>
+                )}
               </div>
 
               {/* Pinned Sticky Footer */}
@@ -34425,7 +34459,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button
                     type="button"
-                    onClick={() => setReportModalData(null)}
+                    onClick={() => {
+                      setReportModalData(null);
+                      setReportFormError(null);
+                    }}
                     disabled={isSubmittingReport}
                     style={{
                       flex: 1,
@@ -34459,12 +34496,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       const currentReasonObj = reasonList.find(r => r.id === reportReason);
                       const reasonLabel = currentReasonObj ? currentReasonObj.title : 'Pelanggaran Ketentuan';
 
+                      setReportFormError(null);
                       setIsSubmittingReport(true);
                       try {
-                        const res = await fetch(`${API_BASE}/reports`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
+                        const result = await submitPublicReport({
+                          apiBase: API_BASE,
+                          targetTitle,
+                          payload: {
                             target_type: reportModalData.type === 'store' ? 'catalog' : 'item',
                             store_id: (settings as any).id || 0,
                             store_slug: storeSlug || '',
@@ -34474,25 +34512,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
                             item_name: reportModalData.type === 'item' ? reportModalData.item?.name : null,
                             reason_category: reportReason,
                             reason_label: reasonLabel,
-                            description: reportNotes.trim(),
-                            reporter_email: reportEmail.trim()
-                          })
+                            description: reportNotes,
+                            reporter_email: reportEmail
+                          }
                         });
-                        const data = await res.json();
-                        if (data.success) {
+                        if (result.ok) {
                           setReportModalData(null);
                           setReportNotes('');
                           setReportEmail('');
-                          if (data.duplicate) {
-                            showToast(data.message || `Laporan untuk "${targetTitle}" sudah tercatat dan sedang ditinjau tim kepatuhan.`, 'info');
-                          } else {
-                            showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetTitle}" telah berhasil dikirim ke tim kepatuhan.`);
-                          }
+                          setReportFormError(null);
+                          showToast(result.message, result.duplicate ? 'info' : 'success');
                         } else {
-                          showToast(data.message || 'Gagal mengirim laporan. Silakan coba lagi.', 'error');
+                          setReportFormError(result.message);
+                          showToast(result.message, 'error');
                         }
-                      } catch (err) {
-                        showToast('Terjadi gangguan saat mengirim laporan. Silakan coba lagi.', 'error');
                       } finally {
                         setIsSubmittingReport(false);
                       }

@@ -1374,10 +1374,14 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   }, [desktopTicketPriorityOptions, ticketPriorityFilter]);
 
-  // Target counts for compliance reports
+  // Global target counts for compliance reports (prefer server metrics over current page slice)
   const reportTargetCounts = useMemo(() => {
-    const item = reports.filter(r => r.target_type !== 'catalog' && r.target_type !== 'store').length;
-    const catalog = reports.filter(r => r.target_type === 'catalog' || r.target_type === 'store').length;
+    const item = typeof reportMetrics?.item_count === 'number'
+      ? reportMetrics.item_count
+      : reports.filter(r => r.target_type !== 'catalog' && r.target_type !== 'store').length;
+    const catalog = typeof reportMetrics?.catalog_count === 'number'
+      ? reportMetrics.catalog_count
+      : reports.filter(r => r.target_type === 'catalog' || r.target_type === 'store').length;
     const total = reportMetrics ? reportMetrics.total : reports.length;
     return { total, item, catalog };
   }, [reports, reportMetrics]);
@@ -6517,6 +6521,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 if (reportsFilter !== 'all') {
                   if (reportsFilter === 'investigating') {
                     if (r.status !== 'investigating' && r.status !== 'in_review') return false;
+                  } else if (reportsFilter === 're_review') {
+                    if (r.status !== 're_review') return false;
                   } else if (reportsFilter === 'banned') {
                     if (r.status !== 'banned' && r.action_taken !== 'catalog_banned') return false;
                   } else if (reportsFilter === 'action_taken') {

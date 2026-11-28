@@ -16,6 +16,11 @@ import {
   Send 
 } from 'lucide-react';
 import { API_BASE } from '../utils/apiClient';
+import {
+  submitPublicReport,
+  MAX_REPORT_NOTES_LENGTH,
+  MAX_REPORT_EMAIL_LENGTH,
+} from '../../../shared/reporting/submitReport';
 
 export function getCatalogReportReasons(targetType: 'store' | 'item', item?: any): { id: string; title: string; desc: string }[] {
   if (targetType === 'store') {
@@ -164,6 +169,7 @@ export const TabletReportModal: React.FC<TabletReportModalProps> = ({
   const [reportReason, setReportReason] = useState<string>('');
   const [reportNotes, setReportNotes] = useState<string>('');
   const [reportEmail, setReportEmail] = useState<string>('');
+  const [reportFormError, setReportFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const reasonList = useMemo(() => {
@@ -192,6 +198,7 @@ export const TabletReportModal: React.FC<TabletReportModalProps> = ({
     }
     setReportNotes('');
     setReportEmail('');
+    setReportFormError(null);
   }, [reportData, reasonList]);
 
   if (!isOpen || !reportData) return null;
@@ -201,12 +208,13 @@ export const TabletReportModal: React.FC<TabletReportModalProps> = ({
     const currentReasonObj = reasonList.find(r => r.id === reportReason);
     const reasonLabel = currentReasonObj ? currentReasonObj.title : 'Pelanggaran Ketentuan';
 
+    setReportFormError(null);
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/reports`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const result = await submitPublicReport({
+        apiBase: API_BASE,
+        targetTitle,
+        payload: {
           target_type: reportData.type === 'store' ? 'catalog' : 'item',
           store_id: storeSettings?.id || 0,
           store_slug: storeSlug || '',
@@ -216,25 +224,19 @@ export const TabletReportModal: React.FC<TabletReportModalProps> = ({
           item_name: reportData.type === 'item' ? reportData.item?.name : null,
           reason_category: reportReason,
           reason_label: reasonLabel,
-          description: reportNotes.trim(),
-          reporter_email: reportEmail.trim()
-        })
+          description: reportNotes,
+          reporter_email: reportEmail,
+        },
       });
-      const data = await res.json();
-      if (data.success) {
+      if (result.ok) {
         onClose();
         setReportNotes('');
         setReportEmail('');
-        if (data.duplicate) {
-          onToast(data.message || `Laporan untuk "${targetTitle}" sudah tercatat dan sedang ditinjau tim kepatuhan.`, 'info');
-        } else {
-          onToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetTitle}" telah berhasil dikirim ke tim kepatuhan.`, 'success');
-        }
+        onToast(result.message, result.duplicate ? 'info' : 'success');
       } else {
-        onToast(data.message || 'Gagal mengirim laporan. Silakan coba lagi.', 'error');
+        setReportFormError(result.message);
+        onToast(result.message, 'error');
       }
-    } catch (err) {
-      onToast('Terjadi gangguan jaringan saat mengirim laporan. Silakan coba lagi.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -519,7 +521,11 @@ export const TabletReportModal: React.FC<TabletReportModalProps> = ({
             <textarea
               placeholder="Jelaskan rincian atau bukti pelanggaran yang Anda temukan untuk mempermudah investigasi..."
               value={reportNotes}
-              onChange={(e) => setReportNotes(e.target.value)}
+              maxLength={MAX_REPORT_NOTES_LENGTH}
+              onChange={(e) => {
+                setReportNotes(e.target.value);
+                if (reportFormError) setReportFormError(null);
+              }}
               rows={3}
               style={{
                 width: '100%',
@@ -538,6 +544,9 @@ export const TabletReportModal: React.FC<TabletReportModalProps> = ({
               onFocus={e => e.currentTarget.style.borderColor = 'var(--primary)'}
               onBlur={e => e.currentTarget.style.borderColor = 'var(--border-light)'}
             />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.3rem', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+              {reportNotes.length}/{MAX_REPORT_NOTES_LENGTH} karakter
+            </div>
           </div>
 
           {/* Section: Email Pelapor */}
@@ -558,7 +567,11 @@ export const TabletReportModal: React.FC<TabletReportModalProps> = ({
                 type="email"
                 placeholder="email@anda.com"
                 value={reportEmail}
-                onChange={(e) => setReportEmail(e.target.value)}
+                maxLength={MAX_REPORT_EMAIL_LENGTH}
+                onChange={(e) => {
+                  setReportEmail(e.target.value);
+                  if (reportFormError) setReportFormError(null);
+                }}
                 style={{
                   width: '100%',
                   minHeight: '44px',
@@ -582,6 +595,24 @@ export const TabletReportModal: React.FC<TabletReportModalProps> = ({
               Digunakan tim kepatuhan untuk mengirimkan notifikasi status tindak lanjut penanganan laporan.
             </p>
           </div>
+
+          {reportFormError && (
+            <div
+              role="alert"
+              style={{
+                padding: '0.75rem 0.9rem',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                color: '#ef4444',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                lineHeight: 1.4
+              }}
+            >
+              {reportFormError}
+            </div>
+          )}
         </div>
 
         {/* Pinned Sticky Footer */}

@@ -140,6 +140,7 @@ import {
 } from 'lucide-react'
 import './App.css'
 import { getItemModerationMeta } from '../../shared/moderation/itemModerationBadge'
+import { submitPublicReport, MAX_REPORT_NOTES_LENGTH, MAX_REPORT_EMAIL_LENGTH } from '../../shared/reporting/submitReport'
 import { CustomDomainSettingsPanel } from '../../shared/custom-domain/CustomDomainSettingsPanel'
 import { getCustomDomainMeta } from '../../shared/custom-domain/hostContext'
 import logoHeaderImg from './assets/logo-header.png'
@@ -6506,6 +6507,7 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
   const [reportReason, setReportReason] = useState<string>('fraud')
   const [reportNotes, setReportNotes] = useState<string>('')
   const [reportEmail, setReportEmail] = useState<string>('')
+  const [reportFormError, setReportFormError] = useState<string | null>(null)
   const [isSubmittingReport, setIsSubmittingReport] = useState<boolean>(false)
 
   // Dynamic Mobile Bottom Sheet Generic Form Dropdown Picker State
@@ -36007,7 +36009,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   className="search-input"
                   placeholder="Jelaskan detail pelanggaran yang Anda temukan..."
                   value={reportNotes}
-                  onChange={(e) => setReportNotes(e.target.value)}
+                  maxLength={MAX_REPORT_NOTES_LENGTH}
+                  onChange={(e) => {
+                    setReportNotes(e.target.value);
+                    if (reportFormError) setReportFormError(null);
+                  }}
                   rows={3}
                   style={{
                     width: '100%',
@@ -36019,6 +36025,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     height: 'auto'
                   }}
                 />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem', fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                  {reportNotes.length}/{MAX_REPORT_NOTES_LENGTH} karakter
+                </div>
               </div>
 
               {/* Email (Optional) */}
@@ -36031,10 +36040,32 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   className="search-input"
                   placeholder="email@anda.com (untuk pembaruan status laporan)"
                   value={reportEmail}
-                  onChange={(e) => setReportEmail(e.target.value)}
+                  maxLength={MAX_REPORT_EMAIL_LENGTH}
+                  onChange={(e) => {
+                    setReportEmail(e.target.value);
+                    if (reportFormError) setReportFormError(null);
+                  }}
                   style={{ width: '100%', padding: '0.6rem 0.85rem' }}
                 />
               </div>
+
+              {reportFormError && (
+                <div
+                  role="alert"
+                  style={{
+                    padding: '0.7rem 0.85rem',
+                    borderRadius: '0.65rem',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    color: '#ef4444',
+                    fontSize: '0.76rem',
+                    fontWeight: 600,
+                    lineHeight: 1.4
+                  }}
+                >
+                  {reportFormError}
+                </div>
+              )}
             </div>
 
             {/* Sticky Action Footer */}
@@ -36048,7 +36079,10 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={() => setReportModalData(null)}
+                onClick={() => {
+                  setReportModalData(null);
+                  setReportFormError(null);
+                }}
                 disabled={isSubmittingReport}
                 style={{ flex: 1, padding: '0.75rem', fontSize: '0.82rem', fontWeight: 700, borderRadius: '0.75rem' }}
               >
@@ -36066,12 +36100,13 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                     ? (settings.store_title || 'katalog ini')
                     : (reportModalData.item?.name || 'item ini');
 
+                  setReportFormError(null);
                   setIsSubmittingReport(true);
                   try {
-                    const res = await fetch(`${API_BASE}/reports`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
+                    const result = await submitPublicReport({
+                      apiBase: API_BASE,
+                      targetTitle: targetName,
+                      payload: {
                         target_type: reportModalData.type === 'store' ? 'catalog' : 'item',
                         store_id: (settings as any).id || 0,
                         store_slug: storeSlug || '',
@@ -36081,25 +36116,20 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                         item_name: reportModalData.type === 'item' ? reportModalData.item?.name : null,
                         reason_category: reportReason,
                         reason_label: reasonLabel,
-                        description: reportNotes.trim(),
-                        reporter_email: reportEmail.trim()
-                      })
+                        description: reportNotes,
+                        reporter_email: reportEmail
+                      }
                     });
-                    const data = await res.json();
-                    if (data.success) {
+                    if (result.ok) {
                       setReportModalData(null);
                       setReportNotes('');
                       setReportEmail('');
-                      if (data.duplicate) {
-                        showToast(data.message || `Laporan untuk "${targetName}" sudah tercatat dan sedang ditinjau tim kepatuhan.`, 'info');
-                      } else {
-                        showToast(`Terima kasih. Laporan #${data.data?.report_number || ''} untuk "${targetName}" telah berhasil dikirim ke tim kepatuhan.`);
-                      }
+                      setReportFormError(null);
+                      showToast(result.message, result.duplicate ? 'info' : 'success');
                     } else {
-                      showToast(data.message || 'Gagal mengirim laporan. Silakan coba lagi.', 'error');
+                      setReportFormError(result.message);
+                      showToast(result.message, 'error');
                     }
-                  } catch (err) {
-                    showToast('Terjadi gangguan saat mengirim laporan. Silakan coba lagi.', 'error');
                   } finally {
                     setIsSubmittingReport(false);
                   }

@@ -636,10 +636,14 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
   const [bannedConfirmModalReport, setBannedConfirmModalReport] = useState<any | null>(null);
   const [bannedConfirmAcknowledged, setBannedConfirmAcknowledged] = useState(false);
 
-  // Target counts for compliance reports in tablet
+  // Global target counts for compliance reports in tablet (prefer server metrics over current page slice)
   const reportTargetCounts = useMemo(() => {
-    const item = reports.filter(r => r.target_type !== 'catalog' && r.target_type !== 'store').length;
-    const catalog = reports.filter(r => r.target_type === 'catalog' || r.target_type === 'store').length;
+    const item = typeof reportMetrics?.item_count === 'number'
+      ? reportMetrics.item_count
+      : reports.filter(r => r.target_type !== 'catalog' && r.target_type !== 'store').length;
+    const catalog = typeof reportMetrics?.catalog_count === 'number'
+      ? reportMetrics.catalog_count
+      : reports.filter(r => r.target_type === 'catalog' || r.target_type === 'store').length;
     const total = reportMetrics ? reportMetrics.total : reports.length;
     return { total, item, catalog };
   }, [reports, reportMetrics]);
