@@ -230,14 +230,24 @@ func SetSafeDomainsCache(ctx context.Context, key string, data string, ttl time.
 	_ = RedisClient.Set(ctx, "safe_domains:"+key, data, ttl).Err()
 }
 
-// InvalidateSafeDomainsCache purges all cached safe domains entries.
+// InvalidateSafeDomainsCache purges all cached safe domains entries using non-blocking SCAN.
 func InvalidateSafeDomainsCache(ctx context.Context) {
 	if !IsRedisAvailable() {
 		return
 	}
-	keys, err := RedisClient.Keys(ctx, "safe_domains:*").Result()
-	if err == nil && len(keys) > 0 {
-		_ = RedisClient.Del(ctx, keys...).Err()
+	var cursor uint64
+	for {
+		keys, nextCursor, err := RedisClient.Scan(ctx, cursor, "safe_domains:*", 100).Result()
+		if err != nil {
+			break
+		}
+		if len(keys) > 0 {
+			_ = RedisClient.Del(ctx, keys...).Err()
+		}
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
 	}
 }
 

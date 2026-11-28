@@ -29,6 +29,11 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
   const [dontRemind, setDontRemind] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    setDontRemind(false);
+    setCopied(false);
+  }, [url]);
+
   useModalBackHandler({
     isOpen: Boolean(url),
     onClose,
@@ -50,12 +55,16 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
 
   const domain = cleanDomainString(url);
 
-  const handleCopy = (e: React.MouseEvent) => {
+  const handleCopy = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard unavailable in insecure context or permission denied
+    }
   };
 
   const handleConfirmProceed = (e: React.MouseEvent) => {

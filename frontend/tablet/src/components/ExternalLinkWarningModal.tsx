@@ -36,6 +36,11 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    setDontRemind(false);
+    setCopied(false);
+  }, [url]);
+
+  useEffect(() => {
     if (!url) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -50,12 +55,16 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
 
   const domain = cleanDomainString(url);
 
-  const handleCopy = (e: React.MouseEvent) => {
+  const handleCopy = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard unavailable in insecure context or permission denied
+    }
   };
 
   const handleConfirmProceed = (e: React.MouseEvent) => {
@@ -122,10 +131,10 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
           onClick={onClose}
           style={{
             position: 'absolute',
-            top: '1.1rem',
-            right: '1.1rem',
-            width: '36px',
-            height: '36px',
+            top: '0.85rem',
+            right: '0.85rem',
+            width: '44px',
+            height: '44px',
             borderRadius: '50%',
             backgroundColor: 'var(--bg-deep, rgba(255, 255, 255, 0.06))',
             border: '1px solid var(--border-light, transparent)',

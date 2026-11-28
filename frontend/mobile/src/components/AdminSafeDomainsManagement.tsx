@@ -22,10 +22,12 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
-  Filter
+  Filter,
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react';
 import { loadDynamicSafeDomains } from '../utils/urlSecurity';
-import { MobileCustomSelect, type MobileSelectOption } from './MobileCustomSelect';
+import { MobileCustomSelect, MobileSheetStack, type MobileSelectOption } from './MobileCustomSelect';
 
 export interface SafeDomainItem {
   id: number;
@@ -55,6 +57,17 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string
   Mitra: { bg: 'rgba(99, 102, 241, 0.12)', text: '#6366f1', border: 'rgba(99, 102, 241, 0.3)' },
   Umum: { bg: 'rgba(100, 116, 139, 0.12)', text: '#94a3b8', border: 'rgba(100, 116, 139, 0.3)' }
 };
+
+const SAFE_DOMAIN_CATEGORY_OPTIONS: MobileSelectOption[] = [
+  { value: 'Google', label: 'Google Ecosystem', description: 'Workspace, Analytics, Maps, Search Console' },
+  { value: 'Komunikasi', label: 'Komunikasi & Chat', description: 'WhatsApp, Telegram, messaging API' },
+  { value: 'Media Sosial', label: 'Media Sosial', description: 'Instagram, TikTok, Facebook, YouTube' },
+  { value: 'Platform', label: 'Platform Catavor', description: 'Domain resmi & CDN ekosistem Catavor' },
+  { value: 'Produktivitas', label: 'Produktivitas & Dev', description: 'GitHub, Notion, Figma, Slack, tools' },
+  { value: 'Finansial', label: 'Finansial & Bank', description: 'Bank transfer & payment gateway resmi' },
+  { value: 'Mitra', label: 'Mitra Resmi', description: 'Partner resmi & afiliasi terverifikasi' },
+  { value: 'Umum', label: 'Umum / Lainnya', description: 'Kategori utilitas umum' },
+];
 
 export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProps> = ({
   token,
@@ -93,6 +106,9 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
     total_pages: 1
   });
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [globalStats, setGlobalStats] = useState<{ total: number; active: number; system: number; custom: number } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ mode: 'delete'; item: SafeDomainItem } | { mode: 'reset_defaults' } | null>(null);
+  const [confirmProcessing, setConfirmProcessing] = useState(false);
 
   // Debounce search query 300ms
   useEffect(() => {
@@ -123,13 +139,23 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
   // Modal Back Navigation Interceptor
   useModalBackHandler({
     isOpen: showFormModal,
-    onClose: () => setShowFormModal(false)
+    onClose: () => setShowFormModal(false),
+    modalId: 'mobile-safe-domain-form-sheet'
+  });
+
+  useModalBackHandler({
+    isOpen: Boolean(confirmDialog),
+    onClose: () => setConfirmDialog(null),
+    modalId: 'mobile-safe-domain-confirm-sheet'
   });
 
   // Drag-to-dismiss gesture state for Form Bottom Sheet
   const [formSheetDragY, setFormSheetDragY] = useState(0);
   const [isFormSheetDragging, setIsFormSheetDragging] = useState(false);
   const formTouchStartY = useRef(0);
+  const [confirmSheetDragY, setConfirmSheetDragY] = useState(0);
+  const [isConfirmSheetDragging, setIsConfirmSheetDragging] = useState(false);
+  const confirmTouchStartY = useRef(0);
 
   const handleFormDragStart = (clientY: number) => {
     formTouchStartY.current = clientY;
@@ -153,6 +179,26 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
       setShowFormModal(false);
     }
     setFormSheetDragY(0);
+  };
+
+  const handleConfirmDragStart = (clientY: number) => {
+    confirmTouchStartY.current = clientY;
+    setIsConfirmSheetDragging(true);
+  };
+
+  const handleConfirmDragMove = (clientY: number) => {
+    if (!isConfirmSheetDragging) return;
+    const delta = clientY - confirmTouchStartY.current;
+    setConfirmSheetDragY(delta > 0 ? delta : delta * 0.15);
+  };
+
+  const handleConfirmDragEnd = () => {
+    if (!isConfirmSheetDragging) return;
+    setIsConfirmSheetDragging(false);
+    if (confirmSheetDragY > 70 && !confirmProcessing) {
+      setConfirmDialog(null);
+    }
+    setConfirmSheetDragY(0);
   };
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -200,6 +246,14 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
             countMap[cat] = (countMap[cat] || 0) + 1;
           });
           setCategoryCounts(Object.entries(countMap).map(([category, count]) => ({ category, count })));
+        }
+        if (json.stats && typeof json.stats.total === 'number') {
+          setGlobalStats({
+            total: Number(json.stats.total || 0),
+            active: Number(json.stats.active || 0),
+            system: Number(json.stats.system || 0),
+            custom: Number(json.stats.custom || 0)
+          });
         }
       }
     } catch (err: any) {
@@ -251,12 +305,13 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
   }, [categoryOptions, selectedCategory]);
 
   const stats = useMemo(() => {
+    if (globalStats) return globalStats;
     const total = pagination.total || domains.length;
     const active = domains.filter(d => d.is_active).length;
     const system = domains.filter(d => d.is_system).length;
     const custom = domains.filter(d => !d.is_system).length;
     return { total, active, system, custom };
-  }, [pagination.total, domains]);
+  }, [globalStats, pagination.total, domains]);
 
   const handleOpenAdd = () => {
     setEditingDomain(null);
@@ -312,22 +367,46 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
     }
   };
 
-  const handleDelete = async (item: SafeDomainItem) => {
-    if (!window.confirm(`Hapus domain '${item.domain}' dari master whitelist?`)) return;
+  const handleDelete = (item: SafeDomainItem) => {
+    setConfirmDialog({ mode: 'delete', item });
+  };
+
+  const executeConfirmAction = async () => {
+    if (!confirmDialog || confirmProcessing) return;
+    setConfirmProcessing(true);
     try {
-      const res = await fetch(`/api/admin/safe-domains/${item.id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      if (!res.ok) throw new Error('Gagal menghapus domain');
-      
-      setDomains(prev => prev.filter(d => d.id !== item.id));
-      loadDynamicSafeDomains(true);
-      showToast('Domain berhasil dihapus');
+      if (confirmDialog.mode === 'delete') {
+        const target = confirmDialog.item;
+        const res = await fetch(`/api/admin/safe-domains/${target.id}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Gagal menghapus domain');
+        setConfirmDialog(null);
+        await fetchDomains();
+        loadDynamicSafeDomains(true);
+        showToast('Domain berhasil dihapus');
+      } else if (confirmDialog.mode === 'reset_defaults') {
+        const res = await fetch('/api/admin/safe-domains/reset-defaults', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Gagal menyinkronkan domain default');
+        setConfirmDialog(null);
+        await fetchDomains(1, debouncedSearch, selectedCategory, limit);
+        loadDynamicSafeDomains(true);
+        showToast('Master whitelist default berhasil disinkronkan');
+      }
     } catch (err: any) {
-      showToast(err.message || 'Gagal menghapus domain', 'error');
+      showToast(err.message || 'Operasi gagal dijalankan', 'error');
+    } finally {
+      setConfirmProcessing(false);
     }
   };
 
@@ -372,11 +451,15 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
     }
   };
 
-  const handleCopy = (dom: string, e: React.MouseEvent) => {
+  const handleCopy = async (dom: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(dom);
-    setCopiedDomain(dom);
-    setTimeout(() => setCopiedDomain(null), 2000);
+    try {
+      await navigator.clipboard.writeText(dom);
+      setCopiedDomain(dom);
+      setTimeout(() => setCopiedDomain(null), 2000);
+    } catch {
+      showToast('Gagal menyalin domain ke clipboard', 'error');
+    }
   };
 
   return (
@@ -422,7 +505,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
         flexDirection: 'column',
         gap: '0.85rem'
       }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{
               width: '42px',
@@ -446,6 +529,75 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                 Konfigurasi domain resmi &amp; mitra yang dibuka instan tanpa peringatan perantara
               </p>
             </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              style={{
+                minHeight: '44px',
+                padding: '0.55rem 0.95rem',
+                borderRadius: '0.65rem',
+                backgroundColor: isDark ? '#38bdf8' : '#0284c7',
+                border: 'none',
+                color: '#ffffff',
+                fontSize: '0.76rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                flex: '1 1 130px',
+                justifyContent: 'center'
+              }}
+            >
+              <Plus size={15} strokeWidth={2.5} />
+              <span>Tambah Domain</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDialog({ mode: 'reset_defaults' })}
+              style={{
+                minHeight: '44px',
+                padding: '0.55rem 0.85rem',
+                borderRadius: '0.65rem',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.28)',
+                color: '#d97706',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                justifyContent: 'center'
+              }}
+            >
+              <RotateCcw size={14} />
+              <span>Sinkronkan Default</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => fetchDomains(page, debouncedSearch, selectedCategory, limit)}
+              disabled={loading}
+              aria-label="Segarkan daftar domain aman"
+              style={{
+                minWidth: '44px',
+                minHeight: '44px',
+                padding: '0.55rem',
+                borderRadius: '0.65rem',
+                backgroundColor: theme.cardAlt,
+                border: `1px solid ${theme.border}`,
+                color: theme.textSecondary,
+                cursor: loading ? 'wait' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            </button>
           </div>
         </div>
 
@@ -501,6 +653,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
             <button
               type="button"
               onClick={() => setSearchQuery('')}
+              aria-label="Bersihkan pencarian domain"
               style={{
                 position: 'absolute',
                 right: '0.75rem',
@@ -885,7 +1038,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
               maxWidth: '540px',
               width: '100%',
               maxHeight: '88vh',
-              overflowY: 'auto',
+              overflow: 'hidden',
               backgroundColor: theme.surface,
               borderTopLeftRadius: '1.5rem',
               borderTopRightRadius: '1.5rem',
@@ -896,10 +1049,12 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
               display: 'flex',
               flexDirection: 'column',
               gap: '0.85rem',
-              transform: `translateY(${Math.max(0, formSheetDragY)}px)`,
+              transform: `translateY(${formSheetDragY}px)`,
               transition: isFormSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
           >
+            <MobileSheetStack isDark={isDark}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', maxHeight: '82vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
             {/* Sheet Drag Handle Bar (Touch & Mouse Drag-Down to Dismiss) */}
             <div
               style={{
@@ -989,8 +1144,9 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                     boxSizing: 'border-box'
                   }}
                 />
-                <span style={{ fontSize: '0.66rem', color: theme.textMuted, marginTop: '0.2rem', display: 'block' }}>
-                  💡 Protokol (https://) dan tanda garis miring (/) akan dibersihkan otomatis.
+                <span style={{ fontSize: '0.66rem', color: theme.textMuted, marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Info size={12} style={{ flexShrink: 0 }} />
+                  <span>Protokol (https://) dan garis miring (/) akan dibersihkan otomatis.</span>
                 </span>
               </div>
 
@@ -998,30 +1154,23 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                 <label style={{ fontSize: '0.74rem', fontWeight: 800, color: theme.textSecondary, display: 'block', marginBottom: '0.3rem' }}>
                   Kategori Domain
                 </label>
-                <select
+                <MobileCustomSelect
                   value={formData.category}
-                  onChange={e => setFormData({ ...formData, category: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem 0.8rem',
-                    borderRadius: '0.65rem',
+                  onChange={(val) => setFormData({ ...formData, category: val })}
+                  options={SAFE_DOMAIN_CATEGORY_OPTIONS}
+                  title="Kategori Domain Whitelist"
+                  subtitle="Pilih peran ekosistem untuk domain ini"
+                  placeholder="Pilih Kategori Domain..."
+                  icon={<Tag size={15} />}
+                  ariaLabel="Pilih Kategori Domain Aman"
+                  triggerStyle={{
+                    minHeight: '44px',
                     backgroundColor: theme.cardAlt,
-                    border: `1px solid ${theme.border}`,
+                    borderColor: theme.border,
                     color: theme.textPrimary,
-                    fontSize: '0.82rem',
-                    outline: 'none',
-                    boxSizing: 'border-box'
+                    fontSize: '0.82rem'
                   }}
-                >
-                  <option value="Google">Google Ecosystem</option>
-                  <option value="Komunikasi">Komunikasi &amp; Chat</option>
-                  <option value="Media Sosial">Media Sosial</option>
-                  <option value="Platform">Platform Catavor</option>
-                  <option value="Produktivitas">Produktivitas &amp; Dev</option>
-                  <option value="Finansial">Finansial &amp; Bank</option>
-                  <option value="Mitra">Mitra Resmi</option>
-                  <option value="Umum">Umum / Lainnya</option>
-                </select>
+                />
               </div>
 
               <div>
@@ -1049,7 +1198,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.4rem', borderTop: `1px solid ${theme.border}` }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.76rem', color: theme.textPrimary, cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.76rem', color: theme.textPrimary, cursor: 'pointer', minHeight: '44px' }}>
                   <input
                     type="checkbox"
                     checked={formData.is_active}
@@ -1063,12 +1212,13 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                     type="button"
                     onClick={() => setShowFormModal(false)}
                     style={{
+                      minHeight: '44px',
                       padding: '0.45rem 0.85rem',
                       borderRadius: '0.55rem',
                       backgroundColor: 'transparent',
                       border: `1px solid ${theme.border}`,
                       color: theme.textSecondary,
-                      fontSize: '0.76rem',
+                      fontSize: '0.78rem',
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}
@@ -1079,12 +1229,13 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                     type="submit"
                     disabled={savingDomain}
                     style={{
+                      minHeight: '44px',
                       padding: '0.45rem 1.15rem',
                       borderRadius: '0.55rem',
                       backgroundColor: isDark ? '#38bdf8' : '#0284c7',
                       border: 'none',
                       color: '#ffffff',
-                      fontSize: '0.76rem',
+                      fontSize: '0.78rem',
                       fontWeight: 800,
                       cursor: 'pointer',
                       display: 'flex',
@@ -1099,6 +1250,139 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                 </div>
               </div>
             </form>
+              </div>
+            </MobileSheetStack>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Bottom Sheet (Mobile Native: drag handle, no header X, touch >= 44px) */}
+      {confirmDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 14100,
+            backgroundColor: isDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          onClick={() => !confirmProcessing && setConfirmDialog(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              maxWidth: '540px',
+              width: '100%',
+              backgroundColor: theme.surface,
+              borderTopLeftRadius: '1.5rem',
+              borderTopRightRadius: '1.5rem',
+              border: `1px solid ${theme.borderStrong}`,
+              borderBottom: 'none',
+              boxShadow: isDark ? '0 -10px 40px rgba(0,0,0,0.6)' : '0 -10px 30px rgba(0,0,0,0.15)',
+              padding: '0.75rem 1.25rem 1.5rem 1.25rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.9rem',
+              transform: `translateY(${confirmSheetDragY}px)`,
+              transition: isConfirmSheetDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            <div
+              style={{ display: 'flex', justifyContent: 'center', padding: '0.25rem 0 0.35rem 0', cursor: 'grab', touchAction: 'none' }}
+              onTouchStart={(e) => handleConfirmDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleConfirmDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleConfirmDragEnd}
+              onMouseDown={(e) => handleConfirmDragStart(e.clientY)}
+              onMouseMove={(e) => handleConfirmDragMove(e.clientY)}
+              onMouseUp={handleConfirmDragEnd}
+            >
+              <div style={{ width: '44px', height: '5px', borderRadius: '3px', backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : '#cbd5e1' }} />
+            </div>
+
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', touchAction: 'none' }}
+              onTouchStart={(e) => handleConfirmDragStart(e.touches[0].clientY)}
+              onTouchMove={(e) => handleConfirmDragMove(e.touches[0].clientY)}
+              onTouchEnd={handleConfirmDragEnd}
+            >
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '0.75rem',
+                backgroundColor: confirmDialog.mode === 'delete' ? 'rgba(239, 68, 68, 0.14)' : 'rgba(245, 158, 11, 0.14)',
+                color: confirmDialog.mode === 'delete' ? '#ef4444' : '#f59e0b',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                {confirmDialog.mode === 'delete' ? <Trash2 size={18} /> : <AlertTriangle size={18} />}
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: theme.textPrimary }}>
+                  {confirmDialog.mode === 'delete' ? 'Hapus Domain Whitelist' : 'Sinkronkan Whitelist Default'}
+                </h4>
+                <span style={{ fontSize: '0.7rem', color: theme.textMuted }}>
+                  Konfirmasi perubahan daftar domain aman
+                </span>
+              </div>
+            </div>
+
+            <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textSecondary, lineHeight: 1.5 }}>
+              {confirmDialog.mode === 'delete'
+                ? <>Hapus domain <strong style={{ color: theme.textPrimary, fontFamily: 'monospace' }}>{confirmDialog.item.domain}</strong> dari daftar domain aman? Tautan ke domain ini akan memunculkan peringatan eksternal kembali.</>
+                : 'Pastikan seluruh domain default ekosistem (catavor.com, catavor.id, localhost) aktif dan sinkron tanpa menghapus domain kustom yang ada?'}
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '0.65rem' }}>
+              <button
+                type="button"
+                disabled={confirmProcessing}
+                onClick={() => setConfirmDialog(null)}
+                style={{
+                  minHeight: '44px',
+                  padding: '0.6rem 0.95rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: 'transparent',
+                  border: `1px solid ${theme.border}`,
+                  color: theme.textSecondary,
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={confirmProcessing}
+                onClick={executeConfirmAction}
+                style={{
+                  minHeight: '44px',
+                  padding: '0.6rem 1.05rem',
+                  borderRadius: '0.65rem',
+                  backgroundColor: confirmDialog.mode === 'delete' ? '#ef4444' : '#f59e0b',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '0.8rem',
+                  fontWeight: 800,
+                  cursor: confirmProcessing ? 'wait' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  opacity: confirmProcessing ? 0.7 : 1
+                }}
+              >
+                {confirmProcessing && <RefreshCw size={14} className="animate-spin" />}
+                <span>{confirmDialog.mode === 'delete' ? 'Ya, Hapus Domain' : 'Ya, Sinkronkan'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

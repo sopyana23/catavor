@@ -650,13 +650,21 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
       e.stopPropagation();
     }
     if (!rawUrl) return;
-    const fullUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://')
-      ? rawUrl
-      : `https://${rawUrl}`;
-
-    const sec = checkUrlSecurity(fullUrl);
+    const sec = checkUrlSecurity(rawUrl);
     if (!sec.isSafe || sec.sanitizedUrl === '#') {
       showToast('Tautan tidak valid atau diblokir demi keamanan.');
+      return;
+    }
+
+    if (!sec.isExternal) {
+      if (sec.sanitizedUrl.startsWith('mailto:') || sec.sanitizedUrl.startsWith('tel:')) {
+        window.location.href = sec.sanitizedUrl;
+      } else if (sec.sanitizedUrl.startsWith('/')) {
+        window.history.pushState({}, '', sec.sanitizedUrl);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } else {
+        window.location.href = sec.sanitizedUrl;
+      }
       return;
     }
 

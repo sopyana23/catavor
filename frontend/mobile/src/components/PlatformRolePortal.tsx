@@ -2458,7 +2458,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         const searchParams = new URLSearchParams(window.location.search);
         const tabParam = (searchParams.get('tab') || searchParams.get('view') || searchParams.get('division') || '').toLowerCase();
         const ticketParam = searchParams.get('ticket') || searchParams.get('ticket_id');
-        const subtabParam = (searchParams.get('subtab') || searchParams.get('subview') || searchParams.get('action') || '').toLowerCase();
+        const subtabParam = (searchParams.get('subtab') || searchParams.get('subview') || searchParams.get('sub') || searchParams.get('action') || '').toLowerCase();
         const broadcastId = searchParams.get('broadcast_id') || searchParams.get('broadcast') || searchParams.get('notif_id');
 
         if (ticketParam) {

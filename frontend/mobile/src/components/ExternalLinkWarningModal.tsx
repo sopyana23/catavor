@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ShieldAlert,
@@ -32,15 +32,33 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
   const [isDragging, setIsDragging] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const dragStartY = React.useRef(0);
+  const closeTimerRef = React.useRef<number | null>(null);
 
-  const closeWithAnimation = () => {
+  useEffect(() => {
+    setDontRemind(false);
+    setCopied(false);
+    setIsClosing(false);
+    setDragY(0);
+  }, [url]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const closeWithAnimation = useCallback(() => {
+    if (closeTimerRef.current !== null) return;
     setIsClosing(true);
-    setTimeout(() => {
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
       setIsClosing(false);
       setDragY(0);
       onClose();
     }, 280);
-  };
+  }, [onClose]);
 
   useModalBackHandler({
     isOpen: Boolean(url),
@@ -82,18 +100,22 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [url]);
+  }, [url, closeWithAnimation]);
 
   if (!url) return null;
 
   const domain = cleanDomainString(url);
 
-  const handleCopy = (e: React.MouseEvent) => {
+  const handleCopy = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard unavailable in insecure context or permission denied
+    }
   };
 
   const handleConfirmProceed = (e: React.MouseEvent) => {
@@ -156,7 +178,7 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
           gap: '1.1rem',
           position: 'relative',
           color: 'var(--text-primary, #ffffff)',
-          transform: isClosing ? 'translateY(100%)' : `translateY(${Math.max(0, dragY)}px)`,
+          transform: isClosing ? 'translateY(100%)' : `translateY(${dragY}px)`,
           transition: isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
           boxSizing: 'border-box'
         }}
@@ -344,12 +366,13 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
           </span>
         </label>
 
-        {/* Action Buttons */}
+        {/* Action Buttons (Touch Target >= 44px) */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '0.65rem', marginTop: '0.2rem' }}>
           <button
             type="button"
             onClick={closeWithAnimation}
             style={{
+              minHeight: '44px',
               padding: '0.68rem 1rem',
               borderRadius: '0.75rem',
               backgroundColor: 'var(--btn-secondary-bg, rgba(255, 255, 255, 0.06))',
@@ -371,6 +394,7 @@ export const ExternalLinkWarningModal: React.FC<ExternalLinkWarningModalProps> =
             type="button"
             onClick={handleConfirmProceed}
             style={{
+              minHeight: '44px',
               padding: '0.68rem 1.15rem',
               borderRadius: '0.75rem',
               backgroundColor: 'var(--primary, #2563eb)',

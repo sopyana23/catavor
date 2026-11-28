@@ -21,9 +21,12 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
-  Filter
+  Filter,
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react';
 import { loadDynamicSafeDomains } from '../utils/urlSecurity';
+import { useModalBackHandler } from '../utils/navigation';
 import { DesktopCustomSelect, type SelectOption } from './DesktopCustomSelect';
 
 export interface SafeDomainItem {
@@ -94,6 +97,9 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
   });
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [categoryCounts, setCategoryCounts] = useState<{ category: string; count: number }[]>([]);
+  const [globalStats, setGlobalStats] = useState<{ total: number; active: number; system: number; custom: number } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ mode: 'delete'; item: SafeDomainItem } | { mode: 'reset_defaults' } | null>(null);
+  const [confirmProcessing, setConfirmProcessing] = useState(false);
 
   // Debounce search query 300ms
   useEffect(() => {
@@ -120,6 +126,18 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
   });
 
   const [copiedDomain, setCopiedDomain] = useState<string | null>(null);
+
+  useModalBackHandler({
+    isOpen: showFormModal,
+    onClose: () => setShowFormModal(false),
+    modalId: 'desktop-safe-domain-form-modal'
+  });
+
+  useModalBackHandler({
+    isOpen: Boolean(confirmDialog),
+    onClose: () => setConfirmDialog(null),
+    modalId: 'desktop-safe-domain-confirm-modal'
+  });
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMsg({ text, type });
@@ -166,6 +184,14 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
             countMap[cat] = (countMap[cat] || 0) + 1;
           });
           setCategoryCounts(Object.entries(countMap).map(([category, count]) => ({ category, count })));
+        }
+        if (json.stats && typeof json.stats.total === 'number') {
+          setGlobalStats({
+            total: Number(json.stats.total || 0),
+            active: Number(json.stats.active || 0),
+            system: Number(json.stats.system || 0),
+            custom: Number(json.stats.custom || 0)
+          });
         }
       }
     } catch (err: any) {
@@ -214,12 +240,13 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
   }, [categoryOptions, selectedCategory]);
 
   const stats = useMemo(() => {
+    if (globalStats) return globalStats;
     const total = pagination.total || domains.length;
     const active = domains.filter(d => d.is_active).length;
     const system = domains.filter(d => d.is_system).length;
     const custom = domains.filter(d => !d.is_system).length;
     return { total, active, system, custom };
-  }, [pagination.total, domains]);
+  }, [globalStats, pagination.total, domains]);
 
   const handleOpenAdd = () => {
     setEditingDomain(null);
@@ -275,22 +302,46 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
     }
   };
 
-  const handleDelete = async (item: SafeDomainItem) => {
-    if (!window.confirm(`Hapus domain '${item.domain}' dari master whitelist?`)) return;
+  const handleDelete = (item: SafeDomainItem) => {
+    setConfirmDialog({ mode: 'delete', item });
+  };
+
+  const executeConfirmAction = async () => {
+    if (!confirmDialog || confirmProcessing) return;
+    setConfirmProcessing(true);
     try {
-      const res = await fetch(`/api/admin/safe-domains/${item.id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      if (!res.ok) throw new Error('Gagal menghapus domain');
-      
-      setDomains(prev => prev.filter(d => d.id !== item.id));
-      loadDynamicSafeDomains(true);
-      showToast('Domain berhasil dihapus');
+      if (confirmDialog.mode === 'delete') {
+        const target = confirmDialog.item;
+        const res = await fetch(`/api/admin/safe-domains/${target.id}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Gagal menghapus domain');
+        setConfirmDialog(null);
+        await fetchDomains();
+        loadDynamicSafeDomains(true);
+        showToast('Domain berhasil dihapus');
+      } else if (confirmDialog.mode === 'reset_defaults') {
+        const res = await fetch('/api/admin/safe-domains/reset-defaults', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Gagal menyinkronkan domain default');
+        setConfirmDialog(null);
+        await fetchDomains(1, debouncedSearch, selectedCategory, limit);
+        loadDynamicSafeDomains(true);
+        showToast('Master whitelist default berhasil disinkronkan');
+      }
     } catch (err: any) {
-      showToast(err.message || 'Gagal menghapus domain', 'error');
+      showToast(err.message || 'Operasi gagal dijalankan', 'error');
+    } finally {
+      setConfirmProcessing(false);
     }
   };
 
@@ -335,11 +386,15 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
     }
   };
 
-  const handleCopy = (dom: string, e: React.MouseEvent) => {
+  const handleCopy = async (dom: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(dom);
-    setCopiedDomain(dom);
-    setTimeout(() => setCopiedDomain(null), 2000);
+    try {
+      await navigator.clipboard.writeText(dom);
+      setCopiedDomain(dom);
+      setTimeout(() => setCopiedDomain(null), 2000);
+    } catch {
+      showToast('Gagal menyalin domain ke clipboard', 'error');
+    }
   };
 
   return (
@@ -385,8 +440,8 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
         flexDirection: 'column',
         gap: hideHeaderTitle ? '0.5rem' : '0.85rem'
       }}>
-        {!hideHeaderTitle && (
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: hideHeaderTitle ? 'flex-end' : 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          {!hideHeaderTitle && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{
                 width: '42px',
@@ -411,8 +466,73 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                 </p>
               </div>
             </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => fetchDomains(page, debouncedSearch, selectedCategory, limit)}
+              disabled={loading}
+              aria-label="Segarkan daftar domain aman"
+              style={{
+                padding: '0.48rem 0.78rem',
+                borderRadius: '0.6rem',
+                backgroundColor: theme.cardAlt,
+                border: `1px solid ${theme.border}`,
+                color: theme.textSecondary,
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                cursor: loading ? 'wait' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+              <span>Segarkan</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDialog({ mode: 'reset_defaults' })}
+              style={{
+                padding: '0.48rem 0.78rem',
+                borderRadius: '0.6rem',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.28)',
+                color: '#d97706',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <RotateCcw size={13} />
+              <span>Sinkronkan Default</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              style={{
+                padding: '0.48rem 0.9rem',
+                borderRadius: '0.6rem',
+                backgroundColor: isDark ? '#38bdf8' : '#0284c7',
+                border: 'none',
+                color: '#ffffff',
+                fontSize: '0.75rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <Plus size={14} strokeWidth={2.5} />
+              <span>Tambah Domain</span>
+            </button>
           </div>
-        )}
+        </div>
 
         {/* Metric Badges */}
         <div style={{
@@ -466,6 +586,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
             <button
               type="button"
               onClick={() => setSearchQuery('')}
+              aria-label="Bersihkan pencarian domain"
               style={{
                 position: 'absolute',
                 right: '0.75rem',
@@ -885,6 +1006,7 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
               <button
                 type="button"
                 onClick={() => setShowFormModal(false)}
+                aria-label="Tutup modal domain"
                 style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer' }}
               >
                 <X size={18} />
@@ -1022,6 +1144,116 @@ export const AdminSafeDomainsManagement: React.FC<AdminSafeDomainsManagementProp
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal (Delete / Reset Defaults — No native window.confirm) */}
+      {confirmDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 14100,
+            backgroundColor: isDark ? 'rgba(0, 0, 0, 0.75)' : 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          onClick={() => !confirmProcessing && setConfirmDialog(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              maxWidth: '420px',
+              width: '100%',
+              backgroundColor: theme.surface,
+              borderRadius: '1.15rem',
+              border: `1px solid ${theme.borderStrong}`,
+              boxShadow: isDark ? '0 20px 50px rgba(0,0,0,0.6)' : '0 15px 35px rgba(0,0,0,0.15)',
+              padding: '1.35rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.95rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '0.75rem',
+                  backgroundColor: confirmDialog.mode === 'delete' ? 'rgba(239, 68, 68, 0.14)' : 'rgba(245, 158, 11, 0.14)',
+                  color: confirmDialog.mode === 'delete' ? '#ef4444' : '#f59e0b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {confirmDialog.mode === 'delete' ? <Trash2 size={18} /> : <AlertTriangle size={18} />}
+                </div>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: theme.textPrimary }}>
+                  {confirmDialog.mode === 'delete' ? 'Hapus Domain Whitelist' : 'Sinkronkan Whitelist Default'}
+                </h4>
+              </div>
+              <button
+                type="button"
+                aria-label="Tutup dialog konfirmasi"
+                disabled={confirmProcessing}
+                onClick={() => setConfirmDialog(null)}
+                style={{ background: 'none', border: 'none', color: theme.textMuted, cursor: 'pointer' }}
+              >
+                <X size={17} />
+              </button>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: theme.textSecondary, lineHeight: 1.5 }}>
+              {confirmDialog.mode === 'delete'
+                ? <>Hapus domain <strong style={{ color: theme.textPrimary, fontFamily: 'monospace' }}>{confirmDialog.item.domain}</strong> dari daftar domain aman? Tautan ke domain ini akan memunculkan peringatan eksternal kembali.</>
+                : 'Pastikan seluruh domain default ekosistem (catavor.com, catavor.id, localhost) aktif dan sinkron tanpa menghapus domain kustom yang ada?'}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                disabled={confirmProcessing}
+                onClick={() => setConfirmDialog(null)}
+                style={{
+                  padding: '0.5rem 0.95rem',
+                  borderRadius: '0.55rem',
+                  backgroundColor: 'transparent',
+                  border: `1px solid ${theme.border}`,
+                  color: theme.textSecondary,
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={confirmProcessing}
+                onClick={executeConfirmAction}
+                style={{
+                  padding: '0.5rem 1.05rem',
+                  borderRadius: '0.55rem',
+                  backgroundColor: confirmDialog.mode === 'delete' ? '#ef4444' : '#f59e0b',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  cursor: confirmProcessing ? 'wait' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  opacity: confirmProcessing ? 0.7 : 1
+                }}
+              >
+                {confirmProcessing && <RefreshCw size={13} className="animate-spin" />}
+                <span>{confirmDialog.mode === 'delete' ? 'Ya, Hapus Domain' : 'Ya, Sinkronkan'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

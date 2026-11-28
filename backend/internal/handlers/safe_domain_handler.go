@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -14,8 +15,139 @@ import (
 	"catavor-backend/internal/services"
 
 	"github.com/gofiber/fiber/v2"
+	"golang.org/x/net/idna"
 	"gorm.io/gorm"
 )
+
+func normalizeAndValidateSafeDomain(raw string) (string, error) {
+	s := strings.TrimSpace(strings.ToLower(raw))
+	if s == "" {
+		return "", fmt.Errorf("nama domain tidak boleh kosong")
+	}
+	for _, r := range s {
+		if r <= 0x20 || r == 0x7f {
+			return "", fmt.Errorf("nama domain tidak boleh mengandung spasi atau karakter kontrol")
+		}
+	}
+	if strings.HasPrefix(s, "//") {
+		return "", fmt.Errorf("format protocol-relative URL tidak diizinkan; masukkan nama host saja")
+	}
+
+	if strings.HasPrefix(s, "https://") {
+		s = strings.TrimPrefix(s, "https://")
+	} else if strings.HasPrefix(s, "http://") {
+		s = strings.TrimPrefix(s, "http://")
+	} else if colonIdx := strings.Index(s, ":"); colonIdx != -1 {
+		// Any other explicit scheme (e.g. javascript:, data:, file:, ftp:) is invalid unless colon is strictly :port
+		slashIdx := strings.IndexAny(s, "/?#")
+		if slashIdx == -1 || colonIdx < slashIdx {
+			afterColon := s[colonIdx+1:]
+			if cutIdx := strings.IndexAny(afterColon, "/?#"); cutIdx != -1 {
+				afterColon = afterColon[:cutIdx]
+			}
+			isNumericPort := afterColon != ""
+			if isNumericPort {
+				for _, ch := range afterColon {
+					if ch < '0' || ch > '9' {
+						isNumericPort = false
+						break
+					}
+				}
+			}
+			if !isNumericPort {
+				return "", fmt.Errorf("skema URL tidak valid; gunakan hanya nama domain (contoh: example.com)")
+			}
+		}
+	}
+
+	// Isolate authority segment before any path/query/fragment and reject userinfo spoof (@) or wildcards (*)
+	authority := s
+	if cut := strings.IndexAny(authority, "/?#"); cut != -1 {
+		authority = authority[:cut]
+	}
+	if strings.Contains(authority, "@") {
+		return "", fmt.Errorf("nama domain tidak boleh mengandung informasi autentikasi '@'")
+	}
+	if strings.ContainsAny(authority, "*\\") {
+		return "", fmt.Errorf("nama domain tidak boleh mengandung wildcard '*' atau backslash")
+	}
+
+	// Reject bracketed / raw IPv6 addresses
+	if strings.Contains(authority, "[") || strings.Contains(authority, "]") {
+		return "", fmt.Errorf("alamat IPv6 tidak didukung untuk safe domain")
+	}
+
+	host := authority
+	if colonIdx := strings.LastIndex(host, ":"); colonIdx != -1 {
+		portPart := host[colonIdx+1:]
+		if portPart == "" {
+			return "", fmt.Errorf("format port pada domain tidak valid")
+		}
+		if p, err := strconv.Atoi(portPart); err != nil || p < 1 || p > 65535 {
+			return "", fmt.Errorf("nomor port domain tidak valid")
+		}
+		host = host[:colonIdx]
+	}
+
+	host = strings.TrimSuffix(host, ".")
+	host = strings.TrimPrefix(host, "www.")
+	if host == "" || len(host) > 253 {
+		return "", fmt.Errorf("panjang nama domain harus antara 1 sampai 253 karakter")
+	}
+
+	// Normalize Unicode IDN labels into canonical ASCII punycode
+	asciiHost, err := idna.Lookup.ToASCII(host)
+	if err != nil {
+		return "", fmt.Errorf("format domain IDN tidak valid")
+	}
+	asciiHost = strings.ToLower(strings.TrimSpace(asciiHost))
+	if asciiHost == "" || len(asciiHost) > 253 {
+		return "", fmt.Errorf("nama domain tidak valid")
+	}
+
+	if asciiHost == "localhost" {
+		return asciiHost, nil
+	}
+	if ip := net.ParseIP(asciiHost); ip != nil {
+		if ip.To4() == nil {
+			return "", fmt.Errorf("hanya domain atau alamat IPv4 yang didukung")
+		}
+		return ip.String(), nil
+	}
+
+	labels := strings.Split(asciiHost, ".")
+	if len(labels) < 2 {
+		return "", fmt.Errorf("masukkan domain lengkap beserta TLD (contoh: google.com)")
+	}
+	for _, lbl := range labels {
+		if len(lbl) == 0 || len(lbl) > 63 || strings.HasPrefix(lbl, "-") || strings.HasSuffix(lbl, "-") {
+			return "", fmt.Errorf("format label hostname domain tidak valid")
+		}
+		for i := 0; i < len(lbl); i++ {
+			ch := lbl[i]
+			isAlphaNum := (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')
+			if !isAlphaNum && ch != '-' {
+				return "", fmt.Errorf("nama domain mengandung karakter yang tidak diizinkan")
+			}
+		}
+	}
+	tld := labels[len(labels)-1]
+	if len(tld) < 2 {
+		return "", fmt.Errorf("ekstensi TLD domain minimal 2 karakter")
+	}
+	allDigits := true
+	for i := 0; i < len(tld); i++ {
+		if tld[i] < '0' || tld[i] > '9' {
+			allDigits = false
+			break
+		}
+	}
+	if allDigits {
+		return "", fmt.Errorf("TLD domain tidak boleh seluruhnya angka")
+	}
+
+	return asciiHost, nil
+}
 
 func safeDomainAuditActor(c *fiber.Ctx) (*uint, string, string, string) {
 	if c != nil {
@@ -133,14 +265,14 @@ func (h *SafeDomainHandler) GetAdminSafeDomains(c *fiber.Ctx) error {
 	// 2. Build Base Query
 	query := h.db.Model(&models.SafeDomain{})
 	if q != "" {
-		searchTerm := "%" + strings.ToLower(q) + "%"
-		query = query.Where("LOWER(domain) LIKE ? OR LOWER(description) LIKE ? OR LOWER(category) LIKE ?", searchTerm, searchTerm, searchTerm)
+		searchTerm := "%" + escapeLikePattern(strings.ToLower(q)) + "%"
+		query = query.Where("LOWER(domain) LIKE ? ESCAPE '\\' OR LOWER(description) LIKE ? ESCAPE '\\' OR LOWER(category) LIKE ? ESCAPE '\\'", searchTerm, searchTerm, searchTerm)
 	}
 	if category != "" && category != "all" {
 		query = query.Where("category = ?", category)
 	}
 
-	// Count total items
+	// Count total items matching filter
 	var totalItems int64
 	if err := query.Count(&totalItems).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -163,6 +295,13 @@ func (h *SafeDomainHandler) GetAdminSafeDomains(c *fiber.Ctx) error {
 		})
 	}
 
+	// Global table stats across all pages (accurate KPI regardless of active filter/page)
+	var globalTotal, globalActive, globalSystem, globalCustom int64
+	_ = h.db.Model(&models.SafeDomain{}).Count(&globalTotal).Error
+	_ = h.db.Model(&models.SafeDomain{}).Where("is_active = ?", true).Count(&globalActive).Error
+	_ = h.db.Model(&models.SafeDomain{}).Where("is_system = ?", true).Count(&globalSystem).Error
+	_ = h.db.Model(&models.SafeDomain{}).Where("is_system = ?", false).Count(&globalCustom).Error
+
 	// 2b. Aggregate categories with data (count > 0)
 	var categoryCounts []struct {
 		Category string `json:"category"`
@@ -179,6 +318,12 @@ func (h *SafeDomainHandler) GetAdminSafeDomains(c *fiber.Ctx) error {
 		"success":    true,
 		"data":       domains,
 		"categories": categoryCounts,
+		"stats": fiber.Map{
+			"total":  globalTotal,
+			"active": globalActive,
+			"system": globalSystem,
+			"custom": globalCustom,
+		},
 		"pagination": fiber.Map{
 			"page":        page,
 			"limit":       limit,
@@ -211,7 +356,7 @@ func (h *SafeDomainHandler) CreateSafeDomain(c *fiber.Ctx) error {
 		Domain      string `json:"domain"`
 		Category    string `json:"category"`
 		Description string `json:"description"`
-		IsActive    bool   `json:"is_active"`
+		IsActive    *bool  `json:"is_active"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
@@ -221,21 +366,11 @@ func (h *SafeDomainHandler) CreateSafeDomain(c *fiber.Ctx) error {
 		})
 	}
 
-	cleanDomain := strings.ToLower(strings.TrimSpace(req.Domain))
-	cleanDomain = strings.TrimPrefix(cleanDomain, "https://")
-	cleanDomain = strings.TrimPrefix(cleanDomain, "http://")
-	cleanDomain = strings.TrimPrefix(cleanDomain, "www.")
-	if idx := strings.Index(cleanDomain, "/"); idx != -1 {
-		cleanDomain = cleanDomain[:idx]
-	}
-	if idx := strings.Index(cleanDomain, ":"); idx != -1 {
-		cleanDomain = cleanDomain[:idx]
-	}
-
-	if cleanDomain == "" {
+	cleanDomain, err := normalizeAndValidateSafeDomain(req.Domain)
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
-			"error":   "Nama domain tidak boleh kosong",
+			"error":   strings.ToUpper(err.Error()[:1]) + err.Error()[1:],
 		})
 	}
 
@@ -252,20 +387,36 @@ func (h *SafeDomainHandler) CreateSafeDomain(c *fiber.Ctx) error {
 		})
 	}
 
+	isActive := true
+	if req.IsActive != nil {
+		isActive = *req.IsActive
+	}
+
 	actorID, actorRole, actorName, actorEmail := safeDomainAuditActor(c)
 
 	item := models.SafeDomain{
 		Domain:      cleanDomain,
 		Category:    security.SanitizePlainText(category, 100),
 		Description: security.SanitizePlainText(req.Description, 500),
-		IsActive:    true,
+		IsActive:    isActive,
 		IsSystem:    false,
 		CreatedBy:   actorEmail,
 		CreatedAt:   time.Now().UTC(),
 		UpdatedAt:   time.Now().UTC(),
 	}
 
-	if err := h.db.Create(&item).Error; err != nil {
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&item).Error; err != nil {
+			return err
+		}
+		if !isActive {
+			if err := tx.Model(&item).Update("is_active", false).Error; err != nil {
+				return err
+			}
+			item.IsActive = false
+		}
+		return nil
+	}); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
 			"error":   "Gagal menambahkan domain",
@@ -339,19 +490,21 @@ func (h *SafeDomainHandler) UpdateSafeDomain(c *fiber.Ctx) error {
 	}
 
 	if req.Domain != nil {
-		clean := strings.ToLower(strings.TrimSpace(*req.Domain))
-		clean = strings.TrimPrefix(clean, "https://")
-		clean = strings.TrimPrefix(clean, "http://")
-		clean = strings.TrimPrefix(clean, "www.")
-		if idx := strings.Index(clean, "/"); idx != -1 {
-			clean = clean[:idx]
+		clean, err := normalizeAndValidateSafeDomain(*req.Domain)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"error":   strings.ToUpper(err.Error()[:1]) + err.Error()[1:],
+			})
 		}
-		if idx := strings.Index(clean, ":"); idx != -1 {
-			clean = clean[:idx]
+		var dup models.SafeDomain
+		if err := h.db.Where("LOWER(domain) = ? AND id <> ?", clean, item.ID).First(&dup).Error; err == nil {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"success": false,
+				"error":   "Domain '" + clean + "' sudah terdaftar dalam master whitelist",
+			})
 		}
-		if clean != "" {
-			item.Domain = clean
-		}
+		item.Domain = clean
 	}
 
 	if req.Category != nil {
@@ -421,6 +574,12 @@ func (h *SafeDomainHandler) DeleteSafeDomain(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"error":   "Domain tidak ditemukan",
+		})
+	}
+	if item.IsSystem {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"error":   "Domain sistem bawaan platform tidak dapat dihapus; gunakan toggle nonaktif bila diperlukan",
 		})
 	}
 

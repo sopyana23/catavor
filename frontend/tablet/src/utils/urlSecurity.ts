@@ -35,23 +35,20 @@ const getInitialCachedSafeDomains = (): string[] => {
 
 let dynamicSafeDomainsCache: string[] = getInitialCachedSafeDomains();
 let isFetchingDomains = false;
+let lastDynamicFetchAt = 0;
 
 /**
  * Loads dynamic safe domains from the backend API and synchronizes with localStorage.
  */
 export async function loadDynamicSafeDomains(forceRefresh: boolean = false): Promise<string[]> {
-  if (dynamicSafeDomainsCache.length > 0 && !forceRefresh) {
-    return dynamicSafeDomainsCache;
-  }
-
-  // 1. Read from localStorage cache for instant zero-latency boot
-  let lastFetchTime = 0;
+  // 1. Read from localStorage cache for instant zero-latency boot & cross-reload TTL check
+  let lastFetchTime = lastDynamicFetchAt;
   if (typeof window !== 'undefined') {
     try {
       const cached = localStorage.getItem('catavor_safe_domains');
       const cachedTime = localStorage.getItem('catavor_safe_domains_time');
-      if (cachedTime) lastFetchTime = parseInt(cachedTime, 10) || 0;
-      if (cached) {
+      if (cachedTime) lastFetchTime = Math.max(lastFetchTime, parseInt(cachedTime, 10) || 0);
+      if (dynamicSafeDomainsCache.length === 0 && cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
           dynamicSafeDomainsCache = parsed;
@@ -62,9 +59,9 @@ export async function loadDynamicSafeDomains(forceRefresh: boolean = false): Pro
     }
   }
 
-  // 30 Minutes Cache TTL: Skip network hit if cached within 30 minutes
+  // 30 Minutes Cache TTL: Skip network hit only when cache is populated AND timestamp is still fresh
   const now = Date.now();
-  if (dynamicSafeDomainsCache.length > 0 && (now - lastFetchTime < 30 * 60 * 1000)) {
+  if (!forceRefresh && dynamicSafeDomainsCache.length > 0 && lastFetchTime > 0 && (now - lastFetchTime < 30 * 60 * 1000)) {
     return dynamicSafeDomainsCache;
   }
 
@@ -77,10 +74,11 @@ export async function loadDynamicSafeDomains(forceRefresh: boolean = false): Pro
       const json = await res.json();
       if (json && json.success && Array.isArray(json.data)) {
         dynamicSafeDomainsCache = json.data;
+        lastDynamicFetchAt = Date.now();
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('catavor_safe_domains', JSON.stringify(json.data));
-            localStorage.setItem('catavor_safe_domains_time', String(Date.now()));
+            localStorage.setItem('catavor_safe_domains_time', String(lastDynamicFetchAt));
             window.dispatchEvent(new CustomEvent('catavor_safe_domains_updated', { detail: json.data }));
           } catch {
             // ignore
@@ -154,7 +152,7 @@ export function removeUserTrustedDomain(domain: string): void {
  */
 export function cleanDomainString(urlOrHostname: string): string {
   if (!urlOrHostname) return '';
-  let host = urlOrHostname.trim().toLowerCase();
+  let host = urlOrHostname.replace(/[\u0000-\u001F\u007F]/g, '').trim().toLowerCase();
 
   try {
     if (host.includes('://')) {
@@ -166,6 +164,10 @@ export function cleanDomainString(urlOrHostname: string): string {
     // Keep host as-is
   }
 
+  // Strip userinfo prefix if any (@) so spoofs like trusted.com@evil.com resolve to evil.com
+  if (host.includes('@')) {
+    host = host.split('@').pop() || '';
+  }
   // Remove port if present (e.g. localhost:8000 -> localhost)
   host = host.split(':')[0];
   // Remove www. prefix for consistent comparison
@@ -272,7 +274,7 @@ export function sanitizeUrl(rawUrl?: string): SanitizedUrlResult {
     return { isSafe: false, sanitizedUrl: '#', isExternal: false, isTrustedDomain: false, protocol: '', hostname: '' };
   }
 
-  const trimmed = rawUrl.trim();
+  const trimmed = rawUrl.replace(/[\u0000-\u001F\u007F]/g, '').trim();
   if (!trimmed) {
     return { isSafe: false, sanitizedUrl: '#', isExternal: false, isTrustedDomain: false, protocol: '', hostname: '' };
   }
@@ -349,13 +351,10 @@ export function sanitizeUrl(rawUrl?: string): SanitizedUrlResult {
     }
 
     const currentHost = typeof window !== 'undefined' ? window.location.host.toLowerCase() : '';
-    const currentHostname = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
     const targetHost = parsed.host.toLowerCase();
-    const targetHostname = parsed.hostname.toLowerCase();
 
-    // Determine if external:
-    // It is internal ONLY IF host or hostname matches current window host or hostname
-    const isSameHost = currentHost && (targetHost === currentHost || targetHostname === currentHostname);
+    // Determine if external: match origin host:port strictly so different ports are never treated as internal
+    const isSameHost = Boolean(currentHost && targetHost === currentHost);
     const isExternal = !isSameHost;
     const trusted = isTrustedDomain(parsed.hostname);
 
