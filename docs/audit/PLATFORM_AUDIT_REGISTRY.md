@@ -24,7 +24,7 @@ Dokumen ini menjadi **Single Source of Truth (SSOT)** lintas sesi untuk melacak 
 
 ## 1. Peta Status Audit Seluruh Modul Platform
 
-### 1.1 Modul Sudah Diaudit & Terverifikasi (`15` Modul)
+### 1.1 Modul Sudah Diaudit & Terverifikasi (`16` Modul)
 
 | No | Modul / Fitur | Cakupan Audit | Referensi Commit & Dokumen | Status |
 | :--- | :--- | :--- | :--- | :--- |
@@ -42,21 +42,21 @@ Dokumen ini menjadi **Single Source of Truth (SSOT)** lintas sesi untuk melacak 
 | 12 | **Mesin Otomasi Platform (`Automation Engine`)** | Pemisahan 25 katalog worker & 11 kontrol manual, RBAC trigger, preview simulasi tanpa mutasi | `1b650405`, `932900b2`, `76ed14fb`; `docs/audit/2026-11-19-audit-mesin-otomasi-platform.md` | **AUDITED & VERIFIED** |
 | 13 | **Storage S3/Lokal & Catalog Export** | Kebijakan retensi file, driver S3 & factory coverage, RBAC ekspor katalog & produk, sanitasi path | `d1982d39`, `1ec786e5`, `a9927421`, `3c9dc628`; `docs/audit/2026-10-31-audit-merchant-admin-triple-device-storage-s3.md` | **AUDITED & VERIFIED** |
 | 14 (**A1**) | **Dormancy Toko, Reaktivasi & Retensi Item/File** | Siklus 30/38/45/60 hari, 2-step Magic Link, self-reactivation dormant vs moderasi block, retensi H-7/H-30/H-90 & 72j, worker banned 90h, metrics & paritas Desktop/Tablet/Mobile | Audit & Remediasi `2026-11-28` (`c9abd10f`, `6400264d`; test baru: `dormancy_handler_test.go`, `item_retention_service_test.go`, Playwright E2E `12/12` pass) | **AUDITED & VERIFIED** |
-| 15 (**A2**) | **Registrasi Merchant, OTP, Google SSO & Checkout Paket Awal** | Transaksi atomik `Register` + `GoogleAuth` Case B, `BlacklistedSlug`, OTP UTC + outbox + cooldown lock + no-emoji, `CheckEmail` anti-enumeration `N-17`, rate-limit `CheckSlug`, fallback `gateway_aulaa`, harga paket dinamis `/subscription/plans`, paritas Desktop/Tablet/Mobile + modal back/drag | Audit & Remediasi `2026-11-28` (lihat [Bagian A2](#a2-audit-mendalam-registrasi-merchant-otp-google-sso--checkout-paket-awal-2026-11-28); test baru di `auth_handler_test.go`, `otp_service_test.go`; Playwright + HTTP `6/6` pass) | **AUDITED & VERIFIED** |
+| 15 (**A2**) | **Registrasi Merchant, OTP, Google SSO & Checkout Paket Awal** | Transaksi atomik `Register` + `GoogleAuth` Case B, `BlacklistedSlug`, OTP UTC + outbox + cooldown lock + no-emoji, `CheckEmail` anti-enumeration `N-17`, rate-limit `CheckSlug`, fallback `gateway_aulaa`, harga paket dinamis `/subscription/plans`, paritas Desktop/Tablet/Mobile + modal back/drag | Audit & Remediasi `2026-11-28` (`34479b6b`, `922e8d29`; test baru di `auth_handler_test.go`, `otp_service_test.go`; Playwright + HTTP `6/6` pass) | **AUDITED & VERIFIED** |
+| 16 (**A3**) | **Direktori Toko Pengelola & Pengaturan Global Platform** | `store_handler.go` (`AdminListStores`, `AdminGetStoreDetail`), `setting_handler.go` (key allowlist + sanitasi secret lossless + isolasi `master_coupons`), `AdminStoresManagement.tsx`, `TabletPlatformConsole.tsx`, `PlatformRolePortal.tsx`, `TabletOfficialContactModal.tsx` | Audit & Remediasi `2026-11-28` (lihat [Bagian A3](#a3-audit-mendalam-direktori-toko-pengelola--pengaturan-global-platform-2026-11-28); test regresi di `rbac_handler_test.go`, `store_handler_test.go`; Playwright + HTTP `18/18` pass) | **AUDITED & VERIFIED** |
 
 ---
 
 ### 1.2 Modul Sedang Diaudit / Menunggu Remediasi (`0` Modul)
 
-*Tidak ada modul berstatus pending saat ini; seluruh temuan A1 dan A2 telah selesai diperbaiki dan diverifikasi.*
+*(Tidak ada modul yang menunggu remediasi saat ini — seluruh modul teraudit A1–A3 berstatus `AUDITED & VERIFIED`.)*
 
 ---
 
-### 1.3 Antrean Modul Tersisa Untuk Audit Berikutnya (`6` Modul)
+### 1.3 Antrean Modul Tersisa Untuk Audit Berikutnya (`5` Modul)
 
 | Urutan | Modul / Fitur Tersisa | Area Kode Utama | Alasan / Indikasi Risiko Awal | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **A3** | **Direktori Toko Pengelola & Pengaturan Global Platform** | `store_handler.go` (`AdminListStores`, `AdminGetStoreDetail`), `setting_handler.go`, `AdminStoresManagement.tsx`, `TabletPlatformStoresView.tsx`, `OfficialContactModal.tsx` | Pengelolaan merchant oleh Admin Pengelola (filter, paginasi, suspend/unsuspend, verifikasi/lencana, kuota storage, kontak resmi) belum diaudit lintas peran Pengelola di 3 device. | **NOT YET AUDITED** |
 | **A4** | **Pusat Notifikasi In-App & Siklus Hidup SSE** | `notification_handler.go`, `notification_hub.go`, `notification_cleaner.go`, `NotificationHeaderPopover.tsx` | Komponen popover notifikasi khusus hanya terlihat di Desktop; perlu cek paritas UX Tablet/Mobile, isolasi SSE multi-tenant, read/dismiss state, dan cleaner. | **NOT YET AUDITED** |
 | **A5** | **Safe Domains & Peringatan Tautan Eksternal** | `safe_domain_handler.go`, `AdminSafeDomainsManagement.tsx`, `ExternalLinkWarningModal.tsx` | Tidak memiliki `safe_domain_handler_test.go`; perlu audit validasi domain (IDN/punycode, subdomain bypass, open redirect) dan konsistensi modal peringatan eksternal di 3 device. | **NOT YET AUDITED** |
 | **A6** | **Connected Devices & Manajemen Sesi Aktif** | `session_handler.go`, `ConnectedDevicesView.tsx`, `TabletConnectedDevicesView.tsx` | Tidak memiliki `session_handler_test.go`; perlu audit akurasi parsing User-Agent/IP di balik proxy, efek pencabutan sesi real-time (token/cookie/SSE), dan paritas UI 3 device. | **NOT YET AUDITED** |
@@ -353,4 +353,67 @@ Seluruh perbaikan **Gelombang 1 (Backend & DB/OTP)** dan **Gelombang 2 (Tri-Fron
 
 ---
 
-*(Gunakan format sub-section `### A3`, `### A4`, dst. di bawah garis ini saat melaksanakan audit modul berikutnya secara berurutan.)*
+### A3. Audit Mendalam: Direktori Toko Pengelola & Pengaturan Global Platform (`2026-11-28`)
+
+#### A3.1 Ruang Lingkup & File Terinspeksi
+Audit dilakukan dengan membaca langsung kode sumber backend (handlers, sanitizer, model, routes), unit test terkait, dan komponen UI lintas 3 device (tanpa mengubah kode produksi pada fase audit ini):
+- **Backend, Model & Keamanan**:
+  - `backend/cmd/server/main.go` (L417, L444–446, L673–680, L773–797)
+  - `backend/internal/handlers/store_handler.go` (`AdminListStores` L2471–2664, `AdminGetStoreDetail` L2667–2706)
+  - `backend/internal/handlers/setting_handler.go` (`PublicIndex` L57–142, `resolveActor` & `Index` L163–270, `applyFallbacks` L272–410, `Store` & `validateAndPrepareMonetizationSettings` L552–690, `persistPlatformSettings` L770–896, `ResetRekberDefaults` L899–970)
+  - `backend/internal/security/sanitizer.go` (`SanitizeRichText` L97–120)
+  - `backend/internal/models/store.go` (L1–73)
+- **Test Baseline Terkait**:
+  - `backend/internal/handlers/store_handler_test.go` (`TestAdminListStores_IsolationAndPagination_SQLite`)
+  - `backend/internal/handlers/setting_handler_policy_test.go`, `payment_coupon_hardening_test.go`, `di_handler_test.go`
+- **Tri-Frontend (Desktop, Tablet, Mobile)**:
+  - Direktori Toko: `frontend/desktop/src/components/AdminStoresManagement.tsx` (L1–120, L185–310, L2040–2180), `frontend/mobile/src/components/AdminStoresManagement.tsx` (L1–120, L175–310, L1050–1195, L1905–1985), `frontend/tablet/src/components/TabletPlatformStoresView.tsx` (L1–120, L225–360, L1895–2035, L2680–2765)
+  - Pengaturan Global & Kontak Resmi: `frontend/desktop/src/components/PlatformRolePortal.tsx` (L3175–3360, L14535–14645), `frontend/mobile/src/components/PlatformRolePortal.tsx` (L3255–3390, L13100–13215), `frontend/tablet/src/components/TabletPlatformConsole.tsx` (L2015–2085, L2365–2545, L10435–10560)
+  - Modal/Sheet Kontak Resmi: `frontend/desktop/src/components/OfficialContactModal.tsx` (L1–120), `frontend/tablet/src/components/TabletOfficialContactModal.tsx` (L1–120), `frontend/mobile/src/components/OfficialContactSheet.tsx` (L1–120)
+
+#### A3.2 Ringkasan Pengukuran Baseline (Sebelum Remediasi)
+| Pemeriksaan | Hasil Pengukuran Aktual (`go test -count=1`) | Catatan Audit |
+| :--- | :--- | :--- |
+| `./internal/handlers` (`TestAdminListStores\|TestSettingHandler\|TestPublicSettings\|TestStoreHandler`) | **8 fungsi test top-level (termasuk 7 subtest) PASS** (`0.141s`) | Belum ada test yang menguji keutuhan karakter khusus (`&`, `<`, `>`) pada `smtp_password` / `aulaa_api_key` saat `persistPlatformSettings`, penolakan key liar oleh superadmin di `Store`, pengecualian wajib `master_coupons` di `Index`, atau penyembunyian `custom_domain_verification_token` pada `AdminGetStoreDetail`. |
+
+#### A3.3 Matriks Temuan Audit (`0` P0, `3` P1, `4` P2, `1` P3)
+| ID | Severity | Area | Ringkasan Temuan | Bukti Lokasi Kode | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **SET-P1-01** | **P1** | BE / Security / DB | `persistPlatformSettings` memakai `SanitizeRichText` (`bluemonday`) untuk seluruh nilai setting selain `ads_txt_content`, yang meng-HTML-escape `&`/`'`/`<`/`>` dan merusak secret (`smtp_password`, `aulaa_api_key`, `aulaa_webhook_secret`) maupun URL/JSON; selain itu `Store` tidak menerapkan key allowlist saat caller ber-izin `system:settings:manage`, dan `Index` hanya mengecualikan `master_coupons` bila query `?exclude=master_coupons` dikirim. | `setting_handler.go` L236–265, L597–637, L786–799; `sanitizer.go` L97–120 | **FIXED & VERIFIED** |
+| **SET-P1-02** | **P1** | FE Tablet Console | `TabletPlatformConsole.handleSavePaymentSettings` menyebar seluruh state `{ ...googleSettings }` (membuat staf ber-izin `finance:settings:manage` ditolak `403` oleh backend bila ada key domain lain, atau menimpa setting tidak terkait), dan baik `handleSavePaymentSettings` maupun `handleSaveRekberSettings` masih menembak `/api/settings` yang mensyaratkan kepemilikan toko (`StoreOwnerRequired`) terlebih dahulu alih-alih langsung `/api/admin/settings` via `authFetch`. | `TabletPlatformConsole.tsx` L2038–2078, L2513–2530; `main.go` L673 | **FIXED & VERIFIED** |
+| **SET-P1-03** | **P1** | FE Mobile Contact | `Mobile PlatformRolePortal.handleSaveContactSettings` hanya mengirim `platform_official_whatsapp` & `platform_official_email` tanpa menyinkronkan `contact_whatsapp` & `contact_email` (berbeda dengan Desktop & Tablet), serta inputnya tidak fallback membaca `contact_*`, berisiko meninggalkan nilai kontak lama di DB tetap terbaca komponen lain. | Mobile `PlatformRolePortal.tsx` L3263–3267, L13116–13151; Desktop `L3231–3236`; Tablet `L2383–2388` | **FIXED & VERIFIED** |
+| **DIR-P2-01** | **P2** | BE / Security PII | `AdminGetStoreDetail` melakukan serialisasi entitas mentah `models.Store` ke seluruh staf ber-izin baca (`support:tickets:read`, `finance:orders:read`, dll.), sehingga ikut mengekspos `custom_domain_verification_token` (secret verifikasi DNS TXT toko) padahal `ReactivationToken` sudah memakai `json:"-"`. | `store_handler.go` L2677–2705; `models/store.go` L42; `main.go` L775 | **FIXED & VERIFIED** |
+| **DIR-P2-02** | **P2** | BE SQL & Metrics | Query agregat `stats.TotalActive` dan `stats.TotalBanned` di `AdminListStores` belum membungkus `COALESCE(dormancy_status, 'active')` terhadap kemungkinan baris legacy bernilai `NULL`, dan mencampur status `suspended`, `purged`, serta `banned` ke dalam satu angka `total_banned` tanpa rincian `total_suspended`. | `store_handler.go` L2631–2644 | **FIXED & VERIFIED** |
+| **DIR-P2-03** | **P2** | Tri-FE Parity | Desktop & Mobile `AdminStoresManagement` melempar error generik pada status `401`/`403` tanpa memicu `onLogout?.()` (berbeda dengan Tablet), dan `fetchStoreDetail` pada Desktop & Mobile menelan error (`catch {}`) sehingga modal/sheet detail toko tampil kosong tanpa pesan gagal. | Desktop `AdminStoresManagement.tsx` L221–281; Mobile `L268–335`; Tablet `TabletPlatformStoresView.tsx` L253–330 | **FIXED & VERIFIED** |
+| **SET-P2-04** | **P2** | FE Modal Back & Confirm | `TabletOfficialContactModal` hanya mendengar tombol `Escape` tanpa `useModalBackHandler` / `setupModalBackInterceptor` (melanggar `AGENTS.md` Rule 2; Desktop `OfficialContactModal` pun bergantung penuh pada parent), dan aksi reset default Rekber di ketiga frontend masih memakai `window.confirm(...)` bawaan browser. | `TabletOfficialContactModal.tsx` L30–40; Desktop `PlatformRolePortal.tsx` L3253; Mobile `L3324`; Tablet `TabletPlatformConsole.tsx` L2465 | **FIXED & VERIFIED** |
+| **DIR-P3-01** | **P3** | Code Hygiene & UX | `TabletPlatformConsole` menampilkan dua tombol *"Simpan Kontak"* terpisah di panel Kontak Resmi (`L10445` di header dan `L10559` di footer form), sementara `OfficialContactModal.tsx` dan `TabletOfficialContactModal.tsx` menduplikasi ~500 baris komponen hampir identik alih-alih berbagi komponen di `frontend/shared/`. | `TabletPlatformConsole.tsx` L10445–10560; `OfficialContactModal.tsx`; `TabletOfficialContactModal.tsx` | **FIXED (partial — tombol duplikat dihapus; modal per-SPA dipisah)** |
+
+#### A3.4 Sub-Catatan Audit Mendalam Per Masalah
+1. **Integritas Secret Konfigurasi & Guard `POST /api/admin/settings` (`SET-P1-01`)**:
+   - `setting_handler.go` sudah melindungi key rahasia saat `GET` lewat `maskSecretValue` (`"****xxxx"`) dan menolak menimpa nilai lama bila dikirim `"****..."` saat `POST`. Namun karena `persistPlatformSettings` memakai `SanitizeRichText`, karakter simbol valid pada `smtp_password` atau token API seperti `&` atau `<` akan diubah menjadi `&amp;` / dihapus sebelum disimpan ke PostgreSQL. Pemisahan sanitasi per kategori key (`plainSecretSettingKeys`, `plainTextSettingKeys`, vs `richTextSettingKeys` seperti banner/template) bersama allowlist key untuk admin & pengecualian permanen `master_coupons` di `Index` menutup celah korupsi & over-posting sekaligus.
+2. **Isolasi Endpoint Admin vs Merchant (`SET-P1-02`)**:
+   - Meskipun `POST /api/settings` sudah dikunci dengan `RequirePermission("system:settings:manage")`, ia masih berada di grup `guardedMutations` (`StoreOwnerRequired`), sehingga admin platform tanpa toko pasti terkena `403` terlebih dahulu sebelum Tablet beralih ke `/api/admin/settings`. Menghapus fallback ke `/api/settings` di Tablet dan membatasi payload `handleSavePaymentSettings` hanya pada `payment_*` & `aulaa_*` memastikan staf keuangan bisa menyimpan konfigurasi tanpa error RBAC.
+
+#### A3.5 Rencana Remediasi Terstruktur (Selesai Dieksekusi)
+- **Gelombang 1 — Backend Setting Sanitizer, Key Allowlist & Store Detail DTO**:
+  1. Pisahkan sanitasi di `persistPlatformSettings` ([setting_handler.go](file:///c:/MyProject/DFauna/backend/internal/handlers/setting_handler.go)): key secret (`smtp_password`, `aulaa_api_key`, `aulaa_webhook_secret`) memakai `sanitizeSecretSettingValue` lossless tanpa HTML entity escaping, key rich HTML (`terms_conditions`, `privacy_policy`, `legal_warning_banner`) memakai `SanitizeRichText`, key plain/template/URL/ads memakai `SanitizePlainText`, `Store` menerapkan allowlist eksplisit `allowedAdminSettingKeys`, dan `Index` selalu mengecualikan `master_coupons`.
+  2. Hapus `CustomDomainVerificationToken` dan `ReactivationToken` sebelum serialisasi pada `AdminGetStoreDetail` ([store_handler.go](file:///c:/MyProject/DFauna/backend/internal/handlers/store_handler.go)), serta perbaiki `COALESCE(NULLIF(dormancy_status, ''), 'active')` di filter & statistik `AdminListStores` + tambah rincian `total_suspended`.
+  3. Tambah unit test regresi di [rbac_handler_test.go](file:///c:/MyProject/DFauna/backend/internal/handlers/rbac_handler_test.go) dan [store_handler_test.go](file:///c:/MyProject/DFauna/backend/internal/handlers/store_handler_test.go) (`TestAdminListStores_NullDormancyAndDetailRedaction_SQLite`).
+- **Gelombang 2 — Paritas Tri-Frontend & Verifikasi E2E**:
+  1. Perbaiki `TabletPlatformConsole.handleSavePaymentSettings` agar hanya mengirim 15 field `payment_*` + `aulaa_*` melalui `authFetch('/api/admin/settings')`, hapus fallback `/api/settings` dari `handleSavePaymentSettings` dan `handleSaveRekberSettings`, serta hilangkan tombol duplikat `"Simpan Kontak"` pada header Kontak Resmi Tablet.
+  2. Sinkronkan `contact_whatsapp` & `contact_email` di `Mobile PlatformRolePortal.handleSaveContactSettings` (serta fallback pembacaan input) agar 100% paritas dengan Desktop & Tablet.
+  3. Tambahkan penanganan `401`/`403` (`onLogout?.()`) dan `detailError` di [AdminStoresManagement.tsx](file:///c:/MyProject/DFauna/frontend/desktop/src/components/AdminStoresManagement.tsx) (Desktop) serta [AdminStoresManagement.tsx](file:///c:/MyProject/DFauna/frontend/mobile/src/components/AdminStoresManagement.tsx) (Mobile), pindahkan `useModalBackHandler` menjadi *self-contained* di [TabletOfficialContactModal.tsx](file:///c:/MyProject/DFauna/frontend/tablet/src/components/TabletOfficialContactModal.tsx) (tanpa duplikasi di [TabletHelpdeskView.tsx](file:///c:/MyProject/DFauna/frontend/tablet/src/components/TabletHelpdeskView.tsx)), dan ganti seluruh `window.confirm` Reset Rekber dengan modal konfirmasi kustom di Desktop & Tablet serta Bottom Sheet drag-to-dismiss bersih tanpa tombol silang di Mobile.
+
+#### A3.6 Status Remediasi & Bukti Verifikasi Final (`2026-11-28`)
+| Pemeriksaan | Hasil Pengukuran Pasca-Edit Terakhir | Rincian Teramati |
+| :--- | :--- | :--- |
+| `cd backend; go test -count=1 ./...` | **PASS** (`exit 0`, **13** paket teruji lulus) | Seluruh paket backend lolos setelah edit backend final, termasuk `internal/handlers` (`42.797s`) dan test regresi A3 baru di `rbac_handler_test.go` & `store_handler_test.go`. |
+| **Tri-Build Verification** (`frontend/desktop`, `frontend/tablet`, `frontend/mobile`) | **PASS** (`0` error TypeScript & Vite build) | Desktop `2.59s` (`2009 modules`), Tablet rebuild final pasca `TabletHelpdeskView.tsx` `1.55s` (`2020 modules`), Mobile `1.81s` (`2004 modules`). |
+| **Runtime HTTP API + PostgreSQL (`catavor_audit_tmp`)** | **6/6 PASS** (`exit 0`) | Login MFA admin (`role=superadmin`); `GET /api/admin/stores?status=active` menyertakan toko `dormancy_status NULL` (`toko-null-e2e`) + `total_suspended=1, total_banned=2`; `AdminGetStoreDetail` menyembunyikan token verifikasi domain; `GET /api/admin/settings` menyingkirkan `master_coupons` tanpa `?exclude`; `POST /api/admin/settings` menolak key non-allowlist (`400`); PostgreSQL menyimpan `Smtp<Pass>&'123` dan `Aulaa<Key>&'XYZ` secara utuh tanpa HTML escaping sementara `GET` tetap melakukan masking (`****'123`). |
+| **Playwright Headless E2E (Desktop `1280x800`, Tablet `768x1024`, Mobile `390x844`)** | **12/12 UI Checks PASS** (**Total 18/18 PASS**, `0` uncaught `pageerror`, `0` native `window.confirm` dialog) | Desktop: error detail toko tampil eksplisit + modal Reset Rekber kustom; Tablet: tombol kontak tunggal (`submitCount=1, dupCount=0`), simpan pembayaran strictly `15` key `payment_*/aulaa_*` (`0` hit `/api/settings`), modal Reset Rekber kustom, & `TabletOfficialContactModal` menutup mulus pada `page.goBack()` tanpa keluar dari helpdesk; Mobile: error detail sheet, sinkronisasi `4` key kontak ke PostgreSQL (`6281234567890` / `official-a3@catavor.com`), & Bottom Sheet Reset Rekber tanpa `X` header (`headerButtons=0`). |
+
+*Catatan residu `DIR-P3-01`: duplikasi kode terisolasi antara `OfficialContactModal.tsx` (Desktop) & `TabletOfficialContactModal.tsx` (Tablet) dipertahankan terpisah agar batas bundle Vite per form-factor tetap independen sementara tombol duplikat Kontak Tablet sudah dihapus (`FIXED`).*
+
+---
+
+*(Gunakan format sub-section `### A4`, `### A5`, dst. di bawah garis ini saat melaksanakan audit modul berikutnya secara berurutan.)*
