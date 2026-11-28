@@ -668,7 +668,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     return [
       { value: 'all', label: 'Semua Target', count: reportTargetCounts.total },
       { value: 'item', label: 'Hanya Item', count: reportTargetCounts.item > 0 ? reportTargetCounts.item : undefined },
-      { value: 'catalog', label: 'Katalog Toko', count: reportTargetCounts.catalog > 0 ? reportTargetCounts.catalog : undefined }
+      { value: 'catalog', label: 'Katalog Merchant', count: reportTargetCounts.catalog > 0 ? reportTargetCounts.catalog : undefined }
     ];
   }, [reportTargetCounts]);
 
@@ -769,11 +769,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
             setPendingReportsCount(j.metrics.pending);
           }
         }
-        // Auto-select first report if list not empty and current selection invalid
+        // Auto-select first report only in wide split-view tablet; keep master list visible on portrait/mini tablet
         if (dataList.length > 0) {
+          const isSplitTablet = typeof window !== 'undefined' && window.innerWidth >= 880;
           setSelectedReportId(prev => {
             if (prev && dataList.some((r: any) => r.id === prev)) return prev;
-            return dataList[0].id;
+            return isSplitTablet ? dataList[0].id : null;
           });
         } else {
           setSelectedReportId(null);

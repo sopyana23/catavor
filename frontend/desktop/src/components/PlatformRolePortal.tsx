@@ -6553,7 +6553,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 const isCatalog = r.target_type === 'catalog' || r.target_type === 'store';
                 const statusBadgeMap: Record<string, { label: string; bg: string; text: string; border: string }> = {
                   pending: { label: 'Menunggu Review', bg: 'rgba(245, 158, 11, 0.15)', text: isDark ? '#fbbf24' : '#d97706', border: 'rgba(245, 158, 11, 0.35)' },
-                  re_review: { label: 'Perlu Ditinjau Ulang', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' },
+                  re_review: { label: 'Revisi Masuk', bg: 'rgba(16, 185, 129, 0.15)', text: isDark ? '#34d399' : '#059669', border: 'rgba(16, 185, 129, 0.35)' },
                   investigating: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
                   in_review: { label: 'Investigasi', bg: 'rgba(56, 189, 248, 0.15)', text: isDark ? '#38bdf8' : '#0284c7', border: 'rgba(56, 189, 248, 0.35)' },
                   action_taken: { label: 'Ditindak Sanksi', bg: 'rgba(244, 63, 94, 0.15)', text: '#f43f5e', border: 'rgba(244, 63, 94, 0.35)' },

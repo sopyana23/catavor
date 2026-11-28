@@ -271,7 +271,7 @@ const getStoreDisplayName = (ticket: any) => {
   if (ticket?.store_name) return ticket.store_name;
   if (ticket?.store?.slug) return ticket.store.slug;
   if (ticket?.store_slug) return ticket.store_slug;
-  return 'Katalog Toko';
+  return 'Katalog Merchant';
 };
 
 const getStorePlanBadge = (ticket: any) => {
@@ -1471,7 +1471,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     return [
       { value: 'all', label: 'Semua Target', count: mobileReportTargetCounts.total },
       { value: 'item', label: 'Hanya Item', count: mobileReportTargetCounts.item > 0 ? mobileReportTargetCounts.item : undefined },
-      { value: 'catalog', label: 'Katalog Toko', count: mobileReportTargetCounts.catalog > 0 ? mobileReportTargetCounts.catalog : undefined }
+      { value: 'catalog', label: 'Katalog Merchant', count: mobileReportTargetCounts.catalog > 0 ? mobileReportTargetCounts.catalog : undefined }
     ];
   }, [mobileReportTargetCounts]);
 
@@ -4238,7 +4238,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         return {
           showMenu: true,
           title: `Laporan #${moderationModalReport.report_number || moderationModalReport.id}`,
-          subtitle: `${moderationModalReport.target_type === 'catalog' ? 'Katalog Toko' : 'Item Produk'} • ${moderationModalReport.store_title || moderationModalReport.store_slug || 'Katalog'}`,
+          subtitle: `${moderationModalReport.target_type === 'catalog' ? 'Katalog Merchant' : 'Item Produk'} • ${moderationModalReport.store_title || moderationModalReport.store_slug || 'Katalog'}`,
           items: [
             {
               id: 'copy_report_num',
@@ -6504,7 +6504,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 onChange={(val) => setReportsTargetFilter(val as any)}
                 options={mobileReportTargetOptions}
                 title="Target Laporan"
-                subtitle="Filter item atau katalog toko"
+                subtitle="Filter item atau katalog merchant"
                 placeholder="Filter Target"
                 icon={<Layers size={15} />}
               />
@@ -6515,7 +6515,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
               .filter(r => {
                 if (reportsFilter !== 'all') {
                   if (reportsFilter === 'investigating') {
-                    if (r.status !== 'investigating') return false;
+                    if (r.status !== 'investigating' && r.status !== 'in_review') return false;
                   } else if (reportsFilter === 're_review') {
                     if (r.status !== 're_review') return false;
                   } else if (reportsFilter === 'banned') {
@@ -6557,7 +6557,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                 .filter(r => {
                   if (reportsFilter !== 'all') {
                     if (reportsFilter === 'investigating') {
-                      if (r.status !== 'investigating') return false;
+                      if (r.status !== 'investigating' && r.status !== 'in_review') return false;
                     } else if (reportsFilter === 're_review') {
                       if (r.status !== 're_review') return false;
                     } else if (reportsFilter === 'banned') {

@@ -1614,6 +1614,17 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
     />
   ) : null;
 
+  const reportModalNode = (
+    <TabletReportModal
+      isOpen={Boolean(reportModalData)}
+      onClose={() => setReportModalData(null)}
+      reportData={reportModalData}
+      storeSettings={settings}
+      storeSlug={slug || settings?.store_slug || ''}
+      onToast={showToast}
+    />
+  );
+
   // =============================================================
   // RENDER: FULL-PAGE DETAIL VIEW (PARITY WITH DESKTOP)
   // =============================================================
@@ -3170,6 +3181,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
         {toastBannerNode}
         {rekberExplainerModalNode}
         {externalWarningModalNode}
+        {reportModalNode}
       </div>
     );
   }
@@ -4700,14 +4712,7 @@ export const TabletStoreCatalog: React.FC<TabletStoreCatalogProps> = ({
       />
 
       {/* 7. Report Modal (Desktop Parity with Tablet Ergonomics) */}
-      <TabletReportModal
-        isOpen={Boolean(reportModalData)}
-        onClose={() => setReportModalData(null)}
-        reportData={reportModalData}
-        storeSettings={settings}
-        storeSlug={slug || settings?.store_slug || ''}
-        onToast={showToast}
-      />
+      {reportModalNode}
       {/* External Link Safety & Rekber Explainer Modals (Tablet) */}
       {rekberExplainerModalNode}
       {externalWarningModalNode}
