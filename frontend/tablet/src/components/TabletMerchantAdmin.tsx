@@ -1304,6 +1304,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [productPhotos, setProductPhotos] = useState<string[]>(['']);
   const [isBatchUploading, setIsBatchUploading] = useState<boolean>(false);
   const [uploadingPhotoIndex, setUploadingPhotoIndex] = useState<number | null>(null);
+  const [editingModerationMeta, setEditingModerationMeta] = useState<{ status: string; reason: string } | null>(null);
 
   const [productForm, setProductForm] = useState(() => {
     let initialType = '';
@@ -1607,6 +1608,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const handleCancelToProductTypeSelection = useCallback(() => {
     setSelectedProductId('new');
     setIsSelectingProductType(true);
+    setEditingModerationMeta(null);
     setShowCustomClassInput(false);
     setCustomClass('');
     setProductPhotos(['']);
@@ -1755,6 +1757,16 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   }, [storeSlug, token]);
 
   const handleSelectProduct = (prod: any) => {
+    const modMeta = getItemModerationMeta(prod?.moderation_status);
+    if (modMeta && modMeta.isLocked) {
+      showToast(modMeta.bannerDescription, 'error');
+      return;
+    }
+    setEditingModerationMeta(
+      prod?.moderation_status && prod.moderation_status !== 'none'
+        ? { status: String(prod.moderation_status), reason: String(prod.moderation_reason || '') }
+        : null
+    );
     setSelectedProductId(prod.id);
     setIsSelectingProductType(false);
     try {
@@ -2821,26 +2833,51 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       handleMarkNotifRead(item.id);
       const modCase = parseModerationCase(item);
       let targetName = modCase.targetName;
-      if (!targetName && item.action_url) {
+      let targetItemId: number | null = null;
+      if (item.action_url) {
         try {
           const u = new URL(item.action_url.startsWith('http') ? item.action_url : `http://localhost/${item.action_url.replace(/^\//, '')}`);
-          targetName = u.searchParams.get('target_name') || '';
+          if (!targetName) targetName = u.searchParams.get('target_name') || '';
+          const rawId = u.searchParams.get('edit') || u.searchParams.get('item') || u.searchParams.get('id') || u.searchParams.get('item_id');
+          if (rawId) {
+            const parsedId = parseInt(rawId, 10);
+            if (!isNaN(parsedId) && parsedId > 0) targetItemId = parsedId;
+          }
         } catch {}
+      }
+      if (!targetItemId && (item.item_id || item.itemId || item.product_id || item.fauna_id)) {
+        const fallbackId = Number(item.item_id || item.itemId || item.product_id || item.fauna_id);
+        if (!isNaN(fallbackId) && fallbackId > 0) targetItemId = fallbackId;
       }
 
       let matchedProd = products.find(p =>
-        (targetName && (p.name || '').toLowerCase().trim() === targetName.toLowerCase().trim()) ||
-        (item.action_url && item.action_url.includes(`id=${p.id}`))
+        (targetItemId !== null && Number(p.id) === targetItemId) ||
+        (targetName && (p.name || '').toLowerCase().trim() === targetName.toLowerCase().trim())
       );
 
+      if (!matchedProd && targetItemId !== null) {
+        const resById = await fetch(`/api/products/${targetItemId}?slug=${encodeURIComponent(storeSlug)}`, {
+          headers: getHeaders()
+        });
+        if (resById.ok) {
+          const jsonById = await resById.json();
+          if (jsonById?.success && jsonById?.data?.id) {
+            matchedProd = jsonById.data;
+          }
+        }
+      }
+
       if (!matchedProd && targetName) {
-        const res = await fetch(`/api/products?q=${encodeURIComponent(targetName)}&limit=5&slug=${storeSlug}`, {
+        const res = await fetch(`/api/products?search=${encodeURIComponent(targetName)}&status=all&limit=10&slug=${encodeURIComponent(storeSlug)}`, {
           headers: getHeaders()
         });
         if (res.ok) {
           const json = await res.json();
           const items = Array.isArray(json.data) ? json.data : [];
-          matchedProd = items.find((p: any) => (p.name || '').toLowerCase().trim() === targetName.toLowerCase().trim()) || items[0];
+          matchedProd = items.find((p: any) =>
+            (targetItemId !== null && Number(p.id) === targetItemId) ||
+            (p.name || '').toLowerCase().trim() === targetName.toLowerCase().trim()
+          );
         }
       }
 
@@ -5998,6 +6035,32 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       flexDirection: 'column',
                       gap: '1.25rem'
                     }}>
+                      {/* Needs-Fix Compliance Banner when editing a moderated item */}
+                      {selectedProductId !== 'new' && editingModerationMeta?.status === 'needs_fix' && (
+                        <div
+                          data-testid="needs-fix-form-banner"
+                          style={{
+                            padding: '0.85rem 1rem',
+                            borderRadius: '0.85rem',
+                            backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                            border: '1.5px solid rgba(245, 158, 11, 0.35)',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.75rem'
+                          }}
+                        >
+                          <ShieldAlert size={18} style={{ color: '#d97706', flexShrink: 0, marginTop: '0.1rem' }} />
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#d97706', marginBottom: '0.2rem' }}>
+                              Item Memerlukan Perbaikan Data Kepatuhan
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-primary)', lineHeight: 1.45 }}>
+                              {editingModerationMeta.reason || 'Silakan perbaiki informasi item sesuai catatan kepatuhan lalu simpan untuk mengajukan peninjauan ulang.'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Active Type Banner with Ganti Tipe Button (Now in Form Body) */}
                       <div style={{
                         padding: '0.85rem 1rem',
@@ -7837,7 +7900,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                         }}
                       >
                         <Save size={16} />
-                        {saving ? 'Menyimpan...' : (selectedProductId === 'new' ? 'Terbitkan Item' : 'Simpan Perubahan')}
+                        {saving
+                          ? 'Menyimpan...'
+                          : selectedProductId === 'new'
+                            ? 'Terbitkan Item'
+                            : editingModerationMeta?.status === 'needs_fix'
+                              ? 'Simpan & Ajukan Tinjauan Ulang'
+                              : 'Simpan Perubahan'}
                       </button>
                     </div>
                   </form>

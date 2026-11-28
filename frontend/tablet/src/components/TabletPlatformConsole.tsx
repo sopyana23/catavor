@@ -659,14 +659,13 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     return list.filter(opt => opt.value === 'all' || (typeof opt.count === 'number' && opt.count > 0));
   }, [reportMetrics, reports]);
 
-  // Dynamic Target Options for Reports in tablet: strictly count > 0
+  // Target Options for Reports in tablet: always keep all target options selectable regardless of active filter
   const reportTargetOptions = useMemo<TabletSelectOption[]>(() => {
-    const list: TabletSelectOption[] = [
+    return [
       { value: 'all', label: 'Semua Target', count: reportTargetCounts.total },
-      { value: 'item', label: 'Hanya Item', count: reportTargetCounts.item },
-      { value: 'catalog', label: 'Katalog Toko', count: reportTargetCounts.catalog }
+      { value: 'item', label: 'Hanya Item', count: reportTargetCounts.item > 0 ? reportTargetCounts.item : undefined },
+      { value: 'catalog', label: 'Katalog Toko', count: reportTargetCounts.catalog > 0 ? reportTargetCounts.catalog : undefined }
     ];
-    return list.filter(opt => opt.value === 'all' || (typeof opt.count === 'number' && opt.count > 0));
   }, [reportTargetCounts]);
 
   // Safety auto-resets for tablet compliance reports
@@ -4966,7 +4965,9 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                                     } else if (!isCatalog && (moderationAction === 'item_locked' || moderationAction === 'item_needs_fix' || moderationAction === 'item_banned')) {
                                       setModerationAction('item_restored');
                                     }
-                                  } else if (opt.value === 'dismissed' || opt.value === 'investigating') {
+                                  } else if (opt.value === 'dismissed') {
+                                    setModerationAction('none');
+                                  } else if (opt.value === 'investigating') {
                                     if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned') {
                                       setModerationAction('none');
                                     }

@@ -1462,14 +1462,13 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     return list.filter(opt => opt.value === 'all' || (typeof opt.count === 'number' && opt.count > 0));
   }, [reportMetrics, reports]);
 
-  // Dynamic Target Options for Reports in mobile: strictly count > 0
+  // Target Options for Reports in mobile: always keep all target options selectable regardless of active filter
   const mobileReportTargetOptions = useMemo<MobileSelectOption[]>(() => {
-    const list: MobileSelectOption[] = [
+    return [
       { value: 'all', label: 'Semua Target', count: mobileReportTargetCounts.total },
-      { value: 'item', label: 'Hanya Item', count: mobileReportTargetCounts.item },
-      { value: 'catalog', label: 'Katalog Toko', count: mobileReportTargetCounts.catalog }
+      { value: 'item', label: 'Hanya Item', count: mobileReportTargetCounts.item > 0 ? mobileReportTargetCounts.item : undefined },
+      { value: 'catalog', label: 'Katalog Toko', count: mobileReportTargetCounts.catalog > 0 ? mobileReportTargetCounts.catalog : undefined }
     ];
-    return list.filter(opt => opt.value === 'all' || (typeof opt.count === 'number' && opt.count > 0));
   }, [mobileReportTargetCounts]);
 
   // Safety auto-resets for mobile compliance reports
@@ -5991,7 +5990,9 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                           } else if (!isItem && (moderationAction === 'catalog_suspended' || moderationAction === 'catalog_banned')) {
                             setModerationAction('catalog_reactivated');
                           }
-                        } else if (opt.value === 'dismissed' || opt.value === 'investigating') {
+                        } else if (opt.value === 'dismissed') {
+                          setModerationAction('none');
+                        } else if (opt.value === 'investigating') {
                           if (moderationAction === 'item_banned' || moderationAction === 'catalog_banned') {
                             setModerationAction('none');
                           }

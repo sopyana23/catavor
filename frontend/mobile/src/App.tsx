@@ -8620,7 +8620,7 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
     };
   };
 
-  // Handler: Buka formulir edit item secara langsung dari notifikasi perbaikan item
+  // Handler: Buka formulir edit / detail item dari notifikasi perbaikan item
   const handleOpenFixItem = async (notif: any) => {
     let targetItemId: number | null = null;
     const actionUrl = notif?.action_url || notif?.actionUrl || '';
@@ -8634,6 +8634,11 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
           if (!isNaN(parsed) && parsed > 0) targetItemId = parsed;
         }
       } catch { }
+    }
+
+    if (!targetItemId && (notif?.item_id || notif?.itemId || notif?.fauna_id || notif?.faunaId)) {
+      const fallbackId = Number(notif.item_id || notif.itemId || notif.fauna_id || notif.faunaId);
+      if (!isNaN(fallbackId) && fallbackId > 0) targetItemId = fallbackId;
     }
 
     if (!targetItemId) {
@@ -8653,23 +8658,32 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
     const slug = storeSlug || getStoreSlug();
 
     if (targetItemId) {
-      const found = faunas.find(f => f.id === targetItemId);
-      if (found) {
-        setSelectedFauna(found);
+      let resolvedItem = faunas.find(f => f.id === targetItemId) || null;
+      if (!resolvedItem) {
+        try {
+          const res = await apiClient.get<any>(`/products/${targetItemId}`, { slug: slug || '' });
+          if (res?.success && res?.data) {
+            resolvedItem = res.data;
+          }
+        } catch (err) {
+          console.error('Failed to fetch item for mobile fix view', err);
+        }
+      }
+
+      if (resolvedItem) {
+        setSelectedFauna(resolvedItem);
         setActiveImageIndex(0);
+        if ((resolvedItem as any).moderation_status === 'needs_fix') {
+          setActiveTab('admin');
+          setAdminSubTab('items');
+          openEditSheet(resolvedItem);
+          showToast('Membuka formulir perbaikan item untuk diajukan tinjauan ulang.', 'info');
+          return;
+        }
         setIsDetailActive(true);
         window.scrollTo({ top: 0, behavior: 'instant' });
         if (slug) window.history.pushState({}, '', `/${slug}/admin/items?item=${targetItemId}`);
         return;
-      }
-
-      try {
-        await openDetailsSheet(targetItemId);
-        if (slug) window.history.pushState({}, '', `/${slug}/admin/items?item=${targetItemId}`);
-        return;
-      }
-      catch (err) {
-        console.error('Failed to fetch item for detail view in mobile', err);
       }
     }
 
@@ -9371,7 +9385,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setEditId(null);
     setCrudMode('create');
     setIsChangingTypeInEditor(false);
+    setEditingModerationMeta(null);
   };
+
+  const [editingModerationMeta, setEditingModerationMeta] = useState<{ status: string; reason: string } | null>(null)
 
   // Dynamic Master dropdown custom inputs
   const [customClass, setCustomClass] = useState<string>('')
@@ -14707,6 +14724,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
 
     setCrudMode('edit')
     setEditId(item.id)
+    setEditingModerationMeta(
+      (item as any).moderation_status && (item as any).moderation_status !== 'none'
+        ? { status: String((item as any).moderation_status), reason: String((item as any).moderation_reason || '') }
+        : null
+    )
     const itemType = (item.product_type || 'physical') as ItemCategoryType;
     const typeConfig = getItemTypeFormConfig(itemType);
 
@@ -21659,6 +21681,32 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                 </div>
               )}
 
+              {crudMode === 'edit' && editingModerationMeta?.status === 'needs_fix' && (
+                <div
+                  data-testid="needs-fix-form-banner"
+                  style={{
+                    padding: '0.85rem 0.95rem',
+                    borderRadius: '0.85rem',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.65rem',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  <ShieldAlert size={18} style={{ color: '#d97706', flexShrink: 0, marginTop: '0.1rem' }} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#d97706', marginBottom: '0.2rem' }}>
+                      Item Memerlukan Perbaikan Data
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-primary)', lineHeight: 1.45 }}>
+                      {editingModerationMeta.reason || 'Perbarui data item sesuai arahan tim kepatuhan lalu simpan untuk tinjauan ulang.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleFaunaSubmit}>
                 {/* Standar Fields: Nama & Harga */}
                 <div className="form-grid-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem', alignItems: 'end', width: '100%', boxSizing: 'border-box' }}>
@@ -23568,7 +23616,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       <Loader className="animate-spin" size={16} />
                       <span>{uploadProgressText || 'Menyimpan...'}</span>
                     </span>
-                  ) : 'Simpan Item'}
+                  ) : (crudMode === 'edit' && editingModerationMeta?.status === 'needs_fix' ? 'Simpan & Ajukan Tinjauan Ulang' : 'Simpan Item')}
                 </button>
               </form>
             </div>
@@ -35804,7 +35852,9 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                       setReportReason(initialReasons[0]?.id || 'other');
                       setReportNotes('');
                       setReportEmail('');
-                      setReportModalData(savedData);
+                      setTimeout(() => {
+                        setReportModalData(savedData);
+                      }, 80);
                     }}
                   >
                     <div className="action-menu-icon-box report-icon-box">

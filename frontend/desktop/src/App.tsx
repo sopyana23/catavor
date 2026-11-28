@@ -6660,6 +6660,18 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
   const [reportEmail, setReportEmail] = useState<string>('')
   const [isSubmittingReport, setIsSubmittingReport] = useState<boolean>(false)
 
+  useModalBackHandler({
+    isOpen: Boolean(actionMenuData),
+    onClose: () => setActionMenuData(null),
+    modalId: 'desktop-action-menu-modal'
+  })
+
+  useModalBackHandler({
+    isOpen: Boolean(reportModalData),
+    onClose: () => setReportModalData(null),
+    modalId: 'desktop-report-modal'
+  })
+
   // Desktop Admin Inventory States & Filters
   const [adminSearch, setAdminSearch] = useState<string>('')
   const [adminProductTypeFilter, setAdminProductTypeFilter] = useState<'all' | 'physical' | 'food' | 'service' | 'digital' | 'fauna' | 'property' | 'plant'>('all')
@@ -8641,7 +8653,7 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
     };
   };
 
-  // Helper: Buka halaman detail item dari notifikasi perbaikan item (Desktop)
+  // Helper: Buka formulir perbaikan / detail item dari notifikasi perbaikan item (Desktop)
   const handleOpenFixItem = async (notif: any) => {
     let targetItemId: number | null = null;
     const actionUrl = notif?.action_url || notif?.actionUrl || '';
@@ -8666,30 +8678,39 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
 
     handleClearSelectedNotification(false);
 
+    setView('admin');
     setAdminTab('items');
     const slug = storeSlug || getStoreSlug();
 
     if (targetItemId) {
-      const found = faunas.find(f => f.id === targetItemId);
-      if (found) {
-        setSelectedFauna(found);
+      let resolvedItem = faunas.find(f => f.id === targetItemId) || null;
+      if (!resolvedItem) {
+        try {
+          const res = await apiClient.get<any>(`/products/${targetItemId}`, { slug: slug || '' });
+          if (res?.success && res?.data) {
+            resolvedItem = res.data;
+          }
+        } catch (err) {
+          console.error('Failed to fetch item for fix view', err);
+        }
+      }
+
+      if (resolvedItem) {
+        setSelectedFauna(resolvedItem);
         setActiveImageIndex(0);
+        if ((resolvedItem as any).moderation_status === 'needs_fix') {
+          openEditModal(resolvedItem);
+          showToast('Membuka formulir perbaikan item untuk diajukan tinjauan ulang.', 'info');
+          return;
+        }
         setIsDetailActive(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         if (slug) window.history.pushState({}, '', `/${slug}/admin/items?item=${targetItemId}`);
         return;
       }
 
-      try {
-        await fetchDetails(targetItemId);
-        if (slug) window.history.pushState({}, '', `/${slug}/admin/items?item=${targetItemId}`);
-        return;
-      } catch (err) {
-        console.error('Failed to fetch item for detail view', err);
-      }
-
       if (slug) window.history.pushState({}, '', `/${slug}/admin/items?item=${targetItemId}`);
-      showToast('Membuka detail item untuk perbaikan data.', 'info');
+      showToast('Item tidak ditemukan pada inventaris aktif. Silakan periksa daftar inventaris.', 'info');
     } else {
       if (slug) window.history.pushState({}, '', `/${slug}/admin/items`);
       showToast('Membuka inventaris. Silakan pilih item yang perlu diperbaiki.', 'info');
@@ -9394,7 +9415,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setCrudError(null);
     setEditId(null);
     setCrudMode('create');
+    setEditingModerationMeta(null);
   };
+
+  const [editingModerationMeta, setEditingModerationMeta] = useState<{ status: string; reason: string } | null>(null)
 
   // Dynamic Master dropdown custom inputs
   const [customClass, setCustomClass] = useState<string>('')
@@ -14140,7 +14164,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
       showToast('Operasional toko sedang dibekukan sementara. Perubahan item dinonaktifkan.', 'error');
       return;
     }
-    if ((item as any).is_active === false) {
+    const itemModMeta = getItemModerationMeta((item as any).moderation_status);
+    if (itemModMeta && itemModMeta.isLocked) {
+      showToast(itemModMeta.bannerDescription, 'error');
+      return;
+    }
+    if ((item as any).is_active === false && (item as any).moderation_status !== 'needs_fix') {
       const maxActive = storeQuota?.max_items ?? (settings.plan === 'free' ? 15 : -1);
       const currentActive = storeQuota?.active_items_count ?? faunas.filter(f => (f as any).is_active !== false).length;
       if (maxActive !== -1 && currentActive >= maxActive) {
@@ -14152,6 +14181,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
         return;
       }
     }
+    setEditingModerationMeta(
+      (item as any).moderation_status && (item as any).moderation_status !== 'none'
+        ? { status: String((item as any).moderation_status), reason: String((item as any).moderation_reason || '') }
+        : null
+    );
 
     const itemType = (item.product_type || 'physical') as ItemCategoryType;
     const typeConfig = getItemTypeFormConfig(itemType);
@@ -30601,6 +30635,31 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   </div>
                 )}
 
+                {crudMode === 'edit' && editingModerationMeta?.status === 'needs_fix' && (
+                  <div
+                    data-testid="needs-fix-form-banner"
+                    style={{
+                      padding: '0.9rem 1.05rem',
+                      borderRadius: '0.75rem',
+                      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '0.75rem'
+                    }}
+                  >
+                    <ShieldAlert size={18} style={{ color: '#d97706', flexShrink: 0, marginTop: '0.1rem' }} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#d97706', marginBottom: '0.2rem' }}>
+                        Item Memerlukan Perbaikan Data Kepatuhan
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.79rem', color: 'var(--text-primary)', lineHeight: 1.45 }}>
+                        {editingModerationMeta.reason || 'Silakan perbaiki informasi item sesuai pedoman platform lalu simpan untuk mengajukan peninjauan ulang.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Name Input */}
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label" style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>{typeConfig.nameLabel}</label>
@@ -32240,7 +32299,11 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       <span>{uploadProgressText || 'Menyimpan...'}</span>
                     </>
                   ) : (
-                    <span>Simpan Item</span>
+                    <span>
+                      {crudMode === 'edit' && editingModerationMeta?.status === 'needs_fix'
+                        ? 'Simpan & Ajukan Tinjauan Ulang'
+                        : 'Simpan Item'}
+                    </span>
                   )}
                 </button>
               </div>
@@ -33937,7 +34000,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
                       setReportReason(initialReasons[0]?.id || 'other');
                       setReportNotes('');
                       setReportEmail('');
-                      setReportModalData(savedData);
+                      setTimeout(() => {
+                        setReportModalData(savedData);
+                      }, 80);
                     }}
                     style={{
                       display: 'flex',
