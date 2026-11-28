@@ -607,3 +607,166 @@ func TestReportIndexAndShow_BatchedActiveCountAndProductIDContext(t *testing.T) 
 	}
 }
 
+func TestReportCreate_ItemRequiresTargetProductID(t *testing.T) {
+	db := newReportTestDB(t)
+	admin, storeA, _, _, _ := seedReportFixtures(t, db)
+	app := setupReportTestApp(t, db, &admin)
+
+	res := call(t, app, "POST", "/api/reports", map[string]any{
+		"target_type":     "item",
+		"store_id":        storeA.ID,
+		"item_name":       "Item Fiktif Tanpa ID",
+		"reason_category": "scam",
+		"reason_label":    "Penipuan",
+	})
+	if res.Status != http.StatusBadRequest {
+		t.Fatalf("expected 400 when target_type=item without product_id/fauna_id, got %d (%s)", res.Status, res.Raw)
+	}
+	if code, _ := res.Body["code"].(string); code != "ITEM_ID_REQUIRED" {
+		t.Fatalf("expected code=ITEM_ID_REQUIRED, got %q (%s)", code, res.Raw)
+	}
+}
+
+func TestReportUpdateStatus_StaffWithoutSuspendCannotBypassStoreSanctionRBAC(t *testing.T) {
+	db := newReportTestDB(t)
+	_, storeA, _, _, _ := seedReportFixtures(t, db)
+
+	perm := models.PlatformPermission{
+		Key:   "compliance:reports:manage",
+		Group: "compliance",
+		Name:  "Kelola Laporan",
+	}
+	mustCreate(t, db, &perm)
+
+	reportOnlyRole := models.PlatformRole{
+		Slug: "report_viewer_qa",
+		Name: "Report Reviewer QA",
+	}
+	mustCreate(t, db, &reportOnlyRole)
+	mustCreate(t, db, &models.PlatformRolePermission{
+		RoleID:       reportOnlyRole.ID,
+		PermissionID: perm.ID,
+	})
+
+	staff := models.User{
+		Name:         "Staff Laporan Saja",
+		Email:        "staff-report-only@example.invalid",
+		PlatformRole: reportOnlyRole.Slug,
+	}
+	mustCreate(t, db, &staff)
+	services.InitRBACService(db)
+
+	catRpt := models.Report{
+		ReportNumber:   "RPT-20261128-RBAC1",
+		TargetType:     "catalog",
+		StoreID:        storeA.ID,
+		StoreSlug:      storeA.Slug,
+		StoreTitle:     storeA.StoreTitle,
+		ReasonCategory: "fraud",
+		ReasonLabel:    "Pelanggaran Berat",
+		Status:         "pending",
+	}
+	mustCreate(t, db, &catRpt)
+
+	app := setupReportTestApp(t, db, &staff)
+
+	// Attempt bypass with apply_enforcement=false must STILL be rejected 403
+	res := call(t, app, "PUT", "/api/admin/reports/"+catRpt.ReportNumber, map[string]any{
+		"status":            "banned",
+		"action_taken":      "catalog_banned",
+		"admin_notes":       "Mencoba bypass RBAC dengan apply_enforcement=false",
+		"apply_enforcement": false,
+	})
+	if res.Status != http.StatusForbidden {
+		t.Fatalf("expected 403 for catalog_banned bypass attempt with apply_enforcement=false, got %d (%s)", res.Status, res.Raw)
+	}
+
+	var refreshed models.Report
+	if err := db.Where("report_number = ?", catRpt.ReportNumber).First(&refreshed).Error; err != nil {
+		t.Fatalf("query refreshed report: %v", err)
+	}
+	if refreshed.Status != "pending" || (refreshed.ActionTaken != "" && refreshed.ActionTaken != "none") {
+		t.Fatalf("expected report unchanged on 403, got status=%s action=%s", refreshed.Status, refreshed.ActionTaken)
+	}
+}
+
+func TestReportUpdateStatus_DismissUnsticksReReviewAndClearsStaleActionAndIncludesBannedHistory(t *testing.T) {
+	db := newReportTestDB(t)
+	admin, storeA, _, prodA, _ := seedReportFixtures(t, db)
+	app := setupReportTestApp(t, db, &admin)
+
+	// Simulate prodA currently awaiting re_review after needs_fix resubmission
+	if err := db.Exec("UPDATE products SET is_active = ?, moderation_status = ? WHERE id = ?", false, "in_review", prodA.ID).Error; err != nil {
+		t.Fatalf("update product to in_review: %v", err)
+	}
+
+	reRevRpt := models.Report{
+		ReportNumber:   "RPT-20261128-REREV1",
+		TargetType:     "item",
+		StoreID:        storeA.ID,
+		ProductID:      &prodA.ID,
+		StoreSlug:      storeA.Slug,
+		StoreTitle:     storeA.StoreTitle,
+		ItemName:       prodA.Name,
+		ReasonCategory: "misleading",
+		ReasonLabel:    "Info Tidak Akurat",
+		Status:         "re_review",
+		ActionTaken:    "item_needs_fix",
+	}
+	mustCreate(t, db, &reRevRpt)
+
+	// Historical banned catalog report for the same store must appear in history_reports
+	now := time.Now().UTC()
+	histBanned := models.Report{
+		ReportNumber:   "RPT-20261128-HISTBAN",
+		TargetType:     "item",
+		StoreID:        storeA.ID,
+		ProductID:      &prodA.ID,
+		StoreSlug:      storeA.Slug,
+		StoreTitle:     storeA.StoreTitle,
+		ItemName:       prodA.Name,
+		ReasonCategory: "fraud",
+		ReasonLabel:    "Pelanggaran Sebelumnya",
+		Status:         "banned",
+		ActionTaken:    "item_banned",
+		ReviewedAt:     &now,
+	}
+	mustCreate(t, db, &histBanned)
+
+	// Verify Show returns the 'banned' report inside history_reports before dismissal
+	shwRes := call(t, app, "GET", "/api/admin/reports/"+reRevRpt.ReportNumber, nil)
+	if shwRes.Status != http.StatusOK {
+		t.Fatalf("Show status=%d raw=%s", shwRes.Status, shwRes.Raw)
+	}
+	historyRel, _ := shwRes.Body["history_reports"].([]any)
+	if len(historyRel) != 1 {
+		t.Fatalf("expected 1 banned report in history_reports, got %d (%s)", len(historyRel), shwRes.Raw)
+	}
+
+	// Dismissing re_review with stale action_taken in request body must reset action_taken='none' and restore prodA from in_review
+	disRes := call(t, app, "PUT", "/api/admin/reports/"+reRevRpt.ReportNumber, map[string]any{
+		"status":       "dismissed",
+		"action_taken": "item_locked",
+		"admin_notes":  "Laporan revisi dinyatakan memenuhi syarat, penindakan dibatalkan.",
+	})
+	if disRes.Status != http.StatusOK {
+		t.Fatalf("dismiss status=%d raw=%s", disRes.Status, disRes.Raw)
+	}
+
+	var updatedRpt models.Report
+	if err := db.Where("report_number = ?", reRevRpt.ReportNumber).First(&updatedRpt).Error; err != nil {
+		t.Fatalf("query updated report: %v", err)
+	}
+	if updatedRpt.Status != "dismissed" || updatedRpt.ActionTaken != "none" {
+		t.Fatalf("expected status=dismissed and action_taken=none, got status=%s action=%s", updatedRpt.Status, updatedRpt.ActionTaken)
+	}
+
+	var updatedProd models.Product
+	if err := db.Where("id = ?", prodA.ID).First(&updatedProd).Error; err != nil {
+		t.Fatalf("query updated product: %v", err)
+	}
+	if !updatedProd.IsActive || updatedProd.ModerationStatus != "none" {
+		t.Fatalf("expected prodA unstuck from in_review -> active/none, got is_active=%v moderation_status=%s", updatedProd.IsActive, updatedProd.ModerationStatus)
+	}
+}
+

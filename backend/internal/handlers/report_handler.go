@@ -286,22 +286,27 @@ func (h *ReportHandler) CreateReport(c *fiber.Ctx) error {
 		if targetItemID == nil || *targetItemID == 0 {
 			targetItemID = req.FaunaID
 		}
-		if targetItemID != nil && *targetItemID > 0 {
-			var p models.Product
-			if err := h.db.Where("id = ? AND store_id = ?", *targetItemID, store.ID).First(&p).Error; err != nil {
-				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-					"success": false,
-					"code":    "ITEM_NOT_FOUND",
-					"message": "Item katalog yang dilaporkan tidak ditemukan pada katalog tersebut.",
-				})
-			}
-			product = &p
-			itemName = p.Name
+		if targetItemID == nil || *targetItemID == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"code":    "ITEM_ID_REQUIRED",
+				"message": "ID item katalog wajib disertakan untuk melaporkan item.",
+			})
 		}
+		var p models.Product
+		if err := h.db.Where("id = ? AND store_id = ?", *targetItemID, store.ID).First(&p).Error; err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"success": false,
+				"code":    "ITEM_NOT_FOUND",
+				"message": "Item katalog yang dilaporkan tidak ditemukan pada katalog tersebut.",
+			})
+		}
+		product = &p
+		itemName = p.Name
 		if itemName == "" && req.ItemName != "" {
 			itemName = security.SanitizePlainText(req.ItemName, 255)
 		}
-		if itemName == "" && product == nil {
+		if itemName == "" {
 			itemName = "Item Produk"
 		}
 	}
@@ -492,7 +497,7 @@ func (h *ReportHandler) Index(c *fiber.Ctx) error {
 	}
 
 	var reports []models.Report
-	if err := query.Preload("Product").Preload("Store").Order("created_at DESC").Offset(offset).Limit(limit).Find(&reports).Error; err != nil {
+	if err := query.Preload("Product", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).Preload("Store").Order("created_at DESC").Offset(offset).Limit(limit).Find(&reports).Error; err != nil {
 		log.Error().Err(err).Msg("Failed to retrieve reports list")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
@@ -605,7 +610,7 @@ func (h *ReportHandler) Show(c *fiber.Ctx) error {
 	}
 	id := c.Params("id")
 	var report models.Report
-	query := h.db.Preload("Store.User").Preload("Product")
+	query := h.db.Preload("Store.User").Preload("Product", func(db *gorm.DB) *gorm.DB { return db.Unscoped() })
 	if numID, err := strconv.ParseUint(id, 10, 64); err == nil {
 		query = query.Where("id = ? OR report_number = ?", numID, id)
 	} else {
@@ -637,7 +642,7 @@ func (h *ReportHandler) Show(c *fiber.Ctx) error {
 
 	// 2. Fetch prior review history for this entity (Prior Audit History Ledger)
 	var historyReports []models.Report
-	histQ := h.db.Where("store_id = ? AND id != ? AND status IN ('action_taken', 'dismissed', 'resolved')", report.StoreID, report.ID)
+	histQ := h.db.Where("store_id = ? AND id != ? AND status IN ('action_taken', 'banned', 'dismissed', 'resolved')", report.StoreID, report.ID)
 	if report.TargetType == "item" && targetPID != nil && *targetPID > 0 {
 		histQ = histQ.Where("target_type = 'item' AND (product_id = ? OR fauna_id = ?)", *targetPID, *targetPID)
 	} else if report.TargetType == "item" && report.ItemName != "" {
@@ -724,16 +729,21 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 
 	targetProductID := report.GetTargetProductID()
 
-	if (actionTaken == "catalog_banned" || actionTaken == "account_banned") && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating" || newStatus == "pending") {
+	// Closing a report as dismissed/rejected clears any stale sanction action so prior actions are not re-applied or mis-notified
+	if newStatus == "dismissed" || newStatus == "rejected" {
+		actionTaken = "none"
+	}
+
+	if (actionTaken == "catalog_banned" || actionTaken == "account_banned") && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating" || newStatus == "pending" || newStatus == "re_review") {
 		newStatus = "banned"
 	}
-	if actionTaken == "item_banned" && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating" || newStatus == "pending") {
+	if actionTaken == "item_banned" && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating" || newStatus == "pending" || newStatus == "re_review") {
 		newStatus = "banned"
 	}
-	if actionTaken == "catalog_suspended" && (newStatus == "" || newStatus == "investigating" || newStatus == "pending") {
+	if actionTaken == "catalog_suspended" && (newStatus == "" || newStatus == "investigating" || newStatus == "pending" || newStatus == "re_review") {
 		newStatus = "action_taken"
 	}
-	if actionTaken == "catalog_reactivated" && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating") {
+	if actionTaken == "catalog_reactivated" && (newStatus == "" || newStatus == "action_taken" || newStatus == "investigating" || newStatus == "re_review") {
 		newStatus = "resolved"
 	}
 
@@ -764,11 +774,12 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	}
 
 	// Strict RBAC enforcement check:
-	// A staff member with only compliance:reports:manage cannot execute store suspension/ban or reactivation.
+	// A staff member with only compliance:reports:manage cannot execute store suspension/ban or reactivation
+	// (even when apply_enforcement is false, since status/action still reflects store-level sanction).
 	// They require compliance:stores:suspend or superadmin role.
 	isStoreEnforcement := actionTaken == "catalog_suspended" || actionTaken == "catalog_banned" ||
 		actionTaken == "catalog_reactivated" || actionTaken == "account_banned"
-	if applyEnforcement && isStoreEnforcement {
+	if isStoreEnforcement {
 		userVal, _ := c.Locals("user").(*models.User)
 		canSuspendStore := userVal != nil && (userVal.IsSuperadmin() || services.GetRBACService().HasPermission(userVal, "compliance:stores:suspend"))
 		if !canSuspendStore {
@@ -919,6 +930,28 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 
 		// C. Execute Technical Enforcement
 		if applyEnforcement {
+			// If a re_review/open item report is dismissed or rejected while item is stuck in in_review, restore it cleanly
+			if (newStatus == "dismissed" || newStatus == "rejected") && report.TargetType == "item" && targetProductID != nil && *targetProductID > 0 {
+				var currentProd models.Product
+				if err := tx.Select("id, moderation_status").Where("id = ? AND store_id = ?", *targetProductID, report.StoreID).First(&currentProd).Error; err == nil {
+					if currentProd.ModerationStatus == "in_review" {
+						updates := map[string]interface{}{
+							"is_active":             true,
+							"moderation_status":     "none",
+							"moderation_reason":     "",
+							"moderated_at":          nil,
+							"resubmitted_at":        nil,
+							"is_shipping_available": true,
+						}
+						if err := tx.Model(&models.Product{}).Where("id = ? AND store_id = ?", *targetProductID, report.StoreID).Updates(updates).Error; err != nil {
+							return err
+						}
+						if err := applyModerationFaunasTableUpdate(tx, *targetProductID, report.StoreID, updates); err != nil {
+							return err
+						}
+					}
+				}
+			}
 			switch actionTaken {
 			case "item_banned":
 				// Immediate soft delete for banned item: releases merchant quota & removes from catalog
@@ -1037,7 +1070,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		}
 
 		// D. Generate In-App Notification for Merchant (models.Notification)
-		if report.StoreID > 0 && actionTaken != "none" {
+		if applyEnforcement && report.StoreID > 0 && actionTaken != "none" {
 			targetEntityName := report.StoreTitle
 			itemTypeLabel := ""
 			rawItemType := report.ItemType
@@ -1304,7 +1337,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 		}
 	}
 
-	if actionTaken == "catalog_reactivated" && report.StoreID > 0 {
+	if applyEnforcement && actionTaken == "catalog_reactivated" && report.StoreID > 0 {
 		go services.GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
 			"store_id":        report.StoreID,
 			"slug":            report.StoreSlug,
@@ -1313,7 +1346,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 			"admin_notes":     adminNotes,
 			"message":         "Akun toko Anda telah dipulihkan oleh Tim Kepatuhan platform.",
 		}, report.StoreID, merchantOwnerUserID)
-	} else if actionTaken == "catalog_suspended" && report.StoreID > 0 {
+	} else if applyEnforcement && actionTaken == "catalog_suspended" && report.StoreID > 0 {
 		go services.GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
 			"store_id":          report.StoreID,
 			"slug":              report.StoreSlug,
@@ -1323,7 +1356,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 			"admin_notes":       adminNotes,
 			"message":           "Akun toko Anda telah ditangguhkan sementara oleh Tim Kepatuhan platform.",
 		}, report.StoreID, merchantOwnerUserID)
-	} else if (actionTaken == "catalog_banned" || actionTaken == "account_banned") && report.StoreID > 0 {
+	} else if applyEnforcement && (actionTaken == "catalog_banned" || actionTaken == "account_banned") && report.StoreID > 0 {
 		storeName := report.StoreTitle
 		if storeName == "" {
 			storeName = report.StoreSlug
@@ -1349,7 +1382,7 @@ func (h *ReportHandler) UpdateStatus(c *fiber.Ctx) error {
 	if targetRecipientEmail == "" && report.Store != nil && report.Store.User != nil {
 		targetRecipientEmail = report.Store.User.Email
 	}
-	if targetRecipientEmail != "" && actionTaken != "none" {
+	if applyEnforcement && targetRecipientEmail != "" && actionTaken != "none" {
 		targetEntityName := report.StoreTitle
 		if report.TargetType == "item" && report.ItemName != "" {
 			targetEntityName = report.ItemName
