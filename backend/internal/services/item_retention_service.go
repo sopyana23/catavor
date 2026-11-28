@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"catavor-backend/internal/config"
@@ -99,14 +101,14 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 
 			var notifTitle, notifMsg, notifDetail, actionLabel, linkSubTab, actionURL string
 			if p.ModerationStatus == "needs_fix" {
-				notifTitle = fmt.Sprintf("⚠️ Batas Waktu Edit: Item '%s' (#%d) Dihapus dalam %d Hari", p.Name, p.ID, remainingDays)
+				notifTitle = fmt.Sprintf("Batas Waktu Edit: Item '%s' (#%d) Dihapus dalam %d Hari", p.Name, p.ID, remainingDays)
 				notifMsg = fmt.Sprintf("Item '%s' yang memerlukan penyesuaian informasi akan otomatis dipindahkan dari katalog Anda dalam waktu %d hari jika tidak diedit dan diajukan ulang.", p.Name, remainingDays)
 				notifDetail = fmt.Sprintf("### Peringatan Masa Tenggang Perbaikan Item\n\nItem **%s** telah dinonaktifkan sementara sejak **%s** untuk memberi kesempatan perbaikan informasi katalog. Sesuai standar operasional kepatuhan, item yang tidak diedit dan diajukan ulang akan otomatis dipindahkan dari inventaris dalam waktu **%d hari** ke depan.\n\nSilakan buka menu inventaris item untuk memperbaiki foto, deskripsi, atau atribut yang belum sesuai.", p.Name, p.ModeratedAt.Format("02 Jan 2006"), remainingDays)
 				actionLabel = "Perbaiki Item Sekarang →"
 				linkSubTab = "items"
 				actionURL = fmt.Sprintf("/%s/admin/items?item=%d&edit=%d", storeSlug, p.ID, p.ID)
 			} else {
-				notifTitle = fmt.Sprintf("⚠️ Peringatan: Item '%s' (#%d) Dihapus dalam %d Hari", p.Name, p.ID, remainingDays)
+				notifTitle = fmt.Sprintf("Peringatan: Item '%s' (#%d) Dihapus dalam %d Hari", p.Name, p.ID, remainingDays)
 				notifMsg = fmt.Sprintf("Item '%s' yang dinonaktifkan oleh Tim Kepatuhan akan dihapus otomatis dari katalog Anda dalam waktu %d hari jika tidak ada tindakan klarifikasi.", p.Name, remainingDays)
 				notifDetail = fmt.Sprintf("### Peringatan Masa Retensi Kepatuhan\n\nItem **%s** telah dinonaktifkan sejak **%s**. Sesuai standar operasional kepatuhan, item yang tidak mendapatkan klarifikasi akan otomatis dipindahkan dari inventaris dalam waktu **%d hari** ke depan.\n\nJika terdapat kekeliruan atau Anda telah memiliki izin legalitas resmi, segera ajukan klarifikasi melalui formulir Bantuan CS.", p.Name, p.ModeratedAt.Format("02 Jan 2006"), remainingDays)
 				actionLabel = "Buka Pusat Bantuan CS →"
@@ -165,7 +167,43 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				continue
 			}
 
-			// A. Create Legal Snapshot in Activity Logs (Compact Text/JSON audit proof)
+			// A. Collect heavy media files (checked against active ref-count before deletion)
+			var rawFilesToPrune []string
+			if p.ImageURL != "" {
+				rawFilesToPrune = append(rawFilesToPrune, p.ImageURL)
+			}
+			for _, pImg := range p.Images {
+				if pImg.ImageURL != "" {
+					rawFilesToPrune = append(rawFilesToPrune, pImg.ImageURL)
+				}
+			}
+			filesToPrune := filterUnreferencedMedia(db, p.ID, rawFilesToPrune)
+
+			// B. Execute Soft Delete in ACID Atomic Transaction (AGENTS.md Rule 5 & Rule 10)
+			txErr := db.Transaction(func(tx *gorm.DB) error {
+				if err := tx.Model(&models.Product{}).Where("id = ?", p.ID).Updates(map[string]interface{}{
+					"is_active":  false,
+					"deleted_at": now,
+				}).Error; err != nil {
+					return err
+				}
+				if tx.Migrator().HasTable("faunas") {
+					if err := tx.Table("faunas").Where("id = ?", p.ID).Updates(map[string]interface{}{
+						"is_active":  false,
+						"deleted_at": now,
+					}).Error; err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+
+			if txErr != nil {
+				log.Error().Err(txErr).Uint("product_id", p.ID).Msg("Failed to soft-delete compliance violation product")
+				continue
+			}
+
+			// C. Create Legal Snapshot in Activity Logs AFTER DB commit succeeds
 			snapshot := map[string]interface{}{
 				"product_id":        p.ID,
 				"store_id":          p.StoreID,
@@ -196,42 +234,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				},
 			})
 
-			// B. Collect heavy media files for deferred prune
-			var filesToPrune []string
-			if p.ImageURL != "" {
-				filesToPrune = append(filesToPrune, p.ImageURL)
-			}
-			for _, pImg := range p.Images {
-				if pImg.ImageURL != "" {
-					filesToPrune = append(filesToPrune, pImg.ImageURL)
-				}
-			}
-
-			// C. Execute Soft Delete in ACID Atomic Transaction (AGENTS.md Rule 5 & Rule 10)
-			txErr := db.Transaction(func(tx *gorm.DB) error {
-				if err := tx.Model(&models.Product{}).Where("id = ?", p.ID).Updates(map[string]interface{}{
-					"is_active":  false,
-					"deleted_at": now,
-				}).Error; err != nil {
-					return err
-				}
-				if tx.Migrator().HasTable("faunas") {
-					if err := tx.Table("faunas").Where("id = ?", p.ID).Updates(map[string]interface{}{
-						"is_active":  false,
-						"deleted_at": now,
-					}).Error; err != nil {
-						return err
-					}
-				}
-				return nil
-			})
-
-			if txErr != nil {
-				log.Error().Err(txErr).Uint("product_id", p.ID).Msg("Failed to soft-delete compliance violation product")
-				continue
-			}
-
-			// Multi-Layer Rollback (AGENTS.md Rule 10): Prune media files ONLY AFTER DB commit
+			// Multi-Layer Rollback (AGENTS.md Rule 10): Prune unreferenced media files ONLY AFTER DB commit
 			for _, rawImg := range filesToPrune {
 				_, _ = HardDeleteLocalStorageFile(rawImg)
 				if strg != nil {
@@ -265,7 +268,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				TargetType:    "single_store",
 				TargetID:      p.StoreID,
 				TargetName:    storeTitle,
-				Title:         fmt.Sprintf("🗑️ Item '%s' Dipindahkan dari Katalog", p.Name),
+				Title:         fmt.Sprintf("Item '%s' Dipindahkan dari Katalog", p.Name),
 				Category:      "KEAMANAN",
 				Message:       fmt.Sprintf("Item '%s' telah otomatis dipindahkan dari inventaris katalog digital Anda karena telah melewati masa retensi 30 hari.", p.Name),
 				DetailContent: fmt.Sprintf("### Pembersihan Otomatis Masa Retensi\n\nItem **%s** telah otomatis dipindahkan dari inventaris aktif Anda karena telah melewati batas retensi 30 hari tanpa permohonan klarifikasi.\n\nKuota item aktif katalog Anda kini telah dioptimalkan kembali.", p.Name),
@@ -309,16 +312,17 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				continue
 			}
 
-			// Collect images for deferred permanent deletion
-			var filesToDelete []string
+			// Collect images for deferred permanent deletion (checked against active ref-count)
+			var rawFilesToDelete []string
 			if p.ImageURL != "" {
-				filesToDelete = append(filesToDelete, p.ImageURL)
+				rawFilesToDelete = append(rawFilesToDelete, p.ImageURL)
 			}
 			for _, pImg := range p.Images {
 				if pImg.ImageURL != "" {
-					filesToDelete = append(filesToDelete, pImg.ImageURL)
+					rawFilesToDelete = append(rawFilesToDelete, pImg.ImageURL)
 				}
 			}
+			filesToDelete := filterUnreferencedMedia(db, p.ID, rawFilesToDelete)
 
 			// Clean remaining relations and delete Product in ACID Atomic Transaction (AGENTS.md Rule 5 & Rule 10)
 			txErr := db.Transaction(func(tx *gorm.DB) error {
@@ -398,7 +402,7 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 	var regularCandidates []models.Product
 	err = db.Unscoped().Model(&models.Product{}).
 		Preload("Images").
-		Where("(moderation_status NOT IN ('hidden', 'locked', 'banned') OR moderation_status IS NULL) AND deleted_at IS NOT NULL AND deleted_at <= ?", regular72hThreshold).
+		Where("(moderation_status NOT IN ('hidden', 'locked', 'banned', 'needs_fix', 'suspended') OR moderation_status IS NULL) AND deleted_at IS NOT NULL AND deleted_at <= ?", regular72hThreshold).
 		Find(&regularCandidates).Error
 
 	if err == nil {
@@ -432,20 +436,8 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 				}
 			}
 
-			// Determine which image files can be safely deleted (not used by other active products)
-			var confirmedFilesToDelete []string
-			for _, imgURL := range imagesToDelete {
-				var otherProdCount int64
-				db.Model(&models.Product{}).Where("deleted_at IS NULL AND id != ? AND image_url = ?", p.ID, imgURL).Count(&otherProdCount)
-				var otherImgCount int64
-				db.Model(&models.ProductImage{}).
-					Joins("JOIN products ON products.id = product_images.product_id").
-					Where("products.deleted_at IS NULL AND product_images.product_id != ? AND product_images.image_url = ?", p.ID, imgURL).
-					Count(&otherImgCount)
-				if otherProdCount == 0 && otherImgCount == 0 {
-					confirmedFilesToDelete = append(confirmedFilesToDelete, imgURL)
-				}
-			}
+			// Determine which image files can be safely deleted (not used by other active products or stores)
+			confirmedFilesToDelete := filterUnreferencedMedia(db, p.ID, imagesToDelete)
 
 			// Clean child relations and delete product in ACID Atomic Transaction (AGENTS.md Rule 5 & Rule 10)
 			txErr := db.Transaction(func(tx *gorm.DB) error {
@@ -592,20 +584,27 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 			}
 
 			// 3. Multi-Layer Rollback (AGENTS.md Rule 10):
-			// Clean physical media folders from disk & cloud storage ONLY AFTER DB commit
+			// Clean physical media folders from disk & cloud storage ONLY AFTER DB commit (guarded against symlinks)
 			storePrefix := fmt.Sprintf("stores/%d/", s.ID)
 			if strg != nil {
 				_ = strg.DeletePrefix(ctx, storePrefix)
 				_ = strg.DeletePrefix(ctx, fmt.Sprintf("private/stores/%d/", s.ID))
 			}
 			if cfg != nil {
+				idStr := fmt.Sprintf("%d", s.ID)
 				if cfg.StorageLocalRoot != "" {
-					_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, "stores", fmt.Sprintf("%d", s.ID)))
-					_ = os.RemoveAll(filepath.Join(cfg.StorageLocalRoot, fmt.Sprintf("%d", s.ID)))
+					safeRemoveDirIfNoSymlink(filepath.Join(cfg.StorageLocalRoot, "stores", idStr))
+					safeRemoveDirIfNoSymlink(filepath.Join(cfg.StorageLocalRoot, idStr))
 				}
 				if cfg.StorageDir != "" {
-					_ = os.RemoveAll(filepath.Join(cfg.StorageDir, "stores", fmt.Sprintf("%d", s.ID)))
+					safeRemoveDirIfNoSymlink(filepath.Join(cfg.StorageDir, "stores", idStr))
 				}
+			}
+			if database.IsRedisAvailable() && database.RedisClient != nil && s.Slug != "" {
+				_ = database.RedisClient.Del(ctx, fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(s.Slug))).Err()
+			}
+			if s.CustomDomain != nil && strings.TrimSpace(*s.CustomDomain) != "" {
+				database.InvalidateCustomDomainCache(ctx, *s.CustomDomain)
 			}
 
 			// Record permanent purge in Activity Log
@@ -640,14 +639,81 @@ func ProcessItemRetentionCycle(db *gorm.DB, cfg *config.Config) (*ItemRetentionS
 	return stats, nil
 }
 
-// hasActiveTicket returns true if there is an active support ticket regarding this product
+func filterUnreferencedMedia(db *gorm.DB, excludeProductID uint, urls []string) []string {
+	if db == nil || len(urls) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(urls))
+	var unreferenced []string
+	for _, imgURL := range urls {
+		if imgURL == "" {
+			continue
+		}
+		if _, dup := seen[imgURL]; dup {
+			continue
+		}
+		seen[imgURL] = struct{}{}
+
+		var otherProdCount, otherImgCount, storeRefCount int64
+		db.Model(&models.Product{}).
+			Where("deleted_at IS NULL AND id != ? AND image_url = ?", excludeProductID, imgURL).
+			Count(&otherProdCount)
+		db.Model(&models.ProductImage{}).
+			Joins("JOIN products ON products.id = product_images.product_id").
+			Where("products.deleted_at IS NULL AND product_images.product_id != ? AND product_images.image_url = ?", excludeProductID, imgURL).
+			Count(&otherImgCount)
+		db.Model(&models.Store{}).
+			Where("store_logo_url = ? OR promo_banner = ?", imgURL, imgURL).
+			Count(&storeRefCount)
+		if otherProdCount == 0 && otherImgCount == 0 && storeRefCount == 0 {
+			unreferenced = append(unreferenced, imgURL)
+		}
+	}
+	return unreferenced
+}
+
+func safeRemoveDirIfNoSymlink(targetPath string) {
+	if targetPath == "" {
+		return
+	}
+	fi, err := os.Lstat(targetPath)
+	if err != nil {
+		return
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		log.Warn().Str("path", targetPath).Msg("Refusing to remove symlinked store retention directory")
+		return
+	}
+	_ = os.RemoveAll(targetPath)
+}
+
+var anyRetentionItemTagRegex = regexp.MustCompile(`(^|\D)#\d+(\D|$)`)
+
+// hasActiveTicket returns true if there is an active support ticket regarding this specific product
+// (or a store-wide compliance appeal that is not scoped to a different item ID).
 func hasActiveTicket(db *gorm.DB, storeID uint, productID uint) bool {
-	var count int64
-	searchPattern := fmt.Sprintf("%%#%d%%", productID)
+	var tickets []struct {
+		Subject  string
+		Category string
+	}
 	err := db.Model(&models.SupportTicket{}).
-		Where("store_id = ? AND status IN ('open', 'in_progress', 'waiting_user', 'waiting_agent') AND (subject LIKE ? OR category = 'compliance')", storeID, searchPattern).
-		Count(&count).Error
-	return err == nil && count > 0
+		Select("subject, category").
+		Where("store_id = ? AND status IN ('open', 'in_progress', 'waiting_user', 'waiting_agent')", storeID).
+		Find(&tickets).Error
+	if err != nil || len(tickets) == 0 {
+		return false
+	}
+
+	exactTagRegex := regexp.MustCompile(fmt.Sprintf(`(^|\D)#%d(\D|$)`, productID))
+	for _, t := range tickets {
+		if exactTagRegex.MatchString(t.Subject) {
+			return true
+		}
+		if t.Category == "compliance" && !anyRetentionItemTagRegex.MatchString(t.Subject) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasActiveReport returns true if there is an active pending/investigating report regarding this product

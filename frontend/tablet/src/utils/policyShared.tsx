@@ -432,9 +432,9 @@ export const FALLBACK_POLICY_SECTIONS: PolicyDoc[] = [
         heading: 'Mesin Keaktifan Toko (Store Dormancy Engine) & Perpanjangan Aktivitas',
         content: 'Guna menjaga kualitas direktori publik dari toko-toko mati yang tidak lagi melayani pembeli, Catavor menerapkan sistem Store Dormancy Engine otomatis.',
         highlights: [
-          'Toko yang tidak memiliki aktivitas login atau interaksi pembaruan katalog selama periode 90 hari kalender akan masuk ke status Tidak Aktif Sementara (Dormant).',
-          'Katalog toko yang berstatus dormant akan disembunyikan dari hasil pencarian publik guna melindungi konsumen dari pengalaman berbelanja yang tidak terlayani.',
-          'Pengelola dapat sewaktu-waktu mengaktifkan kembali tokonya secara instan cukup dengan login ke dashboard admin dan menekan tombol Perpanjang Masa Aktif Toko tanpa dikenakan biaya.'
+          'Toko paket Free yang tidak memiliki aktivitas atau pembaruan katalog akan menerima Peringatan Awal pada hari ke-30 dan Peringatan Terakhir pada hari ke-38.',
+          'Jika tetap tidak aktif sampai hari ke-45, katalog toko dinonaktifkan sementara (Dormant/Suspended) dan disembunyikan dari publik guna menjaga kualitas direktori.',
+          'Pengelola memiliki masa tenggang 15 hari (hingga hari ke-60) untuk mengaktifkan kembali tokonya secara instan tanpa biaya melalui tautan reaktivasi email atau tombol Perpanjang Masa Aktif di dashboard admin sebelum data dan media dihapus permanen.'
         ]
       }
     ]

@@ -32,6 +32,8 @@ export interface TabletSuspendedLockViewProps {
   switchingSlug: string | null;
   onLogout: () => void;
   onRefreshStatus: () => void;
+  onExtendActivity?: () => void;
+  extendingActivity?: boolean;
   onUpdateUnreadCount: (cnt: number) => void;
 }
 
@@ -52,10 +54,13 @@ export const TabletSuspendedLockView: React.FC<TabletSuspendedLockViewProps> = (
   switchingSlug,
   onLogout,
   onRefreshStatus,
+  onExtendActivity,
+  extendingActivity = false,
   onUpdateUnreadCount
 }) => {
   const suspensionCaseId = `SUSP-${storeSettings.id || '0'}-${(storeSlug || 'CAT').toUpperCase().slice(0, 8)}`;
   const isModerationViolation = storeSettings.suspension_reason === 'moderation_violation';
+  const isDormancySuspension = !isModerationViolation && storeSettings.suspension_reason === 'dormancy';
 
   return (
     <div
@@ -319,7 +324,9 @@ export const TabletSuspendedLockView: React.FC<TabletSuspendedLockViewProps> = (
                 }}>
                   {isModerationViolation
                     ? `Operasional katalog "${storeSettings.name || storeSlug}" sedang dibekukan sementara oleh Tim Kepatuhan platform karena laporan pelanggaran yang perlu ditinjau.`
-                    : `Katalog "${storeSettings.name || storeSlug}" sedang dalam status penangguhan sementara. Silakan ajukan permohonan pemulihan atau banding kepatuhan melalui Pusat Bantuan.`}{' '}
+                    : isDormancySuspension
+                      ? `Katalog "${storeSettings.name || storeSlug}" dinonaktifkan sementara karena tidak ada aktivitas selama 45 hari. Data dan foto Anda tetap aman dan bisa langsung diaktifkan kembali tanpa biaya.`
+                      : `Katalog "${storeSettings.name || storeSlug}" sedang dalam status penangguhan sementara. Silakan ajukan permohonan pemulihan atau banding kepatuhan melalui Pusat Bantuan.`}{' '}
                   Jika Anda memiliki profil katalog lain yang aktif, gunakan tombol <strong>Ganti Profil Katalog</strong> di bilah atas.
                 </p>
               </div>
@@ -407,29 +414,59 @@ export const TabletSuspendedLockView: React.FC<TabletSuspendedLockViewProps> = (
                 Muat Ulang Status
               </button>
 
-              <button
-                type="button"
-                data-testid="btn-tablet-suspended-appeal"
-                onClick={() => setSuspendedViewMode('appeal')}
-                style={{
-                  minHeight: '48px',
-                  padding: '0 1.45rem',
-                  borderRadius: '0.75rem',
-                  border: 'none',
-                  backgroundColor: 'var(--primary)',
-                  color: '#ffffff',
-                  fontWeight: 800,
-                  fontSize: '0.88rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  cursor: 'pointer',
-                  boxShadow: '0 8px 20px var(--primary-glow)'
-                }}
-              >
-                <Scale size={18} strokeWidth={1.75} />
-                Ajukan Banding Kepatuhan
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                {isDormancySuspension && onExtendActivity && (
+                  <button
+                    type="button"
+                    data-testid="btn-tablet-dormancy-reactivate"
+                    onClick={onExtendActivity}
+                    disabled={extendingActivity}
+                    style={{
+                      minHeight: '48px',
+                      padding: '0 1.45rem',
+                      borderRadius: '0.75rem',
+                      border: 'none',
+                      backgroundColor: '#10b981',
+                      color: '#ffffff',
+                      fontWeight: 800,
+                      fontSize: '0.88rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      cursor: extendingActivity ? 'not-allowed' : 'pointer',
+                      opacity: extendingActivity ? 0.7 : 1,
+                      boxShadow: '0 8px 20px rgba(16, 185, 129, 0.25)'
+                    }}
+                  >
+                    <RefreshCw size={18} strokeWidth={1.75} className={extendingActivity ? 'animate-spin' : undefined} />
+                    {extendingActivity ? 'Mengaktifkan...' : 'Aktifkan Kembali Katalog Gratis (1-Klik)'}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  data-testid="btn-tablet-suspended-appeal"
+                  onClick={() => setSuspendedViewMode('appeal')}
+                  style={{
+                    minHeight: '48px',
+                    padding: '0 1.45rem',
+                    borderRadius: '0.75rem',
+                    border: isDormancySuspension ? '1px solid var(--border-light)' : 'none',
+                    backgroundColor: isDormancySuspension ? 'var(--bg-deep)' : 'var(--primary)',
+                    color: isDormancySuspension ? 'var(--text-primary)' : '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.88rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    cursor: 'pointer',
+                    boxShadow: isDormancySuspension ? 'none' : '0 8px 20px var(--primary-glow)'
+                  }}
+                >
+                  <Scale size={18} strokeWidth={1.75} />
+                  {isDormancySuspension ? 'Butuh Bantuan CS?' : 'Ajukan Banding Kepatuhan'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

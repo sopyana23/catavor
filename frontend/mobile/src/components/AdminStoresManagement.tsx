@@ -1416,7 +1416,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                         { key: 'all', label: 'Semua Tingkat' },
                         { key: 'active', label: 'Sehat & Aktif' },
                         { key: 'warning_1', label: 'Peringatan 1 (30 Hari)' },
-                        { key: 'warning_2', label: 'Peringatan 2 (60 Hari)' }
+                        { key: 'warning_2', label: 'Peringatan 2 (38 Hari)' }
                       ].map((opt) => {
                         const isSelected = tempDormancyLevel === opt.key;
                         return (

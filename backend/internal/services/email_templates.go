@@ -614,9 +614,10 @@ func BuildItemNeedsFixEmail(storeTitle, targetEntityName, itemTypeLabel, reasonL
 	title := "Item Katalog Memerlukan Penyesuaian Informasi"
 	subtitle := fmt.Sprintf("Pemberitahuan Resmi Penyesuaian Item Berkas #%s", reportNumber)
 
-	itemsURL := fmt.Sprintf("/%s/admin/items", storeSlug)
+	baseURL := getAppBaseURL()
+	itemsURL := fmt.Sprintf("%s/%s/admin/items", baseURL, storeSlug)
 	if storeSlug == "" {
-		itemsURL = "/admin/items"
+		itemsURL = fmt.Sprintf("%s/admin/items", baseURL)
 	}
 
 	typeRow := ""
@@ -677,9 +678,10 @@ func BuildItemLockedEmail(storeTitle, targetEntityName, itemTypeLabel, reasonLab
 	title := "Item Katalog Dinonaktifkan & Terkunci"
 	subtitle := fmt.Sprintf("Pemberitahuan Resmi Penguncian Item Berkas #%s", reportNumber)
 
-	helpURL := fmt.Sprintf("/%s/admin/help", storeSlug)
+	baseURL := getAppBaseURL()
+	helpURL := fmt.Sprintf("%s/%s/admin/help", baseURL, storeSlug)
 	if storeSlug == "" {
-		helpURL = "/admin/help"
+		helpURL = fmt.Sprintf("%s/admin/help", baseURL)
 	}
 
 	typeRow := ""
@@ -835,9 +837,10 @@ func BuildItemRetentionReminderEmail(storeTitle, targetEntityName, reportNumber,
 	title := fmt.Sprintf("Peringatan Batas Waktu: Item Dihapus dalam %d Hari", remainingDays)
 	subtitle := fmt.Sprintf("Masa Retensi Item Pelanggaran Berkas #%s Segera Berakhir", reportNumber)
 
-	helpURL := fmt.Sprintf("/%s/admin/help", storeSlug)
+	baseURL := getAppBaseURL()
+	helpURL := fmt.Sprintf("%s/%s/admin/help", baseURL, storeSlug)
 	if storeSlug == "" {
-		helpURL = "/admin/help"
+		helpURL = fmt.Sprintf("%s/admin/help", baseURL)
 	}
 
 	mainContent := fmt.Sprintf(`
@@ -867,9 +870,10 @@ func BuildItemRetentionSoftDeletedEmail(storeTitle, targetEntityName, reportNumb
 	title := "Item Otomatis Dibersihkan dari Katalog"
 	subtitle := fmt.Sprintf("Penyelesaian Masa Retensi Item Kepatuhan Berkas #%s", reportNumber)
 
-	itemsURL := fmt.Sprintf("/%s/admin/items", storeSlug)
+	baseURL := getAppBaseURL()
+	itemsURL := fmt.Sprintf("%s/%s/admin/items", baseURL, storeSlug)
 	if storeSlug == "" {
-		itemsURL = "/admin/items"
+		itemsURL = fmt.Sprintf("%s/admin/items", baseURL)
 	}
 
 	mainContent := fmt.Sprintf(`

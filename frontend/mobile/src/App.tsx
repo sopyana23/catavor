@@ -6169,11 +6169,24 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
       const data = await res.json()
       if (res.ok) {
         showToast('Masa aktif katalog berhasil diperpanjang 45 hari!')
+        const nextAct = data.last_activity_at || new Date().toISOString()
         setSettings(prev => ({
           ...prev,
           dormancy_status: 'active',
-          last_activity_at: data.last_activity_at || new Date().toISOString()
+          is_suspended: false,
+          suspension_reason: 'none',
+          dormancy_suspended_at: undefined,
+          last_activity_at: nextAct
         }))
+        setUserStores(prev => {
+          const updated = prev.map(s =>
+            s.slug?.toLowerCase() === slug.toLowerCase()
+              ? { ...s, dormancy_status: 'active', is_suspended: false, suspension_reason: 'none', last_activity_at: nextAct }
+              : s
+          )
+          try { localStorage.setItem('catavor_stores', JSON.stringify(updated)) } catch {}
+          return updated
+        })
       } else {
         showToast(data.message || 'Gagal memperpanjang masa aktif', 'error')
       }
@@ -6196,6 +6209,9 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use') => {
         setSettings(prev => ({
           ...prev,
           dormancy_status: 'active',
+          is_suspended: false,
+          suspension_reason: 'none',
+          dormancy_suspended_at: undefined,
           last_activity_at: new Date().toISOString()
         }))
       }
@@ -26448,27 +26464,61 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                     </div>
                                   )}
 
+                                  {/* Instant Dormancy Self-Reactivation CTA when suspended due to inactivity */}
+                                  {settings.suspension_reason === 'dormancy' && (
+                                    <button
+                                      type="button"
+                                      data-testid="btn-mobile-dormancy-reactivate"
+                                      className="btn-primary"
+                                      disabled={extendingActivity}
+                                      onClick={handleExtendStoreActivity}
+                                      style={{
+                                        width: '100%',
+                                        minHeight: '44px',
+                                        padding: '0.85rem 1.25rem',
+                                        borderRadius: '0.75rem',
+                                        fontSize: '0.86rem',
+                                        fontWeight: 800,
+                                        backgroundColor: '#10b981',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        cursor: extendingActivity ? 'not-allowed' : 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem',
+                                        boxShadow: '0 4px 18px rgba(16, 185, 129, 0.28)',
+                                        transition: 'all 0.2s ease',
+                                        opacity: extendingActivity ? 0.7 : 1
+                                      }}
+                                    >
+                                      {extendingActivity ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                                      <span>{extendingActivity ? 'Mengaktifkan Kembali...' : 'Aktifkan Kembali Katalog Gratis (1-Klik)'}</span>
+                                    </button>
+                                  )}
+
                                   {/* Action CTA Button: Label dinamis tanpa teks Pesan Baru */}
                                   <button
                                     type="button"
-                                    className="btn-primary"
+                                    className={settings.suspension_reason === 'dormancy' ? '' : 'btn-primary'}
                                     disabled={isStartingAppeal}
                                     onClick={handleStartOrOpenAppeal}
                                     style={{
                                       width: '100%',
+                                      minHeight: '44px',
                                       padding: '0.85rem 1.25rem',
                                       borderRadius: '0.75rem',
                                       fontSize: '0.86rem',
                                       fontWeight: 800,
-                                      backgroundColor: 'var(--primary)',
-                                      color: '#ffffff',
-                                      border: 'none',
+                                      backgroundColor: settings.suspension_reason === 'dormancy' ? 'var(--bg-deep)' : 'var(--primary)',
+                                      color: settings.suspension_reason === 'dormancy' ? 'var(--text-primary)' : '#ffffff',
+                                      border: settings.suspension_reason === 'dormancy' ? '1px solid var(--border-light)' : 'none',
                                       cursor: isStartingAppeal ? 'not-allowed' : 'pointer',
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
                                       gap: '0.5rem',
-                                      boxShadow: '0 4px 18px var(--primary-glow)',
+                                      boxShadow: settings.suspension_reason === 'dormancy' ? 'none' : '0 4px 18px var(--primary-glow)',
                                       transition: 'all 0.2s ease',
                                       opacity: isStartingAppeal ? 0.7 : 1
                                     }}

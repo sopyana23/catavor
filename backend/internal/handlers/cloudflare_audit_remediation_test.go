@@ -299,8 +299,9 @@ func TestCloudflareAudit_DormancyReactivationBlocksModerationSuspended(t *testin
 		StoreTitle:        "Toko Fraud",
 		WhatsappNumber:    "0899999999",
 		IsSuspended:       true, // Disuspensi oleh admin kepatuhan
+		SuspensionReason:  "moderation_violation",
 		ReactivationToken: magicToken,
-		DormancyStatus:    "warning",
+		DormancyStatus:    "suspended",
 	}
 	db.Create(&suspendedStore)
 

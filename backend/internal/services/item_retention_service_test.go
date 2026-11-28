@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -122,5 +123,83 @@ func TestProcessItemRetentionCycle_PurgeBannedStorePreservesReportsWithoutFKErro
 	}
 	if preservedReport.ItemName != prod.Name {
 		t.Fatalf("expected item_name snapshot preserved, got %q", preservedReport.ItemName)
+	}
+}
+
+func TestProcessItemRetentionCycle_GuardsNeedsFixAndExactTicketIDBoundary(t *testing.T) {
+	dsn := "file:TestItemRetentionBoundary?mode=memory&cache=shared"
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger:  logger.Default.LogMode(logger.Silent),
+		NowFunc: func() time.Time { return time.Now().UTC() },
+	})
+	if err != nil {
+		t.Fatalf("gorm.Open: %v", err)
+	}
+	if err := db.AutoMigrate(
+		&models.User{},
+		&models.Store{},
+		&models.Category{},
+		&models.Product{},
+		&models.ProductImage{},
+		&models.ProductVariant{},
+		&models.SupportTicket{},
+		&models.Report{},
+	); err != nil {
+		t.Fatalf("AutoMigrate: %v", err)
+	}
+
+	now := time.Now().UTC()
+	fourDaysAgo := now.Add(-96 * time.Hour)
+	owner := models.User{Name: "Boundary Owner", Email: "boundary-ret@example.invalid"}
+	db.Create(&owner)
+	store := models.Store{UserID: owner.ID, Slug: "qa-boundary-store", StoreTitle: "QA Boundary Store", DormancyStatus: "active"}
+	db.Create(&store)
+
+	// 1. Soft-deleted 'needs_fix' item older than 72h must NOT be purged by Phase 4 regular purge
+	needsFixProd := models.Product{
+		StoreID:          store.ID,
+		Name:             "Produk Perlu Perbaikan",
+		ProductType:      "physical",
+		ModerationStatus: "needs_fix",
+		ModeratedAt:      &fourDaysAgo,
+		IsActive:         false,
+		DeletedAt:        gorm.DeletedAt{Time: fourDaysAgo, Valid: true},
+	}
+	db.Create(&needsFixProd)
+
+	// 2. Active ticket for #10 (substring prefix similarity with #1)
+	prod1 := models.Product{ID: 1, StoreID: store.ID, Name: "Item Satu", ProductType: "physical", ModerationStatus: "hidden", ModeratedAt: &fourDaysAgo, IsActive: true}
+	prod10 := models.Product{ID: 10, StoreID: store.ID, Name: "Item Sepuluh", ProductType: "physical", ModerationStatus: "hidden", ModeratedAt: &fourDaysAgo, IsActive: true}
+	db.Create(&prod1)
+	db.Create(&prod10)
+
+	db.Create(&models.SupportTicket{
+		TicketNumber: "TCK-EXACT-1",
+		UserID:       owner.ID,
+		StoreID:      &store.ID,
+		Status:       "open",
+		Category:     "compliance",
+		Subject:      fmt.Sprintf("Banding Item #%d", prod10.ID),
+	})
+
+	if !hasActiveTicket(db, store.ID, prod10.ID) {
+		t.Fatalf("expected hasActiveTicket=true for prod10 (#%d)", prod10.ID)
+	}
+	if hasActiveTicket(db, store.ID, prod1.ID) {
+		t.Fatalf("expected hasActiveTicket=false for prod1 (#%d) when compliance ticket targets #%d", prod1.ID, prod10.ID)
+	}
+
+	stats, cycleErr := ProcessItemRetentionCycle(db, nil)
+	if cycleErr != nil {
+		t.Fatalf("ProcessItemRetentionCycle failed: %v", cycleErr)
+	}
+	if stats.RegularPurged != 0 {
+		t.Fatalf("expected RegularPurged=0 so needs_fix is not purged early, got %+v", stats)
+	}
+
+	var countNeedsFix int64
+	db.Unscoped().Model(&models.Product{}).Where("id = ?", needsFixProd.ID).Count(&countNeedsFix)
+	if countNeedsFix != 1 {
+		t.Fatalf("needs_fix product should remain intact in DB, count=%d", countNeedsFix)
 	}
 }

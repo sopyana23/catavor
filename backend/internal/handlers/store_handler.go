@@ -307,7 +307,15 @@ func (h *StoreHandler) ShowStore(c *fiber.Ctx) error {
 	if store.DormancyStatus == "suspended" || store.IsSuspended {
 		reason := store.SuspensionReason
 		if reason == "" || reason == "none" {
-			reason = "moderation_violation"
+			var modReportCount int64
+			_ = h.db.Model(&models.Report{}).
+				Where("store_id = ? AND action_taken = 'catalog_suspended'", store.ID).
+				Count(&modReportCount).Error
+			if modReportCount == 0 && store.DormancyStatus == "suspended" {
+				reason = "dormancy"
+			} else {
+				reason = "moderation_violation"
+			}
 		}
 		return c.JSON(fiber.Map{
 			"success":      true,

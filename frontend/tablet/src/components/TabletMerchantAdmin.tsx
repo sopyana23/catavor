@@ -585,6 +585,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
               logo_url: prev.logo_url || currentStore.store_logo_url || '',
               name: prev.name || currentStore.store_title || '',
               dormancy_status: currentStore.dormancy_status || prev.dormancy_status || 'active',
+              plan: currentStore.plan || prev.plan || 'free',
               is_suspended: Boolean(currentStore.is_suspended || currentStore.dormancy_status === 'suspended'),
               suspension_reason: currentStore.suspension_reason || prev.suspension_reason || '',
               is_paused: Boolean(currentStore.is_suspended || currentStore.dormancy_status === 'suspended' || prev.is_paused)
@@ -797,6 +798,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       instagram: '',
       custom_domain: '',
       show_hours: true,
+      plan: 'free' as string,
       dormancy_status: 'active' as string,
       is_suspended: false,
       suspension_reason: '' as string,
@@ -804,6 +806,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       is_paused: false
     };
   });
+  const [extendingActivity, setExtendingActivity] = useState<boolean>(false);
   const [suspendedViewMode, setSuspendedViewMode] = useState<'summary' | 'appeal'>(() => {
     if (typeof window !== 'undefined') {
       const pName = window.location.pathname.toLowerCase();
@@ -852,7 +855,11 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const fetchStoreProfile = useCallback(async () => {
     if (!storeSlug) return;
     try {
-      const res = await fetch(`/api/u/${storeSlug}`);
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      const res = await fetch(`/api/u/${storeSlug}`, { headers });
       if (res.ok) {
         const json = await res.json();
         const data = json.data || json.store || json;
@@ -873,6 +880,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           instagram: data.social_links?.instagram || '',
           custom_domain: data.custom_domain || '',
           show_hours: data.show_hours !== undefined ? data.show_hours : true,
+          plan: data.plan || 'free',
           dormancy_status: data.dormancy_status || (data.is_suspended ? 'suspended' : 'active'),
           is_suspended: Boolean(data.is_suspended || data.dormancy_status === 'suspended'),
           suspension_reason: data.suspension_reason || '',
@@ -902,6 +910,67 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       // safe fallback
     }
   }, [storeSlug]);
+
+  const handleExtendStoreActivity = useCallback(async () => {
+    try {
+      setExtendingActivity(true);
+      const res = await fetch('/api/stores/extend-activity', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(storeSlug ? { 'X-Store-Slug': storeSlug } : {})
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showToast('Masa aktif katalog berhasil diperpanjang 45 hari!');
+        setStoreSettings(prev => ({
+          ...prev,
+          dormancy_status: 'active',
+          is_suspended: false,
+          suspension_reason: 'none',
+          dormancy_suspended_at: null,
+          is_paused: false
+        }));
+        setUserStores(prev => {
+          const updated = prev.map(s =>
+            s.slug?.toLowerCase() === storeSlug.toLowerCase()
+              ? { ...s, dormancy_status: 'active', is_suspended: false, suspension_reason: 'none' }
+              : s
+          );
+          try { localStorage.setItem('catavor_stores', JSON.stringify(updated)); } catch {}
+          return updated;
+        });
+      } else {
+        showToast(data?.message || 'Gagal memperpanjang masa aktif', 'error');
+      }
+    } catch {
+      showToast('Gagal menghubungi server', 'error');
+    } finally {
+      setExtendingActivity(false);
+    }
+  }, [token, storeSlug, showToast]);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('reactivated') === 'true') {
+        showToast('Selamat! Katalog Anda berhasil diaktifkan kembali. Masa aktif diperpanjang 45 hari.');
+        params.delete('reactivated');
+        const newQuery = params.toString() ? `?${params.toString()}` : '';
+        window.history.replaceState({}, '', `${window.location.pathname}${newQuery}`);
+        setStoreSettings(prev => ({
+          ...prev,
+          dormancy_status: 'active',
+          is_suspended: false,
+          suspension_reason: 'none',
+          dormancy_suspended_at: null,
+          is_paused: false
+        }));
+      }
+    } catch {}
+  }, [showToast]);
 
   const handleSaveSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -4030,6 +4099,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           fetchUserStores();
           showToast('Memperbarui status katalog...');
         }}
+        onExtendActivity={handleExtendStoreActivity}
+        extendingActivity={extendingActivity}
         onUpdateUnreadCount={(cnt) => setSupportUnreadCount(cnt)}
       />
     );
@@ -4556,6 +4627,89 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Dormancy Inactivity Warning Banner (Free Tier Tablet) */}
+            {!isStoreSuspended && storeSettings.plan === 'free' && (storeSettings.dormancy_status === 'warning_1' || storeSettings.dormancy_status === 'warning_2') && (
+              <div
+                data-testid="tablet-dormancy-warning-banner"
+                style={{
+                  padding: '1rem 1.25rem',
+                  borderRadius: '0.9rem',
+                  backgroundColor: 'var(--bg-card)',
+                  border: storeSettings.dormancy_status === 'warning_2'
+                    ? '1.5px solid rgba(239, 68, 68, 0.45)'
+                    : '1.5px solid rgba(245, 158, 11, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '1rem',
+                  flexShrink: 0
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flex: '1 1 280px', minWidth: 0 }}>
+                  <div style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '0.75rem',
+                    backgroundColor: storeSettings.dormancy_status === 'warning_2' ? 'rgba(239, 68, 68, 0.14)' : 'rgba(245, 158, 11, 0.14)',
+                    color: storeSettings.dormancy_status === 'warning_2' ? '#ef4444' : '#d97706',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    <Clock size={20} strokeWidth={1.75} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      color: storeSettings.dormancy_status === 'warning_2' ? '#ef4444' : '#d97706',
+                      marginBottom: '0.2rem'
+                    }}>
+                      {storeSettings.dormancy_status === 'warning_2' ? 'Peringatan Akhir (Hari ke-38)' : 'Pemberitahuan Inaktivitas (Hari ke-30)'}
+                    </div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      {storeSettings.dormancy_status === 'warning_2'
+                        ? 'Katalog akan dinonaktifkan sementara dalam beberapa hari'
+                        : 'Katalog terdeteksi tidak aktif selama 30 hari'}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.15rem', lineHeight: 1.4 }}>
+                      Perpanjang masa aktif gratis agar etalase tetap tampil di publik dan data produk aman.
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  data-testid="btn-tablet-extend-activity"
+                  onClick={handleExtendStoreActivity}
+                  disabled={extendingActivity}
+                  style={{
+                    minHeight: '44px',
+                    padding: '0.6rem 1.2rem',
+                    borderRadius: '0.7rem',
+                    border: 'none',
+                    backgroundColor: storeSettings.dormancy_status === 'warning_2' ? '#ef4444' : 'var(--primary)',
+                    color: '#ffffff',
+                    fontSize: '0.84rem',
+                    fontWeight: 800,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    cursor: extendingActivity ? 'not-allowed' : 'pointer',
+                    opacity: extendingActivity ? 0.7 : 1,
+                    flexShrink: 0
+                  }}
+                >
+                  <RefreshCw size={16} className={extendingActivity ? 'animate-spin' : undefined} />
+                  <span>{extendingActivity ? 'Memperpanjang...' : 'Perpanjang Masa Aktif'}</span>
+                </button>
+              </div>
+            )}
 
             {/* Pending Payment Status Banner (Tablet Dashboard) */}
             {quota?.pending_order && (

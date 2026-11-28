@@ -454,8 +454,11 @@ func main() {
 	api.Get("/u/:slug/catalog-metrics", storeHandler.CatalogMetrics)
 	api.Get("/u/:slug/categories", categoryHandler.Index)
 	api.Get("/public/stores/reactivate", dormancyHandler.HandlePublicReactivateStore)
+	api.Post("/public/stores/reactivate", middleware.AuthRateLimiter(), dormancyHandler.HandlePublicReactivateStoreConfirm)
 	api.Get("/stores/reactivate", dormancyHandler.HandlePublicReactivateStore)
+	api.Post("/stores/reactivate", middleware.AuthRateLimiter(), dormancyHandler.HandlePublicReactivateStoreConfirm)
 	api.Get("/auth/reactivate-store", dormancyHandler.HandlePublicReactivateStore)
+	api.Post("/auth/reactivate-store", middleware.AuthRateLimiter(), dormancyHandler.HandlePublicReactivateStoreConfirm)
 
 	// Public Subscription Plans & Payment Webhooks
 	api.Get("/domain/resolve", subscriptionHandler.ResolveCustomDomain)
@@ -703,9 +706,10 @@ func main() {
 		// "Merchant Analytics" di atas).
 		// ===================================================================
 
-		// Store Activity Extension & Superadmin Dormancy Metrics
-		guardedMutations.Post("/stores/extend-activity", dormancyHandler.HandleExtendStoreActivity)
-		guardedMutations.Post("/store/extend-activity", dormancyHandler.HandleExtendStoreActivity)
+		// Store Activity Extension (guarded by Auth + StoreOwnerRequired so dormant-suspended stores can self-reactivate;
+		// handler rejects moderation_violation / banned / blacklisted stores).
+		guarded.Post("/stores/extend-activity", dormancyHandler.HandleExtendStoreActivity)
+		guarded.Post("/store/extend-activity", dormancyHandler.HandleExtendStoreActivity)
 
 		// Enterprise Activity Logs (scoped ke toko sendiri — tetap di grup merchant)
 		guarded.Get("/activity-logs", activityLogHandler.GetStoreActivityLogs)

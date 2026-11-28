@@ -92,8 +92,29 @@ func TouchStoreActivity(db *gorm.DB, storeID uint) {
 	}(storeID, now)
 }
 
-// ReactivateStoreByToken restores a store using a 1-click magic link token from email.
-func ReactivateStoreByToken(db *gorm.DB, token string) (*models.Store, error) {
+// canSelfReactivateDormancy enforces strict separation between dormancy soft-suspension
+// (eligible for self-service renewal) and compliance/moderation sanctions (blocked).
+func canSelfReactivateDormancy(store *models.Store) bool {
+	if store == nil {
+		return false
+	}
+	if store.DormancyStatus == "banned" || store.DormancyStatus == "purged" || store.IsBlacklisted {
+		return false
+	}
+	if store.SuspensionReason == "moderation_violation" {
+		return false
+	}
+	// If store was manually flagged is_suspended without entering dormancy suspension stage,
+	// fail-closed to prevent bypassing compliance locks.
+	if store.IsSuspended && store.DormancyStatus != "suspended" && store.SuspensionReason != "dormancy" {
+		return false
+	}
+	return true
+}
+
+// ValidateReactivationToken verifies a magic reactivation link without mutating store state,
+// protecting 1-time tokens from automated email scanner / SafeLinks GET pre-fetches.
+func ValidateReactivationToken(db *gorm.DB, token string) (*models.Store, error) {
 	if db == nil || strings.TrimSpace(token) == "" {
 		return nil, fmt.Errorf("token tidak valid")
 	}
@@ -104,32 +125,46 @@ func ReactivateStoreByToken(db *gorm.DB, token string) (*models.Store, error) {
 		return nil, fmt.Errorf("token reaktivasi tidak ditemukan atau sudah kedaluwarsa")
 	}
 
-	if store.DormancyStatus == "banned" || store.IsBlacklisted || store.IsSuspended {
+	if !canSelfReactivateDormancy(&store) {
 		return nil, fmt.Errorf("toko ini telah ditangguhkan atau dibekukan oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
 	}
 
+	return &store, nil
+}
+
+func applyStoreReactivation(db *gorm.DB, store *models.Store, clearDormancyTickets bool) (*models.Store, error) {
 	now := time.Now().UTC()
 	store.LastActivityAt = now
 	store.DormancyStatus = "active"
+	store.IsSuspended = false
+	store.SuspensionReason = "none"
 	store.DormancyWarning1SentAt = nil
 	store.DormancyWarning2SentAt = nil
 	store.DormancySuspendedAt = nil
 	store.ReactivationToken = ""
 
-	if err := db.Save(&store).Error; err != nil {
-		return nil, fmt.Errorf("gagal memperbarui status toko: %w", err)
+	if err := db.Save(store).Error; err != nil {
+		return nil, fmt.Errorf("gagal memperpanjang masa aktif toko: %w", err)
 	}
 
-	// Clean up any remaining dormancy warning notifications for this store
+	// Clean up dormancy warning notifications for this store (isolated from moderation notices)
 	_ = db.Where("target_type = 'single_store' AND target_id = ? AND id LIKE 'dormancy_%'", store.ID).
 		Delete(&models.Notification{}).Error
 
-	// Invalidate memory cache to allow immediate activity tracking
+	// Only resolve tickets explicitly tied to dormancy/inactivity recovery; never close moderation appeals.
+	if clearDormancyTickets {
+		_ = db.Model(&models.SupportTicket{}).
+			Where("store_id = ? AND status IN ('open', 'in_progress', 'waiting_user', 'waiting_agent') AND (LOWER(subject) LIKE '%dormancy%' OR LOWER(subject) LIKE '%inaktivitas%' OR LOWER(subject) LIKE '%masa aktif%')", store.ID).
+			Updates(map[string]interface{}{
+				"status":      "resolved",
+				"resolved_at": now,
+			}).Error
+	}
+
 	activityCacheMutex.Lock()
 	delete(activityCache, store.ID)
 	activityCacheMutex.Unlock()
 
-	// Invalidate Redis profile and custom domain caches to prevent stale suspended status
 	if database.IsRedisAvailable() && database.RedisClient != nil && store.Slug != "" {
 		_ = database.RedisClient.Del(context.Background(), fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug))).Err()
 	}
@@ -137,17 +172,32 @@ func ReactivateStoreByToken(db *gorm.DB, token string) (*models.Store, error) {
 		database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
 	}
 
-	// Broadcast real-time store lifecycle event to connected clients
 	go GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
-		"store_id":        store.ID,
-		"slug":            store.Slug,
-		"is_suspended":    false,
-		"dormancy_status": "active",
-		"message":         "Masa aktif katalog toko Anda berhasil diperpanjang.",
+		"store_id":          store.ID,
+		"slug":              store.Slug,
+		"is_suspended":      false,
+		"dormancy_status":   "active",
+		"suspension_reason": "none",
+		"message":           "Masa aktif katalog toko Anda berhasil diperpanjang.",
 	}, store.ID)
 
-	log.Info().Uint("store_id", store.ID).Str("slug", store.Slug).Msg("Store successfully reactivated via 1-click magic token")
-	return &store, nil
+	return store, nil
+}
+
+// ReactivateStoreByToken restores a store using a 1-click magic link token from email.
+func ReactivateStoreByToken(db *gorm.DB, token string) (*models.Store, error) {
+	store, err := ValidateReactivationToken(db, token)
+	if err != nil {
+		return nil, err
+	}
+
+	updated, err := applyStoreReactivation(db, store, true)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info().Uint("store_id", updated.ID).Str("slug", updated.Slug).Msg("Store successfully reactivated via 1-click magic token")
+	return updated, nil
 }
 
 // ReactivateStoreByID restores a store by store ID directly from merchant dashboard.
@@ -162,58 +212,11 @@ func ReactivateStoreByID(db *gorm.DB, storeID uint) (*models.Store, error) {
 		return nil, fmt.Errorf("toko tidak ditemukan")
 	}
 
-	if store.DormancyStatus == "banned" || store.IsBlacklisted || store.IsSuspended {
+	if !canSelfReactivateDormancy(&store) {
 		return nil, fmt.Errorf("toko ini telah ditangguhkan atau dibekukan oleh tim kepatuhan dan tidak dapat diaktifkan kembali secara mandiri")
 	}
 
-	now := time.Now().UTC()
-	store.LastActivityAt = now
-	store.DormancyStatus = "active"
-	store.IsSuspended = false
-	store.SuspensionReason = "none"
-	store.DormancyWarning1SentAt = nil
-	store.DormancyWarning2SentAt = nil
-	store.DormancySuspendedAt = nil
-	store.ReactivationToken = ""
-
-	if err := db.Save(&store).Error; err != nil {
-		return nil, fmt.Errorf("gagal memperpanjang masa aktif toko: %w", err)
-	}
-
-	// Clean up any remaining dormancy warning & suspension notifications for this store (strict isolation from moderation notices)
-	_ = db.Where("target_type = 'single_store' AND target_id = ? AND id LIKE 'dormancy_%'", store.ID).
-		Delete(&models.Notification{}).Error
-
-	// Auto-resolve pending appeal tickets from this past dormancy suspension
-	_ = db.Model(&models.SupportTicket{}).
-		Where("store_id = ? AND status IN ('open', 'in_progress', 'waiting_user', 'waiting_agent') AND (category = 'compliance' OR category = 'catalog_help' OR subject LIKE '%Banding%' OR subject LIKE '%Pembekuan%')", store.ID).
-		Updates(map[string]interface{}{
-			"status":      "resolved",
-			"resolved_at": now,
-		}).Error
-
-	activityCacheMutex.Lock()
-	delete(activityCache, store.ID)
-	activityCacheMutex.Unlock()
-
-	// Invalidate Redis profile and custom domain caches to prevent stale suspended status
-	if database.IsRedisAvailable() && database.RedisClient != nil && store.Slug != "" {
-		_ = database.RedisClient.Del(context.Background(), fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug))).Err()
-	}
-	if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
-		database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
-	}
-
-	// Broadcast real-time store lifecycle event to connected clients
-	go GetNotificationHub().BroadcastStoreEvent("store_status_updated", map[string]interface{}{
-		"store_id":        store.ID,
-		"slug":            store.Slug,
-		"is_suspended":    false,
-		"dormancy_status": "active",
-		"message":         "Masa aktif katalog toko Anda berhasil diperpanjang.",
-	}, store.ID)
-
-	return &store, nil
+	return applyStoreReactivation(db, &store, true)
 }
 
 // RunDormancyCycle evaluates all stores against the multi-stage dormancy lifecycle matrix.
@@ -225,6 +228,8 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) (int64, error) {
 	now := time.Now().UTC()
 	baseURL := getAppBaseURL()
 
+	var cycleErr error
+
 	// -------------------------------------------------------------
 	// STAGE 1: Warning 1 (30 Days Inactive -> Sisa 15 Hari Sebelum Freeze)
 	// -------------------------------------------------------------
@@ -233,17 +238,30 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) (int64, error) {
 	err := db.Preload("User").
 		Where("plan = 'free' AND is_exempt_from_dormancy = false AND dormancy_status = 'active' AND last_activity_at <= ?", day30Threshold).
 		Find(&stage1Stores).Error
+	if err != nil {
+		cycleErr = errors.Join(cycleErr, err)
+	}
 
+	w1Processed := 0
 	if err == nil && len(stage1Stores) > 0 {
 		for _, store := range stage1Stores {
 			token := generateSecureToken()
+			if token == "" {
+				cycleErr = errors.Join(cycleErr, fmt.Errorf("dormancy W1: failed to generate secure token for store %d", store.ID))
+				continue
+			}
 			sentAt := now
 
-			db.Model(&store).Updates(map[string]interface{}{
+			if updErr := db.Model(&store).Updates(map[string]interface{}{
 				"dormancy_status":           "warning_1",
 				"dormancy_warning1_sent_at": sentAt,
 				"reactivation_token":        token,
-			})
+			}).Error; updErr != nil {
+				log.Error().Err(updErr).Uint("store_id", store.ID).Msg("Dormancy W1 state update failed")
+				cycleErr = errors.Join(cycleErr, updErr)
+				continue
+			}
+			w1Processed++
 
 			reactivateURL := fmt.Sprintf("%s/api/public/stores/reactivate?token=%s", baseURL, token)
 
@@ -277,25 +295,38 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) (int64, error) {
 	err = db.Preload("User").
 		Where("plan = 'free' AND is_exempt_from_dormancy = false AND dormancy_status = 'warning_1' AND last_activity_at <= ? AND dormancy_warning2_sent_at IS NULL", day38Threshold).
 		Find(&stage2Stores).Error
+	if err != nil {
+		cycleErr = errors.Join(cycleErr, err)
+	}
 
+	w2Processed := 0
 	if err == nil && len(stage2Stores) > 0 {
 		for _, store := range stage2Stores {
 			token := store.ReactivationToken
 			if token == "" {
 				token = generateSecureToken()
 			}
+			if token == "" {
+				cycleErr = errors.Join(cycleErr, fmt.Errorf("dormancy W2: failed to generate secure token for store %d", store.ID))
+				continue
+			}
 			sentAt := now
 
-			db.Model(&store).Updates(map[string]interface{}{
+			if updErr := db.Model(&store).Updates(map[string]interface{}{
 				"dormancy_status":           "warning_2",
 				"dormancy_warning2_sent_at": sentAt,
 				"reactivation_token":        token,
-			})
+			}).Error; updErr != nil {
+				log.Error().Err(updErr).Uint("store_id", store.ID).Msg("Dormancy W2 state update failed")
+				cycleErr = errors.Join(cycleErr, updErr)
+				continue
+			}
+			w2Processed++
 
 			reactivateURL := fmt.Sprintf("%s/api/public/stores/reactivate?token=%s", baseURL, token)
 
 			createInAppDormancyNotification(db, store.ID,
-				"⚠️ 7 Hari Tersisa: Katalog Akan Dinonaktifkan Sementara",
+				"7 Hari Tersisa: Katalog Akan Dinonaktifkan Sementara",
 				fmt.Sprintf("Katalog '%s' akan dinonaktifkan dalam 7 hari karena tidak ada aktivitas. Klik tombol untuk memperpanjang masa aktif gratis.", store.StoreTitle),
 				"warning",
 			)
@@ -304,7 +335,7 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) (int64, error) {
 				sendDormancyEmail(
 					store.ID, store.User.Email,
 					store.StoreTitle,
-					"⚠️ 7 Hari Tersisa: Pertahankan Katalog & Data Anda",
+					"7 Hari Tersisa: Pertahankan Katalog & Data Anda",
 					2,
 					7,
 					reactivateURL,
@@ -322,21 +353,39 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) (int64, error) {
 	err = db.Preload("User").
 		Where("plan = 'free' AND is_exempt_from_dormancy = false AND dormancy_status IN ('active', 'warning_1', 'warning_2') AND last_activity_at <= ?", day45Threshold).
 		Find(&stage3Stores).Error
+	if err != nil {
+		cycleErr = errors.Join(cycleErr, err)
+	}
 
+	suspendProcessed := 0
 	if err == nil && len(stage3Stores) > 0 {
 		for _, store := range stage3Stores {
 			token := store.ReactivationToken
 			if token == "" {
 				token = generateSecureToken()
 			}
+			if token == "" {
+				cycleErr = errors.Join(cycleErr, fmt.Errorf("dormancy Suspend: failed to generate secure token for store %d", store.ID))
+				continue
+			}
 			suspendedAt := now
 
-			db.Model(&store).Updates(map[string]interface{}{
+			if updErr := db.Model(&store).Updates(map[string]interface{}{
 				"dormancy_status":       "suspended",
 				"is_suspended":          true,
+				"suspension_reason":     "dormancy",
 				"dormancy_suspended_at": suspendedAt,
 				"reactivation_token":    token,
-			})
+			}).Error; updErr != nil {
+				log.Error().Err(updErr).Uint("store_id", store.ID).Msg("Dormancy Stage 3 suspend update failed")
+				cycleErr = errors.Join(cycleErr, updErr)
+				continue
+			}
+			suspendProcessed++
+
+			if database.IsRedisAvailable() && database.RedisClient != nil && store.Slug != "" {
+				_ = database.RedisClient.Del(context.Background(), fmt.Sprintf("catavor:store:%s:profile", strings.ToLower(store.Slug))).Err()
+			}
 			if store.CustomDomain != nil && strings.TrimSpace(*store.CustomDomain) != "" {
 				database.InvalidateCustomDomainCache(context.Background(), *store.CustomDomain)
 			}
@@ -381,7 +430,9 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) (int64, error) {
 	const purgeEligible = "plan = 'free' AND is_exempt_from_dormancy = false AND dormancy_status = 'suspended' AND COALESCE(suspension_reason,'') IN ('dormancy','none','') AND last_activity_at <= ?"
 	err = db.Where(purgeEligible, day60Threshold).Find(&stage4Stores).Error
 	purged := 0
-	var cycleErr error = err
+	if err != nil {
+		cycleErr = errors.Join(cycleErr, err)
+	}
 	for _, candidate := range stage4Stores {
 		var store models.Store
 		err := db.Transaction(func(tx *gorm.DB) error {
@@ -425,9 +476,9 @@ func RunDormancyCycle(db *gorm.DB, strg storage.StorageService) (int64, error) {
 		GetAutomationTracker().RecordLog(AutomationLogEntry{BotName: "dormancy_worker", BotTitle: "Dormansi toko Free", Target: store.StoreTitle, TargetID: store.ID, Action: "purged_records", Status: status, ErrorMessage: fault, Details: fmt.Sprintf("Katalog %s dihapus setelah 60 hari inaktif.", store.StoreTitle), Timestamp: now})
 	}
 
-	totalEvents := len(stage1Stores) + len(stage2Stores) + len(stage3Stores) + purged
+	totalEvents := w1Processed + w2Processed + suspendProcessed + purged
 	summary := fmt.Sprintf("Siklus selesai. Diproses: %d toko (W1: %d, W2: %d, Suspend: %d, Purge: %d).",
-		totalEvents, len(stage1Stores), len(stage2Stores), len(stage3Stores), purged)
+		totalEvents, w1Processed, w2Processed, suspendProcessed, purged)
 
 	status, fault := "running", ""
 	if cycleErr != nil {
@@ -695,6 +746,14 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 	if err == nil && len(longBannedStores) > 0 {
 		ctx := context.Background()
 		for _, store := range longBannedStores {
+			// Guard active unresolved compliance reports before deleting potential evidence media
+			var activeDisputes int64
+			if dErr := db.Model(&models.Report{}).
+				Where("store_id = ? AND status IN ('pending', 'investigating', 're_review')", store.ID).
+				Count(&activeDisputes).Error; dErr == nil && activeDisputes > 0 {
+				continue
+			}
+
 			var products []models.Product
 			_ = db.Preload("Images").Where("store_id = ?", store.ID).Find(&products).Error
 
@@ -776,19 +835,25 @@ Klik tombol **Ajukan Banding Kepatuhan** di bawah untuk langsung membuka formuli
 func GetDormancyMetrics(db *gorm.DB) map[string]interface{} {
 	if db == nil {
 		return map[string]interface{}{
-			"active":    0,
-			"warning_1": 0,
-			"warning_2": 0,
-			"suspended": 0,
-			"total":     0,
+			"active_free":    int64(0),
+			"warning_1_free": int64(0),
+			"warning_2_free": int64(0),
+			"suspended_free": int64(0),
+			"total_free":     int64(0),
+			"active_stores":  int64(0),
+			"dormant_stores": int64(0),
+			"total_stores":   int64(0),
 		}
 	}
 
 	var activeCount, warning1Count, warning2Count, suspendedCount int64
+	var activeStoresCount, totalStoresCount int64
 	db.Model(&models.Store{}).Where("plan = 'free' AND dormancy_status = 'active'").Count(&activeCount)
 	db.Model(&models.Store{}).Where("plan = 'free' AND dormancy_status = 'warning_1'").Count(&warning1Count)
 	db.Model(&models.Store{}).Where("plan = 'free' AND dormancy_status = 'warning_2'").Count(&warning2Count)
 	db.Model(&models.Store{}).Where("plan = 'free' AND dormancy_status = 'suspended'").Count(&suspendedCount)
+	db.Model(&models.Store{}).Where("dormancy_status NOT IN ('banned', 'suspended', 'purged') AND is_suspended = false AND is_blacklisted = false").Count(&activeStoresCount)
+	db.Model(&models.Store{}).Where("dormancy_status != 'purged'").Count(&totalStoresCount)
 
 	return map[string]interface{}{
 		"active_free":    activeCount,
@@ -796,6 +861,9 @@ func GetDormancyMetrics(db *gorm.DB) map[string]interface{} {
 		"warning_2_free": warning2Count,
 		"suspended_free": suspendedCount,
 		"total_free":     activeCount + warning1Count + warning2Count + suspendedCount,
+		"active_stores":  activeStoresCount,
+		"dormant_stores": warning1Count + warning2Count + suspendedCount,
+		"total_stores":   totalStoresCount,
 	}
 }
 
@@ -921,7 +989,10 @@ func sendDormancyEmail(storeID uint, toEmail, storeTitle, subject string, stage 
 		title = "Penghapusan Permanen Katalog Inaktif"
 		subtitle = "Masa Tenggang 60 Hari Telah Berakhir"
 		ctaLabel = "Buka Beranda Catavor"
-		ctaURL = "/"
+		ctaURL = actionURL
+		if strings.TrimSpace(ctaURL) == "" {
+			ctaURL = getAppBaseURL()
+		}
 		bodyContent = fmt.Sprintf(`
 		<p style="margin: 0 0 14px 0;">Halo Rekan <strong>%s</strong>,</p>
 		<p style="margin: 0 0 14px 0;">Pemberitahuan resmi bahwa katalog toko ini telah <strong>dihapus</strong> karena telah melampaui batas inaktivitas maksimal 60 hari.</p>

@@ -2292,7 +2292,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         const dormRes = await fetch('/api/admin/dormancy/metrics', { headers: { Authorization: `Bearer ${token}` } });
         if (dormRes.ok) {
           const dormData = await dormRes.json();
-          setDormancyMetrics(dormData);
+          setDormancyMetrics(dormData?.data || dormData || null);
         }
       }
       if (canAccessSupport) {
