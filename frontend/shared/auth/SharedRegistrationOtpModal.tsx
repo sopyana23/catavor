@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertCircle, Clock, Loader2, ShieldCheck } from 'lucide-react';
 import { sendRegistrationOtpApi, verifyRegistrationOtpApi } from './registrationOtp';
 
@@ -32,6 +32,9 @@ export const SharedRegistrationOtpModal: React.FC<SharedRegistrationOtpModalProp
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(initialCooldown);
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartYRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -39,6 +42,9 @@ export const SharedRegistrationOtpModal: React.FC<SharedRegistrationOtpModalProp
     setErrorMsg(null);
     setInfoMsg(initialNotice || null);
     setCooldown(initialCooldown);
+    setDragY(0);
+    setIsDragging(false);
+    dragStartYRef.current = null;
   }, [isOpen, email, initialCooldown, initialNotice]);
 
   useEffect(() => {
@@ -132,10 +138,46 @@ export const SharedRegistrationOtpModal: React.FC<SharedRegistrationOtpModalProp
           boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.3)',
           color: '#0f172a',
           boxSizing: 'border-box',
+          maxHeight: device === 'mobile' ? '92dvh' : undefined,
+          overflowY: device === 'mobile' ? 'auto' : undefined,
+          overscrollBehavior: 'contain',
+          transform: device === 'mobile' ? `translateY(${dragY}px)` : undefined,
+          transition: device === 'mobile'
+            ? (isDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)')
+            : undefined,
         }}
       >
+        <div
+          onTouchStart={(e) => {
+            if (device !== 'mobile' || loading || e.touches.length !== 1) return;
+            dragStartYRef.current = e.touches[0].clientY;
+            setIsDragging(true);
+          }}
+          onTouchMove={(e) => {
+            if (device !== 'mobile' || !isDragging || dragStartYRef.current === null) return;
+            const delta = e.touches[0].clientY - dragStartYRef.current;
+            setDragY(delta > 0 ? delta : delta * 0.18);
+          }}
+          onTouchEnd={() => {
+            if (device !== 'mobile' || !isDragging) return;
+            setIsDragging(false);
+            dragStartYRef.current = null;
+            if (dragY >= 70 && !loading) {
+              const targetY = typeof window !== 'undefined' ? window.innerHeight : 720;
+              setDragY(targetY);
+              setTimeout(() => {
+                onClose();
+              }, 220);
+            } else {
+              setDragY(0);
+            }
+          }}
+          style={{
+            touchAction: device === 'mobile' ? 'none' : undefined,
+          }}
+        >
         {device === 'mobile' && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.85rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.85rem', padding: '0.25rem 0', cursor: 'grab' }}>
             <div style={{ width: '42px', height: '4px', borderRadius: '999px', backgroundColor: '#cbd5e1' }} />
           </div>
         )}
@@ -166,6 +208,7 @@ export const SharedRegistrationOtpModal: React.FC<SharedRegistrationOtpModalProp
           <p style={{ fontSize: '0.82rem', color: '#475569', margin: 0, lineHeight: 1.5 }}>
             Kode OTP 6-digit telah dikirim ke <strong style={{ color: '#0f172a' }}>{email}</strong>. Masukkan kode untuk melanjutkan pendaftaran toko.
           </p>
+        </div>
         </div>
 
         {infoMsg && (

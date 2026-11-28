@@ -12738,40 +12738,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
 
       const data = await res.json();
-      const curPath = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
-      const isRegisterFlow = curPath.startsWith('/register') || portalTab === 'register';
 
-      if (isRegisterFlow) {
-        const candidateEmail = (data.google_data?.email || data.user?.email || googleUser.email || '').toLowerCase().trim();
-        if (candidateEmail) {
-          try {
-            const checkRes = await fetch(`${API_BASE}/auth/check-email?email=${encodeURIComponent(candidateEmail)}`);
-            if (checkRes.ok) {
-              const checkData = await checkRes.json();
-              if (!checkData.available) {
-                const msg = checkData.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
-                setRegisterForm((prev: any) => ({
-                  ...prev,
-                  email: candidateEmail,
-                  name: data.google_data?.name || data.user?.name || googleUser.name || prev?.name || ''
-                }));
-                setRegisterError(null);
-                setFieldErrors(prev => ({ ...prev, email: msg }));
-                setTimeout(() => {
-                  const el = document.getElementById('mobile-register-email-input');
-                  if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    el.focus();
-                  }
-                }, 50);
-                return;
-              }
-            }
-          } catch { }
-        }
-      }
-
-      if (data.success) {
+      if (res.ok && data.success) {
         if (data.mfa_required && data.challenge) {
           setMfaChallenge({
             challenge: data.challenge,
@@ -13338,7 +13306,9 @@ Terima kasih atas perhatian dan kerja samanya.`;
   const processCheckoutSubmission = async (isFreeCoupon: boolean, overrideToken?: string, planOverride?: string) => {
     const paymentSystemMode = platformSettings.payment_system_mode || 'manual_qris';
     if (!isFreeCoupon && paymentSystemMode === 'manual_qris' && !paymentProofPreview) {
-      alert('Bukti transfer / pembayaran wajib diunggah sebelum melanjutkan.');
+      const msg = 'Bukti transfer / pembayaran wajib diunggah sebelum melanjutkan.';
+      setRegisterError(msg);
+      showToast(msg, 'error');
       return;
     }
 
@@ -13358,7 +13328,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
       try {
         const otpRes = await sendRegistrationOtpApi(API_BASE, registerForm.email, registerForm.name);
         if (!otpRes.ok && otpRes.status !== 429) {
-          alert(otpRes.message);
+          setRegisterError(otpRes.message);
+          showToast(otpRes.message, 'error');
           return;
         }
         setRegOtpNotice(otpRes.status === 429 ? otpRes.message : null);
@@ -13376,14 +13347,15 @@ Terima kasih atas perhatian dan kerja samanya.`;
     setRegisterLoading(true);
     setRegisterError(null);
     try {
+      const isAulaa = paymentSystemMode === 'gateway_aulaa';
       const payload = {
         ...registerForm,
         verification_token: !registerForm.google_id ? effectiveToken : undefined,
         plan: effectivePlan,
         billing_cycle: registerBillingCycle,
         coupon_code: appliedCoupon?.code || '',
-        payment_method: isFreeCoupon ? 'free' : (paymentSystemMode === 'gateway_aulaa' ? mobileAulaaChannel : paymentMethod),
-        payment_mode: isFreeCoupon ? 'free' : (paymentSystemMode === 'gateway_aulaa' ? 'gateway_aulaa' : (paymentMethod === 'qris' ? 'manual_qris' : 'manual_bank')),
+        payment_method: isFreeCoupon ? 'free' : (isAulaa ? mobileAulaaChannel : paymentMethod),
+        payment_mode: isFreeCoupon ? 'free' : (isAulaa ? 'gateway_aulaa' : (paymentMethod === 'qris' ? 'manual_qris' : 'manual_bank')),
         payment_status: isFreeCoupon ? 'approved' : 'pending_approval',
         payment_proof_url: isFreeCoupon ? null : paymentProofPreview,
         payment_note: paymentProofNote || undefined,
@@ -13402,6 +13374,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
       const data = await res.json();
       if (res.ok && data.success) {
         setVerificationToken(null);
+        clearStoredRegistrationToken();
         clearRegistrationDrafts();
         localStorage.setItem('catavor_token', data.token);
         localStorage.setItem('catavor_user', JSON.stringify(data.user));
@@ -13426,6 +13399,14 @@ Terima kasih atas perhatian dan kerja samanya.`;
           window.location.href = data.payment_url;
           return;
         }
+        if (data.requires_payment_action || (isAulaa && !isFreeCoupon)) {
+          const targetSlug = data.user?.store_slug || registerForm.store_slug || localStorage.getItem('catavor_active_slug') || '';
+          const orderParam = data.pending_order?.order_number ? `&order=${encodeURIComponent(data.pending_order.order_number)}` : '';
+          if (targetSlug) {
+            window.location.href = appendViewParam(`/${targetSlug}/admin/subscription?payment_pending=1${orderParam}`);
+            return;
+          }
+        }
         if (data.user?.store_slug) {
           window.location.href = appendViewParam(`/${data.user.store_slug}/admin`);
           return;
@@ -13448,14 +13429,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
         }
         if (data.errors) {
           const firstErr = Object.values(data.errors)[0] as string[];
-          alert(firstErr[0] || 'Gagal memproses pendaftaran.');
+          const msg = firstErr[0] || 'Gagal memproses pendaftaran.';
+          setRegisterError(msg);
+          showToast(msg, 'error');
         } else {
-          alert(data.error || data.message || 'Pendaftaran gagal.');
+          const msg = data.error || data.message || 'Pendaftaran gagal.';
+          setRegisterError(msg);
+          showToast(msg, 'error');
         }
       }
     } catch (err) {
       console.error(err);
-      alert('Koneksi terputus. Pastikan server backend Catavor aktif.');
+      const msg = 'Koneksi terputus. Pastikan server backend Catavor aktif.';
+      setRegisterError(msg);
+      showToast(msg, 'error');
     } finally {
       setRegisterLoading(false);
     }
@@ -13791,15 +13778,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
     resetRegisterFormState();
     setAppliedCoupon(null);
     setPaymentProofPreview(null);
-    try {
-      sessionStorage.removeItem('catavor_register_form');
-      sessionStorage.removeItem('catavor_register_plan');
-      sessionStorage.removeItem('catavor_register_billing');
-      sessionStorage.removeItem('catavor_applied_coupon');
-      sessionStorage.removeItem('catavor_payment_method');
-      sessionStorage.removeItem('catavor_portal_tab');
-      sessionStorage.removeItem('catavor_register_step');
-    } catch { }
+    clearStoredRegistrationToken();
+    clearRegistrationDrafts();
     setPortalTab('home');
     window.history.pushState(null, '', '/');
   };
@@ -17581,12 +17561,12 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'pro_starter' ? '#0284c7' : '#0f172a' }}>Pro Starter</span>
                           </div>
                           <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
-                            Rp 30.000 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>/bln</small>
+                            Rp {Number(subscriptionPlans.find(p => p.code === 'pro_starter')?.price_monthly ?? 30000).toLocaleString('id-ID')} <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>/bln</small>
                           </span>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', gap: '0.25rem 0.5rem', paddingLeft: '1.25rem' }}>
                           <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                            <Check size={13} style={{ color: '#0284c7', flexShrink: 0 }} /> 150 item produk
+                            <Check size={13} style={{ color: '#0284c7', flexShrink: 0 }} /> {subscriptionPlans.find(p => p.code === 'pro_starter')?.max_items || 150} item produk
                           </div>
                           <div style={{ fontSize: '0.72rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             <Check size={13} style={{ color: '#0284c7', flexShrink: 0 }} /> 2 GB Storage
@@ -17626,7 +17606,7 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                             <span style={{ fontSize: '0.88rem', fontWeight: 800, color: registerPlan === 'pro_business' ? '#d97706' : '#0f172a' }}>Pro Bisnis</span>
                           </div>
                           <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap' }}>
-                            Rp 129.000 <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>/bln</small>
+                            Rp {Number(subscriptionPlans.find(p => p.code === 'pro_business')?.price_monthly ?? 129000).toLocaleString('id-ID')} <small style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>/bln</small>
                           </span>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', gap: '0.25rem 0.5rem', paddingLeft: '1.25rem' }}>
@@ -17820,9 +17800,17 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                   </p>
                 </div>
 
+                {registerError && (
+                  <div style={{ padding: '0.75rem 0.9rem', borderRadius: '0.65rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
+                    <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+                    <span>{registerError}</span>
+                  </div>
+                )}
+
                 {/* Price Calculations Mobile */}
                 {(() => {
-                  const originalPrice = registerPlan === 'pro_business' ? 129000 : 30000;
+                  const matchedPlan = subscriptionPlans.find(p => p.code === registerPlan);
+                  const originalPrice = Number(matchedPlan?.price_monthly ?? (registerPlan === 'pro_business' ? 129000 : 30000));
                   const normalPrice = registerPlan === 'pro_business' ? 150000 : 65000;
                 const discountAmount = appliedCoupon ? (appliedCoupon.type === 'free' ? originalPrice : Number(appliedCoupon.discount || (appliedCoupon as any).discount_amount || (appliedCoupon as any).discount_value || 0)) : 0;
                   const finalPrice = Math.max(0, originalPrice - discountAmount);

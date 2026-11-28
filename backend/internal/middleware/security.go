@@ -331,6 +331,24 @@ func AuthRateLimiter() fiber.Handler {
 	})
 }
 
+// SlugCheckRateLimiter prevents high-rate slug dictionary enumeration while allowing debounced typing.
+func SlugCheckRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Storage:    database.GetRateLimiterStorage(),
+		Max:        60,
+		Expiration: 1 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return canonicalRateLimitIP(c.IP()) + "_check_slug"
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"message": "Terlalu banyak pengecekan tautan toko. Harap tunggu sebentar.",
+			})
+		},
+	})
+}
+
 // PublicSubmissionRateLimiter limits spam on comments and sighting submissions
 func PublicSubmissionRateLimiter() fiber.Handler {
 	return limiter.New(limiter.Config{

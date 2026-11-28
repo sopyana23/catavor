@@ -951,37 +951,18 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 	// PRE-FLIGHT VALIDATION (R4-L2): Validasi paket, kupon, status maintenance,
 	// dan bukti pembayaran SEBELUM mengonsumsi OTP token dan SEBELUM menyimpan User baru.
-	rawPlan := strings.ToLower(strings.TrimSpace(req.Plan))
-	requestedPlan := "free"
-	if rawPlan == "pro" || rawPlan == "pro_starter" {
-		requestedPlan = "pro_starter"
-	} else if rawPlan == "pro_business" {
-		requestedPlan = "pro_business"
-	}
+	requestedPlan, origAmount := resolvePlanForCheckoutOrRegister(h.db, req.Plan, "free")
 
 	// Strict platform policy: Only monthly billing cycle is supported (no annual)
 	billingCycle := "monthly"
 	durationMonths := 1
 
 	now := time.Now().UTC()
-	var origAmount float64
 	var discountAmount float64
 	var finalAmount float64
 	cleanCoupon := strings.ToUpper(strings.TrimSpace(req.CouponCode))
 
 	if requestedPlan != "free" {
-		planInfo, _ := services.GetPlanByCode(h.db, requestedPlan)
-		if planInfo != nil {
-			origAmount = planInfo.PriceMonthly
-		} else {
-			// Fallbacks
-			if requestedPlan == "pro_business" {
-				origAmount = 129000
-			} else {
-				origAmount = 30000
-			}
-		}
-
 		if cleanCoupon != "" {
 			validCoupon, disc, fin, err := services.ValidateCoupon(h.db, cleanCoupon, requestedPlan, origAmount)
 			if err != nil || validCoupon == nil {
@@ -1062,9 +1043,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 	}
 
-	createdNewUser := false
-
-	// Check email uniqueness and role isolation (merchant vs pengelola)
+	// Pre-flight check for existing email & verification token presence BEFORE entering transaction.
+	var preparedNewUser *models.User
+	shouldLinkGoogleID := false
 	if userFound {
 		if existingUser.IsPlatformStaff() {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
@@ -1089,8 +1070,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			}
 			targetUser = existingUser
 			if (targetUser.GoogleID == nil || *targetUser.GoogleID == "") && req.GoogleID != "" {
-				targetUser.GoogleID = &req.GoogleID
-				h.db.Save(&targetUser)
+				shouldLinkGoogleID = true
 			}
 		} else {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
@@ -1099,30 +1079,23 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			})
 		}
 	} else {
-		nowUser := time.Now()
 		// SECURITY (N-11): registrasi password manual wajib membawa verification_token yang sah.
-		// Registrasi Google SSO dilewatkan karena email sudah terverifikasi di sisi Google.
-		if !isGoogleAuth {
-			if strings.TrimSpace(req.VerificationToken) == "" {
-				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-					"success": false,
-					"message": "Verifikasi email wajib diselesaikan sebelum mendaftar.",
-				})
-			}
-			if !services.GetOTPService().ValidateAndConsumeToken(req.Email, req.VerificationToken, "registration") {
-				return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-					"success": false,
-					"message": "Token verifikasi tidak valid atau sudah kedaluwarsa. Silakan minta kode baru.",
-				})
-			}
+		// Token hanya dikonsumsi secara atomik DI DALAM transaksi DB agar gagal kupon/slug race tidak menghanguskan OTP.
+		if !isGoogleAuth && strings.TrimSpace(req.VerificationToken) == "" {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Verifikasi email wajib diselesaikan sebelum mendaftar.",
+			})
 		}
 
+		nowUser := time.Now().UTC()
 		newUser := models.User{
 			Name:              req.Name,
 			Email:             req.Email,
 			EmailVerifiedAt:   &nowUser,
 			IsPasswordChanged: true,
 		}
+		// Compute bcrypt outside DB transaction so no DB connection/row lock is held during hashing.
 		if isGoogleAuth {
 			googleID := req.GoogleID
 			if googleID == "" {
@@ -1140,15 +1113,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 				})
 			}
 		}
-
-		if err := h.db.Create(&newUser).Error; err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"success": false,
-				"message": "Gagal mendaftarkan akun.",
-			})
-		}
-		createdNewUser = true
-		targetUser = newUser
+		preparedNewUser = &newUser
 	}
 
 	storeTitle := req.StoreTitle
@@ -1168,7 +1133,6 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	defaultShipping, _ := json.Marshal([]string{"Bisa Kirim Seluruh Indonesia", "Jabodetabek Saja", "Ambil Sendiri di Toko"})
 
 	newStore := models.Store{
-		UserID:                  targetUser.ID,
 		Slug:                    slug,
 		StoreTitle:              storeTitle,
 		StoreSlogan:             "Memudahkan pelanggan menjelajahi produk dan informasi bisnis.",
@@ -1193,7 +1157,31 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	var createdSubOrder models.SubscriptionOrder
 
 	txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		if preparedNewUser != nil {
+			if !isGoogleAuth {
+				if !services.GetOTPService().ValidateAndConsumeTokenInTx(tx, req.Email, req.VerificationToken, "registration") {
+					return errors.New("INVALID_OTP_TOKEN: Token verifikasi tidak valid atau sudah kedaluwarsa. Silakan minta kode baru.")
+				}
+			}
+			if err := tx.Create(preparedNewUser).Error; err != nil {
+				if isUniqueConstraintErr(err) {
+					return errors.New("DUPLICATE_EMAIL: Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.")
+				}
+				return err
+			}
+			targetUser = *preparedNewUser
+		} else if shouldLinkGoogleID {
+			if err := tx.Model(&models.User{}).Where("id = ?", targetUser.ID).Update("google_id", req.GoogleID).Error; err != nil {
+				return err
+			}
+			targetUser.GoogleID = &req.GoogleID
+		}
+
+		newStore.UserID = targetUser.ID
 		if err := tx.Create(&newStore).Error; err != nil {
+			if isUniqueConstraintErr(err) {
+				return errors.New("DUPLICATE_SLUG: Nama pengguna toko sudah terpakai. Silakan pilih nama lain.")
+			}
 			return err
 		}
 		if requestedPlan == "free" {
@@ -1214,7 +1202,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		}
 
 		payMethod := strings.ToLower(strings.TrimSpace(req.PaymentMethod))
-		if payMethod != "qris" && payMethod != "bank" {
+		if payMethod != "qris" && payMethod != "bank" && payMethod != "va" && payMethod != "ewallet" && payMethod != "cc" {
 			payMethod = "bank"
 		}
 		if finalAmount == 0 {
@@ -1252,7 +1240,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 				orderPaymentStatus = "pending"
 			}
 			orderPaidAt = nil
-			orderTTL := time.Now().UTC().Add(2 * time.Hour)
+			orderTTL := now.Add(2 * time.Hour)
 			orderExpiresAt = &orderTTL
 
 			if (paymentSystemMode == "manual_qris" || paymentSystemMode == "manual_bank") && payMethod == "bank" {
@@ -1265,7 +1253,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			effectiveMode = "manual_qris"
 		}
 
-		orderNumber := fmt.Sprintf("INV-SUB-%s-%04d-%04d", time.Now().Format("20060102150405"), newStore.ID%10000, (time.Now().Nanosecond()/1000)%10000)
+		orderNumber := fmt.Sprintf("INV-SUB-%s-%04d-%s", now.Format("20060102150405"), newStore.ID%10000, strings.ToUpper(uuid.New().String()[:6]))
 		senderName := strings.TrimSpace(req.SenderAccountName)
 		if senderName == "" && effectiveMode == "manual_qris" {
 			senderName = strings.TrimSpace(req.Name)
@@ -1318,19 +1306,34 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	})
 
 	if txErr != nil {
-		if createdNewUser {
-			h.db.Unscoped().Delete(&models.User{}, targetUser.ID)
-		}
-		if strings.Contains(txErr.Error(), "INVALID_COUPON:") {
+		msg := txErr.Error()
+		switch {
+		case strings.Contains(msg, "INVALID_OTP_TOKEN:"):
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Token verifikasi tidak valid atau sudah kedaluwarsa. Silakan minta kode baru.",
+			})
+		case strings.Contains(msg, "DUPLICATE_EMAIL:"):
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
+			})
+		case strings.Contains(msg, "DUPLICATE_SLUG:"):
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Nama pengguna toko sudah terpakai. Silakan pilih nama lain.",
+			})
+		case strings.Contains(msg, "INVALID_COUPON:"):
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
 				"message": "Kode kupon tidak valid atau tidak dapat digunakan.",
 			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"success": false,
+				"message": "Gagal membuat profil toko.",
+			})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal membuat profil toko.",
-		})
 	}
 
 	if requestedPlan != "free" && paymentSystemMode == "gateway_aulaa" && createdSubOrder.ID > 0 && createdSubOrder.FinalAmount > 0 {
@@ -1427,6 +1430,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		},
 	}
 	if createdSubOrder.ID > 0 && createdSubOrder.PaymentStatus != "paid" {
+		if paymentSystemMode == "gateway_aulaa" && createdSubOrder.FinalAmount > 0 && paymentURL == "" {
+			respPayload["requires_payment_action"] = true
+		}
 		respPayload["pending_order"] = fiber.Map{
 			"id":             createdSubOrder.ID,
 			"order_number":   createdSubOrder.OrderNumber,
@@ -1762,6 +1768,24 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		})
 	}
 
+	var blacklistedSlugCount int64
+	h.db.Model(&models.BlacklistedSlug{}).Where("LOWER(slug) = ?", storeSlug).Count(&blacklistedSlugCount)
+	if blacklistedSlugCount > 0 {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Pendaftaran ditolak: Link username toko ini telah dinonaktifkan secara permanen oleh platform dan tidak dapat digunakan kembali.",
+		})
+	}
+
+	var bannedStoreCount int64
+	h.db.Model(&models.Store{}).Where("LOWER(slug) = ? AND (is_blacklisted = true OR dormancy_status = 'banned')", storeSlug).Count(&bannedStoreCount)
+	if bannedStoreCount > 0 {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"message": "Pendaftaran ditolak: Link username toko ini telah dinonaktifkan secara permanen dan tidak dapat digunakan kembali.",
+		})
+	}
+
 	// Validate slug uniqueness
 	var existingStore models.Store
 	if err := h.db.Where("LOWER(slug) = ?", storeSlug).First(&existingStore).Error; err == nil {
@@ -1771,8 +1795,8 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		})
 	}
 
-	// Create new User
-	now := time.Now()
+	// Create new User + Store atomically in one transaction (compute bcrypt outside tx).
+	now := time.Now().UTC()
 	userName := name
 	if userName == "" {
 		userName = "Pemilik Toko"
@@ -1787,13 +1811,6 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		HasCustomPassword: false,
 	}
 	_ = newUser.SetPassword("G_SSO_" + googleID + "_" + uuid.New().String()[:8])
-
-	if err := h.db.Create(&newUser).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"message": "Gagal mendaftarkan akun.",
-		})
-	}
 
 	clientTimezone := strings.TrimSpace(req.Timezone)
 	if clientTimezone == "" {
@@ -1819,7 +1836,6 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 	defaultShipping, _ := json.Marshal([]string{"Bisa Kirim Seluruh Indonesia", "Jabodetabek Saja", "Ambil Sendiri di Toko"})
 
 	newStore := models.Store{
-		UserID:                  newUser.ID,
 		Slug:                    storeSlug,
 		StoreTitle:              storeName,
 		StoreSlogan:             "Memudahkan pelanggan menjelajahi produk dan informasi bisnis.",
@@ -1838,10 +1854,37 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		MasterShippingCoverages: datatypes.JSON(defaultShipping),
 	}
 
-	if err := h.db.Create(&newStore).Error; err != nil {
+	if txErr := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&newUser).Error; err != nil {
+			if isUniqueConstraintErr(err) {
+				return errors.New("DUPLICATE_EMAIL")
+			}
+			return err
+		}
+		newStore.UserID = newUser.ID
+		if err := tx.Create(&newStore).Error; err != nil {
+			if isUniqueConstraintErr(err) {
+				return errors.New("DUPLICATE_SLUG")
+			}
+			return err
+		}
+		return nil
+	}); txErr != nil {
+		if strings.Contains(txErr.Error(), "DUPLICATE_EMAIL") {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Alamat email ini sudah terdaftar dalam sistem. Silakan masuk melalui halaman login.",
+			})
+		}
+		if strings.Contains(txErr.Error(), "DUPLICATE_SLUG") {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"success": false,
+				"message": "Link username toko \"" + storeSlug + "\" sudah digunakan. Silakan pilih username lain.",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"success": false,
-			"message": "Gagal membuat toko baru.",
+			"message": "Gagal mendaftarkan akun dan toko baru.",
 		})
 	}
 
@@ -1869,6 +1912,7 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 			"message": "Pendaftaran tersimpan, namun sesi login gagal dibuat. Silakan masuk melalui halaman login.",
 		})
 	}
+	services.DispatchRegistrationOnboarding(h.db, &newUser, &newStore, nil)
 	setSessionCookie(c, h.cfg, token)
 
 	return c.JSON(fiber.Map{
@@ -1878,6 +1922,9 @@ func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 		"token":               token,
 		"is_password_changed": true,
 		"has_custom_password": false,
+		"stores":              []StoreSummary{newSummary},
+		"stores_count":        1,
+		"active_store":        newSummary,
 		"user": fiber.Map{
 			"id":                  newUser.ID,
 			"name":                newUser.Name,
@@ -2706,8 +2753,8 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	return c.JSON(resMap)
 }
 
-// CheckEmail performs early email availability check for registration wizard.
-// Returns neutral anti-enumeration response if email is already in use.
+// CheckEmail validates email syntax for registration wizard without leaking account existence.
+// Returns uniform anti-enumeration availability (N-17); duplicate account notices are handled privately via email.
 func (h *AuthHandler) CheckEmail(c *fiber.Ctx) error {
 	if h.db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -2716,14 +2763,17 @@ func (h *AuthHandler) CheckEmail(c *fiber.Ctx) error {
 		})
 	}
 
-	email := strings.ToLower(strings.TrimSpace(c.Query("email")))
-	if email == "" {
-		var req CheckEmailRequest
-		if err := c.BodyParser(&req); err == nil && req.Email != "" {
-			email = strings.ToLower(strings.TrimSpace(req.Email))
+	var req CheckEmailRequest
+	if err := c.BodyParser(&req); err != nil {
+		if uErr := json.Unmarshal(c.Body(), &req); uErr != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"message": "Format permintaan tidak valid.",
+			})
 		}
 	}
 
+	email := strings.ToLower(strings.TrimSpace(req.Email))
 	if email == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -2738,21 +2788,10 @@ func (h *AuthHandler) CheckEmail(c *fiber.Ctx) error {
 		})
 	}
 
-	var count int64
-	h.db.Model(&models.User{}).Where("LOWER(email) = ?", email).Count(&count)
-
-	if count > 0 {
-		return c.JSON(fiber.Map{
-			"success":   true,
-			"available": false,
-			"message":   "Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.",
-		})
-	}
-
 	return c.JSON(fiber.Map{
 		"success":   true,
 		"available": true,
-		"message":   "Alamat email tersedia.",
+		"message":   "Silakan lanjutkan proses verifikasi email Anda.",
 	})
 }
 
@@ -2800,12 +2839,8 @@ func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	// N-17: jangan bocorkan status pendaftaran.
-	// Sebelumnya email terdaftar dibalas 422 "Email sudah terdaftar" sementara
-	// email bebas dibalas 200 — perbedaan ini memungkinkan enumerasi akun.
-	// Email blacklisted juga dibalas 403 eksplisit, membocorkan status penangguhan.
-	// Sekarang ketiga kondisi memberi respons identik; hanya email yang benar-benar
-	// menerima OTP yang tahu bedanya.
+	// N-17: jangan bocorkan status pendaftaran pada respons HTTP.
+	// Ketiga kondisi (honeypot, blacklist, email terdaftar, email baru) mengembalikan responsSeragam.
 	responsSeragam := fiber.Map{
 		"success": true,
 		"message": "Jika email tersebut dapat digunakan, kode OTP 6-digit telah dikirimkan ke kotak masuk Anda.",
@@ -2819,11 +2854,12 @@ func (h *AuthHandler) SendRegistrationOTP(c *fiber.Ctx) error {
 		return c.JSON(responsSeragam)
 	}
 
-	// Check if email already registered
-	var existingCount int64
-	h.db.Model(&models.User{}).Where("LOWER(email) = ?", reqEmail).Count(&existingCount)
-	if existingCount > 0 {
+	// Check if email already registered; notify actual inbox owner privately without leaking HTTP oracle.
+	var existingUser models.User
+	if err := h.db.Where("LOWER(email) = ?", reqEmail).First(&existingUser).Error; err == nil {
 		log.Info().Str("ip", c.IP()).Msg("SendRegistrationOTP: email sudah terdaftar (respons disamarkan)")
+		noticeBody := `<p>Halo,</p><p>Ada permintaan pendaftaran akun baru di Catavor menggunakan alamat email ini. Alamat email Anda <strong>sudah terdaftar</strong> di sistem kami.</p><p>Silakan masuk melalui halaman <strong>Login</strong> atau gunakan fitur <strong>Lupa Kata Sandi</strong> bila perlu memulihkan akses. Abaikan email ini jika Anda tidak melakukan permintaan tersebut.</p>`
+		_, _ = services.EnqueueEmail(reqEmail, existingUser.Name, "Catavor Security", "Informasi Akun Terdaftar Catavor", noticeBody, "registration_existing_notice", fmt.Sprintf("reg_exists_%d", existingUser.ID))
 		return c.JSON(responsSeragam)
 	}
 
@@ -3485,4 +3521,31 @@ func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Akun Anda beserta seluruh profil katalog berhasil dihapus permanen.",
 	})
+}
+
+// resolvePlanForCheckoutOrRegister resolves an incoming plan code against active SubscriptionPlan rows in DB,
+// supporting legacy alias "pro" -> "pro_starter" without duplicating hardcoded pricing tables across handlers.
+func resolvePlanForCheckoutOrRegister(db *gorm.DB, rawCode string, defaultCode string) (string, float64) {
+	code := strings.ToLower(strings.TrimSpace(rawCode))
+	if code == "" {
+		code = defaultCode
+	}
+	if code == "pro" {
+		code = "pro_starter"
+	}
+
+	if db != nil {
+		var plan models.SubscriptionPlan
+		if err := db.Where("LOWER(code) = ? AND is_active = ?", code, true).First(&plan).Error; err == nil {
+			return plan.Code, plan.PriceMonthly
+		}
+	}
+
+	if code == "pro_business" {
+		return "pro_business", 129000
+	}
+	if code == "pro_starter" {
+		return "pro_starter", 30000
+	}
+	return defaultCode, 0
 }

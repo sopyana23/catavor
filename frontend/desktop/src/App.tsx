@@ -12115,39 +12115,8 @@ Terima kasih atas perhatian dan kerja samanya.`;
       });
 
       const data = await res.json();
-      const isRegisterFlow = curPath.startsWith('/register') || portalTab === 'register';
 
-      if (isRegisterFlow) {
-        const candidateEmail = (data.google_data?.email || data.user?.email || googleUser.email || '').toLowerCase().trim();
-        if (candidateEmail) {
-          try {
-            const checkRes = await fetch(`${API_BASE}/auth/check-email?email=${encodeURIComponent(candidateEmail)}`);
-            if (checkRes.ok) {
-              const checkData = await checkRes.json();
-              if (!checkData.available) {
-                const msg = checkData.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
-                setRegisterForm((prev: any) => ({
-                  ...prev,
-                  email: candidateEmail,
-                  name: data.google_data?.name || data.user?.name || googleUser.name || prev?.name || ''
-                }));
-                setRegisterError(null);
-                setFieldErrors(prev => ({ ...prev, email: msg }));
-                setTimeout(() => {
-                  const el = document.getElementById('register-email-input');
-                  if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    el.focus();
-                  }
-                }, 50);
-                return;
-              }
-            }
-          } catch {}
-        }
-      }
-
-      if (data.success) {
+      if (res.ok && data.success) {
         if (data.mfa_required && data.challenge) {
           setMfaChallenge({
             challenge: data.challenge,
@@ -17038,13 +17007,13 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           <span style={{ fontSize: '0.92rem', fontWeight: 800, color: registerPlan === 'pro_starter' ? '#0284c7' : '#0f172a' }}>Pro Starter</span>
                         </div>
                         <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <span style={{ color: '#0284c7', fontWeight: 800 }}>Rp 30.000</span>
+                          <span style={{ color: '#0284c7', fontWeight: 800 }}>Rp {Number(subscriptionPlans.find(p => p.code === 'pro_starter')?.price_monthly ?? 30000).toLocaleString('id-ID')}</span>
                           <small style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 500 }}>/bulan</small>
                         </span>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem 0.75rem', paddingLeft: '1.65rem' }}>
                         <div style={{ fontSize: '0.74rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <Check size={14} style={{ color: '#0284c7', flexShrink: 0 }} /> 150 item produk aktif
+                          <Check size={14} style={{ color: '#0284c7', flexShrink: 0 }} /> {subscriptionPlans.find(p => p.code === 'pro_starter')?.max_items || 150} item produk aktif
                         </div>
                         <div style={{ fontSize: '0.74rem', color: '#334155', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                           <Check size={14} style={{ color: '#0284c7', flexShrink: 0 }} /> 2 GB Storage
@@ -17083,7 +17052,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
                           <span style={{ fontSize: '0.92rem', fontWeight: 800, color: registerPlan === 'pro_business' ? '#d97706' : '#0f172a' }}>Pro Bisnis</span>
                         </div>
                         <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <span style={{ color: '#d97706', fontWeight: 800 }}>Rp 129.000</span>
+                          <span style={{ color: '#d97706', fontWeight: 800 }}>Rp {Number(subscriptionPlans.find(p => p.code === 'pro_business')?.price_monthly ?? 129000).toLocaleString('id-ID')}</span>
                           <small style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 500 }}>/bulan</small>
                         </span>
                       </div>
@@ -17217,6 +17186,7 @@ Terima kasih atas perhatian dan kerja samanya.`;
           <DesktopCheckoutView
             initialPlan={registerPlan}
             initialBilling={registerBillingCycle}
+            plans={subscriptionPlans}
             onPlanChange={setRegisterPlan}
             onBack={handleBackToPlanSelect}
             onCancel={handleCancelCheckout}

@@ -30,7 +30,7 @@ import {
   LogIn
 } from 'lucide-react';
 import { smartBack, setupModalBackInterceptor } from '../utils/navigation';
-import { hasValidSessionToken, clearRegistrationDrafts, resolveAuthenticatedRedirect } from '../utils/authSync';
+import { hasValidSessionToken, clearRegistrationDrafts, resolveAuthenticatedRedirect, appendViewParam } from '../utils/authSync';
 import {
   clearStoredRegistrationToken,
   getStoredRegistrationToken,
@@ -51,7 +51,7 @@ export interface TabletCheckoutViewProps {
 
 export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
   initialPlan = 'pro_starter',
-  initialBilling = 'monthly',
+  initialBilling: _initialBilling = 'monthly',
   onBack,
   onCancel,
   onSuccess,
@@ -109,16 +109,20 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
     return (initialPlan === 'pro_business' ? 'pro_business' : (initialPlan === 'free' ? 'free' : 'pro_starter'));
   });
 
-  // Billing Cycle State (Preserve URL billing query param)
-  const [registerBillingCycle, setRegisterBillingCycle] = useState<'monthly' | 'annual'>(() => {
-    if (typeof window !== 'undefined') {
-      const qBilling = new URLSearchParams(window.location.search).get('billing');
-      if (qBilling === 'annual' || qBilling === 'monthly') return qBilling;
-      const savedBilling = sessionStorage.getItem('catavor_register_billing');
-      if (savedBilling === 'annual' || savedBilling === 'monthly') return savedBilling as 'monthly' | 'annual';
-    }
-    return initialBilling === 'annual' ? 'annual' : 'monthly';
-  });
+  // Strict Monthly Billing Cycle Policy (server-enforced monthly only)
+  const [registerBillingCycle] = useState<'monthly'>('monthly');
+  const [availablePlans, setAvailablePlans] = useState<Array<{ code: string; price_monthly?: number }>>([]);
+
+  useEffect(() => {
+    fetch('/api/subscription/plans')
+      .then((res) => res.json())
+      .then((d) => {
+        if (d?.success && Array.isArray(d.data)) {
+          setAvailablePlans(d.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Registration Form State (Account & Store Info)
   const [registerForm, setRegisterForm] = useState<{
@@ -299,8 +303,11 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [createdUserData, setCreatedUserData] = useState<any>(null);
 
-  // Strict Monthly Price Calculations (1 Month)
-  const originalPrice = registerPlan === 'free' ? 0 : (registerPlan === 'pro_business' ? 129000 : 30000);
+  // Dynamic Monthly Price Calculations (hydrated from /api/subscription/plans)
+  const matchedPlan = availablePlans.find((p) => p.code === registerPlan);
+  const originalPrice = registerPlan === 'free'
+    ? 0
+    : Number(matchedPlan?.price_monthly ?? (registerPlan === 'pro_business' ? 129000 : 30000));
   const normalPrice = registerPlan === 'free' ? 0 : (registerPlan === 'pro_business' ? 150000 : 65000);
 
   const discountAmount = appliedCoupon
@@ -392,7 +399,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert('Ukuran berkas bukti maksimal 5 MB.');
+        setRegisterError('Ukuran berkas bukti maksimal 5 MB.');
         return;
       }
       const reader = new FileReader();
@@ -525,6 +532,7 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
 
       const data = await res.json();
       if (res.ok && data.success) {
+        clearStoredRegistrationToken();
         clearRegistrationDrafts();
 
         if (data.token) {
@@ -548,8 +556,14 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
           return;
         }
 
-        if (isAulaa && !isFreeBypass && finalPrice > 0) {
-          setRegisterError('Gagal mendapatkan tautan pembayaran Aulaa. Silakan periksa koneksi atau hubungi admin.');
+        if (data.requires_payment_action || (isAulaa && !isFreeBypass && finalPrice > 0)) {
+          const targetSlug = data.user?.store_slug || registerForm.store_slug || localStorage.getItem('catavor_active_slug') || '';
+          const orderParam = data.pending_order?.order_number ? `&order=${encodeURIComponent(data.pending_order.order_number)}` : '';
+          if (targetSlug) {
+            window.location.href = appendViewParam(`/${targetSlug}/admin/subscription?payment_pending=1${orderParam}`);
+            return;
+          }
+          setRegisterError('Gagal mendapatkan tautan pembayaran Aulaa. Silakan masuk melalui Login dan selesaikan pembayaran di menu Langganan.');
           return;
         }
 
@@ -580,21 +594,19 @@ export const TabletCheckoutView: React.FC<TabletCheckoutViewProps> = ({
 
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
 
+  useEffect(() => {
+    if (!showCancelModal) return;
+    return setupModalBackInterceptor(() => setShowCancelModal(false));
+  }, [showCancelModal]);
+
   const handleCancelRegistration = () => {
     setShowCancelModal(true);
   };
 
   const handleConfirmCancel = () => {
     isCancelledRef.current = true;
-    try {
-      sessionStorage.removeItem('catavor_register_form');
-      sessionStorage.removeItem('catavor_register_plan');
-      sessionStorage.removeItem('catavor_register_billing');
-      sessionStorage.removeItem('catavor_applied_coupon');
-      sessionStorage.removeItem('catavor_payment_method');
-      sessionStorage.removeItem('catavor_portal_tab');
-      sessionStorage.removeItem('catavor_register_step');
-    } catch {}
+    clearStoredRegistrationToken();
+    clearRegistrationDrafts();
     setShowCancelModal(false);
     if (onCancel) {
       onCancel();

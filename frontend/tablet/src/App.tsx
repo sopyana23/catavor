@@ -857,49 +857,15 @@ export const App: React.FC = () => {
       const data = await res.json();
       const isRegisterFlow = currentPath.startsWith('/register') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/register'));
 
-      // If user is registering, perform early email check & advance to Step 2
-      if (isRegisterFlow) {
-        const candidateEmail = (data.google_data?.email || data.user?.email || googleUser.email || '').toLowerCase().trim();
-        if (candidateEmail) {
-          try {
-            const checkRes = await fetch(`/api/auth/check-email?email=${encodeURIComponent(candidateEmail)}`);
-            if (checkRes.ok) {
-              const checkData = await checkRes.json();
-              if (!checkData.available) {
-                const msg = checkData.message || 'Alamat email ini sudah terdaftar dalam sistem. Silakan gunakan alamat email lain atau masuk ke akun yang sudah terdaftar.';
-                setLoginError(null);
-                const candidateName = data.google_data?.name || data.user?.name || googleUser.name || '';
-                window.dispatchEvent(new CustomEvent('catavor:register-error', {
-                  detail: { message: msg, email: candidateEmail, name: candidateName }
-                }));
-                return;
-              }
-            }
-          } catch { }
+      if (!res.ok || !data.success) {
+        const errMsg = data?.message || 'Gagal otentikasi Google SSO.';
+        if (isRegisterFlow) {
+          window.dispatchEvent(new CustomEvent('catavor:register-error', {
+            detail: { message: errMsg, email: data?.google_data?.email || googleUser.email || '', name: data?.google_data?.name || googleUser.name || '' }
+          }));
+        } else {
+          setLoginError(errMsg);
         }
-
-        // New User Google SSO Registration -> Proceed to Step 2 (Profil Toko)
-        const userName = data.google_data?.name || data.user?.name || googleUser.name || 'Pemilik Toko';
-        const userEmail = candidateEmail;
-        const userGoogleId = data.google_data?.google_id || data.user?.google_id || googleUser.google_id || '';
-        const userAvatar = data.google_data?.avatar || data.user?.avatar || googleUser.avatar || '';
-        const googleRegToken = data.google_registration_token || data.google_data?.google_registration_token || '';
-
-        const updatedForm = {
-          name: userName,
-          email: userEmail,
-          password: '',
-          google_id: userGoogleId,
-          google_registration_token: googleRegToken,
-          avatar: userAvatar,
-          store_name: '',
-          store_slug: ''
-        };
-        try {
-          sessionStorage.setItem('catavor_register_form', JSON.stringify(updatedForm));
-        } catch { }
-        window.dispatchEvent(new CustomEvent('catavor:register-form-updated', { detail: updatedForm }));
-        navigateTo('/register/step-2');
         return;
       }
 
@@ -948,6 +914,28 @@ export const App: React.FC = () => {
         const destination = resolveAuthenticatedRedirect(data.user, targetSlug);
         broadcastAuthEvent({ type: 'LOGIN_SUCCESS', userId: data.user?.id || '0', token: data.token });
         navigateTo(destination);
+      } else if (data.success && (data.requires_store_info || data.is_new_user || !data.token)) {
+        const userEmail = (data.google_data?.email || data.user?.email || googleUser.email || '').toLowerCase().trim();
+        const userName = data.google_data?.name || data.user?.name || googleUser.name || 'Pemilik Toko';
+        const userGoogleId = data.google_data?.google_id || data.user?.google_id || googleUser.google_id || '';
+        const userAvatar = data.google_data?.avatar || data.user?.avatar || googleUser.avatar || '';
+        const googleRegToken = data.google_registration_token || data.google_data?.google_registration_token || '';
+
+        const updatedForm = {
+          name: userName,
+          email: userEmail,
+          password: '',
+          google_id: userGoogleId,
+          google_registration_token: googleRegToken,
+          avatar: userAvatar,
+          store_name: '',
+          store_slug: ''
+        };
+        try {
+          sessionStorage.setItem('catavor_register_form', JSON.stringify(updatedForm));
+        } catch { }
+        window.dispatchEvent(new CustomEvent('catavor:register-form-updated', { detail: updatedForm }));
+        navigateTo('/register/step-2');
       } else {
         setLoginError(data.message || 'Otentikasi Google gagal diproses.');
       }
@@ -2036,15 +2024,7 @@ export const App: React.FC = () => {
         }}
         onNavigateToLogin={() => navigateTo('/login')}
         onCancel={() => {
-          try {
-            sessionStorage.removeItem('catavor_register_form');
-            sessionStorage.removeItem('catavor_register_plan');
-            sessionStorage.removeItem('catavor_register_billing');
-            sessionStorage.removeItem('catavor_applied_coupon');
-            sessionStorage.removeItem('catavor_payment_method');
-            sessionStorage.removeItem('catavor_portal_tab');
-            sessionStorage.removeItem('catavor_register_step');
-          } catch { }
+          clearRegistrationDrafts();
           navigateTo('/');
         }}
         onSuccess={(regUser) => {
@@ -2095,15 +2075,7 @@ export const App: React.FC = () => {
           navigateTo(`/checkout?plan=${plan}&billing=monthly`);
         }}
         onCancel={() => {
-          try {
-            sessionStorage.removeItem('catavor_register_form');
-            sessionStorage.removeItem('catavor_register_plan');
-            sessionStorage.removeItem('catavor_register_billing');
-            sessionStorage.removeItem('catavor_applied_coupon');
-            sessionStorage.removeItem('catavor_payment_method');
-            sessionStorage.removeItem('catavor_portal_tab');
-            sessionStorage.removeItem('catavor_register_step');
-          } catch { }
+          clearRegistrationDrafts();
           navigateTo('/');
         }}
         onLoginClick={(email) => {

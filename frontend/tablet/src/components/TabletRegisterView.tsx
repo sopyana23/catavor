@@ -106,6 +106,18 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
   const [otpCooldown, setOtpCooldown] = useState<number>(60);
   const [otpNextAction, setOtpNextAction] = useState<'step2' | 'free_submit'>('step2');
   const [verificationToken, setVerificationToken] = useState<string>(() => getStoredRegistrationToken(registerForm.email));
+  const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/subscription/plans')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success && Array.isArray(data.data)) {
+          setSubscriptionPlans(data.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!showOtpModal) return;
@@ -1002,10 +1014,10 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
                     Rp 0
                   </span>
                 </div>
-                <div style={{ paddingLeft: '1.65rem', fontSize: '0.76rem', color: '#475569', display: 'flex', gap: '1rem' }}>
-                  <span>15 Item Katalog</span>
+                <div style={{ paddingLeft: '1.65rem', fontSize: '0.76rem', color: '#475569', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <span>{(() => { const f = subscriptionPlans.find((p: any) => p.code === 'free'); return f?.max_items ? `${f.max_items} Item Katalog` : '15 Item Katalog'; })()}</span>
                   <span>100 MB Media</span>
-                  <span>Iklan Sponsor</span>
+                  <span>Direct WhatsApp</span>
                 </div>
               </div>
 
@@ -1051,11 +1063,11 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
                     </span>
                   </div>
                   <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0284c7' }}>
-                    Rp 30.000 <small style={{ fontSize: '0.7rem', color: '#64748b' }}>/bulan</small>
+                    Rp {Number(subscriptionPlans.find((p: any) => p.code === 'pro_starter')?.price_monthly ?? 30000).toLocaleString('id-ID')} <small style={{ fontSize: '0.7rem', color: '#64748b' }}>/bulan</small>
                   </span>
                 </div>
-                <div style={{ paddingLeft: '1.65rem', fontSize: '0.76rem', color: '#475569', display: 'flex', gap: '0.85rem' }}>
-                  <span>150 Item Katalog</span>
+                <div style={{ paddingLeft: '1.65rem', fontSize: '0.76rem', color: '#475569', display: 'flex', gap: '0.85rem', flexWrap: 'wrap' }}>
+                  <span>{(() => { const s = subscriptionPlans.find((p: any) => p.code === 'pro_starter'); return s?.max_items ? `${s.max_items} Item Katalog` : '150 Item Katalog'; })()}</span>
                   <span>2 GB Media</span>
                   <span>100% Bebas Iklan</span>
                 </div>
@@ -1103,7 +1115,7 @@ export const TabletRegisterView: React.FC<TabletRegisterViewProps> = ({
                     </span>
                   </div>
                   <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#d97706' }}>
-                    Rp 129.000 <small style={{ fontSize: '0.7rem', color: '#64748b' }}>/bulan</small>
+                    Rp {Number(subscriptionPlans.find((p: any) => p.code === 'pro_business')?.price_monthly ?? 129000).toLocaleString('id-ID')} <small style={{ fontSize: '0.7rem', color: '#64748b' }}>/bulan</small>
                   </span>
                 </div>
                 <div style={{ paddingLeft: '1.65rem', fontSize: '0.76rem', color: '#475569', display: 'flex', gap: '0.85rem' }}>

@@ -515,17 +515,15 @@ func main() {
 	api.Post("/logout", middleware.AuthRateLimiter(), authHandler.Logout)
 	api.Post("/auth/logout", middleware.AuthRateLimiter(), authHandler.Logout)
 
-	// Public Slug Availability Checking
-	api.Get("/check-slug/:slug", storeHandler.CheckSlug)
-	api.Get("/check-slug", storeHandler.CheckSlug)
+	// Public Slug Availability Checking (rate-limited against enumeration)
+	api.Get("/check-slug/:slug", middleware.SlugCheckRateLimiter(), storeHandler.CheckSlug)
+	api.Get("/check-slug", middleware.SlugCheckRateLimiter(), storeHandler.CheckSlug)
 
-	// Early Email Availability Checking (Anti-Enumeration)
+	// Early Email Availability Checking (POST-only anti-enumeration, never GET query PII)
 	api.Post("/auth/check-email", middleware.AuthRateLimiter(), authHandler.CheckEmail)
-	api.Get("/auth/check-email", middleware.AuthRateLimiter(), authHandler.CheckEmail)
 	api.Post("/check-email", middleware.AuthRateLimiter(), authHandler.CheckEmail)
-	api.Get("/check-email", middleware.AuthRateLimiter(), authHandler.CheckEmail)
-	api.Get("/auth/check-slug/:slug", storeHandler.CheckSlug)
-	api.Get("/auth/check-slug", storeHandler.CheckSlug)
+	api.Get("/auth/check-slug/:slug", middleware.SlugCheckRateLimiter(), storeHandler.CheckSlug)
+	api.Get("/auth/check-slug", middleware.SlugCheckRateLimiter(), storeHandler.CheckSlug)
 
 	// User Auth-Guarded Endpoints (Requires valid JWT Token — scoped per route)
 	authOnly := newScopedGroup(api, middleware.AuthRequired(cfg))

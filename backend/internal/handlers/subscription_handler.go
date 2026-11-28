@@ -1589,23 +1589,12 @@ func (h *SubscriptionHandler) VerifyCoupon(c *fiber.Ctx) error {
 		})
 	}
 
-	planCode := strings.ToLower(strings.TrimSpace(req.Plan))
-	if planCode == "" || planCode == "pro" {
-		planCode = "pro_starter"
-	}
-
-	// Strict platform policy: Only monthly billing cycle is supported (no annual)
-	var originalAmount float64
-	planInfo, _ := services.GetPlanByCode(h.db, planCode)
-	if planInfo != nil {
-		originalAmount = planInfo.PriceMonthly
-	} else {
-		// Fallbacks
-		if planCode == "pro_business" {
-			originalAmount = 129000
-		} else {
-			originalAmount = 30000
-		}
+	planCode, originalAmount := resolvePlanForCheckoutOrRegister(h.db, req.Plan, "pro_starter")
+	if planCode == "free" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Kupon diskon tidak berlaku untuk paket Gratis.",
+		})
 	}
 
 	coupon, discountAmount, finalAmount, err := services.ValidateCoupon(h.db, cleanCode, planCode, originalAmount)

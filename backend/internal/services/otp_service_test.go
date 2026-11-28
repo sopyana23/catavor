@@ -1,6 +1,7 @@
 package services
 
 import (
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,7 +19,8 @@ import (
 func otpTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file::memory:"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger:  logger.Default.LogMode(logger.Silent),
+		NowFunc: func() time.Time { return time.Now().UTC() },
 	})
 	if err != nil {
 		t.Fatalf("buka sqlite: %v", err)
@@ -33,13 +35,14 @@ func otpTestDB(t *testing.T) *gorm.DB {
 
 func seedOTP(t *testing.T, db *gorm.DB, email, code, purpose string, expiresIn time.Duration) models.EmailVerificationOTP {
 	t.Helper()
+	now := time.Now().UTC()
 	rec := models.EmailVerificationOTP{
 		Email:     email,
 		OTPHash:   hashOTP(code),
 		Purpose:   purpose,
 		Attempts:  0,
-		ExpiresAt: time.Now().Add(expiresIn),
-		CreatedAt: time.Now(),
+		ExpiresAt: now.Add(expiresIn),
+		CreatedAt: now,
 	}
 	if err := db.Create(&rec).Error; err != nil {
 		t.Fatalf("seed OTP: %v", err)
@@ -290,13 +293,14 @@ func TestValidateAndConsumeToken_TokenKedaluwarsa(t *testing.T) {
 	db := otpTestDB(t)
 	svc := InitOTPService(db)
 
+	now := time.Now().UTC()
 	rec := models.EmailVerificationOTP{
 		Email:     "x@t.test",
 		OTPHash:   hashOTP("999999"),
 		Purpose:   "registration",
 		Token:     "vt_expired",
-		ExpiresAt: time.Now().Add(-1 * time.Minute),
-		CreatedAt: time.Now(),
+		ExpiresAt: now.Add(-1 * time.Minute),
+		CreatedAt: now,
 	}
 	if err := db.Create(&rec).Error; err != nil {
 		t.Fatalf("seed: %v", err)
@@ -328,12 +332,13 @@ func TestGenerateAndSendOTP_MenggantikanKodeLama(t *testing.T) {
 	svc := InitOTPService(db)
 
 	// Record lama yang sudah lewat cooldown tapi belum kedaluwarsa.
+	now := time.Now().UTC()
 	lama := models.EmailVerificationOTP{
 		Email:     "sup@t.test",
 		OTPHash:   hashOTP("000000"),
 		Purpose:   "registration",
-		ExpiresAt: time.Now().Add(3 * time.Minute),
-		CreatedAt: time.Now().Add(-2 * time.Minute),
+		ExpiresAt: now.Add(3 * time.Minute),
+		CreatedAt: now.Add(-2 * time.Minute),
 	}
 	if err := db.Create(&lama).Error; err != nil {
 		t.Fatalf("seed lama: %v", err)
@@ -370,5 +375,45 @@ func TestGetOTPService(t *testing.T) {
 	svc := InitOTPService(db)
 	if GetOTPService() != svc {
 		t.Error("GetOTPService harus mengembalikan instance terakhir")
+	}
+}
+
+func TestGenerateAndSendOTP_UTCCeilingCooldownAndNoEmoji(t *testing.T) {
+	db := otpTestDB(t)
+	svc := InitOTPService(db)
+
+	// Seed OTP dibuat 59.5 detik yang lalu -> sisa cooldown harus "1 detik" (bukan "0 detik").
+	created := time.Now().UTC().Add(-59500 * time.Millisecond)
+	rec := models.EmailVerificationOTP{
+		Email:     "ceil@t.test",
+		OTPHash:   hashOTP("123456"),
+		Purpose:   "registration",
+		ExpiresAt: created.Add(5 * time.Minute),
+		CreatedAt: created,
+	}
+	if err := db.Create(&rec).Error; err != nil {
+		t.Fatalf("seed cooldown: %v", err)
+	}
+
+	_, err := svc.GenerateAndSendRegistrationOTP("ceil@t.test", "Uji")
+	if err == nil || !strings.Contains(err.Error(), "1 detik") {
+		t.Fatalf("cooldown 59.5s harus menyebut 1 detik (ceil), dapat: %v", err)
+	}
+
+	// Permintaan email baru harus menyimpan timestamp dalam UTC dan memakai token tx.
+	if _, err := svc.GenerateAndSendRegistrationOTP("utc@t.test", "Uji"); err != nil {
+		t.Fatalf("generate UTC: %v", err)
+	}
+	var saved models.EmailVerificationOTP
+	if err := db.Where("email = ?", "utc@t.test").First(&saved).Error; err != nil {
+		t.Fatalf("query saved OTP: %v", err)
+	}
+	if saved.CreatedAt.Location() != time.UTC || saved.ExpiresAt.Location() != time.UTC {
+		t.Errorf("timestamp OTP wajib UTC, got created=%v expires=%v", saved.CreatedAt.Location(), saved.ExpiresAt.Location())
+	}
+
+	otpSrc, rErr := os.ReadFile("otp_service.go")
+	if rErr == nil && strings.Contains(string(otpSrc), "\u23f1") {
+		t.Error("otp_service.go masih mengandung karakter emoji stopwatch")
 	}
 }

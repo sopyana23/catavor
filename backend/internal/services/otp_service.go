@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"math"
 	"math/big"
 	"strings"
 	"time"
@@ -72,54 +73,76 @@ func (s *OTPService) generateAndSendOTP(email string, recipientName string, purp
 		return "", fmt.Errorf("alamat email wajib diisi")
 	}
 
-	// 1. Rate Limit Check: Enforce minimum 60-second cooldown between requests for the same email & purpose
-	var latestOTP models.EmailVerificationOTP
-	err := s.db.Where("email = ? AND purpose = ?", cleanedEmail, purpose).
-		Order("created_at DESC").
-		First(&latestOTP).Error
+	now := time.Now().UTC()
 
-	if err == nil {
-		cooldown := 60 * time.Second
-		if time.Since(latestOTP.CreatedAt) < cooldown {
-			remainingSec := int(cooldown.Seconds() - time.Since(latestOTP.CreatedAt).Seconds())
-			return "", fmt.Errorf("mohon tunggu %d detik sebelum meminta kode baru", remainingSec)
-		}
-	}
-
-	// 2. Invalidate any previous unexpired OTPs for this email and purpose
-	_ = s.db.Where("email = ? AND purpose = ? AND expires_at > ?", cleanedEmail, purpose, time.Now()).
-		Delete(&models.EmailVerificationOTP{}).Error
-
-	// 3. Generate a 6-digit cryptographic OTP
+	// Generate a 6-digit cryptographic OTP before entering transaction
 	otpCode, err := GenerateCryptographicOTP()
 	if err != nil {
 		log.Error().Err(err).Msg("OTPService: Failed to generate cryptographic random OTP")
 		return "", fmt.Errorf("gagal membuat kode verifikasi")
 	}
 
-	otpHash := hashOTP(otpCode)
-	expiresAt := time.Now().Add(5 * time.Minute) // 5 minutes validity
+	var newRecord models.EmailVerificationOTP
+	var cooldownErr error
 
-	// 4. Save to Database
-	newRecord := models.EmailVerificationOTP{
-		Email:     cleanedEmail,
-		OTPHash:   otpHash,
-		Purpose:   purpose,
-		Attempts:  0,
-		ExpiresAt: expiresAt,
-		CreatedAt: time.Now(),
+	txErr := s.db.Transaction(func(tx *gorm.DB) error {
+		// 1. Atomic Rate Limit Check: Enforce minimum 60-second cooldown under row lock
+		var latestOTP models.EmailVerificationOTP
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("email = ? AND purpose = ?", cleanedEmail, purpose).
+			Order("created_at DESC").
+			First(&latestOTP).Error
+
+		if err == nil {
+			cooldown := 60 * time.Second
+			elapsed := now.Sub(latestOTP.CreatedAt)
+			if elapsed < 0 {
+				elapsed = 0
+			}
+			if elapsed < cooldown {
+				remainingSec := int(math.Ceil((cooldown - elapsed).Seconds()))
+				if remainingSec < 1 {
+					remainingSec = 1
+				}
+				cooldownErr = fmt.Errorf("mohon tunggu %d detik sebelum meminta kode baru", remainingSec)
+				return nil
+			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		// 2. Invalidate any previous unexpired OTPs for this email and purpose
+		if delErr := tx.Where("email = ? AND purpose = ? AND expires_at > ?", cleanedEmail, purpose, now).
+			Delete(&models.EmailVerificationOTP{}).Error; delErr != nil {
+			return delErr
+		}
+
+		// 3. Persist hashed OTP in UTC
+		newRecord = models.EmailVerificationOTP{
+			Email:     cleanedEmail,
+			OTPHash:   hashOTP(otpCode),
+			Purpose:   purpose,
+			Attempts:  0,
+			ExpiresAt: now.Add(5 * time.Minute),
+			CreatedAt: now,
+		}
+		return tx.Create(&newRecord).Error
+	})
+
+	if cooldownErr != nil {
+		return "", cooldownErr
 	}
-
-	if err := s.db.Create(&newRecord).Error; err != nil {
-		log.Error().Err(err).Msg("OTPService: Failed to persist OTP record")
+	if txErr != nil {
+		log.Error().Err(txErr).Msg("OTPService: Failed to persist OTP record")
 		return "", fmt.Errorf("gagal menyimpan kode verifikasi")
 	}
 
-	// 5. Construct Beautiful Modern HTML Email Template (escape recipientName against HTML injection)
-	if recipientName == "" {
-		recipientName = "Pengelola Katalog"
+	// 4. Construct Modern HTML Email Template (escape recipientName against HTML injection)
+	displayRecipientName := recipientName
+	if displayRecipientName == "" {
+		displayRecipientName = "Pengelola Katalog"
 	}
-	safeRecipientName := html.EscapeString(recipientName)
+	safeRecipientName := html.EscapeString(displayRecipientName)
 
 	htmlBody := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="id">
@@ -162,7 +185,7 @@ func (s *OTPService) generateAndSendOTP(email string, recipientName string, purp
 
               <!-- Notice & Validity -->
               <p style="margin: 20px 0 0 0; font-size: 13px; color: #cbd5e1; line-height: 1.5; text-align: center;">
-                ⏱️ Kode ini hanya berlaku selama <strong>5 menit</strong>.<br>
+                Kode ini hanya berlaku selama <strong>5 menit</strong>.<br>
                 <span style="color: #ef4444; font-size: 12px;">Jangan berikan kode ini kepada siapa pun, termasuk pihak yang mengatasnamakan Catavor.</span>
               </p>
             </td>
@@ -183,14 +206,13 @@ func (s *OTPService) generateAndSendOTP(email string, recipientName string, purp
     </tr>
   </table>
 </body>
-</html>`, subject, safeRecipientName, introText, otpCode, time.Now().Year())
+</html>`, subject, safeRecipientName, introText, otpCode, now.Year())
 
-	// 6. Send the Email via SMTP Service (Gracefully logs if SMTP is not configured).
-	// Tetap async, tetapi recover dipasang di dalam goroutine: panic di
-	// goroutine fire-and-forget tidak tercakup recover middleware Fiber.
-	go runBackground("OTPService.SendEmail", func() {
-		_ = SendHTMLEmail(cleanedEmail, subject, "Catavor Security", htmlBody)
-	})
+	// 5. Enqueue OTP email via durable EmailQueueService (with direct SMTP fallback if queue is uninitialized).
+	refID := fmt.Sprintf("otp_%s_%d_%d", purpose, newRecord.ID, now.UnixNano())
+	if _, qErr := EnqueueEmail(cleanedEmail, displayRecipientName, "Catavor Security", subject, htmlBody, "otp_"+purpose, refID); qErr != nil {
+		log.Warn().Err(qErr).Str("email", logutil.MaskEmail(cleanedEmail)).Str("purpose", purpose).Msg("OTP email enqueue failed after direct fallback")
+	}
 
 	log.Info().Str("email", logutil.MaskEmail(cleanedEmail)).Str("purpose", purpose).Msg("OTP generated and email dispatched")
 	return otpCode, nil
@@ -206,6 +228,7 @@ func (s *OTPService) VerifyOTP(email string, code string, purpose string) (strin
 		return "", fmt.Errorf("email dan kode verifikasi wajib diisi")
 	}
 
+	now := time.Now().UTC()
 	providedHash := hashOTP(cleanedCode)
 	var verificationToken string
 	var userFacingErr error
@@ -222,7 +245,7 @@ func (s *OTPService) VerifyOTP(email string, code string, purpose string) (strin
 		}
 
 		// Check expiration
-		if time.Now().After(record.ExpiresAt) {
+		if now.After(record.ExpiresAt) {
 			_ = tx.Delete(&record).Error
 			userFacingErr = fmt.Errorf("kode verifikasi telah kedaluwarsa. Silakan minta kode baru")
 			return nil
@@ -250,7 +273,7 @@ func (s *OTPService) VerifyOTP(email string, code string, purpose string) (strin
 		verificationToken = "vt_" + uuid.New().String()
 		record.Token = verificationToken
 		record.OTPHash = "consumed:" + uuid.New().String()
-		record.ExpiresAt = time.Now().Add(15 * time.Minute)
+		record.ExpiresAt = now.Add(15 * time.Minute)
 		return tx.Save(&record).Error
 	})
 
@@ -263,30 +286,27 @@ func (s *OTPService) VerifyOTP(email string, code string, purpose string) (strin
 	return verificationToken, nil
 }
 
-// ValidateAndConsumeToken verifies that a verificationToken was legitimately issued for the email and consumes it.
+// ValidateAndConsumeToken verifies and consumes a one-time verificationToken atomically.
 func (s *OTPService) ValidateAndConsumeToken(email string, token string, purpose string) bool {
+	return s.ValidateAndConsumeTokenInTx(s.db, email, token, purpose)
+}
+
+// ValidateAndConsumeTokenInTx verifies and consumes a one-time verificationToken within the caller's DB/transaction,
+// so any rollback of the outer transaction also preserves the OTP token for user retry.
+func (s *OTPService) ValidateAndConsumeTokenInTx(tx *gorm.DB, email string, token string, purpose string) bool {
+	if tx == nil {
+		tx = s.db
+	}
 	cleanedEmail := strings.TrimSpace(strings.ToLower(email))
 	cleanedToken := strings.TrimSpace(token)
 
-	if cleanedEmail == "" || cleanedToken == "" {
+	if tx == nil || cleanedEmail == "" || cleanedToken == "" {
 		return false
 	}
 
-	var record models.EmailVerificationOTP
-	err := s.db.Where("email = ? AND token = ? AND purpose = ? AND expires_at > ?", cleanedEmail, cleanedToken, purpose, time.Now()).
-		First(&record).Error
-
-	if err != nil {
-		return false
-	}
-
-	// Consume token so it cannot be reused.
-	//
-	// Delete dijadikan satu statement dengan syarat validasinya: SELECT lalu
-	// DELETE terpisah membuka TOCTOU, sehingga dua request bersamaan dengan
-	// token yang sama bisa sama-sama lolos. RowsAffected yang menentukan hasil.
-	res := s.db.Where("email = ? AND token = ? AND purpose = ? AND expires_at > ?",
-		cleanedEmail, cleanedToken, purpose, time.Now()).
+	now := time.Now().UTC()
+	res := tx.Where("email = ? AND token = ? AND purpose = ? AND expires_at > ?",
+		cleanedEmail, cleanedToken, purpose, now).
 		Delete(&models.EmailVerificationOTP{})
 
 	if res.Error != nil {
