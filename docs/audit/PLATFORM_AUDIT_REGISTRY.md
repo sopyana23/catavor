@@ -24,7 +24,7 @@ Dokumen ini menjadi **Single Source of Truth (SSOT)** lintas sesi untuk melacak 
 
 ## 1. Peta Status Audit Seluruh Modul Platform
 
-### 1.1 Modul Sudah Diaudit & Terverifikasi (`14` Modul)
+### 1.1 Modul Sudah Diaudit & Terverifikasi (`15` Modul)
 
 | No | Modul / Fitur | Cakupan Audit | Referensi Commit & Dokumen | Status |
 | :--- | :--- | :--- | :--- | :--- |
@@ -41,21 +41,21 @@ Dokumen ini menjadi **Single Source of Truth (SSOT)** lintas sesi untuk melacak 
 | 11 | **MFA, Auth Token & Edge Hardening** | TOTP & backup codes, lockout durable, mandatory MFA staf, session completion atomik, XFF & nonce OAuth Google | `f024bd90`, `3b69a626`, `81ab0e13`, `63c7910a`, `7c91dfe8`, `25ce0bdb` | **AUDITED & VERIFIED** |
 | 12 | **Mesin Otomasi Platform (`Automation Engine`)** | Pemisahan 25 katalog worker & 11 kontrol manual, RBAC trigger, preview simulasi tanpa mutasi | `1b650405`, `932900b2`, `76ed14fb`; `docs/audit/2026-11-19-audit-mesin-otomasi-platform.md` | **AUDITED & VERIFIED** |
 | 13 | **Storage S3/Lokal & Catalog Export** | Kebijakan retensi file, driver S3 & factory coverage, RBAC ekspor katalog & produk, sanitasi path | `d1982d39`, `1ec786e5`, `a9927421`, `3c9dc628`; `docs/audit/2026-10-31-audit-merchant-admin-triple-device-storage-s3.md` | **AUDITED & VERIFIED** |
-| 14 (**A1**) | **Dormancy Toko, Reaktivasi & Retensi Item/File** | Siklus 30/38/45/60 hari, 2-step Magic Link, self-reactivation dormant vs moderasi block, retensi H-7/H-30/H-90 & 72j, worker banned 90h, metrics & paritas Desktop/Tablet/Mobile | Audit & Remediasi `2026-11-28` (lihat [Bagian A1](#a1-audit-mendalam-dormancy-toko-reaktivasi--retensi-itemfile-2026-11-28); test baru: `dormancy_handler_test.go`, `item_retention_service_test.go`, Playwright E2E `12/12` pass) | **AUDITED & VERIFIED** |
+| 14 (**A1**) | **Dormancy Toko, Reaktivasi & Retensi Item/File** | Siklus 30/38/45/60 hari, 2-step Magic Link, self-reactivation dormant vs moderasi block, retensi H-7/H-30/H-90 & 72j, worker banned 90h, metrics & paritas Desktop/Tablet/Mobile | Audit & Remediasi `2026-11-28` (`c9abd10f`, `6400264d`; test baru: `dormancy_handler_test.go`, `item_retention_service_test.go`, Playwright E2E `12/12` pass) | **AUDITED & VERIFIED** |
+| 15 (**A2**) | **Registrasi Merchant, OTP, Google SSO & Checkout Paket Awal** | Transaksi atomik `Register` + `GoogleAuth` Case B, `BlacklistedSlug`, OTP UTC + outbox + cooldown lock + no-emoji, `CheckEmail` anti-enumeration `N-17`, rate-limit `CheckSlug`, fallback `gateway_aulaa`, harga paket dinamis `/subscription/plans`, paritas Desktop/Tablet/Mobile + modal back/drag | Audit & Remediasi `2026-11-28` (lihat [Bagian A2](#a2-audit-mendalam-registrasi-merchant-otp-google-sso--checkout-paket-awal-2026-11-28); test baru di `auth_handler_test.go`, `otp_service_test.go`; Playwright + HTTP `6/6` pass) | **AUDITED & VERIFIED** |
 
 ---
 
 ### 1.2 Modul Sedang Diaudit / Menunggu Remediasi (`0` Modul)
 
-*Tidak ada modul berstatus pending saat ini; seluruh temuan A1 (`DORM-P0/P1/P2`) telah selesai diperbaiki dan diverifikasi.*
+*Tidak ada modul berstatus pending saat ini; seluruh temuan A1 dan A2 telah selesai diperbaiki dan diverifikasi.*
 
 ---
 
-### 1.3 Antrean Modul Tersisa Untuk Audit Berikutnya (`7` Modul)
+### 1.3 Antrean Modul Tersisa Untuk Audit Berikutnya (`6` Modul)
 
 | Urutan | Modul / Fitur Tersisa | Area Kode Utama | Alasan / Indikasi Risiko Awal | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **A2** | **Registrasi Merchant, OTP, Google SSO & Checkout Paket Awal** | `auth_handler.go`, `DesktopCheckoutView.tsx`, `TabletCheckoutView.tsx`, `TabletRegisterView.tsx`, `MobileCancelRegistrationModal.tsx` | Baru mendapat tambalan OTP & layout spacing (`9534774d`, `8a71b96d`, `5818f1d`). Perlu audit E2E penuh: pilih paket -> OTP -> batal registrasi -> switch akun -> idempotensi order di 3 device. | **PARTIAL / ANTREAN** |
 | **A3** | **Direktori Toko Pengelola & Pengaturan Global Platform** | `store_handler.go` (`AdminListStores`, `AdminGetStoreDetail`), `setting_handler.go`, `AdminStoresManagement.tsx`, `TabletPlatformStoresView.tsx`, `OfficialContactModal.tsx` | Pengelolaan merchant oleh Admin Pengelola (filter, paginasi, suspend/unsuspend, verifikasi/lencana, kuota storage, kontak resmi) belum diaudit lintas peran Pengelola di 3 device. | **NOT YET AUDITED** |
 | **A4** | **Pusat Notifikasi In-App & Siklus Hidup SSE** | `notification_handler.go`, `notification_hub.go`, `notification_cleaner.go`, `NotificationHeaderPopover.tsx` | Komponen popover notifikasi khusus hanya terlihat di Desktop; perlu cek paritas UX Tablet/Mobile, isolasi SSE multi-tenant, read/dismiss state, dan cleaner. | **NOT YET AUDITED** |
 | **A5** | **Safe Domains & Peringatan Tautan Eksternal** | `safe_domain_handler.go`, `AdminSafeDomainsManagement.tsx`, `ExternalLinkWarningModal.tsx` | Tidak memiliki `safe_domain_handler_test.go`; perlu audit validasi domain (IDN/punycode, subdomain bypass, open redirect) dan konsistensi modal peringatan eksternal di 3 device. | **NOT YET AUDITED** |
@@ -268,4 +268,89 @@ Seluruh perbaikan Gelombang 1 & Gelombang 2 telah selesai diimplementasikan dan 
 
 ---
 
-*(Gunakan format sub-section `## A2`, `## A3`, dst. di bawah garis ini saat melaksanakan audit modul berikutnya secara berurutan.)*
+### A2. Audit Mendalam: Registrasi Merchant, OTP, Google SSO & Checkout Paket Awal (`2026-11-28`)
+
+#### A2.1 Ruang Lingkup & File Terinspeksi
+Audit dilakukan dengan membaca langsung kode sumber backend, model database, layanan OTP, utilitas shared frontend, serta komponen & orkestrasi ketiga antarmuka frontend (tanpa mengubah kode produksi):
+- **Backend, Model & Routing**:
+  - `backend/cmd/server/main.go` (L491–529 — rute auth, OTP, register, `check-email`, `check-slug`)
+  - `backend/internal/handlers/auth_handler.go` (`Register` L725–1445, `GoogleAuth` L1445–2020, `CheckEmail`/`SendRegistrationOTP`/`VerifyRegistrationOTP` L2705–2925)
+  - `backend/internal/handlers/store_handler.go` (`CheckSlug` L954–997)
+  - `backend/internal/handlers/subscription_handler.go` (`GetPlans` L57–84, `VerifyCoupon` L1568–1635)
+  - `backend/internal/services/otp_service.go` (L1–298)
+  - `backend/internal/models/otp.go` (L1–15), `backend/internal/models/blacklisted_slug.go` (L1–16), `backend/internal/models/user.go` (L1–54)
+- **Test Baseline Terkait**:
+  - `backend/internal/handlers/google_auth_hardening_test.go` (L1–100), `backend/internal/services/otp_service_test.go`, `backend/internal/handlers/payment_coupon_hardening_test.go`
+- **Shared & Tri-Frontend**:
+  - Shared: `frontend/shared/auth/registrationOtp.ts` (L1–153), `frontend/shared/auth/SharedRegistrationOtpModal.tsx` (L1–334)
+  - Desktop: `frontend/desktop/src/App.tsx` (L12110–12360, L12617–12715, L15290–15325, L16515–16580, L16975–17115), `frontend/desktop/src/components/DesktopCheckoutView.tsx` (L1–620, L2460–2560)
+  - Tablet: `frontend/tablet/src/App.tsx` (L855–935), `frontend/tablet/src/components/TabletRegisterView.tsx` (L1–1270), `frontend/tablet/src/components/TabletCheckoutView.tsx` (L1–620, L2405–2505)
+  - Mobile: `frontend/mobile/src/App.tsx` (L9404, L12735–12945, L13221–13510, L13780–13835, L16020–16055, L17055–17120, L17520–17670, L17980–18050), `frontend/mobile/src/components/MobileCancelRegistrationModal.tsx` (L1–366)
+
+#### A2.2 Ringkasan Pengukuran Baseline (Sebelum Remediasi)
+| Pemeriksaan | Hasil Pengukuran Aktual (`go test -count=1`) | Catatan Audit |
+| :--- | :--- | :--- |
+| `./internal/handlers` (`Test.*Google\|Test.*Register\|Test.*OTP\|Test.*Auth\|TestStoreCheckSlug\|TestVerifyCoupon`) | **15 test top-level (termasuk 33 subtest) PASS** (`3.977s`) | Tidak ada test yang memeriksa atomisitas `GoogleAuth` Case B, `BlacklistedSlug` pada `GoogleAuth`, `CheckEmail` anti-enumeration, atau retry OTP token saat `tx` register gagal. |
+| `./internal/services` (`Test.*OTP\|Test.*Coupon\|Test.*Upgrade`) | **27 test top-level PASS** (`0.394s`) | Tidak ada test yang menguji race cooldown `GenerateAndSendOTP`, konversi UTC, atau kegagalan kirim SMTP latar belakang. |
+
+#### A2.3 Matriks Temuan Audit (`0` P0, `4` P1, `4` P2, `1` P3)
+| ID | Severity | Area | Ringkasan Temuan | Bukti Lokasi Kode |
+| :--- | :--- | :--- | :--- | :--- |
+| **REG-P1-01** | **P1** | BE / Security / DB | `GoogleAuth` Case B (registrasi toko baru via Google) melewatkan cek `models.BlacklistedSlug`, membuat `User` & `Store` di luar transaksi tanpa rollback jika `newStore` gagal (orphan user), memakai waktu lokal `time.Now()`, serta tidak mengembalikan `stores`, `active_store`, maupun memicu `DispatchRegistrationOnboarding`. | `auth_handler.go` L1728–1894 |
+| **REG-P1-02** | **P1** | BE / DB Transaction | `Register` menghanguskan `verification_token` (`ValidateAndConsumeToken`) **sebelum** membuat `User` dan sebelum transaksi `Store` + `SubscriptionOrder` + kupon. Jika `tx` gagal (konflik kupon / slug race / DB error), `newUser` dihapus manual namun token OTP sudah musnah (user dipaksa OTP ulang); selain itu `h.db.Create(&newUser)` berada di luar `h.db.Transaction` sehingga crash di tengah berisiko menyisakan orphan `User`. | `auth_handler.go` L1112, L1144–1152, L1195–1334 |
+| **REG-P1-03** | **P1** | BE / Security / FE | `CheckEmail` (`/api/auth/check-email`) melanggar kebijakan anti-enumerasi `N-17` dengan mengembalikan `available: false` dan pesan eksplisit akun sudah terdaftar; ketiga frontend juga memanggil `GET /api/auth/check-email?email=...` saat Google SSO sehingga email PII masuk ke log proxy/akses HTTP. | `auth_handler.go` L2711–2757; `main.go` L523–526; Desktop `App.tsx` L12124, L16525; Tablet `App.tsx` L865, `TabletRegisterView.tsx` L231; Mobile `App.tsx` L12748, L17065 |
+| **REG-P1-04** | **P1** | FE / Billing Gateway | Saat mode `gateway_aulaa` aktif dan `CreateAulaaPayment` gagal (`payment_url: ""`), `Register` tetap mengembalikan `201 Created`. Mobile langsung redirect ke `/${slug}/admin` tanpa membayar (silent bypass); Desktop & Tablet sudah menyimpan token + menghapus draft tetapi menampilkan error pada form checkout yang jika diklik ulang menembak `POST /register` kedua kalinya (ditolak `409`/duplikat). | `auth_handler.go` L1336–1365; Mobile `App.tsx` L13425–13432; `DesktopCheckoutView.tsx` L531–558; `TabletCheckoutView.tsx` L527–554 |
+| **REG-P2-01** | **P2** | FE Tablet SSO | Pada alur Google SSO Tablet saat `isRegisterFlow === true`, handler langsung melangkah ke `/register/step-2` **tanpa memeriksa** `res.ok && data.success`, status MFA, atau validitas `google_registration_token`. Kegagalan backend Google SSO tetap meloloskan user ke Step 2 dengan token kosong. | `frontend/tablet/src/App.tsx` L857–904 |
+| **REG-P2-02** | **P2** | BE + Tri-FE Parity | Daftar kode paket di `Register` (`free`, `pro`, `pro_starter`, `pro_business`) dan harga fallback (`30000` / `129000`) masih di-hardcode di BE dan ketiga FE (`Step 3` & `Checkout`), tidak mengambil harga aktual dari `/api/subscription/plans`; `DesktopCheckoutView` & `TabletCheckoutView` masih menyimpan state/query `'annual'` walau BE mengunci bulanan; kartu Free di Tablet masih menampilkan copy `"Iklan Sponsor"` yang tidak ada di Desktop & Mobile. | `auth_handler.go` L954–982; `subscription_handler.go` L1592–1609; Desktop `App.tsx` L17041, L17086; `DesktopCheckoutView.tsx` L85, L306–307; `TabletRegisterView.tsx` L1008, L1054, L1106; `TabletCheckoutView.tsx` L113, L303–304; Mobile `App.tsx` L17584, L17629 |
+| **REG-P2-03** | **P2** | BE OTP Service | `otp_service.go` menggunakan waktu lokal `time.Now()` (bukan `.UTC()`) di 7 titik, menyisipkan karakter emoji stopwatch pada HTML email OTP (`L165`, melanggar aturan anti-emoji `AGENTS.md`), mengirim email via goroutine `runBackground` tanpa outbox retry persisten, serta membiarkan race cooldown (`TOCTOU` antar query & delete/insert) plus truncation `(60 - int(elapsed.Seconds()))` yang bisa mencetak `Tunggu 0 detik`. Pembuatan `orderNumber` di `auth_handler.go` L1268 juga memakai waktu lokal & modulo 4-digit nanosecond. | `otp_service.go` L76–116, L165, L191, L225–289; `auth_handler.go` L1268 |
+| **REG-P2-04** | **P2** | Tri-FE UX & Modal Back | `TabletCheckoutView` & Mobile memakai `alert(...)` bawaan browser; modal konfirmasi batal checkout (`showCancelModal`) di Desktop & Tablet tidak dipasangi `useModalBackHandler` / `setupModalBackInterceptor`; `SharedRegistrationOtpModal` pada mode `device="mobile"` menampilkan drag handle bar dekoratif tanpa fisika drag-down maupun internal `useModalBackHandler`. | `TabletCheckoutView.tsx` L395, L2430; `DesktopCheckoutView.tsx` L2486; Mobile `App.tsx` L13341, L13451–13458; `SharedRegistrationOtpModal.tsx` L52–61, L137–141 |
+| **REG-P3-01** | **P3** | BE Security & State Clean | Endpoint publik `GET /api/check-slug` dan `/api/auth/check-slug` belum memiliki `AuthRateLimiter()` / rate limiter publik (berbeda dengan `/check-email`). Selain itu, pembatalan pendaftaran (`handleConfirmCancel` / `handleConfirmMobileCancel`) menghapus sebagian kunci `sessionStorage` tanpa menghapus `catavor_reg_otp_verified` (`clearStoredRegistrationToken`) dan `catavor_aulaa_channel`. | `main.go` L519–520, L527–528; `DesktopCheckoutView.tsx` L594–602; `TabletCheckoutView.tsx` L589–597; Mobile `App.tsx` L13794–13802 |
+
+#### A2.4 Sub-Catatan Audit Mendalam Per Masalah
+1. **Orphan Account & Hilangnya Token OTP (`REG-P1-01` & `REG-P1-02`)**:
+   - Pada `Register` (`auth_handler.go:1112–1334`), penghapusan token verifikasi di awal membuat kegagalan transaksi kupon/slug mengharuskan merchant meminta ulang OTP 60 detik kemudian. Pemindahan `ValidateAndConsumeToken` **atau** konsumsi OTP ke dalam satu transaksi atomik yang membungkus `User + Store + SubscriptionOrder + Kupon` (bersama cek `BlacklistedSlug` dan `IsBlacklisted` di `GoogleAuth` Case B) mencegah akun tanpa toko sekaligus menjaga pengalaman user saat terjadi error sementara.
+2. **Kontradiksi Anti-Enumeration vs UX Step 1 (`REG-P1-03`)**:
+   - `SendRegistrationOTP` sudah menerapkan `responsSeragam` (`N-17`), tetapi `CheckEmail` membocorkan status terdaftarnya email secara langsung. Alternatif standar industri:
+     - Opsi A (Strict Anti-Enumeration): Hapus pengungkapan eksplisit di `/check-email` dan delegasikan validasi akun duplikat ke email pemberitahuan saat OTP dikirim (*"Jika email belum terdaftar, kode OTP telah dikirim..."*).
+     - Opsi B (Rate-Limited UX Check + POST Only): Hapus seluruh rute `GET` ber-query string (`?email=...`), batasi per-IP/fingerprint ketat, dan tetap samakan pesan untuk email blacklisted.
+3. **Kegagalan Gateway Aulaa Saat Registrasi (`REG-P1-04`)**:
+   - Jika `payment_mode == "gateway_aulaa"` gagal menghasilkan `payment_url` dari Aulaa, frontend seharusnya tidak menyimpan state seolah checkout gagal sebelum registrasi (memicu double-submit) atau melempar merchant Mobile ke `/admin` tanpa pembayaran; backend dan ketiga frontend wajib mengarahkan merchant dengan sesi baru tersebut ke halaman **Tagihan / Pending Order** (`/{slug}/admin/subscription?order=...`) agar pembayaran bisa dicoba ulang secara idempoten tanpa registrasi ulang.
+4. **Matriks Paritas Tri-Frontend A2**:
+   - **OTP Modal**: Ketiganya memakai `SharedRegistrationOtpModal`, namun Mobile perlu fisika drag-down + konsistensi back handler internal/parent, sementara Tablet sudah memakai `setupModalBackInterceptor` pada `showOtpModal`.
+   - **Cancel Modal**: Mobile sudah memiliki komponen khusus `MobileCancelRegistrationModal.tsx` (drag handle + `useModalBackHandler` + header bersih tanpa X); Desktop & Tablet masih memakai inline dialog di CheckoutView tanpa back-handler.
+   - **Step 3 Plan & Harga**: Ketiga frontend masih menaruh harga statis `Rp 30.000` / `Rp 129.000`; Tablet juga masih menyisakan label `"Iklan Sponsor"` pada paket Free.
+
+#### A2.5 Rencana Remediasi Terstruktur (Menunggu Persetujuan / Eksekusi)
+- **Gelombang 1 — Backend Atomicity, Keamanan Google SSO & OTP Hardening**:
+  1. Bungkus `User` + `Store` + `SubscriptionOrder` + konsumsi token OTP ke dalam satu `h.db.Transaction` pada `Register`, serta tambahkan transaksi atomik, cek `BlacklistedSlug` + `users.is_blacklisted`, waktu `.UTC()`, payload `stores`/`active_store`, dan `DispatchRegistrationOnboarding` pada `GoogleAuth` Case B.
+  2. Putuskan kebijakan final `CheckEmail` (hapus endpoint `GET` query `?email=...` + selaraskan anti-enumeration `N-17` atau throttling ketat), tambahkan rate limiter pada `/check-slug` & `/auth/check-slug`.
+  3. Ubah `otp_service.go` agar seluruh timestamp menggunakan `.UTC()`, hapus emoji stopwatch pada HTML email OTP (`L165`), perbaiki pembulatan cooldown (`math.Ceil`), tutup race cooldown dengan row-lock/transaksi, dan migrasi dispatch email OTP ke mekanisme outbox/retry yang andal (atau tangani kegagalan sinkron/queue tanpa mengunci user).
+  4. Perkuat validasi paket dinamis dari tabel `subscription_plans` pada `Register` & `VerifyCoupon` (menghapus ketergantungan daftar paket hardcode serta memakai integer minor unit/decimal yang presisi).
+  5. Tambah unit test regresi di `backend/internal/handlers/` dan `backend/internal/services/` yang mencakup seluruh kasus `REG-P1` & `REG-P2` di atas.
+- **Gelombang 2 — Paritas Tri-Frontend (Desktop, Tablet, Mobile) & Verifikasi E2E**:
+  1. Perbaiki alur fallback `gateway_aulaa` tanpa `payment_url` di Desktop, Tablet, dan Mobile agar mengarahkan user yang sudah terbentuk akunnya ke halaman pembayaran order tertunda (anti double-submit `409` & anti silent bypass Mobile).
+  2. Perbaiki `frontend/tablet/src/App.tsx` Google SSO `isRegisterFlow` agar memvalidasi `res.ok && data.success` dan meneruskan status MFA/error dengan benar.
+  3. Hidrasi harga & kuota Step 3 serta Checkout dari `GET /api/subscription/plans`, bersihkan state `annual` usang pada Checkout Desktop/Tablet, samakan copy paket Free Tablet (hapus `"Iklan Sponsor"`), serta ganti seluruh native `alert(...)` di Tablet & Mobile dengan inline/toast UI.
+  4. Pasang `useModalBackHandler` / `setupModalBackInterceptor` pada `showCancelModal` Desktop & Tablet, lengkapi `clearStoredRegistrationToken()` pada seluruh alur batal registrasi, dan tingkatkan fisika bottom-sheet `SharedRegistrationOtpModal` untuk `device="mobile"`.
+  5. Verifikasi penuh: `go test -count=1 ./...`, Tri-Build (`desktop` + `tablet` + `mobile`), dan uji alur registrasi/checkout/cancel E2E via Playwright.
+
+#### A2.6 Status Remediasi & Bukti Verifikasi Final (`2026-11-28`)
+Seluruh perbaikan **Gelombang 1 (Backend & DB/OTP)** dan **Gelombang 2 (Tri-Frontend & Shared OTP Modal)** telah diimplementasikan dan diverifikasi setelah edit kode terakhir:
+- **Backend Go Tests (`go test -count=1 ./...`)**: Seluruh 13 paket ber-test di `backend/` lulus (`exit code 0`), mencakup:
+  - `catavor-backend/cmd/admin-cli` (`1.541s`), `cmd/server` (`0.068s`), `internal/config` (`0.623s`), `internal/database` (`1.032s`), `internal/handlers` (`29.557s`), `internal/logutil` (`0.101s`), `internal/mfa` (`0.275s`), `internal/middleware` (`0.445s`), `internal/models` (`0.223s`), `internal/security` (`0.145s`), `internal/services` (`18.932s`), `internal/storage` (`0.265s`), `internal/utils` (`0.098s`).
+  - Test baru yang ditambahkan: `TestCheckEmail_AntiEnumeration`, `TestRegister_TxRollbackPreservesUserAndOTPToken`, `TestVerifyCoupon_RejectsFreeAndResolvesDynamicPlan`, `TestRegister_GatewayAulaaFallbackSetsRequiresPaymentAction`, `TestSlugCheckRateLimiter_AndGoogleCaseBHardening` di `backend/internal/handlers/auth_handler_test.go`, serta `TestGenerateAndSendOTP_UTCCeilingCooldownAndNoEmoji` di `backend/internal/services/otp_service_test.go` (plus perbaikan UTC `NowFunc` fixture di `otpTestDB`).
+- **Tri-Build SPA (0 error TypeScript & Vite)**:
+  - `frontend/desktop`: built in `1.83s` (`2009 modules`).
+  - `frontend/tablet`: built in `1.55s` (`2020 modules`).
+  - `frontend/mobile`: built in `2.05s` (`2004 modules`).
+- **Playwright + HTTP Live Runtime (`6/6 passed` pada server `catavor_audit` port `8199` & PostgreSQL terisolasi `catavor_audit_tmp`)**:
+  - `GET /api/auth/check-email?email=...` ditolak `404` (route GET PII Query String dihapus).
+  - `POST /api/auth/check-email` mengembalikan respons netral `200 { available: true }` sesuai kebijakan anti-enumerasi `N-17`.
+  - `GET /api/subscription/plans` aktif (`3 plans`, `pro_starter=30000`) dan dihidrasi oleh ketiga frontend.
+  - Desktop (`1280x800`): OTP modal terbuka dan menutup via `goBack()`, halaman Checkout `?billing=annual` menampilkan Cancel confirmation dialog dengan back-handler yang aman tanpa keluar halaman dan 0 native `alert()`.
+  - Tablet (`768x1024`): OTP modal back-handler bekerja, Step 3 bersih dari copy `"Iklan Sponsor"`, Checkout Cancel modal menutup via `goBack()` dan 0 native `alert()`.
+  - Mobile (`390x844`): OTP bottom sheet aktif dengan `touch-action: none` pada drag header + `goBack()` close, serta submit Checkout tanpa bukti mengaktifkan inline/toast error dengan 0 native browser `alert()`.
+
+---
+
+*(Gunakan format sub-section `### A3`, `### A4`, dst. di bawah garis ini saat melaksanakan audit modul berikutnya secara berurutan.)*
