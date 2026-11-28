@@ -154,12 +154,14 @@ func (h *NotificationHub) GetActiveClientsCount() int {
 
 type hubPubSubEnvelope struct {
 	OriginNode       string               `json:"origin_node"`
-	Kind             string               `json:"kind"` // "notification" | "notification_deleted" | "ticket_event"
+	Kind             string               `json:"kind"` // "notification" | "notification_deleted" | "ticket_event" | "store_event" | "quota_event"
 	NotificationID   string               `json:"notification_id,omitempty"`
 	Notification     *models.Notification `json:"notification,omitempty"`
 	TargetRecipients string               `json:"target_recipients,omitempty"`
 	EventType        string               `json:"event_type,omitempty"`
 	TicketData       interface{}          `json:"ticket_data,omitempty"`
+	StoreData        interface{}          `json:"store_data,omitempty"`
+	QuotaData        interface{}          `json:"quota_data,omitempty"`
 	TargetUserID     uint                 `json:"target_user_id,omitempty"`
 	TargetStoreID    uint                 `json:"target_store_id,omitempty"`
 	TargetRole       string               `json:"target_role,omitempty"`
@@ -211,6 +213,14 @@ func (h *NotificationHub) StartRedisPubSubBridge(ctx context.Context) {
 					if env.EventType != "" {
 						h.dispatchLocalTicketEvent(env.EventType, env.TicketData, env.TargetUserID, env.TargetStoreID, env.TargetRole)
 					}
+				case "store_event":
+					if env.EventType != "" {
+						h.dispatchLocalStoreEvent(env.EventType, env.StoreData, env.TargetStoreID, env.TargetUserID)
+					}
+				case "quota_event":
+					if env.TargetStoreID > 0 {
+						h.dispatchLocalQuotaEvent(env.TargetStoreID, env.QuotaData)
+					}
 				}
 			}
 		}()
@@ -256,7 +266,7 @@ func (h *NotificationHub) dispatchLocalBroadcast(notif *models.Notification) int
 
 	payload, err := json.Marshal(map[string]interface{}{
 		"event":        "notification",
-		"notification": notif,
+		"notification": notif.SanitizedForRecipient(),
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	})
 	if err != nil {
@@ -435,13 +445,43 @@ func (h *NotificationHub) dispatchLocalTicketEvent(eventType string, ticketData 
 }
 
 // BroadcastStoreEvent sends a real-time store lifecycle event (such as store_status_updated)
-// to connected clients for that store, specific user, or platform administrators.
+// to connected clients for that store, specific user, or platform administrators (bridged via Redis Pub/Sub).
 func (h *NotificationHub) BroadcastStoreEvent(eventType string, storeData interface{}, targetStoreID uint, targetUserID ...uint) {
+	var uID uint
+	if len(targetUserID) > 0 {
+		uID = targetUserID[0]
+	}
+
+	sentCount := h.dispatchLocalStoreEvent(eventType, storeData, targetStoreID, uID)
+
+	if database.IsRedisAvailable() {
+		env := hubPubSubEnvelope{
+			OriginNode:    h.nodeID,
+			Kind:          "store_event",
+			EventType:     eventType,
+			StoreData:     storeData,
+			TargetStoreID: targetStoreID,
+			TargetUserID:  uID,
+		}
+		if b, err := json.Marshal(env); err == nil {
+			_ = database.PublishEvent(context.Background(), redisNotificationPubSubChannel, string(b))
+		}
+	}
+
+	log.Info().
+		Str("event", eventType).
+		Uint("target_store", targetStoreID).
+		Uint("target_user", uID).
+		Int("sent_count", sentCount).
+		Msg("Realtime store broadcast delivered")
+}
+
+func (h *NotificationHub) dispatchLocalStoreEvent(eventType string, storeData interface{}, targetStoreID uint, targetUserID uint) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
 	if len(h.clients) == 0 {
-		return
+		return 0
 	}
 
 	payload, err := json.Marshal(map[string]interface{}{
@@ -451,12 +491,7 @@ func (h *NotificationHub) BroadcastStoreEvent(eventType string, storeData interf
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to serialize store SSE broadcast")
-		return
-	}
-
-	var uID uint
-	if len(targetUserID) > 0 {
-		uID = targetUserID[0]
+		return 0
 	}
 
 	sentCount := 0
@@ -466,9 +501,9 @@ func (h *NotificationHub) BroadcastStoreEvent(eventType string, storeData interf
 			shouldSend = true
 		} else if client.StoreID == targetStoreID {
 			shouldSend = true
-		} else if client.PlatformRole == "superadmin" {
+		} else if models.IsPlatformStaffRole(client.PlatformRole) {
 			shouldSend = true
-		} else if uID > 0 && client.UserID == uID {
+		} else if targetUserID > 0 && client.UserID == targetUserID {
 			shouldSend = true
 		}
 
@@ -481,23 +516,42 @@ func (h *NotificationHub) BroadcastStoreEvent(eventType string, storeData interf
 			}
 		}
 	}
-
-	log.Info().
-		Str("event", eventType).
-		Uint("target_store", targetStoreID).
-		Uint("target_user", uID).
-		Int("sent_count", sentCount).
-		Msg("Realtime store broadcast delivered")
+	return sentCount
 }
 
 // BroadcastQuotaEvent sends a real-time store quota & storage synchronization event
-// to connected clients for that store and platform administrators.
+// to connected clients for that store and platform administrators (bridged via Redis Pub/Sub).
 func (h *NotificationHub) BroadcastQuotaEvent(targetStoreID uint, quotaData interface{}) {
+	if targetStoreID == 0 {
+		return
+	}
+
+	sentCount := h.dispatchLocalQuotaEvent(targetStoreID, quotaData)
+
+	if database.IsRedisAvailable() {
+		env := hubPubSubEnvelope{
+			OriginNode:    h.nodeID,
+			Kind:          "quota_event",
+			TargetStoreID: targetStoreID,
+			QuotaData:     quotaData,
+		}
+		if b, err := json.Marshal(env); err == nil {
+			_ = database.PublishEvent(context.Background(), redisNotificationPubSubChannel, string(b))
+		}
+	}
+
+	log.Info().
+		Uint("target_store", targetStoreID).
+		Int("sent_count", sentCount).
+		Msg("Realtime quota broadcast delivered")
+}
+
+func (h *NotificationHub) dispatchLocalQuotaEvent(targetStoreID uint, quotaData interface{}) int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
 	if len(h.clients) == 0 || targetStoreID == 0 {
-		return
+		return 0
 	}
 
 	payload, err := json.Marshal(map[string]interface{}{
@@ -508,7 +562,7 @@ func (h *NotificationHub) BroadcastQuotaEvent(targetStoreID uint, quotaData inte
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to serialize quota SSE broadcast")
-		return
+		return 0
 	}
 
 	sentCount := 0
@@ -516,7 +570,7 @@ func (h *NotificationHub) BroadcastQuotaEvent(targetStoreID uint, quotaData inte
 		shouldSend := false
 		if client.StoreID == targetStoreID {
 			shouldSend = true
-		} else if client.PlatformRole == "superadmin" {
+		} else if models.IsPlatformStaffRole(client.PlatformRole) {
 			shouldSend = true
 		}
 
@@ -529,11 +583,7 @@ func (h *NotificationHub) BroadcastQuotaEvent(targetStoreID uint, quotaData inte
 			}
 		}
 	}
-
-	log.Info().
-		Uint("target_store", targetStoreID).
-		Int("sent_count", sentCount).
-		Msg("Realtime quota broadcast delivered")
+	return sentCount
 }
 
 // isClientTargetMatch checks if a connected client satisfies the notification target constraints.

@@ -632,3 +632,81 @@ func TestNotificationSuperadminBroadcast(t *testing.T) {
 		t.Errorf("target_type = %q, want all", n.TargetType)
 	}
 }
+
+func TestNotificationRecipientPrivacyAndFilteredTotal(t *testing.T) {
+	db := newTestDB(t)
+	app := notifApp(t, db)
+	app.Get("/api/notifications/:id", NewNotificationHandler(db).GetNotificationByID)
+
+	u1, s1, _, s2 := notifUsers(t, db)
+
+	specID := "notif-spec-priv-1"
+	mkNotif(t, db, models.Notification{
+		ID:                  specID,
+		TargetType:          "specific",
+		TargetName:          fmt.Sprintf("2 Penerima Terpilih (%s, %s)", s1.StoreTitle, s2.StoreTitle),
+		TargetRecipients:    fmt.Sprintf(`[{"type":"store","id":%d},{"type":"store","id":%d}]`, s1.ID, s2.ID),
+		TargetAudienceCount: 2,
+		CreatedBy:           99,
+		IsBroadcast:         true,
+		Status:              "published",
+		Title:               "Pemberitahuan Privat",
+		Message:             "Isi pesan spesifik",
+		Category:            "KEAMANAN",
+		Type:                "warning",
+	})
+	mustCreate(t, db, &models.NotificationRecipient{
+		NotificationID: specID,
+		RecipientType:  "store",
+		RecipientID:    s1.ID,
+		RecipientName:  s1.StoreTitle,
+	})
+	mustCreate(t, db, &models.NotificationRecipient{
+		NotificationID: specID,
+		RecipientType:  "store",
+		RecipientID:    s2.ID,
+		RecipientName:  s2.StoreTitle,
+	})
+	mkNotif(t, db, models.Notification{
+		ID:       "notif-sys-priv-2",
+		TargetType: "single_store",
+		TargetID: s1.ID,
+		Title:    "Update Katalog",
+		Message:  "Info umum",
+		Category: "PANDUAN",
+		Type:     "system",
+	})
+
+	status, body, raw := notifCall(t, app, "GET", "/api/notifications?slug="+s1.Slug+"&category=security", u1.ID)
+	if status != 200 {
+		t.Fatalf("GET notifications status=%d raw=%s", status, raw)
+	}
+	if strings.Contains(raw, s2.StoreTitle) {
+		t.Fatalf("PRIVACY LEAK: GET /api/notifications exposed sibling store name %q: %s", s2.StoreTitle, raw)
+	}
+	if int(body["total_filtered"].(float64)) != 1 || int(body["total_all"].(float64)) != 2 {
+		t.Fatalf("total_filtered=%v total_all=%v, want filtered=1 all=2", body["total_filtered"], body["total_all"])
+	}
+
+	dStatus, dBody, dRaw := notifCall(t, app, "GET", "/api/notifications/"+specID+"?slug="+s1.Slug, u1.ID)
+	if dStatus != 200 {
+		t.Fatalf("GET detail status=%d raw=%s", dStatus, dRaw)
+	}
+	if strings.Contains(dRaw, s2.StoreTitle) {
+		t.Fatalf("PRIVACY LEAK: GET /api/notifications/:id exposed sibling store name %q: %s", s2.StoreTitle, dRaw)
+	}
+	itemMap := dBody["data"].(map[string]any)
+	if itemMap["target_name"] != "" || itemMap["created_by"].(float64) != 0 {
+		t.Errorf("expected redacted target_name and created_by, got %+v", itemMap)
+	}
+
+	// ClearRead without slug clears account & owned store read receipts only
+	s1ID, s2ID := s1.ID, s2.ID
+	mustCreate(t, db, &models.NotificationRead{NotificationID: specID, StoreID: &s1ID, UserID: u1.ID, ReadAt: time.Now().UTC()})
+	mustCreate(t, db, &models.NotificationRead{NotificationID: "other-user-n", StoreID: &s2ID, UserID: 9999, ReadAt: time.Now().UTC()})
+
+	cStatus, cBody, cRaw := notifCall(t, app, "DELETE", "/api/notifications/read/clear", u1.ID)
+	if cStatus != 200 || int(cBody["cleared_count"].(float64)) != 1 {
+		t.Fatalf("clear without slug status=%d cleared=%v raw=%s", cStatus, cBody["cleared_count"], cRaw)
+	}
+}

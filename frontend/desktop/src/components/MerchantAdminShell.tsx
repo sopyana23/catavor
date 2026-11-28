@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NotificationHeaderPopover } from './NotificationHeaderPopover';
 import { FEATURE_MERCHANT_SPONSORED_ADS_ENABLED } from '../../../shared/monetization/featureFlags';
+import { useModalBackHandler } from '../utils/navigation';
 import {
   PackageCheck,
   BarChart3,
@@ -105,6 +106,11 @@ export const MerchantAdminShell: React.FC<MerchantAdminShellProps> = ({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [storeSearchQuery, setStoreSearchQuery] = useState('');
   const [showNotifPopover, setShowNotifPopover] = useState(false);
+  useModalBackHandler({
+    isOpen: showNotifPopover,
+    onClose: () => setShowNotifPopover(false),
+    modalId: 'desktop-notif-header-popover',
+  });
   const storeDropdownRef = React.useRef<HTMLDivElement>(null);
   const notifTriggerRef = React.useRef<HTMLButtonElement>(null);
   const isSuspended = typeof propIsSuspended === 'boolean'

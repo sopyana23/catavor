@@ -4492,12 +4492,20 @@ function App() {
   }, [notifDebouncedSearch]);
 
   const handleMarkAsRead = useCallback(async (notifId: string | number) => {
-    setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
-    setNotifUnreadCount(prev => Math.max(0, prev - 1));
+    let prevListSnapshot: any[] = [];
+    let wasUnread = false;
+    setNotifications(prev => {
+      prevListSnapshot = prev;
+      wasUnread = Boolean(prev.find(n => n.id === notifId && !n.read));
+      return prev.map(n => n.id === notifId ? { ...n, read: true } : n);
+    });
+    if (wasUnread) {
+      setNotifUnreadCount(prev => Math.max(0, prev - 1));
+    }
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
       const slug = storeSlug || getStoreSlug() || '';
-      await fetch(`/api/notifications/${encodeURIComponent(notifId)}/read`, {
+      const res = await fetch(`/api/notifications/${encodeURIComponent(notifId)}/read`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -4506,7 +4514,11 @@ function App() {
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (err) {
+      setNotifications(prevListSnapshot);
+      if (wasUnread) setNotifUnreadCount(prev => prev + 1);
+      showToast('Gagal menandai notifikasi dibaca', 'error');
       console.warn('Failed to mark read on server:', err);
     }
   }, [storeSlug]);
@@ -4529,20 +4541,22 @@ function App() {
 
   const handleDismissNotification = useCallback(async (notifId: string | number) => {
     const targetId = String(notifId);
+    let prevSnapshot: any[] = [];
+    let removedItem: any = null;
     setNotifications(prev => {
-      const removed = prev.find(n => String(n.id) === targetId);
-      if (removed) {
-        if (!removed.read) setNotifUnreadCount(c => Math.max(0, c - 1));
+      prevSnapshot = prev;
+      removedItem = prev.find(n => String(n.id) === targetId);
+      if (removedItem) {
+        if (!removedItem.read) setNotifUnreadCount(c => Math.max(0, c - 1));
         setNotifTotal(c => Math.max(0, c - 1));
       }
       return prev.filter(n => String(n.id) !== targetId);
     });
     setSelectedNotification(prev => (prev && String(prev.id) === targetId ? null : prev));
-    showToast('Notifikasi diabaikan');
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
       const slug = storeSlug || getStoreSlug() || '';
-      await fetch(`/api/notifications/${encodeURIComponent(notifId)}/dismiss`, {
+      const res = await fetch(`/api/notifications/${encodeURIComponent(notifId)}/dismiss`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -4551,19 +4565,31 @@ function App() {
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showToast('Notifikasi diabaikan');
     } catch (err) {
+      setNotifications(prevSnapshot);
+      if (removedItem) {
+        if (!removedItem.read) setNotifUnreadCount(c => c + 1);
+        setNotifTotal(c => c + 1);
+      }
+      showToast('Gagal mengabaikan notifikasi', 'error');
       console.warn('Failed to dismiss notification on server:', err);
     }
   }, [storeSlug]);
 
   const handleMarkAllAsRead = useCallback(async () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    let prevSnapshot: any[] = [];
+    const prevUnread = notifUnreadCount;
+    setNotifications(prev => {
+      prevSnapshot = prev;
+      return prev.map(n => ({ ...n, read: true }));
+    });
     setNotifUnreadCount(0);
-    showToast('Semua notifikasi telah ditandai dibaca!');
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
       const slug = storeSlug || getStoreSlug() || '';
-      await fetch('/api/notifications/read-all', {
+      const res = await fetch('/api/notifications/read-all', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -4572,18 +4598,26 @@ function App() {
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showToast('Semua notifikasi telah ditandai dibaca!');
     } catch (err) {
+      setNotifications(prevSnapshot);
+      setNotifUnreadCount(prevUnread);
+      showToast('Gagal menandai semua notifikasi', 'error');
       console.warn('Failed to mark all read on server:', err);
     }
-  }, [storeSlug]);
+  }, [storeSlug, notifUnreadCount]);
 
   const handleClearReadNotifications = useCallback(async () => {
-    setNotifications(prev => prev.filter(n => !n.read));
-    showToast('Riwayat notifikasi terbaca telah dibersihkan!');
+    let prevSnapshot: any[] = [];
+    setNotifications(prev => {
+      prevSnapshot = prev;
+      return prev.filter(n => !n.read);
+    });
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
       const slug = storeSlug || getStoreSlug() || '';
-      await fetch('/api/notifications/clear-read', {
+      const res = await fetch('/api/notifications/clear-read', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -4592,8 +4626,12 @@ function App() {
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showToast('Riwayat notifikasi terbaca telah dibersihkan!');
       fetchNotificationsFromBackend(1, false);
     } catch (err) {
+      setNotifications(prevSnapshot);
+      showToast('Gagal membersihkan riwayat notifikasi terbaca', 'error');
       console.warn('Failed to clear read notifications on server:', err);
     }
   }, [storeSlug, fetchNotificationsFromBackend]);
@@ -4947,17 +4985,18 @@ function App() {
 
         eventSource.onerror = () => {
           if (!isMounted) return;
-          if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+          // Close unconditionally so browser EventSource never auto-replays a consumed single-use ?ticket= while CONNECTING
+          if (eventSource) {
             try { eventSource.close(); } catch { }
             eventSource = null;
-            const liveToken = localStorage.getItem('catavor_token') || localStorage.getItem('token');
-            if (!liveToken) return;
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-            retryCount++;
-            reconnectTimer = setTimeout(() => {
-              if (isMounted) connectSSE();
-            }, delay);
           }
+          const liveToken = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+          if (!liveToken && !adminUser) return;
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+          retryCount++;
+          reconnectTimer = setTimeout(() => {
+            if (isMounted) connectSSE();
+          }, delay);
         };
       } catch (err) {
         console.warn('SSE notification stream error:', err);
@@ -31032,10 +31071,11 @@ Mohon bantuan untuk meninjau kembali produk kami. Terima kasih atas pengertian d
                                           {notifSearchQuery && (
                                             <button
                                               type="button"
+                                              aria-label="Hapus pencarian notifikasi"
                                               onClick={() => setNotifSearchQuery('')}
-                                              style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.72rem' }}
+                                              style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0.2rem' }}
                                             >
-                                              ✕
+                                              <X size={14} />
                                             </button>
                                           )}
                                         </div>

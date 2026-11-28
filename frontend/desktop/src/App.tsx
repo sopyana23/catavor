@@ -4279,6 +4279,7 @@ function App() {
   const [notifLoadingMore, setNotifLoadingMore] = useState<boolean>(false);
   const [notifInitialLoading, setNotifInitialLoading] = useState<boolean>(false);
   const [notifTotal, setNotifTotal] = useState<number>(0);
+  const [popoverNotifications, setPopoverNotifications] = useState<any[]>([]);
   const [notifUnreadCount, setNotifUnreadCount] = useState<number>(0);
   const [notifSecurityCountState, setNotifSecurityCountState] = useState<number>(0);
   const [notifSystemCountState, setNotifSystemCountState] = useState<number>(0);
@@ -4303,7 +4304,8 @@ function App() {
   ) => {
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
-      if (!token) {
+      const hasUserSession = Boolean(token || localStorage.getItem('catavor_user'));
+      if (!hasUserSession) {
         setNotifInitialLoading(false);
         setNotifLoadingMore(false);
         return;
@@ -4322,7 +4324,7 @@ function App() {
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
@@ -4337,6 +4339,9 @@ function App() {
           });
         } else {
           setNotifications(dataList);
+          if (pageToFetch === 1 && categoryToUse === 'all' && !searchToUse.trim()) {
+            setPopoverNotifications(dataList);
+          }
         }
         setNotifPage(pageToFetch);
         setNotifHasMore(Boolean(json.has_more));
@@ -4390,37 +4395,55 @@ function App() {
   }, [notifDebouncedSearch]);
 
   const handleMarkAsRead = useCallback(async (notifId: string | number) => {
-    setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
-    setNotifUnreadCount(prev => Math.max(0, prev - 1));
+    const targetId = String(notifId);
+    const prevNotifications = notifications;
+    const prevPopover = popoverNotifications;
+    const prevUnread = notifUnreadCount;
+    const wasUnread =
+      prevNotifications.some(n => String(n.id) === targetId && !n.read) ||
+      prevPopover.some(n => String(n.id) === targetId && !n.read);
+
+    setNotifications(prev => prev.map(n => String(n.id) === targetId ? { ...n, read: true } : n));
+    setPopoverNotifications(prev => prev.map(n => String(n.id) === targetId ? { ...n, read: true } : n));
+    if (wasUnread) {
+      setNotifUnreadCount(prev => Math.max(0, prev - 1));
+    }
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
-      if (!token) return;
+      if (!token && !localStorage.getItem('catavor_user')) return;
       const slug = storeSlug || getStoreSlug() || '';
-      await fetch(`/api/notifications/${encodeURIComponent(notifId)}/read`, {
+      const res = await fetch(`/api/notifications/${encodeURIComponent(notifId)}/read`, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
     } catch (err) {
+      setNotifications(prevNotifications);
+      setPopoverNotifications(prevPopover);
+      setNotifUnreadCount(prevUnread);
+      showToast('Gagal menandai notifikasi terbaca', 'error');
       console.warn('Failed to mark read on server:', err);
     }
-  }, [storeSlug]);
+  }, [storeSlug, notifications, popoverNotifications, notifUnreadCount]);
 
   const handleTrackNotifClick = useCallback(async (notifId: string | number) => {
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
-      if (!token) return;
+      if (!token && !localStorage.getItem('catavor_user')) return;
       const slug = storeSlug || getStoreSlug() || '';
       await fetch(`/api/notifications/${encodeURIComponent(notifId)}/click`, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
@@ -4428,48 +4451,74 @@ function App() {
   }, [storeSlug]);
 
   const handleMarkAllAsRead = useCallback(async () => {
+    const prevNotifications = notifications;
+    const prevPopover = popoverNotifications;
+    const prevUnread = notifUnreadCount;
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setPopoverNotifications(prev => prev.map(n => ({ ...n, read: true })));
     setNotifUnreadCount(0);
-    showToast('Semua notifikasi telah ditandai dibaca!');
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
-      if (!token) return;
+      if (!token && !localStorage.getItem('catavor_user')) return;
       const slug = storeSlug || getStoreSlug() || '';
-      await fetch('/api/notifications/read-all', {
+      const res = await fetch('/api/notifications/read-all', {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      showToast('Semua notifikasi telah ditandai dibaca!');
     } catch (err) {
+      setNotifications(prevNotifications);
+      setPopoverNotifications(prevPopover);
+      setNotifUnreadCount(prevUnread);
+      showToast('Gagal menandai semua notifikasi terbaca', 'error');
       console.warn('Failed to mark all read on server:', err);
     }
-  }, [storeSlug]);
+  }, [storeSlug, notifications, popoverNotifications, notifUnreadCount]);
 
   const handleClearReadNotifications = useCallback(async () => {
+    const prevNotifications = notifications;
+    const prevPopover = popoverNotifications;
+    const prevTotal = notifTotal;
+    const removedCount = prevNotifications.filter(n => n.read).length;
     setNotifications(prev => prev.filter(n => !n.read));
-    showToast('Riwayat notifikasi terbaca telah dibersihkan!');
+    setPopoverNotifications(prev => prev.filter(n => !n.read));
+    if (removedCount > 0) {
+      setNotifTotal(c => Math.max(0, c - removedCount));
+    }
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
-      if (!token) return;
+      if (!token && !localStorage.getItem('catavor_user')) return;
       const slug = storeSlug || getStoreSlug() || '';
-      await fetch('/api/notifications/clear-read', {
+      const res = await fetch('/api/notifications/clear-read', {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      showToast('Riwayat notifikasi terbaca telah dibersihkan!');
       fetchNotificationsFromBackend(1, false);
     } catch (err) {
+      setNotifications(prevNotifications);
+      setPopoverNotifications(prevPopover);
+      setNotifTotal(prevTotal);
+      showToast('Gagal membersihkan riwayat notifikasi terbaca', 'error');
       console.warn('Failed to clear read notifications on server:', err);
     }
-  }, [storeSlug, fetchNotificationsFromBackend]);
+  }, [storeSlug, fetchNotificationsFromBackend, notifications, popoverNotifications, notifTotal]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [activityTotal, setActivityTotal] = useState<number>(0);
   const [activityPage, setActivityPage] = useState<number>(1);
@@ -4666,12 +4715,12 @@ function App() {
   // Hook for initial load and SSE real-time stream subscription (Desktop)
   useEffect(() => {
     const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
-    if (!token) return;
+    const hasUserSession = Boolean(token || localStorage.getItem('catavor_user'));
+    if (!hasUserSession) return;
 
     fetchNotificationsFromBackend(1, false);
 
     const slug = storeSlug || getStoreSlug() || '';
-    if (!token) return;
 
     let isMounted = true;
     let reconnectTimer: any = null;
@@ -4680,6 +4729,8 @@ function App() {
 
     const connectSSE = async () => {
       if (!isMounted) return;
+      const liveToken = localStorage.getItem('catavor_token') || localStorage.getItem('token');
+      if (!liveToken && !localStorage.getItem('catavor_user')) return;
       try {
         // SECURITY (M1/SSE): jangan taruh JWT di URL — tukar sesi cookie
         // dengan tiket sekali pakai (30 detik). Bila gagal, jangan buka
@@ -4691,7 +4742,7 @@ function App() {
             credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+              ...(liveToken ? { 'Authorization': `Bearer ${liveToken}` } : {})
             },
           });
           if (tRes.ok) {
@@ -4945,6 +4996,7 @@ function App() {
               }
               return prev.filter(n => String(n.id) !== delId);
             });
+            setPopoverNotifications(prev => prev.filter(n => String(n.id) !== delId));
             setSelectedNotificationDetail((prev: any) => (prev && String(prev.id) === delId ? null : prev));
           } else if (payload && payload.notification) {
             const newNotif = payload.notification;
@@ -4988,6 +5040,12 @@ function App() {
               }
               return [newNotif, ...filtered];
             });
+            setPopoverNotifications(prev => {
+              const filtered = prev.filter(n => String(n.id) !== notifIdStr && !(
+                Boolean(newNotif.action_url) && n.action_url === newNotif.action_url && n.title === newNotif.title
+              ));
+              return [newNotif, ...filtered].slice(0, 20);
+            });
           } else if (payload && payload.event === 'quota_updated') {
             if (payload.quota) {
               setStoreQuota(payload.quota);
@@ -4998,15 +5056,16 @@ function App() {
 
       eventSource.onerror = () => {
         if (!isMounted) return;
-        if (eventSource && eventSource.readyState === EventSource.CLOSED) {
-          eventSource.close();
+        // Close immediately so browser does not replay consumed one-time ?ticket= on auto-reconnect
+        if (eventSource) {
+          try { eventSource.close(); } catch {}
           eventSource = null;
-          retryCount++;
-          const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-          reconnectTimer = setTimeout(() => {
-            if (isMounted) connectSSE();
-          }, delay);
         }
+        retryCount++;
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+        reconnectTimer = setTimeout(() => {
+          if (isMounted) connectSSE();
+        }, delay);
       };
     } catch (err) {
       console.warn('SSE notification stream error:', err);
@@ -5921,35 +5980,53 @@ const renderPolicyPage = (type: 'terms' | 'privacy' | 'acceptable_use' | 'prohib
 
   const handleDismissNotification = useCallback(async (notifId: string | number) => {
     const targetId = String(notifId);
-    setNotifications(prev => {
-      const removed = prev.find(n => String(n.id) === targetId);
-      if (removed) {
-        if (!removed.read) setNotifUnreadCount(c => Math.max(0, c - 1));
-        setNotifTotal(c => Math.max(0, c - 1));
-      }
-      return prev.filter(n => String(n.id) !== targetId);
-    });
+    const prevNotifications = notifications;
+    const prevPopover = popoverNotifications;
+    const prevUnread = notifUnreadCount;
+    const prevTotal = notifTotal;
+    const prevSelectedDetail = selectedNotificationDetail;
+    const removed =
+      prevNotifications.find(n => String(n.id) === targetId) ||
+      prevPopover.find(n => String(n.id) === targetId);
+
+    setNotifications(prev => prev.filter(n => String(n.id) !== targetId));
+    setPopoverNotifications(prev => prev.filter(n => String(n.id) !== targetId));
+    if (removed) {
+      if (!removed.read) setNotifUnreadCount(c => Math.max(0, c - 1));
+      setNotifTotal(c => Math.max(0, c - 1));
+    }
     if (selectedNotificationDetail && String(selectedNotificationDetail.id) === targetId) {
       handleClearSelectedNotification(true);
     }
-    showToast('Notifikasi diabaikan dari daftar');
     try {
       const token = localStorage.getItem('catavor_token') || localStorage.getItem('token');
-      if (!token) return;
+      if (!token && !localStorage.getItem('catavor_user')) return;
       const slug = storeSlug || getStoreSlug() || '';
-      await fetch(`/api/notifications/${encodeURIComponent(notifId)}/dismiss`, {
+      const res = await fetch(`/api/notifications/${encodeURIComponent(notifId)}/dismiss`, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           ...(slug ? { 'X-Store-Slug': slug } : {})
         }
       });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      showToast('Notifikasi diabaikan dari daftar');
     } catch (err) {
+      setNotifications(prevNotifications);
+      setPopoverNotifications(prevPopover);
+      setNotifUnreadCount(prevUnread);
+      setNotifTotal(prevTotal);
+      if (prevSelectedDetail && String(prevSelectedDetail.id) === targetId) {
+        setSelectedNotificationDetail(prevSelectedDetail);
+      }
+      showToast('Gagal mengabaikan notifikasi', 'error');
       console.warn('Failed to dismiss notification on server:', err);
     }
-  }, [selectedNotificationDetail, storeSlug, handleClearSelectedNotification]);
+  }, [selectedNotificationDetail, storeSlug, handleClearSelectedNotification, notifications, popoverNotifications, notifUnreadCount, notifTotal]);
 
   // Helper: Navigasi tab admin dengan pembersihan otomatis state detail notifikasi
   const handleSelectAdminTab = useCallback((tab: any) => {
@@ -21776,11 +21853,12 @@ Terima kasih atas perhatian dan kerja samanya.`;
               goToCatalog={goToCatalog}
               onOpenNotifications={() => {}}
               onClearSelectedNotification={handleClearSelectedNotification}
-              notifications={notifications}
+              notifications={popoverNotifications}
               onMarkAsRead={handleMarkAsRead}
               onMarkAllAsRead={handleMarkAllAsRead}
               onSelectNotification={(n) => {
                 handleMarkAsRead(n.id);
+                handleTrackNotifClick(n.id);
                 const norm = normalizeNotification(n);
                 if (norm.isModerationNotif || n.id === 'system_suspended_notice') {
                   setSelectedNotificationDetail(n);
@@ -21794,24 +21872,20 @@ Terima kasih atas perhatian dan kerja samanya.`;
                   return;
                 }
                 if (norm.isTicketNotif) {
-                  handleTrackNotifClick(n.id);
                   handleNavigateToTicketFromNotif(n);
                   return;
                 }
                 if (norm.isDirectNav && norm.subTab) {
-                  handleTrackNotifClick(n.id);
                   setAdminTab(norm.subTab as any);
                   if (norm.settingsTab) setSettingsSubTab(norm.settingsTab as any);
                   const slug = getStoreSlug();
                   if (slug) window.history.pushState({}, '', `/${slug}/admin/${norm.subTab}`);
                 } else if (norm.isDetail) {
-                  handleTrackNotifClick(n.id);
                   setSelectedNotificationDetail(n);
                   setAdminTab('notifications');
                   const slug = storeSlug || getStoreSlug();
                   if (slug) window.history.pushState({}, '', `/${slug}/admin/notifications?id=${n.id}`);
                 } else if (norm.isExternal && norm.actionUrl) {
-                  handleTrackNotifClick(n.id);
                   handleSafeExternalRedirect(norm.actionUrl);
                 } else {
                   showToast('Notifikasi ditandai dibaca');
@@ -27457,9 +27531,10 @@ Terima kasih atas perhatian dan kerja samanya.`;
                               <button
                                 type="button"
                                 onClick={() => setNotifSearchQuery('')}
-                                style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.75rem' }}
+                                aria-label="Bersihkan pencarian notifikasi"
+                                style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.2rem' }}
                               >
-                                ✕
+                                <X size={14} />
                               </button>
                             )}
                           </div>

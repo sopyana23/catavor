@@ -1384,7 +1384,10 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         const tkRes = await fetch('/api/notifications/ticket', {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         });
         if (!tkRes.ok) throw new Error(`ticket ${tkRes.status}`);
         const tkJson = await tkRes.json();

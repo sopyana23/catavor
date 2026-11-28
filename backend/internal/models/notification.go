@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // Notification represents a system or broadcast notification item for merchants
 type Notification struct {
@@ -46,6 +49,25 @@ type Notification struct {
 // TableName explicitly maps to 'notifications' table.
 func (Notification) TableName() string {
 	return "notifications"
+}
+
+// SanitizedForRecipient strips internal admin & multi-recipient metadata before sending notifications
+// to end users over HTTP or SSE frames (preventing sibling tenant identity leakage in 'specific' broadcasts).
+func (n *Notification) SanitizedForRecipient() *Notification {
+	if n == nil {
+		return nil
+	}
+	copyVal := *n
+	copyVal.TargetRecipients = ""
+	copyVal.CreatedBy = 0
+	copyVal.RevokedBy = 0
+	copyVal.RevokedAt = nil
+	copyVal.TargetAudienceCount = 0
+	copyVal.IdempotencyKey = ""
+	if strings.EqualFold(strings.TrimSpace(copyVal.TargetType), "specific") {
+		copyVal.TargetName = ""
+	}
+	return &copyVal
 }
 
 // NotificationRecipient normalizes specific broadcast targets (store/user) for exact relational matching without LIKE collisions.

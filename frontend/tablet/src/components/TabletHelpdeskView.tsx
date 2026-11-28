@@ -512,8 +512,11 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
         const tkRes = await fetch('/api/notifications/ticket', {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ store_slug: storeSlug || '' }),
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ slug: storeSlug || '' }),
         });
         if (!tkRes.ok) throw new Error(`ticket ${tkRes.status}`);
         const tkJson = await tkRes.json();
@@ -521,7 +524,7 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
         if (!streamTicket || isUnmounted) return;
 
         const qs = new URLSearchParams({ ticket: streamTicket });
-        if (storeSlug) qs.set('store_slug', storeSlug);
+        if (storeSlug) qs.set('slug', storeSlug);
         eventSource = new EventSource(`/api/notifications/stream?${qs.toString()}`);
 
         eventSource.onmessage = (e) => {

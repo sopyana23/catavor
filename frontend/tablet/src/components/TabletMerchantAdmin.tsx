@@ -677,6 +677,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const tabletFetchQuotaRef = useRef<(() => void) | null>(null);
   const tabletFetchSubscriptionOrdersRef = useRef<(() => void) | null>(null);
+  const tabletFetchTicketsRef = useRef<(() => void) | null>(null);
+  const tabletFetchTicketDetailsRef = useRef<((ticketId: number) => void) | null>(null);
+  const tabletFetchTicketsPingRef = useRef<(() => void) | null>(null);
+  const tabletFetchStoreProfileRef = useRef<(() => void) | null>(null);
+  const tabletFetchUserStoresRef = useRef<(() => void) | null>(null);
+  const tabletActiveTicketIdRef = useRef<number | 'new' | null>(null);
+  const tabletTicketDebounceRef = useRef<any>(null);
 
   useEffect(() => {
     try {
@@ -2715,6 +2722,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   const [notifSecurityCount, setNotifSecurityCount] = useState<number>(0);
   const [notifSystemCount, setNotifSystemCount] = useState<number>(0);
   const [notifTotal, setNotifTotal] = useState<number>(0);
+  const [notifFilteredTotal, setNotifFilteredTotal] = useState<number>(0);
   const [notifPage, setNotifPage] = useState<number>(1);
   const [notifLimit] = useState<number>(15);
   const [notifLoading, setNotifLoading] = useState<boolean>(false);
@@ -2761,6 +2769,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
           setNotifTotal(json.total_all);
         } else if (typeof json.total === 'number') {
           setNotifTotal(json.total);
+        }
+        if (typeof json.total_filtered === 'number') {
+          setNotifFilteredTotal(json.total_filtered);
+        } else if (typeof json.total_all === 'number') {
+          setNotifFilteredTotal(json.total_all);
+        } else {
+          setNotifFilteredTotal(dataList.length);
         }
         if (typeof json.unread_count === 'number') {
           setNotifUnreadCount(json.unread_count);
@@ -2813,22 +2828,35 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
   };
 
   const handleMarkNotifRead = async (id: number | string) => {
+    let prevSnapshot: any[] = [];
+    let wasUnread = false;
     try {
       setNotifications(prev => {
+        prevSnapshot = prev;
         const item = prev.find(n => n.id === id);
         if (item && !item.read) {
+          wasUnread = true;
           setNotifUnreadCount(c => Math.max(0, c - 1));
           setNotifReadCount(c => c + 1);
         }
         return prev.map(n => n.id === id ? { ...n, read: true } : n);
       });
       setSelectedNotif((prev: any) => (prev && prev.id === id ? { ...prev, read: true } : prev));
-      await fetch(`/api/notifications/${encodeURIComponent(String(id))}/read${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
+      const res = await fetch(`/api/notifications/${encodeURIComponent(String(id))}/read${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
         method: 'POST',
         credentials: 'include',
         headers: getHeaders()
       });
-    } catch {}
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      setNotifications(prevSnapshot);
+      if (wasUnread) {
+        setNotifUnreadCount(c => c + 1);
+        setNotifReadCount(c => Math.max(0, c - 1));
+      }
+      setSelectedNotif((prev: any) => (prev && prev.id === id && wasUnread ? { ...prev, read: false } : prev));
+      showToast('Gagal menandai notifikasi dibaca', 'error');
+    }
   };
 
   const handleTrackNotifClick = async (id: number | string) => {
@@ -2843,58 +2871,96 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
 
   const handleDismissNotif = async (id: number | string) => {
     const targetId = String(id);
+    let prevSnapshot: any[] = [];
+    let removedTarget: any = null;
     try {
       setNotifications(prev => {
+        prevSnapshot = prev;
         const target = prev.find(n => String(n.id) === targetId);
         if (target) {
+          removedTarget = target;
           if (target.read) {
             setNotifReadCount(c => Math.max(0, c - 1));
           } else {
             setNotifUnreadCount(c => Math.max(0, c - 1));
           }
           setNotifTotal(c => Math.max(0, c - 1));
+          setNotifFilteredTotal(c => Math.max(0, c - 1));
         }
         return prev.filter(n => String(n.id) !== targetId);
       });
       setSelectedNotif((prev: any) => (prev && String(prev.id) === targetId ? null : prev));
-      showToast('Notifikasi diabaikan dari daftar');
-      await fetch(`/api/notifications/${encodeURIComponent(targetId)}/dismiss${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
+      const res = await fetch(`/api/notifications/${encodeURIComponent(targetId)}/dismiss${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
         method: 'POST',
         credentials: 'include',
         headers: getHeaders()
       });
-    } catch {}
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showToast('Notifikasi diabaikan dari daftar');
+    } catch {
+      setNotifications(prevSnapshot);
+      if (removedTarget) {
+        if (removedTarget.read) {
+          setNotifReadCount(c => c + 1);
+        } else {
+          setNotifUnreadCount(c => c + 1);
+        }
+        setNotifTotal(c => c + 1);
+        setNotifFilteredTotal(c => c + 1);
+      }
+      showToast('Gagal mengabaikan notifikasi', 'error');
+    }
   };
 
   const handleMarkAllNotifsRead = async () => {
+    let prevSnapshot: any[] = [];
+    const prevUnread = notifUnreadCount;
+    const prevRead = notifReadCount;
     try {
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setNotifications(prev => {
+        prevSnapshot = prev;
+        return prev.map(n => ({ ...n, read: true }));
+      });
       setSelectedNotif((prev: any) => (prev ? { ...prev, read: true } : null));
-      setNotifReadCount(prev => prev + notifUnreadCount);
+      setNotifReadCount(prev => prev + prevUnread);
       setNotifUnreadCount(0);
-      showToast('Semua notifikasi ditandai telah dibaca');
-      await fetch(`/api/notifications/read-all${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
+      const res = await fetch(`/api/notifications/read-all${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
         method: 'POST',
         credentials: 'include',
         headers: getHeaders()
       });
-    } catch {}
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showToast('Semua notifikasi ditandai telah dibaca');
+    } catch {
+      setNotifications(prevSnapshot);
+      setNotifUnreadCount(prevUnread);
+      setNotifReadCount(prevRead);
+      showToast('Gagal menandai semua notifikasi', 'error');
+    }
   };
 
   const handleClearReadNotifications = async () => {
+    let prevSnapshot: any[] = [];
     try {
-      setNotifications(prev => prev.filter(n => !n.read));
+      setNotifications(prev => {
+        prevSnapshot = prev;
+        return prev.filter(n => !n.read);
+      });
       if (selectedNotif && selectedNotif.read) {
         setSelectedNotif(null);
       }
-      showToast('Riwayat notifikasi terbaca telah dibersihkan');
-      await fetch(`/api/notifications/clear-read${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
+      const res = await fetch(`/api/notifications/clear-read${storeSlug ? `?slug=${encodeURIComponent(storeSlug)}` : ''}`, {
         method: 'POST',
         credentials: 'include',
         headers: getHeaders()
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showToast('Riwayat notifikasi terbaca telah dibersihkan');
       fetchNotifications(1, notifFilter, notifDebouncedSearch);
-    } catch {}
+    } catch {
+      setNotifications(prevSnapshot);
+      showToast('Gagal membersihkan riwayat notifikasi terbaca', 'error');
+    }
   };
 
   const handleOpenFixItemFromNotif = async (item: any) => {
@@ -3326,7 +3392,95 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
         eventSource.onmessage = (e) => {
           try {
             const payload = JSON.parse(e.data);
-            if (payload && payload.event === 'notification_deleted' && payload.notification_id) {
+            const currentSlug = (storeSlug || '').toLowerCase();
+            if (payload && (payload.event === 'ticket_reply_from_staff' || payload.event === 'ticket_reply_from_user')) {
+              const eventSlug = (payload.ticket?.store_slug || payload.ticket?.store?.slug || '').toLowerCase();
+              if (eventSlug && currentSlug && eventSlug !== currentSlug) {
+                return;
+              }
+              const incomingTicketId = payload.ticket?.ticket_id || payload.ticket?.id;
+              const isViewingThisTicket = tabletActiveTicketIdRef.current && String(tabletActiveTicketIdRef.current) === String(incomingTicketId);
+              if (!isViewingThisTicket) {
+                showToast('1 pesan masuk pada tiket bantuan', 'success');
+              }
+              if (tabletTicketDebounceRef.current) {
+                clearTimeout(tabletTicketDebounceRef.current);
+              }
+              tabletTicketDebounceRef.current = setTimeout(() => {
+                if (typeof tabletActiveTicketIdRef.current === 'number' && tabletFetchTicketDetailsRef.current) {
+                  tabletFetchTicketDetailsRef.current(tabletActiveTicketIdRef.current);
+                }
+                if (tabletFetchTicketsRef.current) tabletFetchTicketsRef.current();
+                if (tabletFetchTicketsPingRef.current) tabletFetchTicketsPingRef.current();
+              }, 350);
+            } else if (payload && payload.event === 'ticket_status_updated') {
+              const eventSlug = (payload.ticket?.store_slug || payload.ticket?.store?.slug || '').toLowerCase();
+              if (eventSlug && currentSlug && eventSlug !== currentSlug) {
+                return;
+              }
+              showToast('Status tiket bantuan telah diperbarui', 'success');
+              if (tabletTicketDebounceRef.current) {
+                clearTimeout(tabletTicketDebounceRef.current);
+              }
+              tabletTicketDebounceRef.current = setTimeout(() => {
+                if (typeof tabletActiveTicketIdRef.current === 'number' && tabletFetchTicketDetailsRef.current) {
+                  tabletFetchTicketDetailsRef.current(tabletActiveTicketIdRef.current);
+                }
+                if (tabletFetchTicketsRef.current) tabletFetchTicketsRef.current();
+                if (tabletFetchTicketsPingRef.current) tabletFetchTicketsPingRef.current();
+              }, 350);
+            } else if (payload && (
+              payload.event === 'store_status_updated' ||
+              (payload.store && (payload.store.is_banned || payload.store.is_suspended !== undefined || payload.store.dormancy_status))
+            )) {
+              const eventSlug = (payload.store?.slug || payload.slug || '').toLowerCase();
+              if (!eventSlug || !currentSlug || eventSlug === currentSlug) {
+                const isBannedEvent = payload.store
+                  ? (payload.store.is_banned === true || payload.store.dormancy_status === 'banned')
+                  : (payload.is_banned === true || payload.dormancy_status === 'banned');
+                const isSuspendedEvent = payload.store
+                  ? (payload.store.is_suspended === true || payload.store.dormancy_status === 'suspended')
+                  : Boolean(payload.notification && (
+                      payload.notification.category === 'PENANGGUHAN' ||
+                      payload.notification.category === 'SUSPEND' ||
+                      payload.notification.title?.includes('Ditangguhkan') ||
+                      payload.notification.title?.includes('Dibekukan')
+                    ));
+                if (isBannedEvent) {
+                  const bannedMsg = payload.store?.message || `Profil katalog '${eventSlug || currentSlug}' telah dinonaktifkan permanen oleh Tim Kepatuhan platform.`;
+                  showToast(bannedMsg, 'error');
+                  if (tabletFetchUserStoresRef.current) tabletFetchUserStoresRef.current();
+                  setShowStoreChooserModal(true);
+                } else if (isSuspendedEvent) {
+                  const reason = payload.store?.suspension_reason || 'moderation_violation';
+                  const suspendedMsg = payload.store?.message || payload.notification?.message || 'Akun toko Anda telah ditangguhkan sementara oleh Tim Kepatuhan platform.';
+                  showToast(suspendedMsg, 'error');
+                  setStoreSettings(prev => ({
+                    ...prev,
+                    is_suspended: true,
+                    dormancy_status: 'suspended',
+                    suspension_reason: reason,
+                    is_paused: true,
+                    dormancy_suspended_at: payload.store?.dormancy_suspended_at || new Date().toISOString()
+                  }));
+                  if (tabletFetchStoreProfileRef.current) tabletFetchStoreProfileRef.current();
+                  if (tabletFetchUserStoresRef.current) tabletFetchUserStoresRef.current();
+                  if (tabletFetchTicketsRef.current) tabletFetchTicketsRef.current();
+                } else {
+                  showToast('Akun toko Anda telah dipulihkan oleh Tim Kepatuhan platform.', 'success');
+                  setStoreSettings(prev => ({
+                    ...prev,
+                    is_suspended: false,
+                    dormancy_status: 'active',
+                    suspension_reason: '',
+                    is_paused: false,
+                    dormancy_suspended_at: null
+                  }));
+                  if (tabletFetchStoreProfileRef.current) tabletFetchStoreProfileRef.current();
+                  if (tabletFetchUserStoresRef.current) tabletFetchUserStoresRef.current();
+                }
+              }
+            } else if (payload && payload.event === 'notification_deleted' && payload.notification_id) {
               const delId = String(payload.notification_id);
               setNotifications(prev => {
                 const existed = prev.find(n => String(n.id) === delId);
@@ -3476,6 +3630,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
       }
     } catch {}
   }, [token, storeSlug]);
+
+  tabletFetchTicketsRef.current = fetchTickets;
+  tabletFetchTicketDetailsRef.current = fetchTicketDetails;
+  tabletFetchTicketsPingRef.current = fetchTicketsPing;
+  tabletFetchStoreProfileRef.current = fetchStoreProfile;
+  tabletFetchUserStoresRef.current = fetchUserStores;
+  tabletActiveTicketIdRef.current = selectedTicketId;
 
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -12781,6 +12942,7 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                       <button
                         type="button"
                         onClick={() => setNotifSearchQuery('')}
+                        aria-label="Bersihkan pencarian notifikasi"
                         style={{
                           position: 'absolute',
                           right: '0.75rem',
@@ -12790,11 +12952,13 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                           border: 'none',
                           color: 'var(--text-muted)',
                           cursor: 'pointer',
-                          fontSize: '0.8rem',
-                          padding: '0.2rem'
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '0.25rem'
                         }}
                       >
-                        ✕
+                        <X size={14} />
                       </button>
                     )}
                   </div>
@@ -13203,8 +13367,8 @@ export const TabletMerchantAdmin: React.FC<TabletMerchantAdminProps> = ({
                 {/* Segmented Pagination at Bottom */}
                 <TabletSegmentedPagination
                   currentPage={notifPage}
-                  totalPages={Math.ceil((notifTotal || notifications.length) / notifLimit) || 1}
-                  totalRecords={notifTotal || notifications.length}
+                  totalPages={Math.max(1, Math.ceil(notifFilteredTotal / notifLimit))}
+                  totalRecords={notifFilteredTotal}
                   pageSize={notifLimit}
                   onPageChange={(p) => fetchNotifications(p, notifFilter, notifDebouncedSearch)}
                   isLoading={notifLoading}

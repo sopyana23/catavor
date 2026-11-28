@@ -448,7 +448,11 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		Where("notification_reads.dismissed_at IS NULL").
 		Where("notification_reads.read_at IS NULL OR notification_reads.read_at >= ?", thirtyDaysAgo)
 
-	if err := baseQuery.Order("notifications.created_at DESC").Find(&allResults).Error; err != nil {
+	orderSQL := "notifications.created_at DESC"
+	if storeID == 0 {
+		orderSQL = "notifications.created_at DESC, CASE WHEN notification_reads.store_id IS NULL THEN 0 ELSE 1 END ASC, notification_reads.id ASC"
+	}
+	if err := baseQuery.Order(orderSQL).Find(&allResults).Error; err != nil {
 		log.Error().Err(err).Msg("Failed to query notifications")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to load notifications",
@@ -469,7 +473,7 @@ func (h *NotificationHandler) GetNotifications(c *fiber.Ctx) error {
 		}
 		seenNotifIDs[res.Notification.ID] = true
 
-		notif := res.Notification
+		notif := *res.Notification.SanitizedForRecipient()
 
 		// Manual broadcasts (IsBroadcast == true) are NEVER swallowed by title deduplication;
 		// Automated system notifications include Message in contentKey so distinct alerts remain visible.
@@ -580,19 +584,21 @@ func (h *NotificationHandler) GetNotificationByID(c *fiber.Ctx) error {
 	if err := h.DB.Where("id = ?", notifID).First(&notif).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Notifikasi tidak ditemukan"})
 	}
+	notif = *notif.SanitizedForRecipient()
 
 	var readRec models.NotificationRead
 	readQ := h.DB.Where("notification_id = ?", notifID)
 	if storeID > 0 {
 		readQ = readQ.Where("store_id = ?", storeID)
 	} else {
-		readQ = readQ.Where("store_id IS NULL AND user_id = ?", userID)
+		readQ = readQ.Where("(store_id IS NULL AND user_id = ?) OR store_id IN (SELECT id FROM stores WHERE user_id = ?)", userID, userID).
+			Order("CASE WHEN store_id IS NULL THEN 0 ELSE 1 END ASC, id ASC")
 	}
 	if err := readQ.First(&readRec).Error; err == nil {
 		if readRec.DismissedAt != nil {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Notifikasi telah disembunyikan"})
 		}
-		notif.IsRead = true
+		notif.IsRead = !readRec.ReadAt.IsZero()
 		rAt := readRec.ReadAt
 		notif.ReadAt = &rAt
 		notif.ClickedAt = readRec.ClickedAt
@@ -632,6 +638,10 @@ func (h *NotificationHandler) notificationVisibleTo(storeID, userID uint, storeP
 
 // upsertNotificationRead mencatat read_at, clicked_at, dan/atau dismissed_at secara aman untuk store_id > 0 maupun store_id = NULL.
 func (h *NotificationHandler) upsertNotificationRead(storeID, userID uint, notifID string, setRead, setClick, setDismiss bool) error {
+	return h.upsertNotificationReadWithDB(h.DB, storeID, userID, notifID, setRead, setClick, setDismiss)
+}
+
+func (h *NotificationHandler) upsertNotificationReadWithDB(db *gorm.DB, storeID, userID uint, notifID string, setRead, setClick, setDismiss bool) error {
 	now := time.Now().UTC()
 	var storePtr *uint
 	if storeID > 0 {
@@ -655,7 +665,7 @@ func (h *NotificationHandler) upsertNotificationRead(storeID, userID uint, notif
 
 	findExisting := func() (*models.NotificationRead, error) {
 		var rec models.NotificationRead
-		q := h.DB.Where("notification_id = ?", notifID)
+		q := db.Where("notification_id = ?", notifID)
 		if storeID > 0 {
 			q = q.Where("store_id = ?", storeID)
 		} else {
@@ -670,7 +680,7 @@ func (h *NotificationHandler) upsertNotificationRead(storeID, userID uint, notif
 	existing, err := findExisting()
 	if err == nil && existing != nil {
 		applyFields(existing)
-		return h.DB.Save(existing).Error
+		return db.Save(existing).Error
 	}
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
@@ -689,11 +699,11 @@ func (h *NotificationHandler) upsertNotificationRead(storeID, userID uint, notif
 		newRec.DismissedAt = &now
 	}
 
-	if cErr := h.DB.Create(&newRec).Error; cErr != nil {
+	if cErr := db.Create(&newRec).Error; cErr != nil {
 		// Handle concurrent insert conflict cleanly
 		if retryExisting, rErr := findExisting(); rErr == nil && retryExisting != nil {
 			applyFields(retryExisting)
-			return h.DB.Save(retryExisting).Error
+			return db.Save(retryExisting).Error
 		}
 		return cErr
 	}
@@ -801,9 +811,18 @@ func (h *NotificationHandler) MarkAllAsRead(c *fiber.Ctx) error {
 	}
 
 	marked := 0
-	for _, notifID := range unreadNotifIDs {
-		if err := h.upsertNotificationRead(storeID, userID, notifID, true, false, false); err == nil {
-			marked++
+	if len(unreadNotifIDs) > 0 {
+		if txErr := h.DB.Transaction(func(tx *gorm.DB) error {
+			for _, notifID := range unreadNotifIDs {
+				if err := h.upsertNotificationReadWithDB(tx, storeID, userID, notifID, true, false, false); err != nil {
+					return err
+				}
+				marked++
+			}
+			return nil
+		}); txErr != nil {
+			log.Error().Err(txErr).Uint("store_id", storeID).Uint("user_id", userID).Msg("Failed to mark all notifications as read")
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Gagal menandai seluruh notifikasi sebagai dibaca"})
 		}
 	}
 	if marked > 0 {
@@ -860,7 +879,8 @@ func (h *NotificationHandler) ClearReadNotifications(c *fiber.Ctx) error {
 	if storeID > 0 {
 		query = query.Where("store_id = ?", storeID)
 	} else if userID > 0 {
-		query = query.Where("store_id IS NULL AND user_id = ?", userID)
+		ownedStoreSubquery := h.DB.Table("stores").Select("id").Where("user_id = ?", userID)
+		query = query.Where("(store_id IS NULL AND user_id = ?) OR store_id IN (?)", userID, ownedStoreSubquery)
 	} else {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Identitas pengguna atau toko tidak valid"})
 	}

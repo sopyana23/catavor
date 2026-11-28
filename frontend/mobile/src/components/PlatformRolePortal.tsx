@@ -2181,7 +2181,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         const tkRes = await fetch('/api/notifications/ticket', {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         });
         if (tkRes.status === 401) {
           console.warn('SSE: sesi tidak valid, tiket tidak diterbitkan');
