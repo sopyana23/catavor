@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   X
 } from 'lucide-react';
+import { useModalBackHandler } from '../utils/navigation';
 
 export interface TabletOfficialContactModalProps {
   isOpen: boolean;
@@ -26,6 +27,12 @@ export const TabletOfficialContactModal: React.FC<TabletOfficialContactModalProp
 }) => {
   const [copiedType, setCopiedType] = useState<'wa' | 'email' | null>(null);
   const [internalSettings, setInternalSettings] = useState<Record<string, string>>({});
+
+  useModalBackHandler({
+    isOpen,
+    onClose,
+    modalId: 'tablet_official_contact_modal'
+  });
 
   useEffect(() => {
     if (!isOpen) return;

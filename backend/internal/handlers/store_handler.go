@@ -2533,7 +2533,7 @@ func (h *StoreHandler) AdminListStores(c *fiber.Ctx) error {
 	applyStoreFilters := func(tx *gorm.DB) *gorm.DB {
 		// Apply Status Isolation:
 		if statusFilter == "active" {
-			tx = tx.Where("stores.dormancy_status NOT IN ('banned', 'suspended', 'purged') AND stores.is_suspended = false AND stores.is_blacklisted = false")
+			tx = tx.Where("COALESCE(NULLIF(stores.dormancy_status, ''), 'active') NOT IN ('banned', 'suspended', 'purged') AND stores.is_suspended = false AND stores.is_blacklisted = false")
 			if planStatusFilter != "" && planStatusFilter != "all" {
 				tx = tx.Where("stores.plan_status = ?", planStatusFilter)
 			}
@@ -2632,15 +2632,18 @@ func (h *StoreHandler) AdminListStores(c *fiber.Ctx) error {
 	var stats struct {
 		TotalActive      int64 `json:"total_active"`
 		TotalBanned      int64 `json:"total_banned"`
+		TotalSuspended   int64 `json:"total_suspended"`
 		TotalFree        int64 `json:"total_free"`
 		TotalProStarter  int64 `json:"total_pro_starter"`
 		TotalProBusiness int64 `json:"total_pro_business"`
 	}
-	h.db.Table("stores").Where("dormancy_status NOT IN ('banned', 'suspended', 'purged') AND is_suspended = false AND is_blacklisted = false").Count(&stats.TotalActive)
-	h.db.Table("stores").Where("dormancy_status IN ('banned', 'suspended', 'purged') OR is_suspended = true OR is_blacklisted = true").Count(&stats.TotalBanned)
-	h.db.Table("stores").Where("plan = 'free' AND dormancy_status NOT IN ('banned', 'suspended', 'purged') AND is_suspended = false AND is_blacklisted = false").Count(&stats.TotalFree)
-	h.db.Table("stores").Where("plan = 'pro_starter' AND dormancy_status NOT IN ('banned', 'suspended', 'purged') AND is_suspended = false AND is_blacklisted = false").Count(&stats.TotalProStarter)
-	h.db.Table("stores").Where("plan = 'pro_business' AND dormancy_status NOT IN ('banned', 'suspended', 'purged') AND is_suspended = false AND is_blacklisted = false").Count(&stats.TotalProBusiness)
+	activeCond := "COALESCE(NULLIF(dormancy_status, ''), 'active') NOT IN ('banned', 'suspended', 'purged') AND is_suspended = false AND is_blacklisted = false"
+	h.db.Table("stores").Where(activeCond).Count(&stats.TotalActive)
+	h.db.Table("stores").Where("COALESCE(dormancy_status, '') IN ('banned', 'suspended', 'purged') OR is_suspended = true OR is_blacklisted = true").Count(&stats.TotalBanned)
+	h.db.Table("stores").Where("COALESCE(dormancy_status, '') = 'suspended' OR (is_suspended = true AND is_blacklisted = false AND COALESCE(dormancy_status, '') != 'banned')").Count(&stats.TotalSuspended)
+	h.db.Table("stores").Where("plan = 'free' AND " + activeCond).Count(&stats.TotalFree)
+	h.db.Table("stores").Where("plan = 'pro_starter' AND " + activeCond).Count(&stats.TotalProStarter)
+	h.db.Table("stores").Where("plan = 'pro_business' AND " + activeCond).Count(&stats.TotalProBusiness)
 
 	totalPages := int((total + int64(limit) - 1) / int64(limit))
 	if totalPages < 1 {
@@ -2681,6 +2684,8 @@ func (h *StoreHandler) AdminGetStoreDetail(c *fiber.Ctx) error {
 			"message": "Profil katalog tidak ditemukan.",
 		})
 	}
+	store.CustomDomainVerificationToken = ""
+	store.ReactivationToken = ""
 
 	var productsCount int64
 	h.db.Model(&models.Product{}).Where("store_id = ? AND deleted_at IS NULL", store.ID).Count(&productsCount)

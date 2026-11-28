@@ -2427,6 +2427,18 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     onClose: () => setShowCouponModal(false),
     modalId: 'mobile_coupon_modal'
   });
+  const [showResetRekberConfirmModal, setShowResetRekberConfirmModal] = useState<boolean>(false);
+  const [resetRekberSheetDragY, setResetRekberSheetDragY] = useState<number>(0);
+  const [isResetRekberDragging, setIsResetRekberDragging] = useState<boolean>(false);
+  const resetRekberStartYRef = useRef<number>(0);
+  useModalBackHandler({
+    isOpen: showResetRekberConfirmModal,
+    onClose: () => {
+      setShowResetRekberConfirmModal(false);
+      setResetRekberSheetDragY(0);
+    },
+    modalId: 'mobile_reset_rekber_confirm'
+  });
 
   useEffect(() => {
     loadData(false);
@@ -3261,8 +3273,10 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          platform_official_whatsapp: (googleSettings.platform_official_whatsapp || '').trim(),
-          platform_official_email: (googleSettings.platform_official_email || '').trim().toLowerCase(),
+          platform_official_whatsapp: (googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '').trim(),
+          platform_official_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
+          contact_whatsapp: (googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || '').trim(),
+          contact_email: (googleSettings.platform_official_email || googleSettings.contact_email || '').trim().toLowerCase(),
         }),
       });
       if (res.ok) {
@@ -3320,8 +3334,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
-  const handleResetRekberDefaults = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin mereset seluruh konfigurasi Rekber Syariah ke standar resmi pabrik rekbersyariah.com?')) return;
+  const handleResetRekberDefaults = () => {
+    setShowResetRekberConfirmModal(true);
+  };
+
+  const executeResetRekberDefaults = async () => {
+    setShowResetRekberConfirmModal(false);
     setSavingSettings(true);
     try {
       const res = await fetch('/api/admin/settings/rekber/reset-defaults', {
@@ -5613,6 +5631,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           token={token}
           themeMode={themeMode}
           onNavigateToTab={(tab: string) => setActiveView(tab as any)}
+          onLogout={onLogout}
         />
       )}
 
@@ -13113,10 +13132,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </label>
                     <input
                       type="text"
-                      value={googleSettings.platform_official_whatsapp || ''}
+                      value={googleSettings.platform_official_whatsapp || googleSettings.contact_whatsapp || ''}
                       onChange={(e) => setGoogleSettings(prev => ({
                         ...prev,
-                        platform_official_whatsapp: e.target.value
+                        platform_official_whatsapp: e.target.value,
+                        contact_whatsapp: e.target.value
                       }))}
                       placeholder="Contoh: 62811220227"
                       className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
@@ -13144,10 +13164,11 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
                     </label>
                     <input
                       type="email"
-                      value={googleSettings.platform_official_email || ''}
+                      value={googleSettings.platform_official_email || googleSettings.contact_email || ''}
                       onChange={(e) => setGoogleSettings(prev => ({
                         ...prev,
-                        platform_official_email: e.target.value
+                        platform_official_email: e.target.value,
+                        contact_email: e.target.value
                       }))}
                       placeholder="Contoh: support@catavor.com"
                       className={`text-input ${isDark ? 'dark-input' : 'light-input'}`}
@@ -16186,6 +16207,135 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         >
           <ArrowUp size={20} strokeWidth={2.5} />
         </button>
+      )}
+      {/* Confirm Reset Rekber Defaults Bottom Sheet */}
+      {showResetRekberConfirmModal && (
+        <div
+          onClick={() => {
+            setShowResetRekberConfirmModal(false);
+            setResetRekberSheetDragY(0);
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 10050,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              backgroundColor: theme.surface,
+              borderTop: `1px solid ${theme.border}`,
+              borderTopLeftRadius: '1.25rem',
+              borderTopRightRadius: '1.25rem',
+              paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))',
+              transform: `translateY(${resetRekberSheetDragY}px)`,
+              transition: isResetRekberDragging ? 'none' : 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+              boxShadow: '0 -12px 36px rgba(0,0,0,0.35)'
+            }}
+          >
+            {/* Drag Handle & Header (Clean, No X button) */}
+            <div
+              onTouchStart={(e) => {
+                resetRekberStartYRef.current = e.touches[0].clientY;
+                setIsResetRekberDragging(true);
+              }}
+              onTouchMove={(e) => {
+                if (!isResetRekberDragging) return;
+                const delta = e.touches[0].clientY - resetRekberStartYRef.current;
+                setResetRekberSheetDragY(delta > 0 ? delta : delta * 0.15);
+              }}
+              onTouchEnd={() => {
+                if (!isResetRekberDragging) return;
+                setIsResetRekberDragging(false);
+                if (resetRekberSheetDragY > 70) {
+                  setShowResetRekberConfirmModal(false);
+                }
+                setResetRekberSheetDragY(0);
+              }}
+              style={{
+                touchAction: 'none',
+                padding: '0.65rem 1.25rem 0.9rem 1.25rem',
+                borderBottom: `1px solid ${theme.border}`
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
+                <div style={{ width: '40px', height: '4px', borderRadius: '9999px', backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '0.7rem', backgroundColor: 'rgba(245, 158, 11, 0.14)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <AlertTriangle size={19} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: theme.textPrimary }}>
+                    Reset Konfigurasi Rekber Syariah?
+                  </h3>
+                  <div style={{ fontSize: '0.72rem', color: theme.textMuted }}>
+                    Kembalikan seluruh template ke standar pabrik
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '1rem 1.25rem', overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
+              <p style={{ margin: 0, fontSize: '0.84rem', lineHeight: 1.55, color: theme.textSecondary }}>
+                Nomor WA partner, nama partner, URL resmi, logo, serta ke-7 template pesan per kategori akan dikembalikan ke standar resmi rekbersyariah.com.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', padding: '0 1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowResetRekberConfirmModal(false);
+                  setResetRekberSheetDragY(0);
+                }}
+                style={{
+                  flex: 1,
+                  minHeight: '44px',
+                  borderRadius: '0.7rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: 'transparent',
+                  color: theme.textSecondary,
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={executeResetRekberDefaults}
+                disabled={savingSettings}
+                style={{
+                  flex: 1,
+                  minHeight: '44px',
+                  borderRadius: '0.7rem',
+                  border: 'none',
+                  backgroundColor: '#d97706',
+                  color: '#ffffff',
+                  fontSize: '0.85rem',
+                  fontWeight: 800,
+                  cursor: savingSettings ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <RotateCcw size={15} />
+                <span>Ya, Reset Default</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

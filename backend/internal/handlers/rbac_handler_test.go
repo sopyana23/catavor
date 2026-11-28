@@ -501,6 +501,48 @@ func TestRBAC_FullLifecycleAndDomainGuards_SQLite(t *testing.T) {
 		}
 	}
 
+	// 2b. Unconditional exclusion of master_coupons + key allowlist + secret/plain/rich-text integrity
+	db.Create(&models.Setting{Key: "master_coupons", Value: `[{"code":"INTERNAL99"}]`})
+	if code, body := doReq("GET", "/api/admin/settings", "root", ""); code != 200 {
+		t.Fatalf("root GET /admin/settings want 200, got %d", code)
+	} else if data, _ := body["data"].(map[string]any); data != nil {
+		if _, leaked := data["master_coupons"]; leaked {
+			t.Fatal("DATA LEAK: master_coupons bocor di GET /api/admin/settings tanpa parameter exclude!")
+		}
+	}
+
+	for _, rejectedPayload := range []string{`{"master_coupons":"hack"}`, `{"unknown_evil_key":"1"}`} {
+		if code, body := doReq("POST", "/api/admin/settings", "root", rejectedPayload); code != 400 {
+			t.Fatalf("POST key non-allowlist (%s) harus ditolak 400 bahkan untuk superadmin, dapat %d (%v)", rejectedPayload, code, body)
+		}
+	}
+
+	wantSMTP := `P@ss<1>&'"x`
+	wantAPIKey := `key_a<b&c>d`
+	payloadJSON, _ := json.Marshal(map[string]string{
+		"smtp_password":    wantSMTP,
+		"aulaa_api_key":    wantAPIKey,
+		"store_title":      "Toko <script>alert(1)</script>Satu",
+		"terms_conditions": `<p>Aturan <b>resmi</b></p><script>bad()</script>`,
+	})
+	if code, body := doReq("POST", "/api/admin/settings", "root", string(payloadJSON)); code != 200 {
+		t.Fatalf("root POST allowed keys + secrets want 200, got %d (%v)", code, body)
+	}
+	assertSettingValue := func(key, want string) {
+		t.Helper()
+		var s models.Setting
+		if err := db.Where("key = ?", key).First(&s).Error; err != nil {
+			t.Fatalf("load setting %s: %v", key, err)
+		}
+		if s.Value != want {
+			t.Errorf("setting %s = %q, want %q", key, s.Value, want)
+		}
+	}
+	assertSettingValue("smtp_password", wantSMTP)
+	assertSettingValue("aulaa_api_key", wantAPIKey)
+	assertSettingValue("store_title", "Toko alert(1)Satu")
+	assertSettingValue("terms_conditions", "<p>Aturan <b>resmi</b></p>")
+
 	// 3. RequireAnyPermission mencatat RBAC_ACCESS_DENIED saat 403
 	if code, _ := doReq("GET", "/api/admin/orders-guard", "content", ""); code != 403 {
 		t.Fatalf("content GET /api/admin/orders-guard want 403, got %d", code)

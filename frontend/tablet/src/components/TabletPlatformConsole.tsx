@@ -2040,11 +2040,24 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     if (!token || !canManagePaymentSettings) return;
     setIsSavingSettings(true);
     try {
-      const payload = {
-        ...googleSettings,
+      const payload: Record<string, string> = {
+        payment_system_mode: googleSettings.payment_system_mode || 'gateway_aulaa',
+        payment_maintenance_title: googleSettings.payment_maintenance_title || 'Sistem Pembayaran Dalam Pemeliharaan',
+        payment_maintenance_message: googleSettings.payment_maintenance_message || 'Layanan transaksi pembayaran sedang dalam pemeliharaan berkala untuk peningkatan keandalan jaringan. Silakan hubungi admin atau coba beberapa saat lagi.',
         payment_qris_manual_image: (googleSettings.payment_qris_manual_image || '').trim(),
+        payment_qris_manual_merchant: googleSettings.payment_qris_manual_merchant || 'Catavor Official Store',
+        payment_bank_name: googleSettings.payment_bank_name || 'Bank Central Asia (BCA)',
+        payment_bank_account: googleSettings.payment_bank_account || '8830-1928-3920',
+        payment_bank_holder: googleSettings.payment_bank_holder || 'PT Catavor Media Digital',
+        payment_aulaa_channel_qris: googleSettings.payment_aulaa_channel_qris !== undefined ? googleSettings.payment_aulaa_channel_qris : '1',
+        payment_aulaa_channel_va: googleSettings.payment_aulaa_channel_va !== undefined ? googleSettings.payment_aulaa_channel_va : '1',
+        payment_aulaa_channel_cc: googleSettings.payment_aulaa_channel_cc !== undefined ? googleSettings.payment_aulaa_channel_cc : '0',
+        payment_aulaa_channel_ewallet: googleSettings.payment_aulaa_channel_ewallet !== undefined ? googleSettings.payment_aulaa_channel_ewallet : '1',
+        aulaa_base_url: googleSettings.aulaa_base_url || 'https://api.aulaa.co/v1',
+        aulaa_api_key: googleSettings.aulaa_api_key || '',
+        aulaa_webhook_secret: googleSettings.aulaa_webhook_secret || '',
       };
-      let res = await fetch('/api/settings', {
+      const res = await authFetch('/api/admin/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2052,23 +2065,14 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) {
-        res = await fetch('/api/admin/settings', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify(payload)
-        });
-      }
       if (res.ok) {
         savedQrisImageRef.current = (googleSettings.payment_qris_manual_image || '').trim();
         showToast('Konfigurasi sistem pembayaran berhasil disimpan!', 'success');
         fetchSettings();
         window.dispatchEvent(new CustomEvent('catavor_platform_settings_updated', { detail: payload }));
       } else {
-        showToast('Gagal menyimpan konfigurasi pembayaran', 'error');
+        const errData = await res.json().catch(() => null);
+        showToast(errData?.message || 'Gagal menyimpan konfigurasi pembayaran', 'error');
       }
     } catch {
       showToast('Terjadi kesalahan jaringan saat menyimpan', 'error');
@@ -2461,8 +2465,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     }
   };
 
-  const handleResetRekberDefaults = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin mereset seluruh konfigurasi Rekber Syariah ke standar resmi pabrik rekbersyariah.com?')) return;
+  const handleResetRekberDefaults = () => {
+    setShowResetRekberConfirmModal(true);
+  };
+
+  const executeResetRekberDefaults = async () => {
+    setShowResetRekberConfirmModal(false);
     setIsSavingSettings(true);
     try {
       const res = await authFetch('/api/admin/settings/rekber/reset-defaults', {
@@ -2510,7 +2518,7 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         rekber_template_plant: stripIcons(googleSettings.rekber_template_plant),
         rekber_template_fauna: stripIcons(googleSettings.rekber_template_fauna),
       };
-      let res = await authFetch('/api/admin/settings', {
+      const res = await authFetch('/api/admin/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2518,16 +2526,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
         },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) {
-        res = await authFetch('/api/settings', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify(payload)
-        });
-      }
       if (res.ok) {
         showToast('Konfigurasi Rekber Syariah berhasil disimpan!', 'success');
         fetchSettings();
@@ -2847,6 +2845,12 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
     isOpen: showAuditDetailModal,
     onClose: () => setShowAuditDetailModal(false),
     modalId: 'tablet_audit_detail_modal'
+  });
+  const [showResetRekberConfirmModal, setShowResetRekberConfirmModal] = useState<boolean>(false);
+  useModalBackHandler({
+    isOpen: showResetRekberConfirmModal,
+    onClose: () => setShowResetRekberConfirmModal(false),
+    modalId: 'tablet_reset_rekber_confirm'
   });
 
   // Debounce audit search input (350ms)
@@ -10441,30 +10445,6 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                             </p>
                           </div>
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={handleSaveContactSettings}
-                          disabled={isSavingSettings}
-                          style={{
-                            minHeight: '44px',
-                            padding: '0.65rem 1.25rem',
-                            borderRadius: '0.75rem',
-                            backgroundColor: '#2563eb',
-                            color: '#ffffff',
-                            border: 'none',
-                            fontSize: '0.84rem',
-                            fontWeight: 800,
-                            cursor: isSavingSettings ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)'
-                          }}
-                        >
-                          {isSavingSettings ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                          <span>{isSavingSettings ? 'Menyimpan...' : 'Simpan Kontak'}</span>
-                        </button>
                       </div>
 
                       {/* Inputs Card */}
@@ -12067,6 +12047,96 @@ export const TabletPlatformConsole: React.FC<TabletPlatformConsoleProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Confirm Reset Rekber Defaults Modal */}
+      {showResetRekberConfirmModal && (
+        <div
+          onClick={() => setShowResetRekberConfirmModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 10050,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '480px',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              borderRadius: '1rem',
+              padding: '1.5rem',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '0.75rem', backgroundColor: 'rgba(245, 158, 11, 0.14)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <AlertTriangle size={20} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Reset Konfigurasi Rekber Syariah?
+                </h3>
+                <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.84rem', lineHeight: 1.5, color: 'var(--text-muted)' }}>
+                  Seluruh nomor WA partner, nama, URL resmi, logo, dan 7 template pesan per kategori akan dikembalikan ke standar resmi pabrik rekbersyariah.com.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '0.65rem', borderTop: '1px solid var(--border-light)' }}>
+              <button
+                type="button"
+                onClick={() => setShowResetRekberConfirmModal(false)}
+                style={{
+                  minHeight: '44px',
+                  minWidth: '44px',
+                  padding: '0.6rem 1.15rem',
+                  borderRadius: '0.65rem',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-muted)',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={executeResetRekberDefaults}
+                disabled={isSavingSettings}
+                style={{
+                  minHeight: '44px',
+                  minWidth: '44px',
+                  padding: '0.6rem 1.25rem',
+                  borderRadius: '0.65rem',
+                  border: 'none',
+                  backgroundColor: '#d97706',
+                  color: '#ffffff',
+                  fontSize: '0.84rem',
+                  fontWeight: 800,
+                  cursor: isSavingSettings ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <RotateCcw size={15} />
+                <span>Ya, Reset Default</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

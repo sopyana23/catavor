@@ -66,6 +66,7 @@ interface AdminStoresManagementProps {
   token: string;
   themeMode?: 'dark' | 'light';
   onNavigateToTab?: (tab: string) => void;
+  onLogout?: () => void;
 }
 
 const formatBytes = (bytes: number): string => {
@@ -97,7 +98,8 @@ const formatCurrency = (val: number): string => {
 
 export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
   token,
-  themeMode = 'dark'
+  themeMode = 'dark',
+  onLogout
 }) => {
   const isDark = themeMode === 'dark';
 
@@ -153,6 +155,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
   const [selectedStoreID, setSelectedStoreID] = useState<number | null>(null);
   const [storeDetail, setStoreDetail] = useState<any | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
 
   // Modal Back Navigation Interceptor (Rule 2) - Intercepts hardware & gesture back
   useModalBackHandler({
@@ -266,6 +269,10 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
       });
 
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          onLogout?.();
+          throw new Error('Sesi berakhir atau tidak memiliki izin akses.');
+        }
         throw new Error(`Server status ${res.status}`);
       }
 
@@ -288,6 +295,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
     }
   }, [
     token,
+    onLogout,
     subTab,
     page,
     limit,
@@ -309,6 +317,7 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
   const fetchStoreDetail = async (id: number) => {
     setSelectedStoreID(id);
     setDetailLoading(true);
+    setDetailError('');
     setStoreDetail(null);
     try {
       const res = await fetch(`/api/admin/stores/${id}`, {
@@ -317,12 +326,19 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
           'Content-Type': 'application/json'
         }
       });
-      const json = await res.json();
-      if (json.success) {
+      if (res.status === 401 || res.status === 403) {
+        onLogout?.();
+        setDetailError('Sesi berakhir atau Anda tidak memiliki akses ke detail merchant ini.');
+        return;
+      }
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success) {
         setStoreDetail(json);
+      } else {
+        setDetailError(json?.message || `Gagal memuat detail merchant (status ${res.status}).`);
       }
     } catch {
-      // Fail silently
+      setDetailError('Gagal tersambung ke server saat memuat detail merchant.');
     } finally {
       setDetailLoading(false);
     }
@@ -2152,8 +2168,8 @@ export const AdminStoresManagement: React.FC<AdminStoresManagementProps> = ({
                   );
                 })()
               ) : (
-                <div style={{ padding: '1.5rem', textAlign: 'center', color: isDark ? '#9ca3af' : '#6b7280' }}>
-                  Gagal memuat detail merchant.
+                <div style={{ padding: '1.5rem', textAlign: 'center', color: detailError ? '#ef4444' : (isDark ? '#9ca3af' : '#6b7280'), fontSize: '0.85rem', fontWeight: detailError ? 600 : 400 }}>
+                  {detailError || 'Gagal memuat detail merchant.'}
                 </div>
               )}
             </div>

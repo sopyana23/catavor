@@ -178,12 +178,6 @@ export const TabletHelpdeskView: React.FC<TabletHelpdeskViewProps> = ({
   // Document Preview State
   const [docPreview, setDocPreview] = useState<DocumentPreviewData | null>(null);
 
-  useModalBackHandler({
-    isOpen: showOfficialContactModal,
-    onClose: () => setShowOfficialContactModal(false),
-    modalId: 'tablet-official-contact-modal',
-  });
-
   const syncTicketUrlParam = useCallback((id: string | number | 'new' | null) => {
     try {
       const url = new URL(window.location.href);

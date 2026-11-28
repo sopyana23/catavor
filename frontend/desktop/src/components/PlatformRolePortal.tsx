@@ -1451,6 +1451,8 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
   }, [orderPageProvidesTotals, orderPage.ready, orderPage.summary]);
   const [showCouponModal, setShowCouponModal] = useState<boolean>(false);
   useModalBackHandler({ isOpen: showCouponModal, onClose: () => setShowCouponModal(false), modalId: 'desktop-finance-coupon' });
+  const [showResetRekberConfirmModal, setShowResetRekberConfirmModal] = useState<boolean>(false);
+  useModalBackHandler({ isOpen: showResetRekberConfirmModal, onClose: () => setShowResetRekberConfirmModal(false), modalId: 'desktop-reset-rekber-confirm' });
   const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
   const [couponForm, setCouponForm] = useState({
     code: '',
@@ -3249,8 +3251,12 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
     }
   };
 
-  const handleResetRekberDefaults = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin mereset seluruh konfigurasi Rekber Syariah ke standar resmi pabrik rekbersyariah.com?')) return;
+  const handleResetRekberDefaults = () => {
+    setShowResetRekberConfirmModal(true);
+  };
+
+  const executeResetRekberDefaults = async () => {
+    setShowResetRekberConfirmModal(false);
     setSavingSettings(true);
     try {
       const res = await fetch('/api/admin/settings/rekber/reset-defaults', {
@@ -5543,6 +5549,7 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
           themeMode={themeMode}
           hideHeader={true}
           onNavigateToTab={(tab: string) => setActiveView(tab as any)}
+          onLogout={onLogout}
         />
       )}
 
@@ -17829,6 +17836,92 @@ export const PlatformRolePortal: React.FC<MobilePlatformRolePortalProps> = ({
         >
           <ArrowUp size={20} strokeWidth={2.5} />
         </button>
+      )}
+      {/* Confirm Reset Rekber Defaults Modal */}
+      {showResetRekberConfirmModal && (
+        <div
+          onClick={() => setShowResetRekberConfirmModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 10050,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.25rem'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              backgroundColor: theme.surface,
+              border: `1px solid ${theme.border}`,
+              borderRadius: '1rem',
+              padding: '1.5rem',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '0.75rem', backgroundColor: 'rgba(245, 158, 11, 0.14)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <AlertTriangle size={20} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: theme.textPrimary }}>
+                  Reset Konfigurasi Rekber Syariah?
+                </h3>
+                <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.84rem', lineHeight: 1.5, color: theme.textSecondary }}>
+                  Seluruh nomor WA partner, nama, URL resmi, logo, dan 7 template pesan per kategori akan dikembalikan ke standar resmi pabrik rekbersyariah.com.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', paddingTop: '0.5rem', borderTop: `1px solid ${theme.border}` }}>
+              <button
+                type="button"
+                onClick={() => setShowResetRekberConfirmModal(false)}
+                style={{
+                  padding: '0.55rem 1.1rem',
+                  borderRadius: '0.55rem',
+                  border: `1px solid ${theme.border}`,
+                  backgroundColor: 'transparent',
+                  color: theme.textSecondary,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={executeResetRekberDefaults}
+                disabled={savingSettings}
+                style={{
+                  padding: '0.55rem 1.2rem',
+                  borderRadius: '0.55rem',
+                  border: 'none',
+                  backgroundColor: '#d97706',
+                  color: '#ffffff',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  cursor: savingSettings ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <RotateCcw size={15} />
+                <span>Ya, Reset Default</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       </div>
     </PlatformAdminShell>

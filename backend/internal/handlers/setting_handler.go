@@ -141,6 +141,93 @@ func (h *SettingHandler) PublicIndex(c *fiber.Ctx) error {
 	})
 }
 
+// allowedAdminSettingKeys restricts POST /api/admin/settings writes to documented platform configuration keys,
+// explicitly excluding internal JSON blobs such as master_coupons or arbitrary unvalidated keys.
+var allowedAdminSettingKeys = map[string]bool{
+	"store_title":                   true,
+	"articles_enabled":              true,
+	"ads_enabled":                   true,
+	"ads_client_id":                 true,
+	"ads_auto_enabled":              true,
+	"ads_slot_header":               true,
+	"ads_slot_infeed":               true,
+	"ads_slot_product_detail":       true,
+	"ads_slot_bottom":               true,
+	"ads_slot_dashboard":            true,
+	"ads_test_mode":                 true,
+	"ads_txt_content":               true,
+	"ga_enabled":                    true,
+	"ga_measurement_id":             true,
+	"market_intel_enabled":          true,
+	"internal_sponsored_ads_enabled": true,
+	"payment_system_mode":           true,
+	"payment_maintenance_title":     true,
+	"payment_maintenance_message":   true,
+	"payment_qris_manual_image":     true,
+	"payment_qris_manual_merchant":  true,
+	"payment_bank_name":             true,
+	"payment_bank_account":          true,
+	"payment_bank_holder":           true,
+	"payment_aulaa_channel_qris":    true,
+	"payment_aulaa_channel_va":      true,
+	"payment_aulaa_channel_cc":      true,
+	"payment_aulaa_channel_ewallet": true,
+	"aulaa_base_url":                true,
+	"aulaa_api_key":                 true,
+	"aulaa_webhook_secret":          true,
+	"smtp_host":                     true,
+	"smtp_port":                     true,
+	"smtp_username":                 true,
+	"smtp_password":                 true,
+	"smtp_from_email":               true,
+	"smtp_from_name":                true,
+	"rekber_enabled":                true,
+	"rekber_partner_name":           true,
+	"rekber_website_url":            true,
+	"rekber_wa_number":              true,
+	"rekber_logo_url":               true,
+	"rekber_template_physical":      true,
+	"rekber_template_general":       true,
+	"rekber_template_food":          true,
+	"rekber_template_digital":       true,
+	"rekber_template_service":       true,
+	"rekber_template_plant":         true,
+	"rekber_template_fauna":         true,
+	"platform_official_whatsapp":    true,
+	"platform_official_email":       true,
+	"contact_whatsapp":              true,
+	"contact_email":                 true,
+	"maintenance_mode":              true,
+	"maintenance_message":           true,
+	"terms_conditions":              true,
+	"privacy_policy":                true,
+	"legal_entity_name":             true,
+	"legal_jurisdiction":            true,
+	"legal_warning_banner":          true,
+}
+
+var richTextSettingKeys = map[string]bool{
+	"terms_conditions":     true,
+	"privacy_policy":       true,
+	"legal_warning_banner": true,
+}
+
+func sanitizeSecretSettingValue(raw string, maxLen int) string {
+	cleaned := strings.Map(func(r rune) rune {
+		if r == 0 || r < 32 || r == 127 {
+			return -1
+		}
+		return r
+	}, raw)
+	if maxLen > 0 {
+		runes := []rune(cleaned)
+		if len(runes) > maxLen {
+			cleaned = string(runes[:maxLen])
+		}
+	}
+	return cleaned
+}
+
 // secretPlatformKeys lists sensitive credential keys that must be masked on GET /api/admin/settings
 // and protected against accidental overwrite by masked placeholder values ("****...").
 var secretPlatformKeys = map[string]bool{
@@ -234,10 +321,7 @@ func (h *SettingHandler) Index(c *fiber.Ctx) error {
 	}
 
 	var settings []models.Setting
-	query := h.db
-	if c.Query("exclude") == "master_coupons" {
-		query = query.Where("key <> ?", "master_coupons")
-	}
+	query := h.db.Where("key <> ?", "master_coupons")
 	if err := query.Find(&settings).Error; err != nil {
 		return fiber.NewError(500, "Gagal memuat pengaturan")
 	}
@@ -593,6 +677,25 @@ func (h *SettingHandler) Store(c *fiber.Ctx) error {
 		})
 	}
 
+	var disallowedKeys []string
+	for k := range payload {
+		sanitizedKey := security.SanitizePlainText(k, 100)
+		if sanitizedKey == "" {
+			continue
+		}
+		if !allowedAdminSettingKeys[sanitizedKey] {
+			disallowedKeys = append(disallowedKeys, sanitizedKey)
+		}
+	}
+	if len(disallowedKeys) > 0 {
+		sort.Strings(disallowedKeys)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"code":    "INVALID_SETTING_KEY",
+			"message": fmt.Sprintf("Kunci pengaturan tidak diizinkan: %s.", strings.Join(disallowedKeys, ", ")),
+		})
+	}
+
 	// Validasi izin domain untuk setiap key sebelum transaksi dimulai agar tidak terjadi partial write.
 	if !user.IsSuperadmin() && !rbac.HasPermission(user, "system:settings:manage") {
 		var forbiddenKeys []string
@@ -784,10 +887,14 @@ func (h *SettingHandler) persistPlatformSettings(c *fiber.Ctx, payload map[strin
 				continue
 			}
 			var sanitizedVal string
-			if sanitizedKey == "ads_txt_content" {
+			if secretPlatformKeys[sanitizedKey] {
+				sanitizedVal = sanitizeSecretSettingValue(v, 2048)
+			} else if richTextSettingKeys[sanitizedKey] {
+				sanitizedVal = security.SanitizeRichText(v, 50000)
+			} else if sanitizedKey == "ads_txt_content" {
 				sanitizedVal = security.SanitizePlainText(strings.ReplaceAll(v, "\r\n", "\n"), 10000)
 			} else {
-				sanitizedVal = security.SanitizeRichText(v, 10000)
+				sanitizedVal = security.SanitizePlainText(v, 10000)
 			}
 
 			if isMonetizationKey(sanitizedKey) {

@@ -878,4 +878,89 @@ func TestStoreMasterOptions_Transaction_SQLite(t *testing.T) {
 	})
 }
 
+func TestAdminListStores_NullDormancyAndDetailRedaction_SQLite(t *testing.T) {
+	db := newTestDB(t)
+	app := storeApp(t, db)
+
+	owner := models.User{ID: 201, Name: "Owner Null", Email: "null@example.com"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("seed owner: %v", err)
+	}
+
+	sNull := models.Store{
+		UserID:                        owner.ID,
+		Slug:                          "toko-null-dormancy",
+		StoreTitle:                    "Toko Null Dormancy",
+		Plan:                          "free",
+		DormancyStatus:                "active",
+		CustomDomainVerificationToken: "secret-domain-verify-token-999",
+		ReactivationToken:             "secret-reactivate-token-888",
+	}
+	sSusp := models.Store{
+		UserID:         owner.ID,
+		Slug:           "toko-susp-count",
+		StoreTitle:     "Toko Suspended Count",
+		Plan:           "free",
+		DormancyStatus: "suspended",
+		IsSuspended:    true,
+	}
+	sBan := models.Store{
+		UserID:         owner.ID,
+		Slug:           "toko-ban-count",
+		StoreTitle:     "Toko Banned Count",
+		Plan:           "free",
+		DormancyStatus: "banned",
+		IsBlacklisted:  true,
+	}
+	db.Create(&sNull)
+	db.Create(&sSusp)
+	db.Create(&sBan)
+
+	// Force dormancy_status NULL di SQLite untuk verifikasi fallback COALESCE.
+	if err := db.Exec("UPDATE stores SET dormancy_status = NULL WHERE id = ?", sNull.ID).Error; err != nil {
+		t.Fatalf("force null dormancy_status: %v", err)
+	}
+
+	t.Run("null_dormancy_counted_as_active_and_suspended_split", func(t *testing.T) {
+		code, resp := storeReq(t, app, "GET", "/admin/stores?status=active", "", map[string]string{"X-Test-Actor": "staff"})
+		if code != 200 {
+			t.Fatalf("status = %d, want 200 (resp: %v)", code, resp)
+		}
+		stats, ok := resp["stats"].(map[string]any)
+		if !ok {
+			t.Fatalf("missing stats object: %v", resp)
+		}
+		if int(stats["total_active"].(float64)) != 1 {
+			t.Errorf("total_active = %v, want 1", stats["total_active"])
+		}
+		if int(stats["total_suspended"].(float64)) != 1 {
+			t.Errorf("total_suspended = %v, want 1", stats["total_suspended"])
+		}
+		if int(stats["total_banned"].(float64)) != 2 {
+			t.Errorf("total_banned = %v, want 2 (suspended + banned combined tab count)", stats["total_banned"])
+		}
+		items, _ := resp["data"].([]any)
+		if len(items) != 1 || items[0].(map[string]any)["slug"] != "toko-null-dormancy" {
+			t.Errorf("expected store with NULL dormancy_status to appear in status=active list, got %v", resp["data"])
+		}
+	})
+
+	t.Run("store_detail_redacts_internal_tokens", func(t *testing.T) {
+		code, resp := storeReq(t, app, "GET", "/admin/stores/"+itoa(sNull.ID), "", map[string]string{"X-Test-Actor": "staff"})
+		if code != 200 {
+			t.Fatalf("status = %d, want 200 (resp: %v)", code, resp)
+		}
+		data, ok := resp["data"].(map[string]any)
+		if !ok {
+			t.Fatalf("missing data object: %v", resp)
+		}
+		if tok, exists := data["custom_domain_verification_token"]; exists && tok != "" {
+			t.Errorf("SECURITY LEAK: custom_domain_verification_token exposed in AdminGetStoreDetail: %v", tok)
+		}
+		if tok, exists := data["reactivation_token"]; exists && tok != "" {
+			t.Errorf("SECURITY LEAK: reactivation_token exposed in AdminGetStoreDetail: %v", tok)
+		}
+	})
+}
+
 
