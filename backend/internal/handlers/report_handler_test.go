@@ -593,6 +593,16 @@ func TestReportIndexAndShow_BatchedActiveCountAndProductIDContext(t *testing.T) 
 		t.Fatalf("expected catalog active_report_count=1, got %v", activeCounts)
 	}
 
+	// Global target breakdown metrics must remain accurate even when Index query is target-filtered and paginated
+	filteredRes := call(t, app, "GET", "/api/admin/reports?target_type=item&page=1&limit=1", nil)
+	if filteredRes.Status != http.StatusOK {
+		t.Fatalf("Filtered Index status=%d raw=%s", filteredRes.Status, filteredRes.Raw)
+	}
+	metricsMap, _ := filteredRes.Body["metrics"].(map[string]any)
+	if metricsMap["item_count"] != float64(3) || metricsMap["catalog_count"] != float64(1) || metricsMap["total"] != float64(4) {
+		t.Fatalf("expected global metrics item_count=3 catalog_count=1 total=4, got %v", metricsMap)
+	}
+
 	shwRes := call(t, app, "GET", fmt.Sprintf("/api/admin/reports/%s", itemRpt1.ReportNumber), nil)
 	if shwRes.Status != http.StatusOK {
 		t.Fatalf("Show status=%d raw=%s", shwRes.Status, shwRes.Raw)
@@ -609,7 +619,7 @@ func TestReportIndexAndShow_BatchedActiveCountAndProductIDContext(t *testing.T) 
 
 func TestReportCreate_ItemRequiresTargetProductID(t *testing.T) {
 	db := newReportTestDB(t)
-	admin, storeA, _, _, _ := seedReportFixtures(t, db)
+	admin, storeA, _, prodA, _ := seedReportFixtures(t, db)
 	app := setupReportTestApp(t, db, &admin)
 
 	res := call(t, app, "POST", "/api/reports", map[string]any{
@@ -624,6 +634,18 @@ func TestReportCreate_ItemRequiresTargetProductID(t *testing.T) {
 	}
 	if code, _ := res.Body["code"].(string); code != "ITEM_ID_REQUIRED" {
 		t.Fatalf("expected code=ITEM_ID_REQUIRED, got %q (%s)", code, res.Raw)
+	}
+
+	badEmailRes := call(t, app, "POST", "/api/reports", map[string]any{
+		"target_type":     "item",
+		"store_id":        storeA.ID,
+		"product_id":      prodA.ID,
+		"reason_category": "scam",
+		"reason_label":    "Penipuan",
+		"reporter_email":  "bukan-email-valid",
+	})
+	if badEmailRes.Status != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid reporter_email, got %d (%s)", badEmailRes.Status, badEmailRes.Raw)
 	}
 }
 

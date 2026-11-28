@@ -65,19 +65,24 @@ func GetReportMetrics(db *gorm.DB) map[string]int64 {
 	ctx := context.Background()
 	cacheKey := "catavor:reports:metrics"
 
-	// 1. Try Redis cache
+	// 1. Try Redis cache (require new item_count/catalog_count keys so stale caches refresh cleanly)
 	if database.IsRedisAvailable() && database.RedisClient != nil {
 		val, err := database.RedisClient.Get(ctx, cacheKey).Result()
 		if err == nil && val != "" {
 			var cached map[string]int64
 			if err := json.Unmarshal([]byte(val), &cached); err == nil {
-				return cached
+				if _, hasItem := cached["item_count"]; hasItem {
+					if _, hasCat := cached["catalog_count"]; hasCat {
+						return cached
+					}
+				}
 			}
 		}
 	}
 
 	// 2. Direct DB Aggregation fallback
 	var pendingCount, investigatingCount, reReviewCount, actionCount, bannedCount, dismissedCount, resolvedCount, totalCount int64
+	var itemCount, catalogCount int64
 	db.Model(&models.Report{}).Where("status = ?", "pending").Count(&pendingCount)
 	db.Model(&models.Report{}).Where("status = ?", "investigating").Count(&investigatingCount)
 	db.Model(&models.Report{}).Where("status = ?", "re_review").Count(&reReviewCount)
@@ -85,6 +90,8 @@ func GetReportMetrics(db *gorm.DB) map[string]int64 {
 	db.Model(&models.Report{}).Where("status = ? OR action_taken = 'catalog_banned'", "banned").Count(&bannedCount)
 	db.Model(&models.Report{}).Where("status = ?", "dismissed").Count(&dismissedCount)
 	db.Model(&models.Report{}).Where("status = ?", "resolved").Count(&resolvedCount)
+	db.Model(&models.Report{}).Where("target_type NOT IN ?", []string{"catalog", "store"}).Count(&itemCount)
+	db.Model(&models.Report{}).Where("target_type IN ?", []string{"catalog", "store"}).Count(&catalogCount)
 	db.Model(&models.Report{}).Count(&totalCount)
 
 	metrics := map[string]int64{
@@ -95,6 +102,8 @@ func GetReportMetrics(db *gorm.DB) map[string]int64 {
 		"banned":        bannedCount,
 		"dismissed":     dismissedCount,
 		"resolved":      resolvedCount,
+		"item_count":    itemCount,
+		"catalog_count": catalogCount,
 		"total":         totalCount,
 	}
 
